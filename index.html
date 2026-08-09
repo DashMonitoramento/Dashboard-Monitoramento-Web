@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Entregas · Da Terrinha Alimentos</title>
+<meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
+<link rel="icon" href="assets/img/logo-mascote.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login-overlay" class="login-overlay">
+  <div class="login-split">
+    <div class="login-split__form">
+      <div class="login-card__logo"><img src="assets/img/logo-mascote.png" alt="Da Terrinha Alimentos"></div>
+      <h1>Faça seu login<span class="login-dot">.</span></h1>
+      <p class="subtitle">Da Terrinha Alimentos · Painel de indicadores logísticos</p>
+      <form id="login-form" novalidate>
+        <div class="login-field">
+          <label for="login-username">Usuário</label>
+          <div class="login-field__gradient-border">
+            <input type="text" id="login-username" autocomplete="username" placeholder="seu.usuario" required>
+          </div>
+        </div>
+        <div class="login-field">
+          <label for="login-password">Senha</label>
+          <div class="login-field__gradient-border">
+            <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••" required>
+          </div>
+        </div>
+        <p class="login-error" id="login-error" role="alert"></p>
+        <button type="submit" class="btn login-submit btn--block">Entrar</button>
+      </form>
+      <p class="login-hint">Demonstração: qualquer usuário e senha são aceitos.</p>
+    </div>
+    <div class="login-split__image"></div>
+  </div>
+</div>
+
+<!-- ===================== LOADING ===================== -->
+<div id="loading-overlay" class="loading-overlay" aria-live="assertive">
+  <div class="spinner" role="progressbar" aria-label="Carregando"></div>
+  <p class="loading-overlay__text">Carregando dados...</p>
+</div>
+
+<div id="app">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="app-header">
+    <div class="app-header__left">
+      <button id="btn-mobile-menu" class="icon-btn" aria-label="Abrir menu">☰</button>
+      <button id="btn-sidebar-toggle" class="icon-btn" aria-label="Retrair menu lateral">☰</button>
+      <div class="app-header__logo">
+        <img src="assets/img/logo-mascote.png" alt="Logo Da Terrinha Alimentos">
+        <div>
+          <div class="app-header__company">Da Terrinha Alimentos</div>
+          <div class="app-header__subtitle">Dashboard de Entregas</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-header__right">
+      <div class="header-clock">
+        <strong id="clock">—</strong>
+        <span>Última atualização: <span id="last-updated">—</span></span>
+      </div>
+      <button id="btn-theme-toggle" class="icon-btn" aria-label="Alternar tema claro/escuro" aria-pressed="false" title="Alternar tema">🌗</button>
+      <div class="user-chip">
+        <span class="user-chip__avatar">👤</span>
+        <span id="current-user">—</span>
+      </div>
+      <button id="btn-logout" class="icon-btn" title="Sair" aria-label="Sair">⏻</button>
+    </div>
+  </header>
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <nav id="sidebar" class="sidebar" aria-label="Filtros e navegação">
+    <div class="sidebar-section">
+      <div class="sidebar-section__title">Fonte de dados</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button id="btn-refresh-data" class="btn btn--outline-orange btn--block">🔄 Atualizar dados</button>
+      </div>
+      <div class="data-file-list">
+        <div class="data-file-chip" title="Base principal — aba NF ABERTA (BI STATUS ENTREGAS)">📄 sample-data.csv</div>
+        <div class="data-file-chip" title="Base expandida — arquivo RASCUNHO/Bluesoft (Status da Entrega)">📄 sample-data-bluesoft.csv</div>
+        <div class="data-file-chip" title="Vendedor por cliente — aba Vendedores">📄 sample-data-clientes.csv</div>
+        <div class="data-file-chip" title="Data agendada, Status e Reagenda — sua planilha de agendamentos">📄 sample-data-agendamentos.csv</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section__title">Filtros</div>
+      <div class="filters-panel">
+        <div class="filter-field">
+          <label for="filter-data-inicio">Data início</label>
+          <input type="date" id="filter-data-inicio" class="filter-field__date">
+        </div>
+        <div class="filter-field">
+          <label for="filter-data-fim">Data fim</label>
+          <input type="date" id="filter-data-fim" class="filter-field__date">
+        </div>
+        <div class="filter-row">
+          <div class="filter-field">
+            <label for="filter-mes">Mês</label>
+            <select id="filter-mes">
+              <option value="">Todos</option>
+              <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+              <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+              <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+              <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filter-ano">Ano</label>
+            <select id="filter-ano"><option value="">Todos</option></select>
+          </div>
+        </div>
+        <div class="filter-field">
+          <label for="filter-status">Status da nota</label>
+          <select id="filter-status"><option value="">Todos os status</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filter-transportadora">Transportadora</label>
+          <select id="filter-transportadora"><option value="">Todas as transportadoras</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filter-motorista">Motorista</label>
+          <select id="filter-motorista"><option value="">Todos os motoristas</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filter-cliente">Cliente</label>
+          <select id="filter-cliente"><option value="">Todos os clientes</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filter-cidade">Cidade</label>
+          <select id="filter-cidade"><option value="">Todas as cidades</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filter-vendedor">Vendedor(a)</label>
+          <select id="filter-vendedor"><option value="">Todos os vendedores</option></select>
+        </div>
+        <button id="btn-toggle-vendedor-sem-cliente" class="btn btn--ghost btn--block" type="button" aria-pressed="true">
+          🧹 Ocultar vendedores sem cliente
+        </button>
+        <div class="filter-field">
+          <label for="filter-busca">Busca rápida</label>
+          <input type="search" id="filter-busca" placeholder="NF, cliente, motorista...">
+        </div>
+        <button id="btn-reset-filters" class="btn btn--ghost btn--block">Limpar filtros</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section__title">Legenda de status</div>
+      <ul class="legend-status">
+        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-success)"></span>Entregue</li>
+        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-warning)"></span>Dentro do prazo</li>
+        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-danger)"></span>Pendente / Vencido</li>
+        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-neutral)"></span>Sem informação</li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ===================== CONTEÚDO PRINCIPAL ===================== -->
+  <main class="main">
+    <div class="main-content">
+
+      <!-- KPIs -->
+      <section class="kpi-grid" aria-label="Indicadores principais">
+        <article class="kpi-card kpi-card--success">
+          <span class="kpi-card__label">Notas entregues</span>
+          <span class="kpi-card__value" id="kpi-entregues-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-entregues">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--danger">
+          <span class="kpi-card__label">Notas em aberto</span>
+          <span class="kpi-card__value" id="kpi-abertas-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-abertas">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--neutral">
+          <span class="kpi-card__label">Aguardando agendamento</span>
+          <span class="kpi-card__value" id="kpi-aguardando-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-aguardando">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--secondary">
+          <span class="kpi-card__label">% Entregas realizadas</span>
+          <span class="kpi-card__value" id="kpi-percentual">0%</span>
+        </article>
+        <article class="kpi-card kpi-card--primary kpi-card--actions">
+          <span class="kpi-card__label">Ações</span>
+          <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
+            <button id="btn-print-dashboard" class="btn" style="padding:6px 10px; font-size:12px;">🖨️ Imprimir</button>
+            <button id="btn-export-pdf" class="btn" style="padding:6px 10px; font-size:12px;">📄 PDF</button>
+          </div>
+        </article>
+      </section>
+
+      <!-- GRÁFICOS -->
+      <section class="charts-grid charts-grid--donuts" aria-label="Distribuições">
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por status</h2></div>
+          <div class="chart-root chart-root--donut" id="chart-status"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por prazo</h2></div>
+          <div class="chart-root chart-root--donut" id="chart-prazo"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Situação de agendamento</h2></div>
+          <div class="chart-root chart-root--donut" id="chart-agendamento"></div>
+        </div>
+      </section>
+
+      <section class="charts-grid" aria-label="Gráficos">
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Notas por transportadora</h2></div>
+          <div class="chart-root" id="chart-transportadora"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card__header">
+            <h2 class="chart-card__title">Ranking (top 10)</h2>
+            <select id="ranking-dimension">
+              <option value="cliente">Por cliente</option>
+              <option value="motorista">Por motorista</option>
+              <option value="vendedor">Por vendedor</option>
+              <option value="transportadora">Por transportadora</option>
+            </select>
+          </div>
+          <div class="chart-root" id="chart-ranking"></div>
+        </div>
+
+        <div class="chart-card chart-card--wide">
+          <div class="chart-card__header">
+            <h2 class="chart-card__title">Ranking de transportadoras — entregues vs. vencidas</h2>
+            <select id="ranking-transportadoras-filtro">
+              <option value="melhores">15 melhores (maior taxa de entrega)</option>
+              <option value="piores">15 piores (menor taxa de entrega)</option>
+            </select>
+          </div>
+          <div class="chart-root" id="chart-ranking-transportadoras"></div>
+          <p class="chart-card__hint">Considera apenas transportadoras com 3 ou mais notas no período filtrado.</p>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Evolução mensal (valor faturado)</h2></div>
+          <div class="chart-root" id="chart-evolucao-mensal"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Comparativo entre períodos (faturamento por dia)</h2></div>
+          <div class="chart-root" id="chart-comparativo"></div>
+        </div>
+      </section>
+
+      <!-- TABELA -->
+      <section class="table-card" aria-label="Tabela de registros">
+        <div class="table-card__header">
+          <h2 class="chart-card__title">Registros detalhados</h2>
+          <div class="table-search">
+            🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
+          </div>
+          <div class="table-actions">
+            <button id="btn-export-csv" class="btn">⬇️ Exportar CSV</button>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="data-table" id="data-table">
+            <thead>
+              <tr>
+                <th data-field="nf">NF</th>
+                <th data-field="cliente">Cliente</th>
+                <th data-field="transportadora">Transportadora</th>
+                <th data-field="motorista">Motorista</th>
+                <th data-field="vendedor">Vendedor</th>
+                <th data-field="cidade">Cidade/UF</th>
+                <th data-field="status">Status</th>
+                <th data-field="prazoStatus">Prazo</th>
+                <th data-field="situacao">Situação</th>
+                <th data-field="valorNF">Valor NF</th>
+                <th data-field="dataEntrega">Data entrega</th>
+                <th data-field="dataAgendamento">Data agendada</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="table-footer">
+          <span id="table-info">Nenhum registro</span>
+          <div class="pagination">
+            <label for="table-page-size">Linhas por página:</label>
+            <select id="table-page-size">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <button id="table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="table-page-label">Página 1 de 1</span>
+            <button id="table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
+        </div>
+      </section>
+
+      <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
+        Dashboard de Entregas · Da Terrinha Alimentos — dados atualizados automaticamente a partir da planilha.
+      </footer>
+    </div>
+  </main>
+</div>
+
+<script src="js/utils.js"></script>
+<script src="js/data.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/script.js"></script>
+</body>
+</html>
