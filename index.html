@@ -15,25 +15,83 @@
   <div class="login-split">
     <div class="login-split__form">
       <div class="login-card__logo"><img src="assets/img/logo-mascote.png" alt="Da Terrinha Alimentos"></div>
-      <h1>Faça seu login<span class="login-dot">.</span></h1>
-      <p class="subtitle">Da Terrinha Alimentos · Painel de indicadores logísticos</p>
-      <form id="login-form" novalidate>
-        <div class="login-field">
-          <label for="login-username">Usuário</label>
-          <div class="login-field__gradient-border">
-            <input type="text" id="login-username" autocomplete="username" placeholder="seu.usuario" required>
+
+      <!-- ---------- LOGIN ---------- -->
+      <div id="auth-view-login" class="auth-view">
+        <h1>Faça seu login<span class="login-dot">.</span></h1>
+        <p class="subtitle">Da Terrinha Alimentos · Painel de indicadores logísticos</p>
+        <form id="login-form" novalidate>
+          <div class="login-field">
+            <label for="login-email">E-mail</label>
+            <div class="login-field__gradient-border">
+              <input type="email" id="login-email" autocomplete="username" placeholder="seu@email.com" required>
+            </div>
           </div>
-        </div>
-        <div class="login-field">
-          <label for="login-password">Senha</label>
-          <div class="login-field__gradient-border">
-            <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••" required>
+          <div class="login-field">
+            <label for="login-password">Senha</label>
+            <div class="login-field__gradient-border">
+              <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••" required>
+            </div>
           </div>
+          <p class="login-error" id="login-error" role="alert"></p>
+          <button type="submit" class="btn login-submit btn--block">Entrar</button>
+        </form>
+        <div class="auth-links">
+          <a href="#" id="link-forgot-password">Esqueci minha senha</a>
+          <a href="#" id="link-show-register">Criar conta</a>
         </div>
-        <p class="login-error" id="login-error" role="alert"></p>
-        <button type="submit" class="btn login-submit btn--block">Entrar</button>
-      </form>
-      <p class="login-hint">Demonstração: qualquer usuário e senha são aceitos.</p>
+      </div>
+
+      <!-- ---------- CRIAR CONTA ---------- -->
+      <div id="auth-view-register" class="auth-view" hidden>
+        <h1>Criar conta<span class="login-dot">.</span></h1>
+        <p class="subtitle">Cadastre-se para acessar o dashboard.</p>
+        <form id="register-form" novalidate>
+          <div class="login-field">
+            <label for="register-nome">Nome</label>
+            <div class="login-field__gradient-border">
+              <input type="text" id="register-nome" autocomplete="name" placeholder="Seu nome" required>
+            </div>
+          </div>
+          <div class="login-field">
+            <label for="register-email">E-mail</label>
+            <div class="login-field__gradient-border">
+              <input type="email" id="register-email" autocomplete="username" placeholder="seu@email.com" required>
+            </div>
+          </div>
+          <div class="login-field">
+            <label for="register-password">Senha</label>
+            <div class="login-field__gradient-border">
+              <input type="password" id="register-password" autocomplete="new-password" placeholder="Mínimo 6 caracteres" minlength="6" required>
+            </div>
+          </div>
+          <p class="login-error" id="register-error" role="alert"></p>
+          <button type="submit" class="btn login-submit btn--block">Criar conta</button>
+        </form>
+        <div class="auth-links">
+          <a href="#" id="link-show-login-from-register">Já tenho conta, entrar</a>
+        </div>
+      </div>
+
+      <!-- ---------- ESQUECI SENHA ---------- -->
+      <div id="auth-view-forgot" class="auth-view" hidden>
+        <h1>Recuperar senha<span class="login-dot">.</span></h1>
+        <p class="subtitle">Enviaremos um link de redefinição para seu e-mail.</p>
+        <form id="forgot-form" novalidate>
+          <div class="login-field">
+            <label for="forgot-email">E-mail</label>
+            <div class="login-field__gradient-border">
+              <input type="email" id="forgot-email" autocomplete="username" placeholder="seu@email.com" required>
+            </div>
+          </div>
+          <p class="login-error" id="forgot-error" role="alert"></p>
+          <p class="login-success" id="forgot-success" hidden></p>
+          <button type="submit" class="btn login-submit btn--block">Enviar link de redefinição</button>
+        </form>
+        <div class="auth-links">
+          <a href="#" id="link-show-login-from-forgot">Voltar ao login</a>
+        </div>
+      </div>
     </div>
     <div class="login-split__image"></div>
   </div>
@@ -315,6 +373,7 @@
   </main>
 </div>
 
+<script type="module" src="js/firebase-init.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/data.js"></script>
 <script src="js/charts.js"></script>

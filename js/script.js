@@ -15,12 +15,12 @@ const DEFAULT_CLIENTES_URL = 'assets/data/sample-data-clientes.csv';
 const DEFAULT_AGENDAMENTOS_URL = 'assets/data/sample-data-agendamentos.csv';
 
 /* ============================================================
- * AUTENTICAÇÃO (demonstrativa — client-side)
+ * AUTENTICAÇÃO — Firebase Authentication (e-mail/senha)
  * ------------------------------------------------------------
- * Este login é apenas uma barreira de interface para a demonstração.
- * Para produção, substitua `fakeAuthenticate()` por uma chamada real
- * (fetch para /api/login, Firebase Auth, Azure AD, etc.). O restante
- * da aplicação só depende de `Auth.getUser()`, então a troca é isolada.
+ * window.Firebase (definido em firebase-init.js, um módulo ES separado) expõe as funções
+ * reais de cadastro/login/redefinição de senha. Esse módulo só guarda um cache leve do
+ * usuário atual para exibição — quem decide se está logado é o próprio Firebase, via
+ * onAuthChange, não esse cache.
  * ============================================================ */
 
 const Auth = (() => {
@@ -32,18 +32,66 @@ const Auth = (() => {
   }
 
   function setUser(user) { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user)); }
-  function logout() { sessionStorage.removeItem(STORAGE_KEY); location.reload(); }
+  function clearUser() { sessionStorage.removeItem(STORAGE_KEY); }
 
-  /** Simulação de autenticação. Aceita qualquer usuário/senha não vazios. */
-  async function fakeAuthenticate(username, password) {
-    await new Promise(r => setTimeout(r, 500)); // simula latência de rede
-    if (!username.trim() || !password.trim()) {
-      throw new Error('Informe usuário e senha.');
-    }
-    return { name: username.trim(), loginAt: new Date().toISOString() };
+  function waitFirebase() {
+    if (window.Firebase) return Promise.resolve(window.Firebase);
+    return new Promise(resolve => {
+      window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+    });
   }
 
-  return { getUser, setUser, logout, fakeAuthenticate };
+  /** Chama onAuthChange assim que o Firebase estiver pronto; callback roda a cada mudança. */
+  async function onAuthChange(callback) {
+    const fb = await waitFirebase();
+    return fb.onAuthChange(callback);
+  }
+
+  async function login(email, password) {
+    const fb = await waitFirebase();
+    const credential = await fb.signIn(email.trim(), password);
+    const user = { name: credential.user.displayName || credential.user.email, email: credential.user.email, uid: credential.user.uid };
+    setUser(user);
+    return user;
+  }
+
+  async function register(nome, email, password) {
+    const fb = await waitFirebase();
+    const credential = await fb.createUser(email.trim(), password, nome.trim());
+    const user = { name: nome.trim(), email: credential.user.email, uid: credential.user.uid };
+    setUser(user);
+    return user;
+  }
+
+  async function forgotPassword(email) {
+    const fb = await waitFirebase();
+    await fb.sendPasswordReset(email.trim());
+  }
+
+  async function logout() {
+    const fb = await waitFirebase();
+    await fb.signOutUser();
+    clearUser();
+  }
+
+  /** Traduz os códigos de erro do Firebase Auth pra mensagens em português. */
+  function friendlyError(err) {
+    const map = {
+      'auth/invalid-email': 'E-mail inválido.',
+      'auth/user-disabled': 'Esta conta foi desativada.',
+      'auth/user-not-found': 'Não encontramos uma conta com esse e-mail.',
+      'auth/wrong-password': 'Senha incorreta.',
+      'auth/invalid-credential': 'E-mail ou senha incorretos.',
+      'auth/email-already-in-use': 'Já existe uma conta com esse e-mail.',
+      'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
+      'auth/missing-password': 'Informe a senha.',
+      'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco e tente de novo.',
+      'auth/network-request-failed': 'Falha de conexão. Verifique sua internet.'
+    };
+    return map[err.code] || err.message || 'Ocorreu um erro. Tente novamente.';
+  }
+
+  return { getUser, setUser, clearUser, onAuthChange, login, register, forgotPassword, logout, friendlyError };
 })();
 
 /* ============================================================
@@ -248,44 +296,91 @@ function bindGlobalErrorHandlers() {
 
 function initLogin() {
   const overlay = document.getElementById('login-overlay');
-  const form = document.getElementById('login-form');
-  const errorEl = document.getElementById('login-error');
   const userChip = document.getElementById('current-user');
 
-  const existing = Auth.getUser();
-  if (existing) {
-    overlay.classList.add('login-overlay--hidden');
-    userChip.textContent = existing.name;
-    bootstrapApp();
-    return;
+  const views = {
+    login: document.getElementById('auth-view-login'),
+    register: document.getElementById('auth-view-register'),
+    forgot: document.getElementById('auth-view-forgot')
+  };
+  function showView(name) {
+    Object.entries(views).forEach(([key, el]) => { el.hidden = key !== name; });
   }
 
-  overlay.classList.remove('login-overlay--hidden');
+  document.getElementById('link-forgot-password').addEventListener('click', (e) => { e.preventDefault(); showView('forgot'); });
+  document.getElementById('link-show-register').addEventListener('click', (e) => { e.preventDefault(); showView('register'); });
+  document.getElementById('link-show-login-from-register').addEventListener('click', (e) => { e.preventDefault(); showView('login'); });
+  document.getElementById('link-show-login-from-forgot').addEventListener('click', (e) => { e.preventDefault(); showView('login'); });
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errorEl.textContent = '';
-    const username = document.getElementById('login-username').value;
-    const password = document.getElementById('login-password').value;
-    const submitBtn = form.querySelector('button[type="submit"]');
+  /** Amarra um formulário de auth: desabilita o botão durante a chamada e mostra erro amigável. */
+  function bindAuthForm(formId, errorId, loadingLabel, idleLabel, action) {
+    const form = document.getElementById(formId);
+    const errorEl = document.getElementById(errorId);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+      const btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = loadingLabel;
+      try {
+        await action(form);
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = Auth.friendlyError(err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = idleLabel;
+      }
+    });
+  }
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Entrando...';
-    try {
-      const user = await Auth.fakeAuthenticate(username, password);
+  bindAuthForm('login-form', 'login-error', 'Entrando...', 'Entrar', async () => {
+    await Auth.login(
+      document.getElementById('login-email').value,
+      document.getElementById('login-password').value
+    );
+    // Auth.onAuthChange (abaixo) cuida de esconder o overlay e iniciar o app.
+  });
+
+  bindAuthForm('register-form', 'register-error', 'Criando conta...', 'Criar conta', async () => {
+    const user = await Auth.register(
+      document.getElementById('register-nome').value,
+      document.getElementById('register-email').value,
+      document.getElementById('register-password').value
+    );
+    // O onAuthChange dispara antes do nome (updateProfile) terminar de gravar no Firebase e
+    // mostra o e-mail por engano — corrige aqui direto com o nome que a pessoa acabou de digitar.
+    userChip.textContent = user.name;
+  });
+
+  bindAuthForm('forgot-form', 'forgot-error', 'Enviando...', 'Enviar link de redefinição', async (form) => {
+    const successEl = document.getElementById('forgot-success');
+    successEl.hidden = true;
+    await Auth.forgotPassword(document.getElementById('forgot-email').value);
+    successEl.textContent = 'Link enviado! Confira sua caixa de entrada (e o spam).';
+    successEl.hidden = false;
+    form.reset();
+  });
+
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await Auth.logout();
+    location.reload();
+  });
+
+  // Fonte da verdade de "está logado ou não": o próprio Firebase, não um cache local.
+  Auth.onAuthChange((fbUser) => {
+    if (fbUser) {
+      const user = { name: fbUser.displayName || fbUser.email, email: fbUser.email, uid: fbUser.uid };
       Auth.setUser(user);
       userChip.textContent = user.name;
       overlay.classList.add('login-overlay--hidden');
       bootstrapApp();
-    } catch (err) {
-      errorEl.textContent = err.message;
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Entrar';
+    } else {
+      Auth.clearUser();
+      showView('login');
+      overlay.classList.remove('login-overlay--hidden');
     }
   });
-
-  document.getElementById('btn-logout').addEventListener('click', Auth.logout);
 }
 
 /* ============================================================
