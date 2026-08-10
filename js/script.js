@@ -50,7 +50,10 @@ const Auth = (() => {
   async function login(email, password) {
     const fb = await waitFirebase();
     const credential = await fb.signIn(email.trim(), password);
-    const user = { name: credential.user.displayName || credential.user.email, email: credential.user.email, uid: credential.user.uid };
+    const user = {
+      name: credential.user.displayName || credential.user.email,
+      email: credential.user.email, uid: credential.user.uid, photoURL: getPhoto(credential.user.uid)
+    };
     setUser(user);
     return user;
   }
@@ -58,7 +61,7 @@ const Auth = (() => {
   async function register(nome, email, password) {
     const fb = await waitFirebase();
     const credential = await fb.createUser(email.trim(), password, nome.trim());
-    const user = { name: nome.trim(), email: credential.user.email, uid: credential.user.uid };
+    const user = { name: nome.trim(), email: credential.user.email, uid: credential.user.uid, photoURL: null };
     setUser(user);
     return user;
   }
@@ -72,6 +75,27 @@ const Auth = (() => {
     const fb = await waitFirebase();
     await fb.signOutUser();
     clearUser();
+  }
+
+  // Foto de perfil guardada no navegador (localStorage), por UID — o Firebase Auth não
+  // aceita a imagem em si no campo de foto (só uma URL curta; guardar o data URL nele dá
+  // erro "Photo URL too long"). Sem Firebase Storage configurado, isso fica só neste
+  // navegador/computador — não sincroniza pra outro dispositivo.
+  const PHOTO_KEY_PREFIX = 'dashboard_avatar_';
+
+  function getPhoto(uid) {
+    if (!uid) return null;
+    try { return localStorage.getItem(PHOTO_KEY_PREFIX + uid); }
+    catch { return null; }
+  }
+
+  function updatePhoto(photoDataUrl) {
+    const user = getUser();
+    if (!user || !user.uid) throw new Error('Você precisa estar logado.');
+    try { localStorage.setItem(PHOTO_KEY_PREFIX + user.uid, photoDataUrl); }
+    catch { throw new Error('Não foi possível salvar a foto (armazenamento local indisponível).'); }
+    user.photoURL = photoDataUrl;
+    setUser(user);
   }
 
   /** Traduz os códigos de erro do Firebase Auth pra mensagens em português. */
@@ -91,7 +115,7 @@ const Auth = (() => {
     return map[err.code] || err.message || 'Ocorreu um erro. Tente novamente.';
   }
 
-  return { getUser, setUser, clearUser, onAuthChange, login, register, forgotPassword, logout, friendlyError };
+  return { getUser, setUser, clearUser, onAuthChange, login, register, forgotPassword, logout, getPhoto, updatePhoto, friendlyError };
 })();
 
 /* ============================================================
@@ -291,12 +315,81 @@ function bindGlobalErrorHandlers() {
 }
 
 /* ============================================================
+ * FOTO DE PERFIL
+ * ============================================================ */
+
+/** Mostra a foto (se houver) no avatarzinho do cabeçalho, ou volta pro emoji padrão. */
+function renderAvatar(photoURL) {
+  const avatarBtn = document.getElementById('btn-change-avatar');
+  if (!avatarBtn) return;
+  avatarBtn.innerHTML = photoURL ? `<img src="${photoURL}" alt="Foto de perfil">` : '👤';
+}
+
+/** Lê o arquivo escolhido, recorta ao quadrado central e reduz pra um data URL pequeno. */
+function resizeImageToDataUrl(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Arquivo de imagem inválido.'));
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function initProfilePhoto() {
+  const avatarBtn = document.getElementById('btn-change-avatar');
+  const fileInput = document.getElementById('avatar-file-input');
+  if (!avatarBtn || !fileInput) return;
+
+  const cached = Auth.getUser();
+  if (cached && cached.photoURL) renderAvatar(cached.photoURL);
+
+  avatarBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 128);
+      await Auth.updatePhoto(dataUrl);
+      renderAvatar(dataUrl);
+      Utils.showToast('Foto de perfil atualizada.', 'success');
+    } catch (err) {
+      console.error(err);
+      Utils.showToast('Não foi possível atualizar a foto de perfil.', 'error');
+    }
+  });
+}
+
+/* ============================================================
  * TELA DE LOGIN
  * ============================================================ */
 
 function initLogin() {
   const overlay = document.getElementById('login-overlay');
   const userChip = document.getElementById('current-user');
+
+  document.querySelectorAll('.login-field__toggle-visibility').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(btn.dataset.target);
+      const isHidden = input.type === 'password';
+      input.type = isHidden ? 'text' : 'password';
+      btn.textContent = isHidden ? '🙈' : '👁️';
+      btn.setAttribute('aria-label', isHidden ? 'Ocultar senha' : 'Mostrar senha');
+    });
+  });
 
   const views = {
     login: document.getElementById('auth-view-login'),
@@ -370,9 +463,10 @@ function initLogin() {
   // Fonte da verdade de "está logado ou não": o próprio Firebase, não um cache local.
   Auth.onAuthChange((fbUser) => {
     if (fbUser) {
-      const user = { name: fbUser.displayName || fbUser.email, email: fbUser.email, uid: fbUser.uid };
+      const user = { name: fbUser.displayName || fbUser.email, email: fbUser.email, uid: fbUser.uid, photoURL: Auth.getPhoto(fbUser.uid) };
       Auth.setUser(user);
       userChip.textContent = user.name;
+      renderAvatar(user.photoURL);
       overlay.classList.add('login-overlay--hidden');
       bootstrapApp();
     } else {
@@ -395,6 +489,7 @@ function bootstrapApp() {
 
   Dashboard.init();
   bindDataControls();
+  initProfilePhoto();
   loadInitialData();
 
   setInterval(() => {

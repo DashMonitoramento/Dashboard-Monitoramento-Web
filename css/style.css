@@ -139,7 +139,20 @@ ul { list-style: none; margin: 0; padding: 0; }
   width: 24px; height: 24px; border-radius: 50%;
   background: linear-gradient(135deg, var(--color-orange), var(--color-blue));
   color: #fff; display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
+  font-size: 11px; font-weight: 700; border: none; padding: 0; cursor: pointer;
+  overflow: hidden; flex-shrink: 0; transition: box-shadow var(--transition);
+}
+.user-chip__avatar:hover { box-shadow: 0 0 0 2px var(--color-orange); }
+.user-chip__avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Botão "Sair" com ícone e brilho vermelho permanente, intensificando ao passar o mouse —
+   mesmo efeito de brilho usado nos cards ao passar o mouse (box-shadow espalhado). */
+.icon-btn--danger {
+  color: var(--color-danger); border-color: rgba(220,38,38,.6); box-shadow: 0 0 8px rgba(220,38,38,.5);
+}
+.icon-btn--danger:hover {
+  background: rgba(220,38,38,.16); color: #fff;
+  border-color: var(--color-danger); box-shadow: 0 0 26px -4px var(--color-danger);
 }
 #btn-mobile-menu { display: none; }
 
@@ -174,6 +187,28 @@ ul { list-style: none; margin: 0; padding: 0; }
 .filter-field input:focus, .filter-field select:focus { outline: 2px solid var(--color-blue); outline-offset: 1px; }
 .filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
+/* Acordeão da barra lateral (Período, Status, Transporte... e "Arquivos de atualização") —
+   <details>/<summary> nativos, sem precisar de JS pra abrir/fechar. */
+.sidebar-accordion {
+  border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;
+}
+.sidebar-accordion summary {
+  cursor: pointer; padding: 9px 12px; font-size: 12.5px; font-weight: 700;
+  color: var(--text-primary); background: var(--surface-alt);
+  display: flex; align-items: center; justify-content: space-between; user-select: none;
+}
+.sidebar-accordion summary::-webkit-details-marker { display: none; }
+.sidebar-accordion summary::after {
+  content: '▾'; color: var(--text-secondary); font-size: 10px; transition: transform var(--transition);
+}
+.sidebar-accordion[open] summary::after { transform: rotate(180deg); }
+.sidebar-accordion > summary + * { margin-top: 0; }
+.sidebar-accordion .filter-field,
+.sidebar-accordion .filter-row,
+.sidebar-accordion .data-file-list { margin: 10px 10px 10px; }
+.sidebar-accordion .filter-field:last-child,
+.sidebar-accordion .filter-row:last-child { margin-bottom: 10px; }
+
 /* Campos de data: precisam de largura mínima para o ícone do calendário
    ficar visível e clicável — por isso ficam em linha própria, não em .filter-row. */
 .filter-field__date {
@@ -207,9 +242,16 @@ ul { list-style: none; margin: 0; padding: 0; }
   border-width: 2px; border-color: var(--color-orange); box-shadow: 0 0 6px rgba(255,122,26,.45);
 }
 .btn--outline-orange:hover { background: rgba(255,122,26,.16); }
+/* Mesma forma/peso do botão "Entrar" da tela de login, só que na base laranja abóbora. */
+.btn--pill-orange {
+  background: linear-gradient(135deg, var(--color-orange), var(--color-orange-dark));
+  color: #fff; border: none; border-radius: 999px; font-size: 14px; padding: 11px 14px;
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+.btn--pill-orange:hover { box-shadow: 0 0 18px rgba(255,122,26,.6); transform: translateY(-1px); }
 .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
 #btn-toggle-vendedor-sem-cliente {
-  margin-top: -4px; margin-bottom: 8px; font-size: 12px; padding: 7px 12px;
+  margin-top: 10px; margin-bottom: 8px; font-size: 12px; padding: 7px 12px;
   border-width: 2px; transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
 }
 #btn-toggle-vendedor-sem-cliente[aria-pressed="true"] {
@@ -279,9 +321,9 @@ ul { list-style: none; margin: 0; padding: 0; }
 
 .login-card__logo { margin-bottom: 22px; display: flex; justify-content: center; }
 .login-card__logo img { height: 108px; width: 108px; border-radius: 50%; object-fit: cover; }
-.login-split__form h1 { font-size: 30px; font-weight: 800; color: #F4F6F9; margin-bottom: 6px; }
+.login-split__form h1 { font-size: 30px; font-weight: 800; color: #F4F6F9; margin-bottom: 6px; text-align: center; }
 .login-dot { color: var(--color-orange); }
-.login-split__form p.subtitle { color: #8B9AB8; font-size: 13.5px; margin-bottom: 32px; }
+.login-split__form p.subtitle { color: #8B9AB8; font-size: 13.5px; margin-bottom: 32px; text-align: center; }
 
 .login-field { margin-bottom: 18px; }
 .login-field label { display: block; font-size: 12.5px; margin-bottom: 6px; color: #8B9AB8; }
@@ -289,7 +331,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* "Borda gradiente": a moldura colorida é o fundo, e o input por dentro cobre tudo menos
    uma faixa fina de 2px — efeito pedido a partir da foto de referência do usuário. */
 .login-field__gradient-border {
-  padding: 2px; border-radius: 14px;
+  padding: 2px; border-radius: 14px; position: relative;
   background: linear-gradient(90deg, var(--color-blue), #8B5CF6, var(--color-orange));
 }
 .login-field input {
@@ -299,6 +341,13 @@ ul { list-style: none; margin: 0; padding: 0; }
 .login-field input:focus {
   outline: none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.25);
 }
+.login-field input.login-field__input--with-toggle { padding-right: 42px; }
+.login-field__toggle-visibility {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: #8B9AB8; font-size: 15px; line-height: 1;
+  padding: 6px; cursor: pointer;
+}
+.login-field__toggle-visibility:hover { color: #EDF1F7; }
 .login-error { color: var(--color-danger); font-size: 12.5px; min-height: 18px; margin-bottom: 6px; }
 .login-success { color: var(--color-success); font-size: 12.5px; margin-bottom: 6px; }
 .login-hint { margin-top: 18px; font-size: 11.5px; color: #6B7A99; }
@@ -309,6 +358,11 @@ ul { list-style: none; margin: 0; padding: 0; }
 .login-submit {
   background: linear-gradient(90deg, var(--color-blue), #8B5CF6, var(--color-orange));
   color: #fff; border: none; border-radius: 999px; font-size: 15px; padding: 13px 14px;
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+.login-submit:hover {
+  box-shadow: 0 0 16px rgba(37,99,235,.55), 0 0 22px rgba(255,122,26,.55);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 720px) {

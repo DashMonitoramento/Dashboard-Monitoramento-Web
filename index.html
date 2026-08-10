@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
-<link rel="icon" href="assets/img/logo-mascote.png">
+<link rel="icon" href="assets/img/favicon-round.png">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -30,7 +30,8 @@
           <div class="login-field">
             <label for="login-password">Senha</label>
             <div class="login-field__gradient-border">
-              <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••" required>
+              <input type="password" id="login-password" class="login-field__input--with-toggle" autocomplete="current-password" placeholder="••••••••" required>
+              <button type="button" class="login-field__toggle-visibility" data-target="login-password" aria-label="Mostrar senha">👁️</button>
             </div>
           </div>
           <p class="login-error" id="login-error" role="alert"></p>
@@ -126,10 +127,11 @@
       </div>
       <button id="btn-theme-toggle" class="icon-btn" aria-label="Alternar tema claro/escuro" aria-pressed="false" title="Alternar tema">🌗</button>
       <div class="user-chip">
-        <span class="user-chip__avatar">👤</span>
+        <button id="btn-change-avatar" class="user-chip__avatar" title="Alterar foto de perfil" aria-label="Alterar foto de perfil">👤</button>
+        <input type="file" id="avatar-file-input" accept="image/*" hidden>
         <span id="current-user">—</span>
       </div>
-      <button id="btn-logout" class="icon-btn" title="Sair" aria-label="Sair">⏻</button>
+      <button id="btn-logout" class="icon-btn icon-btn--danger" title="Sair" aria-label="Sair">⏻</button>
     </div>
   </header>
 
@@ -138,70 +140,93 @@
     <div class="sidebar-section">
       <div class="sidebar-section__title">Fonte de dados</div>
       <div style="display:flex; flex-direction:column; gap:8px;">
-        <button id="btn-refresh-data" class="btn btn--outline-orange btn--block">🔄 Atualizar dados</button>
+        <button id="btn-refresh-data" class="btn btn--pill-orange btn--block">🔄 Atualizar dados</button>
       </div>
-      <div class="data-file-list">
-        <div class="data-file-chip" title="Base principal — aba NF ABERTA (BI STATUS ENTREGAS)">📄 sample-data.csv</div>
-        <div class="data-file-chip" title="Base expandida — arquivo RASCUNHO/Bluesoft (Status da Entrega)">📄 sample-data-bluesoft.csv</div>
-        <div class="data-file-chip" title="Vendedor por cliente — aba Vendedores">📄 sample-data-clientes.csv</div>
-        <div class="data-file-chip" title="Data agendada, Status e Reagenda — sua planilha de agendamentos">📄 sample-data-agendamentos.csv</div>
-      </div>
+      <details class="sidebar-accordion">
+        <summary>Arquivos de atualização</summary>
+        <div class="data-file-list">
+          <div class="data-file-chip" title="Base principal — aba NF ABERTA (BI STATUS ENTREGAS)">📄 sample-data.csv</div>
+          <div class="data-file-chip" title="Base expandida — arquivo RASCUNHO/Bluesoft (Status da Entrega)">📄 sample-data-bluesoft.csv</div>
+          <div class="data-file-chip" title="Vendedor por cliente — aba Vendedores">📄 sample-data-clientes.csv</div>
+          <div class="data-file-chip" title="Data agendada, Status e Reagenda — sua planilha de agendamentos">📄 sample-data-agendamentos.csv</div>
+        </div>
+      </details>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-section__title">Filtros</div>
       <div class="filters-panel">
-        <div class="filter-field">
-          <label for="filter-data-inicio">Data início</label>
-          <input type="date" id="filter-data-inicio" class="filter-field__date">
-        </div>
-        <div class="filter-field">
-          <label for="filter-data-fim">Data fim</label>
-          <input type="date" id="filter-data-fim" class="filter-field__date">
-        </div>
-        <div class="filter-row">
+        <details class="sidebar-accordion">
+          <summary>Período</summary>
           <div class="filter-field">
-            <label for="filter-mes">Mês</label>
-            <select id="filter-mes">
-              <option value="">Todos</option>
-              <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
-              <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-              <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
-              <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-            </select>
+            <label for="filter-data-inicio">Data início</label>
+            <input type="date" id="filter-data-inicio" class="filter-field__date">
           </div>
           <div class="filter-field">
-            <label for="filter-ano">Ano</label>
-            <select id="filter-ano"><option value="">Todos</option></select>
+            <label for="filter-data-fim">Data fim</label>
+            <input type="date" id="filter-data-fim" class="filter-field__date">
           </div>
-        </div>
-        <div class="filter-field">
-          <label for="filter-status">Status da nota</label>
-          <select id="filter-status"><option value="">Todos os status</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="filter-transportadora">Transportadora</label>
-          <select id="filter-transportadora"><option value="">Todas as transportadoras</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="filter-motorista">Motorista</label>
-          <select id="filter-motorista"><option value="">Todos os motoristas</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="filter-cliente">Cliente</label>
-          <select id="filter-cliente"><option value="">Todos os clientes</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="filter-cidade">Cidade</label>
-          <select id="filter-cidade"><option value="">Todas as cidades</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="filter-vendedor">Vendedor(a)</label>
-          <select id="filter-vendedor"><option value="">Todos os vendedores</option></select>
-        </div>
-        <button id="btn-toggle-vendedor-sem-cliente" class="btn btn--ghost btn--block" type="button" aria-pressed="true">
-          🧹 Ocultar vendedores sem cliente
-        </button>
+          <div class="filter-row">
+            <div class="filter-field">
+              <label for="filter-mes">Mês</label>
+              <select id="filter-mes">
+                <option value="">Todos</option>
+                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+                <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+                <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-ano">Ano</label>
+              <select id="filter-ano"><option value="">Todos</option></select>
+            </div>
+          </div>
+        </details>
+
+        <details class="sidebar-accordion">
+          <summary>Status</summary>
+          <div class="filter-field">
+            <label for="filter-status">Status da nota</label>
+            <select id="filter-status"><option value="">Todos os status</option></select>
+          </div>
+        </details>
+
+        <details class="sidebar-accordion">
+          <summary>Transporte</summary>
+          <div class="filter-field">
+            <label for="filter-transportadora">Transportadora</label>
+            <select id="filter-transportadora"><option value="">Todas as transportadoras</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filter-motorista">Motorista</label>
+            <select id="filter-motorista"><option value="">Todos os motoristas</option></select>
+          </div>
+        </details>
+
+        <details class="sidebar-accordion">
+          <summary>Cliente</summary>
+          <div class="filter-field">
+            <label for="filter-cliente">Cliente</label>
+            <select id="filter-cliente"><option value="">Todos os clientes</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="filter-cidade">Cidade</label>
+            <select id="filter-cidade"><option value="">Todas as cidades</option></select>
+          </div>
+        </details>
+
+        <details class="sidebar-accordion">
+          <summary>Vendedor</summary>
+          <div class="filter-field">
+            <label for="filter-vendedor">Vendedor(a)</label>
+            <select id="filter-vendedor"><option value="">Todos os vendedores</option></select>
+          </div>
+          <button id="btn-toggle-vendedor-sem-cliente" class="btn btn--ghost btn--block" type="button" aria-pressed="true">
+            🧹 Ocultar vendedores sem cliente
+          </button>
+        </details>
+
         <div class="filter-field">
           <label for="filter-busca">Busca rápida</label>
           <input type="search" id="filter-busca" placeholder="NF, cliente, motorista...">

@@ -91,10 +91,20 @@ class DashChart {
     const width = Math.max(rect.width, 100);
     const height = Math.max(rect.height - legendHeight, 120);
 
+    // O legend (filho do próprio container observado) muda de altura quando o texto
+    // reflui, o que dispara o ResizeObserver de novo depois deste resize — sem essa
+    // guarda de "não mudou", isso vira um loop onde o canvas fica sendo limpo (width/
+    // height resetam o bitmap) repetidas vezes e às vezes some visualmente.
+    const pxW = Math.round(width * dpr);
+    const pxH = Math.round(height * dpr);
+    if (pxW === this._lastPxW && pxH === this._lastPxH) return;
+    this._lastPxW = pxW;
+    this._lastPxH = pxH;
+
     this.canvas.style.width = width + 'px';
     this.canvas.style.height = height + 'px';
-    this.canvas.width = Math.round(width * dpr);
-    this.canvas.height = Math.round(height * dpr);
+    this.canvas.width = pxW;
+    this.canvas.height = pxH;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     this.width = width;
