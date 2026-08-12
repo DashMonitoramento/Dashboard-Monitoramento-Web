@@ -161,7 +161,8 @@ const FIELD_ALIASES = {
   situacao: ['ocorrencias consolidada2', 'situacao', 'situação', 'status detalhado'],
   // Coluna "AGENDAMENTOS" (ou "Agendado" na planilha de agendamentos) — indica se a nota
   // obriga ou não uma etapa de agendamento.
-  necessitaAgendamento: ['agendamentos', 'agendado']
+  necessitaAgendamento: ['agendamentos', 'agendado'],
+  cnpj: ['cnpj']
 };
 
 function normalizeHeaderKey(header) {
@@ -175,6 +176,17 @@ function normalizeHeaderKey(header) {
 /** Mesma normalização de normalizeHeaderKey, usada para casar nomes de cliente entre planilhas diferentes. */
 function normalizeClienteKey(value) {
   return normalizeHeaderKey(value || '').replace(/[^a-z0-9 ]/g, '');
+}
+
+/**
+ * Chave de cruzamento por CNPJ entre planilhas: mantém só os dígitos e descarta zeros à
+ * esquerda. O Excel guarda CNPJ como número (não texto) em algumas abas, o que apaga zeros
+ * à esquerda na exportação — descartá-los dos dois lados garante que o mesmo CNPJ bata
+ * independente de qual planilha perdeu o zero.
+ */
+function normalizeCnpj(value) {
+  const digits = String(value || '').replace(/\D/g, '').replace(/^0+/, '');
+  return digits;
 }
 
 // Correções manuais de cliente -> vendedor, confirmadas com o usuário quando o cruzamento
@@ -334,6 +346,7 @@ function normalizeRecord(rawRow) {
     nf: String(get('nf') || '').trim(),
     cliente: String(get('cliente') || 'Não informado').trim(),
     grupoEconomico: String(get('grupoEconomico') || '').trim(),
+    cnpj: String(get('cnpj') || '').trim(),
     transportadora: String(get('transportadora') || 'Não informado').trim(),
     motorista: String(get('motorista') || 'Não informado').trim(),
     vendedor: String(get('vendedor') || 'Não informado').trim(),
@@ -380,6 +393,7 @@ const DataStore = (() => {
   let lastUpdated = null;
   let bluesoftStatusByNF = new Map(); // NF -> status consolidado ('Entregue'|'Reentrega'|'Devolução'|'Cancelado'|'Em aberto')
   let clienteInfoByName = new Map(); // nome do cliente (normalizado) -> { vendedor, grupoEconomico }
+  let clienteInfoByCNPJ = new Map(); // CNPJ (normalizado) -> { vendedor, grupoEconomico } — mais preciso que o nome, distingue filiais
   let clienteEntriesList = []; // todas as linhas da Planilha1 (mesmo nomes repetidos), para o fallback por substring
   let agendamentoByNF = new Map(); // NF -> { dataAgendamento, necessitaAgendamento, statusAgendamento, reagendar }
   const listeners = new Set();
@@ -495,7 +509,8 @@ const DataStore = (() => {
         cidade: pickField(row, headerIndex, 'cidade'),
         uf: pickField(row, headerIndex, 'uf'),
         valorNF: pickField(row, headerIndex, 'valorNF'),
-        dataEntrega: pickField(row, headerIndex, 'dataEntrega')
+        dataEntrega: pickField(row, headerIndex, 'dataEntrega'),
+        cnpj: pickField(row, headerIndex, 'cnpj')
       });
     }
     bluesoftStatusByNF = map;
@@ -519,6 +534,7 @@ const DataStore = (() => {
       if (!info) continue;
       r.situacao = info.status;
       if (info.status === 'Entregue') r.status = 'ENTREGUE';
+      if (!r.cnpj && info.cnpj) r.cnpj = String(info.cnpj).trim();
     }
 
     for (const [nf, info] of bluesoftStatusByNF) {
@@ -528,6 +544,7 @@ const DataStore = (() => {
         nf,
         cliente: String(info.cliente || 'Não informado').trim() || 'Não informado',
         grupoEconomico: '',
+        cnpj: String(info.cnpj || '').trim(),
         transportadora: String(info.transportadora || 'Não informado').trim() || 'Não informado',
         motorista: String(info.motorista || 'Não informado').trim() || 'Não informado',
         vendedor: 'Não informado',
@@ -571,28 +588,49 @@ const DataStore = (() => {
 
   function indexClienteRows(rawRows) {
     const map = new Map();
+    const cnpjMap = new Map();
     const entries = [];
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
       const clienteHeader = FIELD_ALIASES.cliente.map(a => headerIndex[a]).find(h => h !== undefined);
       const vendedorHeader = FIELD_ALIASES.vendedor.map(a => headerIndex[a]).find(h => h !== undefined);
       const grupoHeader = FIELD_ALIASES.grupoEconomico.map(a => headerIndex[a]).find(h => h !== undefined);
+      const cnpjHeader = FIELD_ALIASES.cnpj.map(a => headerIndex[a]).find(h => h !== undefined);
       const cliente = clienteHeader !== undefined ? row[clienteHeader] : '';
       const key = normalizeClienteKey(cliente);
-      if (!key) continue;
       const vendedor = vendedorHeader !== undefined ? String(row[vendedorHeader] || '').trim() : '';
       const grupoEconomico = grupoHeader !== undefined ? row[grupoHeader] : '';
+
+      // CNPJ identifica a filial exata — ao contrário do nome, que se repete entre filiais
+      // de uma mesma rede (ex.: "ATACADÃO S.A.") com vendedores diferentes cada uma.
+      const cnpjKey = cnpjHeader !== undefined ? normalizeCnpj(row[cnpjHeader]) : '';
+      if (cnpjKey && vendedor && !cnpjMap.has(cnpjKey)) cnpjMap.set(cnpjKey, { vendedor, grupoEconomico });
+
+      if (!key) continue;
       entries.push({ key, vendedor, grupoEconomico });
       if (!map.has(key)) map.set(key, { vendedor, grupoEconomico }); // primeira ocorrência do nome já basta
     }
     clienteInfoByName = map;
+    clienteInfoByCNPJ = cnpjMap;
     clienteEntriesList = entries;
   }
 
   function applyClienteEnrichment() {
-    if (clienteInfoByName.size === 0) return;
+    if (clienteInfoByName.size === 0 && clienteInfoByCNPJ.size === 0) return;
 
-    // 0ª passada: correções manuais (cliente ausente da Planilha1, ou cadastrado só em
+    // 0ª passada: cruzamento pelo CNPJ — mais preciso que o nome, pois distingue filiais de
+    // uma mesma rede (o CNPJ só está disponível para notas enriquecidas via Base Bluesoft).
+    for (const r of rawRecords) {
+      if (r.vendedor && r.vendedor !== 'Não informado') continue;
+      const cnpjKey = normalizeCnpj(r.cnpj);
+      if (!cnpjKey) continue;
+      const info = clienteInfoByCNPJ.get(cnpjKey);
+      if (!info) continue;
+      if (info.vendedor) r.vendedor = String(info.vendedor).trim();
+      if (!r.grupoEconomico && info.grupoEconomico) r.grupoEconomico = String(info.grupoEconomico).trim();
+    }
+
+    // 1ª passada: correções manuais (cliente ausente da Planilha1, ou cadastrado só em
     // outra filial/UF da mesma rede).
     for (const r of rawRecords) {
       if (r.vendedor && r.vendedor !== 'Não informado') continue;
@@ -600,7 +638,7 @@ const DataStore = (() => {
       if (vendedor) r.vendedor = vendedor;
     }
 
-    // 1ª passada: correspondência exata pelo nome do cliente.
+    // 2ª passada: correspondência exata pelo nome do cliente.
     for (const r of rawRecords) {
       if (r.vendedor && r.vendedor !== 'Não informado') continue;
       const info = clienteInfoByName.get(normalizeClienteKey(r.cliente));
@@ -609,7 +647,7 @@ const DataStore = (() => {
       if (!r.grupoEconomico && info.grupoEconomico) r.grupoEconomico = String(info.grupoEconomico).trim();
     }
 
-    // 2ª passada: quando a nota só traz a razão social da matriz (ex.: "SENDAS DISTRIBUIDORA
+    // 3ª passada: quando a nota só traz a razão social da matriz (ex.: "SENDAS DISTRIBUIDORA
     // S/A"), mas a Planilha1 só cadastra as filiais (ex.: "ASSAI - SENDAS DISTRIBUIDORA S/A -
     // CAMPINAS"), considera matriz e filiais como do mesmo vendedor responsável (decisão do
     // usuário) — usa o vendedor mais frequente entre as filiais cujo nome contém o da matriz.
