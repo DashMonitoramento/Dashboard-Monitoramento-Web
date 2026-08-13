@@ -371,7 +371,7 @@ class DashChart {
     const allValues = series.flatMap(s => s.data);
     const maxValue = Math.max(...allValues, 1) * 1.25;
     const stepX = n > 1 ? plotW / (n - 1) : 0;
-    const minLabelGapPx = 80; // distância mínima entre etiquetas — evita "pills" sobrepostas
+    const labelFont = '700 11px Inter, system-ui, sans-serif';
 
     this._points = [];
 
@@ -406,6 +406,7 @@ class DashChart {
       ctx.stroke();
 
       let lastLabelX = -Infinity;
+      let lastLabelHalfWidth = 0;
       pts.forEach((p, i) => {
         ctx.beginPath();
         ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
@@ -416,13 +417,21 @@ class DashChart {
         ctx.stroke();
         this._points.push({ ...p, color: s.color, series: s.name });
 
-        // "R$ 0,00" repetido em cada ponto sem movimento só poluiria o gráfico, e um espaço
-        // mínimo entre etiquetas (em vez de um passo fixo) evita "pills" se sobrepondo quando
-        // os pontos com valor não estão espaçados uniformemente.
+        // "R$ 0,00" repetido em cada ponto sem movimento só poluiria o gráfico. O espaço
+        // mínimo entre etiquetas é calculado pela LARGURA REAL de cada valor (não um passo
+        // fixo) — um valor grande como "R$ 860.355,48" é bem mais largo que "R$ 1,00", e um
+        // gap fixo deixava as "pills" grandes se sobrepondo mesmo com os pontos espaçados.
         const isLast = i === pts.length - 1;
-        if (p.value !== 0 && (p.x - lastLabelX >= minLabelGapPx || isLast)) {
-          this._drawValuePill(ctx, p.x, p.y, this._fmt(p.value), s.color, si === 0);
-          lastLabelX = p.x;
+        if (p.value !== 0) {
+          const text = this._fmt(p.value);
+          ctx.font = labelFont;
+          const halfWidth = ctx.measureText(text).width / 2 + 7;
+          const gapNeeded = lastLabelHalfWidth + halfWidth + 6;
+          if (p.x - lastLabelX >= gapNeeded || isLast) {
+            this._drawValuePill(ctx, p.x, p.y, text, s.color, si === 0);
+            lastLabelX = p.x;
+            lastLabelHalfWidth = halfWidth;
+          }
         }
       });
     });

@@ -44,6 +44,10 @@ const Dashboard = (() => {
   const VENDEDOR_SEM_CLIENTE_KEY = 'dashboard_ocultar_vendedor_sem_cliente';
   let ocultarVendedorSemCliente = localStorage.getItem(VENDEDOR_SEM_CLIENTE_KEY) !== '0';
 
+  // NF (sem sufixo de viagem/item) -> [url1, url2, ...], carregado de
+  // assets/data/canhotos-index.json (gerado por scripts/gerar-indice-canhotos.ps1).
+  let canhotosIndex = new Map();
+
   /* ============================================================
    * INICIALIZAÇÃO
    * ============================================================ */
@@ -53,6 +57,7 @@ const Dashboard = (() => {
     bindTableControls();
     bindActionButtons();
     bindStatusDetail();
+    bindCanhotoLinks();
     createCharts();
     DataStore.onChange(render);
   }
@@ -204,6 +209,39 @@ const Dashboard = (() => {
     detailRecords = DataStore.getFilteredRecords().filter(def.test);
     document.getElementById('detail-view-title').textContent = `${def.title} (${Utils.formatNumber(detailRecords.length)})`;
     renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS);
+    renderMotivosBreakdown(detailRecords);
+  }
+
+  /* ============================================================
+   * MOTIVOS (Devolução/Cancelado/Reentrega) — cobertura parcial (ver data.js)
+   * ============================================================ */
+
+  const MOTIVO_RELEVANT_KEYS = new Set(['devolucao', 'cancelado', 'reentrega']);
+
+  function renderMotivosBreakdown(records) {
+    const section = document.getElementById('detail-motivos-section');
+    if (!MOTIVO_RELEVANT_KEYS.has(detailKey)) { section.hidden = true; return; }
+
+    const comMotivo = records.filter(r => r.motivoCategoria);
+    if (comMotivo.length === 0) { section.hidden = true; return; }
+    section.hidden = false;
+
+    const counts = new Map();
+    comMotivo.forEach(r => counts.set(r.motivoCategoria, (counts.get(r.motivoCategoria) || 0) + 1));
+    const entries = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    const maxCount = entries[0][1];
+
+    const pct = Math.round((comMotivo.length / records.length) * 100);
+    document.getElementById('detail-motivos-coverage').textContent =
+      `Baseado em ${comMotivo.length} de ${records.length} notas com motivo registrado (~${pct}%) — fonte cobre principalmente dez/2025 a abr/2026, não o período todo.`;
+
+    document.getElementById('detail-motivos-list').innerHTML = entries.map(([nome, count]) => `
+      <div class="motivo-bar-row">
+        <span class="motivo-bar-row__label" title="${escapeAttr(nome)}">${escapeAttr(nome)}</span>
+        <span class="motivo-bar-row__track"><span class="motivo-bar-row__fill" style="width:${Math.round(count / maxCount * 100)}%"></span></span>
+        <span class="motivo-bar-row__count">${count}</span>
+      </div>
+    `).join('');
   }
 
   function tableColumns() {
@@ -220,7 +258,9 @@ const Dashboard = (() => {
       { label: 'Situação', value: r => r.situacao },
       { label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
       { label: 'Data Entrega', value: r => Utils.formatDate(r.dataEntrega) },
-      { label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
+      { label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) },
+      { label: 'Motivo', value: r => r.motivo },
+      { label: 'Categoria do Motivo', value: r => r.motivoCategoria }
     ];
   }
 
@@ -364,9 +404,11 @@ const Dashboard = (() => {
     // verde = entregue, amarelo = dentro do prazo, vermelho = pendente/vencido, cinza = sem informação.
     charts.status = new DashChart(document.getElementById('chart-status'), {
       type: 'pie', labels: [], series: [{ data: [] }],
-      // Entregues, Agendados, Aguardando agendamento, Devolução, Cancelado, Reentrega, Em aberto
-      // — mesma categorização dos cards de KPI, pra bater 1:1 com o que aparece lá.
-      options: { colors: ['#16A34A', '#2563EB', '#64748B', '#EAB308', '#8B5CF6', '#0EA5E9', '#DC2626'] }
+      // Entregues, Aguardando agendamento, Devolução, Cancelado, Reentrega, Em aberto — mesma
+      // categorização dos cards de KPI (STATUS_DETAIL_DEFS), pra bater 1:1 com o que aparece lá.
+      // Não tem categoria "Agendados" própria aqui: isso já é o gráfico "Situação de
+      // agendamento" ao lado, que usa a fonte de dados certa (necessitaAgendamento).
+      options: { colors: ['#16A34A', '#64748B', '#EAB308', '#8B5CF6', '#0EA5E9', '#DC2626'] }
     });
     charts.prazo = new DashChart(document.getElementById('chart-prazo'), {
       type: 'donut', labels: [], series: [{ data: [] }],
@@ -405,6 +447,7 @@ const Dashboard = (() => {
 
     document.getElementById('ranking-dimension').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
     document.getElementById('ranking-transportadoras-filtro').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
+    document.getElementById('ranking-transportadoras-qtd').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
   }
 
   function renderCharts(records) {
@@ -419,22 +462,16 @@ const Dashboard = (() => {
   }
 
   function renderStatusChart(records) {
-    // "Agendado" é um valor de situação, não de status — separado aqui do balde genérico
-    // "Em aberto" pra dar visibilidade própria, como pedido. Devolução/Cancelado/Reentrega
-    // também saem do balde genérico — mesma categorização dos cards de KPI (STATUS_DETAIL_DEFS).
-    let entregues = 0, agendados = 0, aguardando = 0, devolucao = 0, cancelado = 0, reentrega = 0, emAberto = 0;
-    records.forEach(r => {
-      if (r.status === 'ENTREGUE') entregues++;
-      else if (r.situacao === 'Agendado') agendados++;
-      else if (r.status === 'AGUARDANDO_AGENDAMENTO') aguardando++;
-      else if (r.situacao === 'Devolução') devolucao++;
-      else if (r.situacao === 'Cancelado') cancelado++;
-      else if (r.situacao === 'Reentrega') reentrega++;
-      else emAberto++;
-    });
+    // Usa exatamente os mesmos critérios dos cards de KPI (STATUS_DETAIL_DEFS), pra nunca
+    // divergir do que aparece lá. Sem categoria própria pra "Agendado": esse valor de situação
+    // só existe pras ~503 notas da planilha principal (raramente usado) e a informação de
+    // agendamento de verdade já tem gráfico dedicado ("Situação de agendamento").
+    const keys = ['entregue', 'em-aberto', 'devolucao', 'cancelado', 'reentrega', 'aguardando'];
+    const counts = keys.map(k => records.filter(STATUS_DETAIL_DEFS[k].test).length);
+
     charts.status.update({
-      labels: ['Entregues', 'Agendados', 'Aguardando agendamento', 'Devolução', 'Cancelado', 'Reentrega', 'Em aberto'],
-      series: [{ data: [entregues, agendados, aguardando, devolucao, cancelado, reentrega, emAberto] }]
+      labels: keys.map(k => STATUS_DETAIL_DEFS[k].title),
+      series: [{ data: counts }]
     });
   }
 
@@ -483,6 +520,7 @@ const Dashboard = (() => {
    */
   function renderRankingTransportadoras(records) {
     const filtro = document.getElementById('ranking-transportadoras-filtro').value || 'melhores';
+    const quantidade = Number(document.getElementById('ranking-transportadoras-qtd').value) || 15;
     const grouped = Utils.groupBy(records, r => r.transportadora);
 
     let entries = Array.from(grouped.entries())
@@ -494,8 +532,10 @@ const Dashboard = (() => {
       })
       .filter(e => e.total >= 3);
 
-    entries.sort((a, b) => filtro === 'piores' ? a.taxa - b.taxa : b.taxa - a.taxa);
-    entries = entries.slice(0, 15);
+    // Ordena sempre decrescente pela taxa (igual ao gráfico "Ranking top 10") — "melhores"/
+    // "piores" só decide de qual ponta da lista pegar, nunca inverte a ordem de exibição.
+    entries.sort((a, b) => b.taxa - a.taxa);
+    entries = filtro === 'piores' ? entries.slice(-quantidade) : entries.slice(0, quantidade);
 
     charts.rankingTransportadoras.update({
       labels: entries.map(e => e.name),
@@ -512,8 +552,13 @@ const Dashboard = (() => {
     for (let i = 11; i >= 0; i--) {
       months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
     }
+    // Usa dataInicioViagem (mês em que a nota saiu pra entrega), não dataFaturamento — essa
+    // fica vazia pra quase todas as notas vindas da Bluesoft (só a planilha "NF Aberta" tem
+    // faturamento, ~500 notas de ~58 mil). Sem risco de duplicidade aqui: cada NF já é uma
+    // linha só em `records` (a Base Bluesoft é deduplicada por NF em data.js, mantendo o
+    // status mais conclusivo quando a mesma nota tem mais de uma tentativa/reentrega).
     const values = months.map(month => Utils.sum(
-      records.filter(r => r.dataFaturamento && Utils.isSameMonth(r.dataFaturamento, month)),
+      records.filter(r => r.dataInicioViagem && Utils.isSameMonth(r.dataInicioViagem, month)),
       r => r.valorNF
     ));
 
@@ -544,8 +589,10 @@ const Dashboard = (() => {
     const currentMonthData = new Array(maxDays).fill(0);
     const prevMonthData = new Array(maxDays).fill(0);
 
+    // dataInicioViagem em vez de dataFaturamento, pelo mesmo motivo do gráfico de evolução
+    // mensal — ver comentário em renderEvolucaoMensal.
     records.forEach(r => {
-      const ref = r.dataFaturamento;
+      const ref = r.dataInicioViagem;
       if (!ref) return;
       const dayIndex = ref.getDate() - 1;
       if (Utils.isSameMonth(ref, now)) currentMonthData[dayIndex] += r.valorNF;
@@ -593,7 +640,7 @@ const Dashboard = (() => {
   function rowHtml(r) {
     return `
       <tr>
-        <td>${escapeAttr(r.nf)}</td>
+        <td><button type="button" class="nf-link" data-nf="${escapeAttr(r.nf)}" title="Buscar canhoto de entrega">${escapeAttr(r.nf)}</button></td>
         <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
         <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
@@ -650,5 +697,51 @@ const Dashboard = (() => {
     renderTableGeneric(records, table, MAIN_TABLE_IDS);
   }
 
-  return { init, renderAll };
+  /* ============================================================
+   * CANHOTOS — busca do comprovante de entrega ao clicar na NF
+   * ============================================================ */
+
+  /** Carrega o índice NF -> canhoto(s). Silencioso: sem índice, o clique na NF só mostra
+   * "Sem Canhoto" pra tudo, em vez de travar o resto do dashboard. */
+  async function loadCanhotosIndex(url) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      canhotosIndex = new Map(Object.entries(data));
+    } catch (err) {
+      console.warn('Índice de canhotos não carregado:', err.message);
+    }
+  }
+
+  function bindCanhotoLinks() {
+    // Delegado no body (em vez de um listener por linha) porque a tabela é reconstruída a
+    // cada render — um listener direto no botão se perderia toda vez.
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest('.nf-link');
+      if (!btn) return;
+      openCanhoto(btn.dataset.nf);
+    });
+  }
+
+  function openCanhoto(nf) {
+    // A Base Bluesoft guarda a NF com sufixo de viagem/item ("138124-1") — os arquivos de
+    // canhoto são nomeados só com o número da nota, sem esse sufixo.
+    const base = String(nf).split('-')[0];
+    const info = canhotosIndex.get(base);
+    // Array.isArray() como defesa: o gerador do índice já garante lista, mas se algum dia
+    // uma NF tiver 1 único arquivo e o JSON vier com uma string solta em vez de lista de 1
+    // posição, isso evita abrir só a 1ª letra da URL.
+    const urls = info ? (Array.isArray(info) ? info : [info]) : [];
+    if (!urls.length) {
+      Utils.showToast(`NF ${nf}: Sem Canhoto`, 'warning');
+      return;
+    }
+    window.open(urls[0], '_blank', 'noopener');
+    if (urls.length > 1) {
+      Utils.showToast(`NF ${nf}: ${urls.length} arquivos encontrados — abrindo o primeiro.`, 'info', 5000);
+    }
+  }
+
+  return { init, renderAll, loadCanhotosIndex };
 })();

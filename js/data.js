@@ -162,7 +162,8 @@ const FIELD_ALIASES = {
   // Coluna "AGENDAMENTOS" (ou "Agendado" na planilha de agendamentos) — indica se a nota
   // obriga ou não uma etapa de agendamento.
   necessitaAgendamento: ['agendamentos', 'agendado'],
-  cnpj: ['cnpj']
+  cnpj: ['cnpj'],
+  motivo: ['motivo']
 };
 
 function normalizeHeaderKey(header) {
@@ -368,8 +369,42 @@ function normalizeRecord(rawRow) {
     // essa base ser carregada, já que nenhuma outra fonte hoje traz esses três campos.
     necessitaAgendamento: null,
     statusAgendamento: '',
-    reagendar: ''
+    reagendar: '',
+    // Preenchidos pela planilha de Motivos (Base BI), só para as notas que ela cobre —
+    // ver applyMotivoEnrichment. Cobertura parcial (~dez/2025 a abr/2026), por isso não dá
+    // pra contar com esses campos pra todo o histórico.
+    motivo: '',
+    motivoCategoria: ''
   };
+}
+
+// Cada regra é testada em ordem contra o texto normalizado (minúsculo, sem acento) do motivo
+// bruto vindo da Base BI — a primeira que bater decide a categoria. Texto que não bate em
+// nenhuma fica como "Outro" (com o texto original preservado em r.motivo, pra não escondê-lo).
+const MOTIVO_CATEGORIAS = [
+  { nome: 'Fora do horário/rota', match: s => s.includes('fora de horario') || s.includes('fora de rota') || s.includes('fora do dia de recebimento') },
+  { nome: 'Pedido expirado/cancelado/duplicado', match: s => s.includes('pedido expirado') || s.includes('pedido cancelado') || s.includes('duplicidade') || s.includes('substituida') },
+  { nome: 'Sem pedido / não localizado', match: s => s.includes('sem pedido') || s.includes('nao estava no sistema') },
+  { nome: 'Divergência fiscal/comercial', match: s => s.includes('divergencia') || s.includes('divergência') || s.includes('tributac') || s.includes('cnpj') || s.includes('natureza da operacao') || s.includes('regime especial') || s.includes('erro de faturamento') },
+  { nome: 'Cliente fechado/inventário/feriado', match: s => s.includes('inventario') || s.includes('balanco') || s.includes('loja fechada') || s.includes('estabelecimento fechado') || s.includes('encerrou operacao') || s.includes('feriado') },
+  { nome: 'Falta de mercadoria / não carregou', match: s => s.includes('falta de mercadoria') || s.includes('nao carregou') || s.includes('nao foi carregad') },
+  { nome: 'Qualidade/avaria da mercadoria', match: s => s.includes('qualidade recusada') || s.includes('estufad') || s.includes('amarelad') || s.includes('avaria') || s.includes('tarja preta') },
+  { nome: 'Cliente sem espaço/estoque cheio', match: s => s.includes('sem espaco') || s.includes('estoque cheio') || s.includes('recebe no final do mes') },
+  { nome: 'Sem agendamento', match: s => s.includes('sem agendamento') || s.includes('agendamento suspenso') || s.includes('nao foi agendado') },
+  { nome: 'Problema de sistema/cadastro', match: s => s.includes('sem sistema') || s.includes('problema sistemico') || s.includes('erro de sistema') || s.includes('sem cadastro') || s.includes('nao cadastrado') },
+  { nome: 'Cliente recusou/solicitou', match: s => s.includes('recusou') || s.includes('recusado pelo cliente') || s.includes('solicitou') || s.includes('solicitacao comercial') || s.includes('novo pedido') },
+  { nome: 'Erro de digitação/pedido', match: s => s.includes('digitad') || s.includes('inversao de produtos') || s.includes('nota incompleta') },
+  { nome: 'Extravio/sinistro/pane', match: s => s.includes('extravio') || s.includes('extraviad') || s.includes('assalto') || s.includes('quebrou') || s.includes('permissao na via') },
+  { nome: 'Excesso de veículos', match: s => s.includes('excesso de veiculo') },
+  { nome: 'Exigência de padrão do cliente', match: s => s.includes('fora de padrao') || s.includes('so recebe') || s.includes('bonificacao') || s.includes('trocar') }
+];
+
+function categorizeMotivo(rawMotivo) {
+  const s = normalizeHeaderKey(rawMotivo);
+  for (const cat of MOTIVO_CATEGORIAS) {
+    if (cat.match(s)) return cat.nome;
+  }
+  return 'Outro';
 }
 
 /* ============================================================
@@ -399,6 +434,7 @@ const DataStore = (() => {
   let clienteInfoByCNPJ = new Map(); // CNPJ (normalizado) -> { vendedor, grupoEconomico } — mais preciso que o nome, distingue filiais
   let clienteEntriesList = []; // todas as linhas da Planilha1 (mesmo nomes repetidos), para o fallback por substring
   let agendamentoByNF = new Map(); // NF -> { dataAgendamento, necessitaAgendamento, statusAgendamento, reagendar }
+  let motivoByNfStatus = new Map(); // "NF|Situação" -> motivo bruto (cobertura parcial, ver Base BI)
   const listeners = new Set();
 
   function emptyFilters() {
@@ -567,7 +603,9 @@ const DataStore = (() => {
         dataFaturamento: null,
         dataEntrega: Utils.parseDate(info.dataEntrega),
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
-        situacao: info.status
+        situacao: info.status,
+        motivo: '',
+        motivoCategoria: ''
       });
       existingNFs.add(nf);
     }
@@ -734,7 +772,11 @@ const DataStore = (() => {
       const rawDataAgendamento = Utils.parseDate(pickField(row, headerIndex, 'dataAgendamento'));
       const rawStatus = statusHeader !== undefined ? String(row[statusHeader] || '').trim() : '';
       const rawReagenda = reagendaHeader !== undefined ? String(row[reagendaHeader] || '').trim() : '';
-      const rawNecessita = agendadoHeader !== undefined && !isBlankOrNA(row[agendadoHeader]);
+      // A coluna "Agendado" hoje cobre praticamente toda NF com um valor Sim/Não (nunca
+      // vazia) — checar só "não está vazia" (como antes) marcaria tudo como precisando de
+      // agendamento. O valor real é o que importa: "Sim" = precisa agendar (bate 1:1 com
+      // Status = "Aguardando agendamento"); "Não" = entrega direta, não precisa.
+      const rawNecessita = agendadoHeader !== undefined && normalizeHeaderKey(row[agendadoHeader]) === 'sim';
 
       map.set(nf, {
         dataAgendamento: rawDataAgendamento || existing.dataAgendamento || null,
@@ -751,15 +793,69 @@ const DataStore = (() => {
   function applyAgendamentoEnrichment() {
     if (agendamentoByNF.size === 0) return;
     for (const r of rawRecords) {
-      const info = agendamentoByNF.get(r.nf);
+      // agendamentoByNF é indexado pela NF sem sufixo de viagem/item (ver indexAgendamentoRows);
+      // registros vindos da Base Bluesoft guardam a NF COM sufixo (ex.: "138124-1") — sem tirar
+      // o sufixo aqui, esse cruzamento nunca batia pra nenhuma nota da Bluesoft (só pras ~503
+      // da planilha "NF Aberta", cuja NF já vem sem sufixo).
+      const info = agendamentoByNF.get(r.nf.split('-')[0]);
       if (!info) { r.necessitaAgendamento = false; continue; }
       if (info.dataAgendamento) r.dataAgendamento = info.dataAgendamento;
       r.necessitaAgendamento = info.necessitaAgendamento;
       r.statusAgendamento = info.statusAgendamento;
       r.reagendar = info.reagendar;
-      // Por pedido do usuário, o Status do Agendamento usa a mesma coluna "Situação" da
-      // tabela — não cria coluna própria — e vence a situação calculada da nota.
-      if (info.statusAgendamento) r.situacao = info.statusAgendamento;
+      // Por decisão do usuário (2026-08-13): o Status do Agendamento NÃO sobrescreve mais a
+      // Situação da nota — a Situação continua vindo só da Bluesoft/planilha principal
+      // (Entregue/Devolução/Cancelado/Reentrega/Em aberto), pra não perder essa informação nas
+      // notas que também aparecem na planilha de Agendamentos.
+    }
+  }
+
+  /**
+   * Carrega a planilha de Motivos (extraída da coluna "OBS." da Base BI, único lugar com
+   * motivo detalhado que bate com a Situação real da nota) — cruzada por NF + Situação.
+   * Cobertura parcial (só ~dez/2025 a abr/2026, a janela da Base BI): sem essa base, os
+   * campos motivo/motivoCategoria simplesmente ficam vazios, sem afetar o resto do dashboard.
+   */
+  async function loadMotivosFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexMotivoRows(rawRows);
+    applyMotivoEnrichment();
+    notify();
+  }
+
+  async function loadMotivosFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexMotivoRows(rawRows);
+    applyMotivoEnrichment();
+    notify();
+  }
+
+  function indexMotivoRows(rawRows) {
+    const map = new Map();
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const nfHeader = FIELD_ALIASES.nf.map(a => headerIndex[a]).find(h => h !== undefined);
+      const statusHeader = headerIndex['status'];
+      const motivoHeader = FIELD_ALIASES.motivo.map(a => headerIndex[a]).find(h => h !== undefined);
+      const nf = nfHeader !== undefined ? String(row[nfHeader] || '').trim().split('-')[0] : '';
+      const status = statusHeader !== undefined ? String(row[statusHeader] || '').trim() : '';
+      const motivo = motivoHeader !== undefined ? String(row[motivoHeader] || '').trim() : '';
+      if (!nf || !status || !motivo) continue;
+      map.set(`${nf}|${status}`, motivo);
+    }
+    motivoByNfStatus = map;
+  }
+
+  function applyMotivoEnrichment() {
+    if (motivoByNfStatus.size === 0) return;
+    for (const r of rawRecords) {
+      const motivo = motivoByNfStatus.get(`${r.nf.split('-')[0]}|${r.situacao}`);
+      if (!motivo) continue;
+      r.motivo = motivo;
+      r.motivoCategoria = categorizeMotivo(motivo);
     }
   }
 
@@ -836,6 +932,7 @@ const DataStore = (() => {
     loadBluesoftFromUrl, loadBluesoftFromFile,
     loadClientesFromUrl, loadClientesFromFile,
     loadAgendamentosFromUrl, loadAgendamentosFromFile,
+    loadMotivosFromUrl, loadMotivosFromFile,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getAvailableYears, getAvailableInicioViagemYears,

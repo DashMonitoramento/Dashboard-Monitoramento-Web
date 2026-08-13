@@ -13,6 +13,8 @@ const DEFAULT_DATA_FORMAT = 'csv';
 const DEFAULT_BLUESOFT_URL = 'assets/data/sample-data-bluesoft.csv';
 const DEFAULT_CLIENTES_URL = 'assets/data/sample-data-clientes.csv';
 const DEFAULT_AGENDAMENTOS_URL = 'assets/data/sample-data-agendamentos.csv';
+const DEFAULT_MOTIVOS_URL = 'assets/data/sample-data-motivos.csv';
+const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 
 /* ============================================================
  * AUTENTICAÇÃO — Firebase Authentication (e-mail/senha)
@@ -220,6 +222,24 @@ async function loadAgendamentosDataSilently(cacheBust) {
   }
 }
 
+/** Planilha de Motivos (extraída da Base BI) — opcional e de cobertura parcial; sem ela,
+ * os campos de motivo simplesmente ficam vazios. */
+async function loadMotivosDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_MOTIVOS_URL}?t=${Date.now()}` : DEFAULT_MOTIVOS_URL;
+    await DataStore.loadMotivosFromUrl(url, 'csv');
+  } catch (err) {
+    console.warn('Planilha de Motivos não carregada automaticamente:', err.message);
+  }
+}
+
+/** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
+ * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
+async function loadCanhotosIndexSilently(cacheBust) {
+  const url = cacheBust ? `${DEFAULT_CANHOTOS_URL}?t=${Date.now()}` : DEFAULT_CANHOTOS_URL;
+  await Dashboard.loadCanhotosIndex(url);
+}
+
 async function loadInitialData() {
   Loading.show('Carregando dados da planilha...');
   try {
@@ -227,6 +247,8 @@ async function loadInitialData() {
     await loadBluesoftDataSilently(false);
     await loadClientesDataSilently(false);
     await loadAgendamentosDataSilently(false);
+    await loadMotivosDataSilently(false);
+    await loadCanhotosIndexSilently(false);
     Dashboard.renderAll();
     Utils.showToast(`${DataStore.getRecords().length} registros carregados com sucesso.`, 'success');
   } catch (err) {
@@ -248,6 +270,8 @@ async function refreshData() {
     await loadBluesoftDataSilently(true);
     await loadClientesDataSilently(true);
     await loadAgendamentosDataSilently(true);
+    await loadMotivosDataSilently(true);
+    await loadCanhotosIndexSilently(true);
     Dashboard.renderAll();
     Utils.showToast('Dados atualizados com sucesso.', 'success');
   } catch (err) {

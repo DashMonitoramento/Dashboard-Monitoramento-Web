@@ -363,10 +363,18 @@
         <div class="chart-card chart-card--wide">
           <div class="chart-card__header">
             <h2 class="chart-card__title">Ranking de transportadoras — entregues vs. vencidas</h2>
-            <select id="ranking-transportadoras-filtro">
-              <option value="melhores">15 melhores (maior taxa de entrega)</option>
-              <option value="piores">15 piores (menor taxa de entrega)</option>
-            </select>
+            <div style="display:flex; gap:8px;">
+              <select id="ranking-transportadoras-qtd">
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="30">30</option>
+              </select>
+              <select id="ranking-transportadoras-filtro">
+                <option value="melhores">Melhores (maior taxa de entrega)</option>
+                <option value="piores">Piores (menor taxa de entrega)</option>
+              </select>
+            </div>
           </div>
           <div class="chart-root" id="chart-ranking-transportadoras"></div>
           <p class="chart-card__hint">Considera apenas transportadoras com 3 ou mais notas no período filtrado.</p>
@@ -448,6 +456,16 @@
             <h2 class="status-detail-view__title" id="detail-view-title">Detalhe</h2>
             <p class="status-detail-view__subtitle">Registros que compõem o número do card selecionado, considerando os filtros atuais.</p>
           </div>
+        </div>
+
+        <!-- Motivos: só aparece pras telas de Devolução/Cancelado/Reentrega, e só quando
+             há pelo menos 1 nota com motivo registrado (cobertura parcial, ver data.js). -->
+        <div id="detail-motivos-section" class="detail-motivos" hidden>
+          <div class="detail-motivos__header">
+            <h3 class="detail-motivos__title">Principais motivos</h3>
+            <p class="detail-motivos__coverage" id="detail-motivos-coverage"></p>
+          </div>
+          <div class="detail-motivos__list" id="detail-motivos-list"></div>
         </div>
 
         <div class="table-card__header">

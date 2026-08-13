@@ -459,6 +459,21 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .btn-back-home { animation: none; } }
 
+/* Motivos (Devolução/Cancelado/Reentrega) — lista ordenada, não um gráfico de pizza:
+   com ~15 categorias possíveis, uma lista com barra horizontal lê melhor que fatias. */
+.detail-motivos {
+  margin-bottom: 18px; padding: 14px 16px; border: 1px solid var(--border);
+  border-radius: var(--radius-md); background: var(--surface-alt);
+}
+.detail-motivos__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.detail-motivos__title { font-size: 13px; font-weight: 800; }
+.detail-motivos__coverage { font-size: 11.5px; color: var(--text-secondary); }
+.motivo-bar-row { display: grid; grid-template-columns: minmax(120px, 220px) 1fr auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 12.5px; }
+.motivo-bar-row__label { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.motivo-bar-row__track { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.motivo-bar-row__fill { height: 100%; border-radius: 999px; background: var(--color-orange); }
+.motivo-bar-row__count { color: var(--text-secondary); font-weight: 700; white-space: nowrap; text-align: right; }
+
 /* ---------- 9. Gráficos ---------- */
 .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
 .charts-grid--donuts { grid-template-columns: repeat(3, 1fr); }
@@ -534,6 +549,12 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table tbody td:first-child {
   font-weight: 800; color: var(--color-orange); font-size: 13.5px;
 }
+.nf-link {
+  background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit;
+  cursor: pointer; text-decoration: underline; text-decoration-color: transparent;
+  text-underline-offset: 3px; transition: text-decoration-color var(--transition);
+}
+.nf-link:hover, .nf-link:focus-visible { text-decoration-color: currentColor; }
 .text-right { text-align: right; }
 .table-empty { text-align: center !important; padding: 32px !important; color: var(--text-secondary); }
 
