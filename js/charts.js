@@ -44,20 +44,26 @@ class DashChart {
     this.container.innerHTML = '';
     this.container.classList.add('chart-root');
 
+    // O canvas fica isolado num wrapper próprio, position:absolute, pra NUNCA participar do
+    // cálculo de altura automática do .chart-root (ver _resize/CSS .chart-plot-area).
+    this.plotArea = document.createElement('div');
+    this.plotArea.className = 'chart-plot-area';
+    this.container.appendChild(this.plotArea);
+
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'chart-canvas';
-    this.container.appendChild(this.canvas);
+    this.plotArea.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
 
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'chart-tooltip';
     this.tooltip.setAttribute('role', 'tooltip');
-    this.container.appendChild(this.tooltip);
+    this.plotArea.appendChild(this.tooltip);
 
     this.emptyState = document.createElement('div');
     this.emptyState.className = 'chart-empty';
     this.emptyState.textContent = this.options.emptyMessage;
-    this.container.appendChild(this.emptyState);
+    this.plotArea.appendChild(this.emptyState);
 
     if (this.options.showLegend) {
       this.legend = document.createElement('div');
@@ -81,20 +87,20 @@ class DashChart {
       this._resizeScheduled = true;
       requestAnimationFrame(() => { this._resizeScheduled = false; this._resize(); });
     });
-    this._resizeObserver.observe(this.container);
+    // Observa o .chart-plot-area (não o .chart-root inteiro) — sua altura já exclui a
+    // legenda, então não é preciso subtrair offsetHeight do legend aqui.
+    this._resizeObserver.observe(this.plotArea);
   }
 
   _resize() {
-    const rect = this.container.getBoundingClientRect();
+    const rect = this.plotArea.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const legendHeight = this.legend ? this.legend.offsetHeight : 0;
     const width = Math.max(rect.width, 100);
-    const height = Math.max(rect.height - legendHeight, 120);
+    const height = Math.max(rect.height, 120);
 
-    // O legend (filho do próprio container observado) muda de altura quando o texto
-    // reflui, o que dispara o ResizeObserver de novo depois deste resize — sem essa
-    // guarda de "não mudou", isso vira um loop onde o canvas fica sendo limpo (width/
-    // height resetam o bitmap) repetidas vezes e às vezes some visualmente.
+    // Guarda contra ciclos redundantes do ResizeObserver (ex.: mudanças de subpixel entre
+    // medições) — sem isso, o canvas fica sendo limpo (width/height resetam o bitmap)
+    // repetidas vezes e às vezes some visualmente.
     const pxW = Math.round(width * dpr);
     const pxH = Math.round(height * dpr);
     if (pxW === this._lastPxW && pxH === this._lastPxH) return;
