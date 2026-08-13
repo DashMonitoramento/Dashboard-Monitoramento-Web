@@ -360,6 +360,9 @@ function normalizeRecord(rawRow) {
     dataAgendamento,
     dataFaturamento: Utils.parseDate(get('dataFaturamento')),
     dataEntrega,
+    // Só existe pra registros vindos da Base Bluesoft (ver applyBluesoftEnrichment) — a aba
+    // "NF Aberta" não distingue início de viagem de entrega, então fica nulo aqui.
+    dataInicioViagem: null,
     situacao,
     // Preenchidos pela planilha de Agendamentos (cruzada por NF) — ficam nulos/vazios até
     // essa base ser carregada, já que nenhuma outra fonte hoje traz esses três campos.
@@ -404,6 +407,8 @@ const DataStore = (() => {
       dataFim: null,
       mes: '',       // '1'..'12'
       ano: '',       // 'YYYY'
+      inicioViagemMes: '', // '1'..'12' — mês de r.dataInicioViagem (coleta/despacho na Base Bluesoft)
+      inicioViagemAno: '', // 'YYYY'
       situacaoFiltro: '', // valor de r.situacao (Entregue, Em aberto, Agendado, Devolução, etc.)
       transportadora: '',
       motorista: '',
@@ -535,6 +540,9 @@ const DataStore = (() => {
       r.situacao = info.status;
       if (info.status === 'Entregue') r.status = 'ENTREGUE';
       if (!r.cnpj && info.cnpj) r.cnpj = String(info.cnpj).trim();
+      // "Data de Entrega" na Base Bluesoft é, na prática, a data de coleta/início da viagem
+      // (confirmado com o usuário) — não a data real de entrega ao cliente.
+      if (!r.dataInicioViagem && info.dataEntrega) r.dataInicioViagem = Utils.parseDate(info.dataEntrega);
     }
 
     for (const [nf, info] of bluesoftStatusByNF) {
@@ -558,6 +566,7 @@ const DataStore = (() => {
         dataAgendamento: null,
         dataFaturamento: null,
         dataEntrega: Utils.parseDate(info.dataEntrega),
+        dataInicioViagem: Utils.parseDate(info.dataEntrega),
         situacao: info.status
       });
       existingNFs.add(nf);
@@ -770,7 +779,10 @@ const DataStore = (() => {
   function getFilters() { return { ...filters }; }
 
   function getFilteredRecords() {
-    const { dataInicio, dataFim, mes, ano, situacaoFiltro, transportadora, motorista, vendedor, cliente, cidade, busca } = filters;
+    const {
+      dataInicio, dataFim, mes, ano, inicioViagemMes, inicioViagemAno,
+      situacaoFiltro, transportadora, motorista, vendedor, cliente, cidade, busca
+    } = filters;
 
     return rawRecords.filter(r => {
       const ref = r.dataEntrega || r.dataFaturamento || r.dataAgendamento || r.dataEmissao;
@@ -779,6 +791,12 @@ const DataStore = (() => {
       if (dataFim && ref && ref > dataFim) return false;
       if (mes && ref && String(ref.getMonth() + 1) !== String(mes)) return false;
       if (ano && ref && String(ref.getFullYear()) !== String(ano)) return false;
+
+      // Filtro de Início de Viagem é exclusivo: sem essa data, a nota não "saiu para
+      // entrega" naquele mês/ano, então some do resultado em vez de passar direto (diferente
+      // do comportamento do filtro de Mês/Ano acima, que deixa passar quando falta a data).
+      if (inicioViagemMes && (!r.dataInicioViagem || String(r.dataInicioViagem.getMonth() + 1) !== String(inicioViagemMes))) return false;
+      if (inicioViagemAno && (!r.dataInicioViagem || String(r.dataInicioViagem.getFullYear()) !== String(inicioViagemAno))) return false;
 
       if (situacaoFiltro && r.situacao !== situacaoFiltro) return false;
       if (transportadora && r.transportadora !== transportadora) return false;
@@ -808,6 +826,11 @@ const DataStore = (() => {
     return Utils.uniqueSorted(years).sort((a, b) => b - a);
   }
 
+  function getAvailableInicioViagemYears() {
+    const years = rawRecords.map(r => r.dataInicioViagem).filter(Boolean).map(d => d.getFullYear());
+    return Utils.uniqueSorted(years).sort((a, b) => b - a);
+  }
+
   return {
     loadFromUrl, loadFromFile, setRawRows,
     loadBluesoftFromUrl, loadBluesoftFromFile,
@@ -815,7 +838,7 @@ const DataStore = (() => {
     loadAgendamentosFromUrl, loadAgendamentosFromFile,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
-    getDistinctValues, getAvailableYears,
+    getDistinctValues, getAvailableYears, getAvailableInicioViagemYears,
     onChange
   };
 })();

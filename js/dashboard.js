@@ -42,6 +42,8 @@ const Dashboard = (() => {
     });
     $('filter-mes').addEventListener('change', (e) => DataStore.setFilters({ mes: e.target.value }));
     $('filter-ano').addEventListener('change', (e) => DataStore.setFilters({ ano: e.target.value }));
+    $('filter-inicio-viagem-mes').addEventListener('change', (e) => DataStore.setFilters({ inicioViagemMes: e.target.value }));
+    $('filter-inicio-viagem-ano').addEventListener('change', (e) => DataStore.setFilters({ inicioViagemAno: e.target.value }));
     $('filter-status').addEventListener('change', (e) => DataStore.setFilters({ situacaoFiltro: e.target.value }));
     $('filter-transportadora').addEventListener('change', (e) => DataStore.setFilters({ transportadora: e.target.value }));
     $('filter-motorista').addEventListener('change', (e) => DataStore.setFilters({ motorista: e.target.value }));
@@ -171,6 +173,12 @@ const Dashboard = (() => {
     anoEl.innerHTML = '<option value="">Todos os anos</option>' +
       DataStore.getAvailableYears().map(y => `<option value="${y}">${y}</option>`).join('');
     if (currentAno) anoEl.value = currentAno;
+
+    const anoInicioViagemEl = document.getElementById('filter-inicio-viagem-ano');
+    const currentAnoInicioViagem = anoInicioViagemEl.value;
+    anoInicioViagemEl.innerHTML = '<option value="">Todos</option>' +
+      DataStore.getAvailableInicioViagemYears().map(y => `<option value="${y}">${y}</option>`).join('');
+    if (currentAnoInicioViagem) anoInicioViagemEl.value = currentAnoInicioViagem;
   }
 
   function escapeAttr(str) {
