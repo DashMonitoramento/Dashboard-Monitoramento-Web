@@ -314,14 +314,16 @@
           <span class="kpi-card__label">% Entregas realizadas</span>
           <span class="kpi-card__value" id="kpi-percentual">0%</span>
         </article>
-        <article class="kpi-card kpi-card--primary kpi-card--actions">
-          <span class="kpi-card__label">Ações</span>
-          <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
-            <button id="btn-print-dashboard" class="btn" style="padding:6px 10px; font-size:12px;">🖨️ Imprimir</button>
-            <button id="btn-export-pdf" class="btn" style="padding:6px 10px; font-size:12px;">📄 PDF</button>
-          </div>
+        <article class="kpi-card kpi-card--primary" title="Total de notas distintas, independente do status — cada NF conta uma vez só, mesmo com reentregas">
+          <span class="kpi-card__label">Total geral de notas</span>
+          <span class="kpi-card__value" id="kpi-total-notas">0</span>
         </article>
       </section>
+
+      <div class="kpi-actions">
+        <button id="btn-print-dashboard" class="btn">🖨️ Imprimir</button>
+        <button id="btn-export-pdf" class="btn">📄 PDF</button>
+      </div>
 
       <!-- GRÁFICOS -->
       <section class="charts-grid charts-grid--donuts" aria-label="Distribuições">

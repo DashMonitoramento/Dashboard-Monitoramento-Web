@@ -433,6 +433,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .kpi-card--primary { --kpi-accent: var(--color-orange); }
 .kpi-card--secondary { --kpi-accent: var(--color-blue); }
 .kpi-card--actions { justify-content: center; }
+.kpi-actions { display: flex; gap: 8px; margin: -6px 0 24px; }
 
 /* ---------- 8b. Tela de detalhe (drill-down ao clicar num KPI) ---------- */
 .status-detail-view__header {
@@ -471,7 +472,11 @@ ul { list-style: none; margin: 0; padding: 0; }
 .motivo-bar-row { display: grid; grid-template-columns: minmax(120px, 220px) 1fr auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 12.5px; }
 .motivo-bar-row__label { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .motivo-bar-row__track { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
-.motivo-bar-row__fill { height: 100%; border-radius: 999px; background: var(--color-orange); }
+.motivo-bar-row__fill {
+  height: 100%; border-radius: 999px; background: var(--color-orange); width: 0%;
+  transition: width 700ms cubic-bezier(.33,1,.68,1);
+}
+@media (prefers-reduced-motion: reduce) { .motivo-bar-row__fill { transition: none; } }
 .motivo-bar-row__count { color: var(--text-secondary); font-weight: 700; white-space: nowrap; text-align: right; }
 
 /* ---------- 9. Gráficos ---------- */

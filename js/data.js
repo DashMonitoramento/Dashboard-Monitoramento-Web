@@ -567,11 +567,20 @@ const DataStore = (() => {
   function applyBluesoftEnrichment() {
     if (bluesoftStatusByNF.size === 0) return;
 
-    const existingNFs = new Set(rawRecords.map(r => r.nf));
+    // bluesoftStatusByNF é indexado pela NF COM sufixo de viagem/item (ex.: "138124-1"), mas a
+    // base principal ("NF Aberta") não tem esse sufixo — comparando a NF completa, a mesma nota
+    // física "não batia" nunca, e a nota acabava duplicada: uma vez vinda da base principal,
+    // outra empurrada de novo pela Bluesoft (confirmado: 495 das 503 notas da base principal
+    // também existem na Bluesoft). Um índice auxiliar por NF base resolve os dois lados.
+    const bluesoftByBaseNF = new Map();
+    for (const [nf, info] of bluesoftStatusByNF) {
+      bluesoftByBaseNF.set(nf.split('-')[0], info);
+    }
+    const existingBaseNFs = new Set(rawRecords.map(r => r.nf.split('-')[0]));
 
     for (const r of rawRecords) {
       if (r.situacao !== 'NF Não encontrada') continue;
-      const info = bluesoftStatusByNF.get(r.nf);
+      const info = bluesoftByBaseNF.get(r.nf.split('-')[0]);
       if (!info) continue;
       r.situacao = info.status;
       if (info.status === 'Entregue') r.status = 'ENTREGUE';
@@ -582,7 +591,9 @@ const DataStore = (() => {
     }
 
     for (const [nf, info] of bluesoftStatusByNF) {
-      if (existingNFs.has(nf)) continue;
+      const baseNf = nf.split('-')[0];
+      if (existingBaseNFs.has(baseNf)) continue;
+      existingBaseNFs.add(baseNf);
       const status = info.status === 'Entregue' ? 'ENTREGUE' : 'EM_ABERTO';
       rawRecords.push({
         nf,
@@ -607,7 +618,6 @@ const DataStore = (() => {
         motivo: '',
         motivoCategoria: ''
       });
-      existingNFs.add(nf);
     }
   }
 

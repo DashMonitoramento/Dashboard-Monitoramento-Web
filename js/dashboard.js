@@ -235,13 +235,19 @@ const Dashboard = (() => {
     document.getElementById('detail-motivos-coverage').textContent =
       `Baseado em ${comMotivo.length} de ${records.length} notas com motivo registrado (~${pct}%) — fonte cobre principalmente dez/2025 a abr/2026, não o período todo.`;
 
-    document.getElementById('detail-motivos-list').innerHTML = entries.map(([nome, count]) => `
+    // A barra nasce em 0% (via CSS) e só recebe a largura real depois de já estar no DOM —
+    // é isso que dispara a transição/animação em vez de pintar direto no valor final.
+    const list = document.getElementById('detail-motivos-list');
+    list.innerHTML = entries.map(([nome, count]) => `
       <div class="motivo-bar-row">
         <span class="motivo-bar-row__label" title="${escapeAttr(nome)}">${escapeAttr(nome)}</span>
-        <span class="motivo-bar-row__track"><span class="motivo-bar-row__fill" style="width:${Math.round(count / maxCount * 100)}%"></span></span>
+        <span class="motivo-bar-row__track"><span class="motivo-bar-row__fill" data-pct="${Math.round(count / maxCount * 100)}"></span></span>
         <span class="motivo-bar-row__count">${count}</span>
       </div>
     `).join('');
+    requestAnimationFrame(() => {
+      list.querySelectorAll('.motivo-bar-row__fill').forEach(el => { el.style.width = `${el.dataset.pct}%`; });
+    });
   }
 
   function tableColumns() {
@@ -532,10 +538,13 @@ const Dashboard = (() => {
       })
       .filter(e => e.total >= 3);
 
-    // Ordena sempre decrescente pela taxa (igual ao gráfico "Ranking top 10") — "melhores"/
-    // "piores" só decide de qual ponta da lista pegar, nunca inverte a ordem de exibição.
+    // "Melhores"/"piores" (por taxa) decide QUAIS transportadoras entram na lista — mas taxa
+    // não é o que aparece nas barras, então ordenar por ela deixava o gráfico com barras fora
+    // de ordem visualmente. Pra exibição, ordena sempre pela quantidade de Entregues
+    // (decrescente, igual ao "Ranking top 10") — é a métrica que as barras de fato mostram.
     entries.sort((a, b) => b.taxa - a.taxa);
     entries = filtro === 'piores' ? entries.slice(-quantidade) : entries.slice(0, quantidade);
+    entries.sort((a, b) => b.entregues - a.entregues);
 
     charts.rankingTransportadoras.update({
       labels: entries.map(e => e.name),

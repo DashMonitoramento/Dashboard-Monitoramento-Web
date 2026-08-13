@@ -12,7 +12,9 @@ import {
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  setPersistence,
+  inMemoryPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
   getFirestore,
@@ -34,6 +36,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Por pedido do usuário: nunca entrar direto sozinho — sempre precisa clicar em "Entrar".
+// O padrão do Firebase (browserLocalPersistence) grava a sessão em disco e mantém logado
+// mesmo depois de fechar o navegador; inMemoryPersistence não grava em lugar nenhum, então a
+// sessão some a cada recarregamento de página, exigindo login de novo sempre.
+setPersistence(auth, inMemoryPersistence)
+  .catch(err => console.warn('Falha ao configurar persistência do login (login ainda funciona normalmente):', err.code || err.message));
 
 /** Cria a conta no Authentication, define o nome e grava um perfil básico no Firestore. */
 async function createUser(email, password, nome) {
