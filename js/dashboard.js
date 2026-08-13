@@ -381,8 +381,10 @@ const Dashboard = (() => {
     setKPI('kpi-valor-reentrega', Utils.sum(reentrega, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-aguardando', Utils.sum(aguardando, r => r.valorNF), Utils.formatCurrency);
 
-    // Total geral — independente do status, conta tudo que passou pelos filtros atuais.
+    // Total geral — independente do status, conta tudo que passou pelos filtros atuais
+    // (cada NF já é uma linha só, mesmo com reentregas — dedup acontece em data.js).
     setKPI('kpi-total-notas', records.length, Utils.formatNumber);
+    setKPI('kpi-valor-total-notas', Utils.sum(records, r => r.valorNF), Utils.formatCurrency);
   }
 
   const kpiPrevValues = {};

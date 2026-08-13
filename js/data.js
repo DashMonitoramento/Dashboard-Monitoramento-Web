@@ -563,6 +563,14 @@ const DataStore = (() => {
    *    completa com o status da Base Bluesoft.
    *  - Se a NF só existe na Base Bluesoft (não está na base principal), cria um registro novo
    *    com os dados que a Base Bluesoft tem disponíveis.
+   *
+   * "Valor NF" por decisão do usuário (2026-08-14): quando a nota existe nas duas bases, o
+   * "Valor NF" da planilha principal é quem vale — nunca é sobrescrito pela Bluesoft aqui.
+   * Motivo: as duas bases divergem MUITO no valor pra toda nota que aparece nas duas (0 de 495
+   * batiam, diferenças de até 9x) — provavelmente "Valor NF" tem significado diferente em cada
+   * uma (ex.: pedido inteiro vs. só uma parte da entrega). Sem uma fonte confirmada como
+   * correta, a decisão foi manter a prioridade que já existia pra vendedor/situação. O valor
+   * da Bluesoft só é usado quando a nota não existe na planilha principal.
    */
   function applyBluesoftEnrichment() {
     if (bluesoftStatusByNF.size === 0) return;
