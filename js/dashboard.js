@@ -28,6 +28,13 @@ const Dashboard = (() => {
     prev: 'detail-table-prev', next: 'detail-table-next', theadSelector: '#detail-data-table thead th[data-field]'
   };
 
+  // Precisa ficar em sincronia com os valores dos checkboxes de #filter-status-list no
+  // index.html — qualquer r.situacao fora dessa lista cai no botão "Status Diversos".
+  const KNOWN_SITUACOES = [
+    'Aguardando agendamento', 'Agendado', 'Cancelado', 'Devolução', 'Em aberto',
+    'Em rota', 'Entregue', 'Reentrega', 'Recusa'
+  ];
+
   // Cada entrada define o que um card de KPI representa, pra abrir a tela de detalhe com
   // exatamente os registros que compõem aquele número (mesmo critério usado em renderKPIs).
   const STATUS_DETAIL_DEFS = {
@@ -36,7 +43,8 @@ const Dashboard = (() => {
     'devolucao': { title: 'Devolução', test: r => r.situacao === 'Devolução' },
     'cancelado': { title: 'Cancelado', test: r => r.situacao === 'Cancelado' },
     'reentrega': { title: 'Reentrega', test: r => r.situacao === 'Reentrega' },
-    'aguardando': { title: 'Aguardando agendamento', test: r => r.status === 'AGUARDANDO_AGENDAMENTO' }
+    'aguardando': { title: 'Aguardando agendamento', test: r => r.status === 'AGUARDANDO_AGENDAMENTO' },
+    'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) }
   };
 
   // "Não informado" é um rótulo de ausência, não um vendedor real — por padrão fica fora
@@ -73,9 +81,10 @@ const Dashboard = (() => {
     });
     $('filter-mes').addEventListener('change', (e) => DataStore.setFilters({ mes: e.target.value }));
     $('filter-ano').addEventListener('change', (e) => DataStore.setFilters({ ano: e.target.value }));
-    $('filter-inicio-viagem-mes').addEventListener('change', (e) => DataStore.setFilters({ inicioViagemMes: e.target.value }));
-    $('filter-inicio-viagem-ano').addEventListener('change', (e) => DataStore.setFilters({ inicioViagemAno: e.target.value }));
-    $('filter-status').addEventListener('change', (e) => DataStore.setFilters({ situacaoFiltro: e.target.value }));
+    $('filter-status-list').addEventListener('change', () => {
+      const checked = Array.from(document.querySelectorAll('#filter-status-list input[type="checkbox"]:checked')).map(cb => cb.value);
+      DataStore.setFilters({ situacaoFiltro: checked });
+    });
     $('filter-transportadora').addEventListener('change', (e) => DataStore.setFilters({ transportadora: e.target.value }));
     $('filter-motorista').addEventListener('change', (e) => DataStore.setFilters({ motorista: e.target.value }));
     $('filter-vendedor').addEventListener('change', (e) => DataStore.setFilters({ vendedor: e.target.value }));
@@ -93,6 +102,7 @@ const Dashboard = (() => {
     $('btn-reset-filters').addEventListener('click', () => {
       DataStore.resetFilters();
       document.querySelectorAll('.filters-panel select, .filters-panel input').forEach(el => { el.value = ''; });
+      document.querySelectorAll('#filter-status-list input[type="checkbox"]').forEach(cb => { cb.checked = false; });
       buscaInput.classList.remove('is-filled');
       Utils.showToast('Filtros limpos.', 'info', 2000);
     });
@@ -180,6 +190,7 @@ const Dashboard = (() => {
     document.querySelectorAll('.kpi-card[data-detail]').forEach(card => {
       card.addEventListener('click', () => openStatusDetail(card.dataset.detail));
     });
+    document.getElementById('btn-status-diversos').addEventListener('click', () => openStatusDetail('diversos'));
     document.getElementById('btn-back-home').addEventListener('click', closeStatusDetail);
   }
 
@@ -283,7 +294,6 @@ const Dashboard = (() => {
       if (values.includes(current)) el.value = current;
     };
 
-    fillSelect('filter-status', DataStore.getDistinctValues('situacao'), 'Todos os status');
     fillSelect('filter-transportadora', DataStore.getDistinctValues('transportadora'), 'Todas as transportadoras');
     fillSelect('filter-motorista', DataStore.getDistinctValues('motorista'), 'Todos os motoristas');
     let vendedores = DataStore.getDistinctValues('vendedor');
@@ -297,12 +307,6 @@ const Dashboard = (() => {
     anoEl.innerHTML = '<option value="">Todos os anos</option>' +
       DataStore.getAvailableYears().map(y => `<option value="${y}">${y}</option>`).join('');
     if (currentAno) anoEl.value = currentAno;
-
-    const anoInicioViagemEl = document.getElementById('filter-inicio-viagem-ano');
-    const currentAnoInicioViagem = anoInicioViagemEl.value;
-    anoInicioViagemEl.innerHTML = '<option value="">Todos</option>' +
-      DataStore.getAvailableInicioViagemYears().map(y => `<option value="${y}">${y}</option>`).join('');
-    if (currentAnoInicioViagem) anoInicioViagemEl.value = currentAnoInicioViagem;
   }
 
   function escapeAttr(str) {

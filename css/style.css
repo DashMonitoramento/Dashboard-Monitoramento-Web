@@ -187,7 +187,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .filter-field input:focus, .filter-field select:focus { outline: 2px solid var(--color-blue); outline-offset: 1px; }
 .filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-/* Acordeão da barra lateral (Período, Status, Transporte... e "Arquivos de atualização") —
+/* Acordeão da barra lateral (Período, Status, Transporte...) —
    <details>/<summary> nativos, sem precisar de JS pra abrir/fechar. */
 .sidebar-accordion {
   border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;
@@ -210,8 +210,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sidebar-accordion[open] summary::after { transform: rotate(180deg); }
 .sidebar-accordion > summary + * { margin-top: 0; }
 .sidebar-accordion .filter-field,
-.sidebar-accordion .filter-row,
-.sidebar-accordion .data-file-list { margin: 10px 10px 10px; }
+.sidebar-accordion .filter-row { margin: 10px 10px 10px; }
 .sidebar-accordion .filter-field:last-child,
 .sidebar-accordion .filter-row:last-child { margin-bottom: 10px; }
 
@@ -278,20 +277,24 @@ ul { list-style: none; margin: 0; padding: 0; }
 #btn-toggle-vendedor-sem-cliente[aria-pressed="false"] {
   border-color: var(--color-danger); box-shadow: 0 0 8px rgba(220,38,38,.55); background: rgba(220,38,38,.1);
 }
+#btn-status-diversos {
+  margin-top: 4px; margin-bottom: 10px; font-size: 12px; padding: 7px 12px;
+  border-width: 2px; border-color: var(--color-neutral);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+#btn-status-diversos:hover { box-shadow: 0 0 8px rgba(100,116,139,.55); background: rgba(100,116,139,.1); }
 
 #filter-busca {
   border-width: 2px; border-color: var(--color-orange); box-shadow: 0 0 6px rgba(255,122,26,.45);
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-/* Cards pequenos com o nome dos arquivos que precisam ser atualizados manualmente. */
-.data-file-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.data-file-chip {
-  font-size: 11px; font-family: 'SFMono-Regular', Consolas, 'Courier New', monospace;
-  padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
-  background: var(--surface-alt); color: var(--text-secondary); cursor: help;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.filter-checkbox-list { display: flex; flex-direction: column; gap: 6px; }
+.filter-checkbox {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  color: var(--text-primary); cursor: pointer;
 }
+.filter-checkbox input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--color-blue); }
 #filter-busca.is-filled {
   border-color: var(--color-success); box-shadow: 0 0 8px rgba(22,163,74,.55);
 }
@@ -433,7 +436,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .kpi-card--primary { --kpi-accent: var(--color-orange); }
 .kpi-card--secondary { --kpi-accent: var(--color-blue); }
 .kpi-card--actions { justify-content: center; }
-.kpi-actions { display: flex; gap: 8px; justify-content: center; margin: 4px 0 24px; }
+.kpi-actions { display: flex; gap: 8px; justify-content: flex-start; margin: 4px 0 24px; }
 .kpi-actions .btn { border: 1.5px solid var(--color-orange); }
 
 /* ---------- 8b. Tela de detalhe (drill-down ao clicar num KPI) ---------- */

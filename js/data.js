@@ -443,9 +443,7 @@ const DataStore = (() => {
       dataFim: null,
       mes: '',       // '1'..'12'
       ano: '',       // 'YYYY'
-      inicioViagemMes: '', // '1'..'12' — mês de r.dataInicioViagem (coleta/despacho na Base Bluesoft)
-      inicioViagemAno: '', // 'YYYY'
-      situacaoFiltro: '', // valor de r.situacao (Entregue, Em aberto, Agendado, Devolução, etc.)
+      situacaoFiltro: [], // array de valores de r.situacao selecionados (vazio = todos)
       transportadora: '',
       motorista: '',
       vendedor: '',
@@ -894,7 +892,7 @@ const DataStore = (() => {
 
   function getFilteredRecords() {
     const {
-      dataInicio, dataFim, mes, ano, inicioViagemMes, inicioViagemAno,
+      dataInicio, dataFim, mes, ano,
       situacaoFiltro, transportadora, motorista, vendedor, cliente, cidade, busca
     } = filters;
 
@@ -906,13 +904,7 @@ const DataStore = (() => {
       if (mes && ref && String(ref.getMonth() + 1) !== String(mes)) return false;
       if (ano && ref && String(ref.getFullYear()) !== String(ano)) return false;
 
-      // Filtro de Início de Viagem é exclusivo: sem essa data, a nota não "saiu para
-      // entrega" naquele mês/ano, então some do resultado em vez de passar direto (diferente
-      // do comportamento do filtro de Mês/Ano acima, que deixa passar quando falta a data).
-      if (inicioViagemMes && (!r.dataInicioViagem || String(r.dataInicioViagem.getMonth() + 1) !== String(inicioViagemMes))) return false;
-      if (inicioViagemAno && (!r.dataInicioViagem || String(r.dataInicioViagem.getFullYear()) !== String(inicioViagemAno))) return false;
-
-      if (situacaoFiltro && r.situacao !== situacaoFiltro) return false;
+      if (situacaoFiltro && situacaoFiltro.length && !situacaoFiltro.includes(r.situacao)) return false;
       if (transportadora && r.transportadora !== transportadora) return false;
       if (motorista && r.motorista !== motorista) return false;
       if (vendedor && r.vendedor !== vendedor) return false;
@@ -940,11 +932,6 @@ const DataStore = (() => {
     return Utils.uniqueSorted(years).sort((a, b) => b - a);
   }
 
-  function getAvailableInicioViagemYears() {
-    const years = rawRecords.map(r => r.dataInicioViagem).filter(Boolean).map(d => d.getFullYear());
-    return Utils.uniqueSorted(years).sort((a, b) => b - a);
-  }
-
   return {
     loadFromUrl, loadFromFile, setRawRows,
     loadBluesoftFromUrl, loadBluesoftFromFile,
@@ -953,7 +940,7 @@ const DataStore = (() => {
     loadMotivosFromUrl, loadMotivosFromFile,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
-    getDistinctValues, getAvailableYears, getAvailableInicioViagemYears,
+    getDistinctValues, getAvailableYears,
     onChange
   };
 })();

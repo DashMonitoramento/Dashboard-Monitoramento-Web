@@ -148,15 +148,6 @@
       <div style="display:flex; flex-direction:column; gap:8px;">
         <button id="btn-refresh-data" class="btn btn--pill-orange btn--block">🔄 Atualizar dados</button>
       </div>
-      <details class="sidebar-accordion" style="margin-top:12px;">
-        <summary>Arquivos de atualização</summary>
-        <div class="data-file-list">
-          <div class="data-file-chip" title="Base principal — aba NF ABERTA (BI STATUS ENTREGAS)">📄 sample-data.csv</div>
-          <div class="data-file-chip" title="Base expandida — arquivo RASCUNHO/Bluesoft (Status da Entrega)">📄 sample-data-bluesoft.csv</div>
-          <div class="data-file-chip" title="Vendedor por cliente — aba Vendedores">📄 sample-data-clientes.csv</div>
-          <div class="data-file-chip" title="Data agendada, Status e Reagenda — sua planilha de agendamentos">📄 sample-data-agendamentos.csv</div>
-        </div>
-      </details>
     </div>
 
     <div class="sidebar-section">
@@ -191,32 +182,23 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Início de viagem</summary>
-          <p class="chart-card__hint" style="margin-top:0;">Mês/ano em que a nota saiu para entrega (data de coleta), não quando foi faturada nem entregue.</p>
-          <div class="filter-row">
-            <div class="filter-field">
-              <label for="filter-inicio-viagem-mes">Mês</label>
-              <select id="filter-inicio-viagem-mes">
-                <option value="">Todos</option>
-                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
-                <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-                <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
-                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-              </select>
-            </div>
-            <div class="filter-field">
-              <label for="filter-inicio-viagem-ano">Ano</label>
-              <select id="filter-inicio-viagem-ano"><option value="">Todos</option></select>
-            </div>
-          </div>
-        </details>
-
-        <details class="sidebar-accordion">
           <summary>Status</summary>
           <div class="filter-field">
-            <label for="filter-status">Status da nota</label>
-            <select id="filter-status"><option value="">Todos os status</option></select>
+            <div class="filter-checkbox-list" id="filter-status-list">
+              <label class="filter-checkbox"><input type="checkbox" value="Aguardando agendamento"> Aguardando agendamento</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Agendado"> Agendado</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Cancelado"> Cancelado</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Devolução"> Devolução</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Em aberto"> Em aberto</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Em rota"> Em rota</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Entregue"> Entregue</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Reentrega"> Reentrega</label>
+              <label class="filter-checkbox"><input type="checkbox" value="Recusa"> Recusa</label>
+            </div>
           </div>
+          <button id="btn-status-diversos" class="btn btn--ghost btn--block" type="button" title="Ver notas com status fora da lista acima">
+            📋 Status Diversos
+          </button>
         </details>
 
         <details class="sidebar-accordion">
