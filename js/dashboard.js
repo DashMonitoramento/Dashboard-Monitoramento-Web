@@ -7,11 +7,36 @@
 
 const Dashboard = (() => {
   const charts = {};
-  let table = {
-    sortField: 'dataEntrega',
-    sortDir: 'desc',
-    page: 1,
-    pageSize: 25
+
+  function createTableState() {
+    return { sortField: 'dataEntrega', sortDir: 'desc', page: 1, pageSize: 25 };
+  }
+  let table = createTableState();
+  const MAIN_TABLE_IDS = {
+    tbody: 'table-body', info: 'table-info', pageLabel: 'table-page-label',
+    prev: 'table-prev', next: 'table-next', theadSelector: '#data-table thead th[data-field]'
+  };
+
+  // Tela de detalhe (drill-down ao clicar num card de KPI) — reaproveita o mesmo
+  // renderizador de tabela da seção "Registros detalhados", só com outro conjunto de
+  // ids/estado, pra não duplicar a lógica de ordenação/paginação.
+  let detailTable = createTableState();
+  let detailRecords = [];
+  let detailKey = null;
+  const DETAIL_TABLE_IDS = {
+    tbody: 'detail-table-body', info: 'detail-table-info', pageLabel: 'detail-table-page-label',
+    prev: 'detail-table-prev', next: 'detail-table-next', theadSelector: '#detail-data-table thead th[data-field]'
+  };
+
+  // Cada entrada define o que um card de KPI representa, pra abrir a tela de detalhe com
+  // exatamente os registros que compõem aquele número (mesmo critério usado em renderKPIs).
+  const STATUS_DETAIL_DEFS = {
+    'entregue': { title: 'Notas entregues', test: r => r.status === 'ENTREGUE' },
+    'em-aberto': { title: 'Notas em aberto', test: r => r.situacao === 'Em aberto' },
+    'devolucao': { title: 'Devolução', test: r => r.situacao === 'Devolução' },
+    'cancelado': { title: 'Cancelado', test: r => r.situacao === 'Cancelado' },
+    'reentrega': { title: 'Reentrega', test: r => r.situacao === 'Reentrega' },
+    'aguardando': { title: 'Aguardando agendamento', test: r => r.status === 'AGUARDANDO_AGENDAMENTO' }
   };
 
   // "Não informado" é um rótulo de ausência, não um vendedor real — por padrão fica fora
@@ -27,6 +52,7 @@ const Dashboard = (() => {
     bindFilterInputs();
     bindTableControls();
     bindActionButtons();
+    bindStatusDetail();
     createCharts();
     DataStore.onChange(render);
   }
@@ -76,6 +102,30 @@ const Dashboard = (() => {
     });
   }
 
+  /** Amarra ordenação/paginação de UMA tabela (estado + ids próprios) a uma fonte de registros. */
+  function bindTableControlsFor(state, ids, getRecords) {
+    document.querySelectorAll(`${ids.theadSelector}`).forEach(th => {
+      th.addEventListener('click', () => {
+        const field = th.dataset.field;
+        if (state.sortField === field) {
+          state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sortField = field;
+          state.sortDir = 'asc';
+        }
+        state.page = 1;
+        renderTableGeneric(getRecords(), state, ids);
+      });
+    });
+
+    document.getElementById(ids.prev).addEventListener('click', () => {
+      if (state.page > 1) { state.page--; renderTableGeneric(getRecords(), state, ids); }
+    });
+    document.getElementById(ids.next).addEventListener('click', () => {
+      state.page++; renderTableGeneric(getRecords(), state, ids);
+    });
+  }
+
   function bindTableControls() {
     const searchHandler = Utils.debounce((value) => {
       DataStore.setFilters({ busca: value });
@@ -85,19 +135,7 @@ const Dashboard = (() => {
     }, 250);
     document.getElementById('table-search').addEventListener('input', (e) => searchHandler(e.target.value));
 
-    document.querySelectorAll('#data-table thead th[data-field]').forEach(th => {
-      th.addEventListener('click', () => {
-        const field = th.dataset.field;
-        if (table.sortField === field) {
-          table.sortDir = table.sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-          table.sortField = field;
-          table.sortDir = 'asc';
-        }
-        table.page = 1;
-        renderTable(DataStore.getFilteredRecords());
-      });
-    });
+    bindTableControlsFor(table, MAIN_TABLE_IDS, () => DataStore.getFilteredRecords());
 
     document.getElementById('table-page-size').addEventListener('change', (e) => {
       table.pageSize = Number(e.target.value);
@@ -105,12 +143,7 @@ const Dashboard = (() => {
       renderTable(DataStore.getFilteredRecords());
     });
 
-    document.getElementById('table-prev').addEventListener('click', () => {
-      if (table.page > 1) { table.page--; renderTable(DataStore.getFilteredRecords()); }
-    });
-    document.getElementById('table-next').addEventListener('click', () => {
-      table.page++; renderTable(DataStore.getFilteredRecords());
-    });
+    bindTableControlsFor(detailTable, DETAIL_TABLE_IDS, () => detailRecords);
   }
 
   function bindActionButtons() {
@@ -121,11 +154,56 @@ const Dashboard = (() => {
       Utils.showToast(`${records.length} registros exportados para CSV.`, 'success');
     });
 
+    document.getElementById('btn-export-csv-detail').addEventListener('click', () => {
+      if (!detailRecords.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+      Utils.exportToCSV('dashboard-entregas-detalhe.csv', detailRecords, tableColumns());
+      Utils.showToast(`${detailRecords.length} registros exportados para CSV.`, 'success');
+    });
+
     document.getElementById('btn-print-dashboard').addEventListener('click', () => window.print());
     document.getElementById('btn-export-pdf').addEventListener('click', () => {
       Utils.showToast('Escolha "Salvar como PDF" na janela de impressão.', 'info', 5000);
       window.print();
     });
+  }
+
+  /* ============================================================
+   * TELA DE DETALHE (drill-down ao clicar num card de KPI)
+   * ============================================================ */
+
+  function bindStatusDetail() {
+    document.querySelectorAll('.kpi-card[data-detail]').forEach(card => {
+      card.addEventListener('click', () => openStatusDetail(card.dataset.detail));
+    });
+    document.getElementById('btn-back-home').addEventListener('click', closeStatusDetail);
+  }
+
+  function openStatusDetail(key) {
+    const def = STATUS_DETAIL_DEFS[key];
+    if (!def) return;
+    detailKey = key;
+    // Muda os campos no mesmo objeto (em vez de reatribuir `detailTable`) porque os cliques
+    // de ordenação/paginação já foram amarrados a essa referência específica em bindTableControls.
+    Object.assign(detailTable, createTableState());
+    renderStatusDetail();
+    document.getElementById('main-view').hidden = true;
+    document.getElementById('status-detail-view').hidden = false;
+  }
+
+  function closeStatusDetail() {
+    detailKey = null;
+    document.getElementById('status-detail-view').hidden = true;
+    document.getElementById('main-view').hidden = false;
+  }
+
+  /** Recalcula a lista da tela de detalhe a partir dos filtros atuais — chamado ao abrir e
+   * de novo sempre que os dados/filtros mudarem enquanto essa tela estiver aberta. */
+  function renderStatusDetail() {
+    if (!detailKey) return;
+    const def = STATUS_DETAIL_DEFS[detailKey];
+    detailRecords = DataStore.getFilteredRecords().filter(def.test);
+    document.getElementById('detail-view-title').textContent = `${def.title} (${Utils.formatNumber(detailRecords.length)})`;
+    renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS);
   }
 
   function tableColumns() {
@@ -211,6 +289,7 @@ const Dashboard = (() => {
     renderCharts(records);
     table.page = 1;
     renderTable(records);
+    renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
     updateLastUpdatedLabel();
   }
 
@@ -230,19 +309,30 @@ const Dashboard = (() => {
    * ============================================================ */
 
   function renderKPIs(records) {
-    const entregues = records.filter(r => r.status === 'ENTREGUE');
-    const abertas = records.filter(r => r.status === 'EM_ABERTO');
-    const aguardando = records.filter(r => r.status === 'AGUARDANDO_AGENDAMENTO');
+    // Usa exatamente os mesmos critérios do drill-down (STATUS_DETAIL_DEFS) — assim o número
+    // do card nunca diverge do que aparece ao clicar nele.
+    const entregues = records.filter(STATUS_DETAIL_DEFS['entregue'].test);
+    const abertas = records.filter(STATUS_DETAIL_DEFS['em-aberto'].test);
+    const devolucao = records.filter(STATUS_DETAIL_DEFS['devolucao'].test);
+    const cancelado = records.filter(STATUS_DETAIL_DEFS['cancelado'].test);
+    const reentrega = records.filter(STATUS_DETAIL_DEFS['reentrega'].test);
+    const aguardando = records.filter(STATUS_DETAIL_DEFS['aguardando'].test);
 
     const total = records.length || 1;
     const percentual = (entregues.length / total) * 100;
 
     setKPI('kpi-entregues-count', entregues.length, Utils.formatNumber);
     setKPI('kpi-abertas-count', abertas.length, Utils.formatNumber);
+    setKPI('kpi-devolucao-count', devolucao.length, Utils.formatNumber);
+    setKPI('kpi-cancelado-count', cancelado.length, Utils.formatNumber);
+    setKPI('kpi-reentrega-count', reentrega.length, Utils.formatNumber);
     setKPI('kpi-aguardando-count', aguardando.length, Utils.formatNumber);
     setKPI('kpi-percentual', percentual, v => Utils.formatPercent(v, 1));
     setKPI('kpi-valor-entregues', Utils.sum(entregues, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-abertas', Utils.sum(abertas, r => r.valorNF), Utils.formatCurrency);
+    setKPI('kpi-valor-devolucao', Utils.sum(devolucao, r => r.valorNF), Utils.formatCurrency);
+    setKPI('kpi-valor-cancelado', Utils.sum(cancelado, r => r.valorNF), Utils.formatCurrency);
+    setKPI('kpi-valor-reentrega', Utils.sum(reentrega, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-aguardando', Utils.sum(aguardando, r => r.valorNF), Utils.formatCurrency);
 
     // Total geral — independente do status, conta tudo que passou pelos filtros atuais.
@@ -274,8 +364,9 @@ const Dashboard = (() => {
     // verde = entregue, amarelo = dentro do prazo, vermelho = pendente/vencido, cinza = sem informação.
     charts.status = new DashChart(document.getElementById('chart-status'), {
       type: 'pie', labels: [], series: [{ data: [] }],
-      // Entregues, Agendados, Aguardando agendamento, Em aberto
-      options: { colors: ['#16A34A', '#2563EB', '#64748B', '#DC2626'] }
+      // Entregues, Agendados, Aguardando agendamento, Devolução, Cancelado, Reentrega, Em aberto
+      // — mesma categorização dos cards de KPI, pra bater 1:1 com o que aparece lá.
+      options: { colors: ['#16A34A', '#2563EB', '#64748B', '#EAB308', '#8B5CF6', '#0EA5E9', '#DC2626'] }
     });
     charts.prazo = new DashChart(document.getElementById('chart-prazo'), {
       type: 'donut', labels: [], series: [{ data: [] }],
@@ -329,17 +420,21 @@ const Dashboard = (() => {
 
   function renderStatusChart(records) {
     // "Agendado" é um valor de situação, não de status — separado aqui do balde genérico
-    // "Em aberto" pra dar visibilidade própria, como pedido.
-    let entregues = 0, agendados = 0, aguardando = 0, emAberto = 0;
+    // "Em aberto" pra dar visibilidade própria, como pedido. Devolução/Cancelado/Reentrega
+    // também saem do balde genérico — mesma categorização dos cards de KPI (STATUS_DETAIL_DEFS).
+    let entregues = 0, agendados = 0, aguardando = 0, devolucao = 0, cancelado = 0, reentrega = 0, emAberto = 0;
     records.forEach(r => {
       if (r.status === 'ENTREGUE') entregues++;
       else if (r.situacao === 'Agendado') agendados++;
       else if (r.status === 'AGUARDANDO_AGENDAMENTO') aguardando++;
+      else if (r.situacao === 'Devolução') devolucao++;
+      else if (r.situacao === 'Cancelado') cancelado++;
+      else if (r.situacao === 'Reentrega') reentrega++;
       else emAberto++;
     });
     charts.status.update({
-      labels: ['Entregues', 'Agendados', 'Aguardando agendamento', 'Em aberto'],
-      series: [{ data: [entregues, agendados, aguardando, emAberto] }]
+      labels: ['Entregues', 'Agendados', 'Aguardando agendamento', 'Devolução', 'Cancelado', 'Reentrega', 'Em aberto'],
+      series: [{ data: [entregues, agendados, aguardando, devolucao, cancelado, reentrega, emAberto] }]
     });
   }
 
@@ -495,54 +590,64 @@ const Dashboard = (() => {
    * TABELA
    * ============================================================ */
 
-  function renderTable(records) {
+  function rowHtml(r) {
+    return `
+      <tr>
+        <td>${escapeAttr(r.nf)}</td>
+        <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
+        <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
+        <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
+        <td>${escapeAttr(r.vendedor)}</td>
+        <td>${escapeAttr(r.cidade)}${r.uf ? '/' + escapeAttr(r.uf) : ''}</td>
+        <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
+        <td><span class="badge ${prazoBadgeClass(r.prazoStatus)}">${prazoLabel(r.prazoStatus)}</span></td>
+        <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
+        <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
+        <td>${Utils.formatDate(r.dataEntrega)}</td>
+        <td>${Utils.formatDate(r.dataAgendamento)}</td>
+      </tr>
+    `;
+  }
+
+  /** Ordena, pagina e desenha uma tabela — usado tanto pela tabela principal quanto pela
+   * tela de detalhe (drill-down), cada uma com seu próprio estado e ids de elementos. */
+  function renderTableGeneric(records, state, ids) {
     const sorted = records.slice().sort((a, b) => {
-      let va = a[table.sortField];
-      let vb = b[table.sortField];
+      let va = a[state.sortField];
+      let vb = b[state.sortField];
       if (va instanceof Date || vb instanceof Date) { va = va ? va.getTime() : -Infinity; vb = vb ? vb.getTime() : -Infinity; }
-      if (typeof va === 'string') return table.sortDir === 'asc' ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+      if (typeof va === 'string') return state.sortDir === 'asc' ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
       const diff = (va || 0) - (vb || 0);
-      return table.sortDir === 'asc' ? diff : -diff;
+      return state.sortDir === 'asc' ? diff : -diff;
     });
 
-    const totalPages = Math.max(1, Math.ceil(sorted.length / table.pageSize));
-    table.page = Math.min(table.page, totalPages);
-    const start = (table.page - 1) * table.pageSize;
-    const pageItems = sorted.slice(start, start + table.pageSize);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / state.pageSize));
+    state.page = Math.min(state.page, totalPages);
+    const start = (state.page - 1) * state.pageSize;
+    const pageItems = sorted.slice(start, start + state.pageSize);
 
-    const tbody = document.getElementById('table-body');
+    const tbody = document.getElementById(ids.tbody);
 
     if (pageItems.length === 0) {
       tbody.innerHTML = `<tr><td colspan="13" class="table-empty">Nenhum registro encontrado para os filtros atuais.</td></tr>`;
     } else {
-      tbody.innerHTML = pageItems.map(r => `
-        <tr>
-          <td>${escapeAttr(r.nf)}</td>
-          <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
-          <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
-          <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
-          <td>${escapeAttr(r.vendedor)}</td>
-          <td>${escapeAttr(r.cidade)}${r.uf ? '/' + escapeAttr(r.uf) : ''}</td>
-          <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
-          <td><span class="badge ${prazoBadgeClass(r.prazoStatus)}">${prazoLabel(r.prazoStatus)}</span></td>
-          <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
-          <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
-          <td>${Utils.formatDate(r.dataEntrega)}</td>
-          <td>${Utils.formatDate(r.dataAgendamento)}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = pageItems.map(rowHtml).join('');
     }
 
-    document.getElementById('table-info').textContent =
-      sorted.length === 0 ? 'Nenhum registro' : `${start + 1}–${Math.min(start + table.pageSize, sorted.length)} de ${sorted.length} registros`;
-    document.getElementById('table-page-label').textContent = `Página ${table.page} de ${totalPages}`;
-    document.getElementById('table-prev').disabled = table.page <= 1;
-    document.getElementById('table-next').disabled = table.page >= totalPages;
+    document.getElementById(ids.info).textContent =
+      sorted.length === 0 ? 'Nenhum registro' : `${start + 1}–${Math.min(start + state.pageSize, sorted.length)} de ${sorted.length} registros`;
+    document.getElementById(ids.pageLabel).textContent = `Página ${state.page} de ${totalPages}`;
+    document.getElementById(ids.prev).disabled = state.page <= 1;
+    document.getElementById(ids.next).disabled = state.page >= totalPages;
 
-    document.querySelectorAll('#data-table thead th[data-field]').forEach(th => {
+    document.querySelectorAll(ids.theadSelector).forEach(th => {
       th.classList.remove('is-sorted-asc', 'is-sorted-desc');
-      if (th.dataset.field === table.sortField) th.classList.add(table.sortDir === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+      if (th.dataset.field === state.sortField) th.classList.add(state.sortDir === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
     });
+  }
+
+  function renderTable(records) {
+    renderTableGeneric(records, table, MAIN_TABLE_IDS);
   }
 
   return { init, renderAll };

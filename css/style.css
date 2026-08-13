@@ -403,13 +403,15 @@ ul { list-style: none; margin: 0; padding: 0; }
 .loading-overlay__text { color: var(--text-secondary); font-size: 13px; }
 
 /* ---------- 8. KPIs ---------- */
-.kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
 .kpi-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
   padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow);
   position: relative; overflow: hidden; min-height: 118px;
   transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
 }
+.kpi-card--clickable { cursor: pointer; }
+.kpi-card--clickable:active { transform: translateY(0) scale(.99); }
 .kpi-card:hover {
   border-color: var(--kpi-accent, var(--color-orange));
   box-shadow: 0 0 26px -6px var(--kpi-accent, var(--color-orange)), var(--shadow);
@@ -431,6 +433,31 @@ ul { list-style: none; margin: 0; padding: 0; }
 .kpi-card--primary { --kpi-accent: var(--color-orange); }
 .kpi-card--secondary { --kpi-accent: var(--color-blue); }
 .kpi-card--actions { justify-content: center; }
+
+/* ---------- 8b. Tela de detalhe (drill-down ao clicar num KPI) ---------- */
+.status-detail-view__header {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 18px;
+}
+.status-detail-view__title { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+.status-detail-view__subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+/* Botão "voltar ao início": ícone de casinha com borda e brilho verde, pedido explicitamente
+   pra ficar bem visível como o único jeito de saltar de volta pro painel principal. */
+.btn-back-home {
+  flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 2px solid var(--color-success); color: var(--color-success);
+  box-shadow: 0 0 10px 1px rgba(22,163,74,.5), 0 0 3px rgba(22,163,74,.8);
+  animation: backHomeGlow 2.4s ease-in-out infinite;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.btn-back-home:hover { transform: translateY(-1px) scale(1.06); box-shadow: 0 0 18px 4px rgba(22,163,74,.8); }
+.btn-back-home svg { width: 21px; height: 21px; }
+@keyframes backHomeGlow {
+  0%, 100% { box-shadow: 0 0 10px 1px rgba(22,163,74,.5), 0 0 3px rgba(22,163,74,.8); }
+  50%      { box-shadow: 0 0 20px 5px rgba(22,163,74,.9), 0 0 5px rgba(22,163,74,1); }
+}
+@media (prefers-reduced-motion: reduce) { .btn-back-home { animation: none; } }
 
 /* ---------- 9. Gráficos ---------- */
 .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }

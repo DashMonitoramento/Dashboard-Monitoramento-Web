@@ -277,19 +277,35 @@
   <main class="main">
     <div class="main-content">
 
+      <div id="main-view">
       <!-- KPIs -->
       <section class="kpi-grid" aria-label="Indicadores principais">
-        <article class="kpi-card kpi-card--success">
+        <article class="kpi-card kpi-card--success kpi-card--clickable" data-detail="entregue" title="Ver notas entregues">
           <span class="kpi-card__label">Notas entregues</span>
           <span class="kpi-card__value" id="kpi-entregues-count">0</span>
           <span class="kpi-card__subvalue" id="kpi-valor-entregues">R$ 0,00</span>
         </article>
-        <article class="kpi-card kpi-card--danger">
+        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto" title="Ver notas em aberto">
           <span class="kpi-card__label">Notas em aberto</span>
           <span class="kpi-card__value" id="kpi-abertas-count">0</span>
           <span class="kpi-card__subvalue" id="kpi-valor-abertas">R$ 0,00</span>
         </article>
-        <article class="kpi-card kpi-card--neutral">
+        <article class="kpi-card kpi-card--warning kpi-card--clickable" data-detail="devolucao" title="Ver notas em devolução">
+          <span class="kpi-card__label">Devolução</span>
+          <span class="kpi-card__value" id="kpi-devolucao-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-devolucao">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--neutral kpi-card--clickable" data-detail="cancelado" title="Ver notas canceladas">
+          <span class="kpi-card__label">Cancelado</span>
+          <span class="kpi-card__value" id="kpi-cancelado-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-cancelado">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--secondary kpi-card--clickable" data-detail="reentrega" title="Ver notas em reentrega">
+          <span class="kpi-card__label">Reentrega</span>
+          <span class="kpi-card__value" id="kpi-reentrega-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-reentrega">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--neutral kpi-card--clickable" data-detail="aguardando" title="Ver notas aguardando agendamento">
           <span class="kpi-card__label">Aguardando agendamento</span>
           <span class="kpi-card__value" id="kpi-aguardando-count">0</span>
           <span class="kpi-card__subvalue" id="kpi-valor-aguardando">R$ 0,00</span>
@@ -414,6 +430,60 @@
             <button id="table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
             <span id="table-page-label">Página 1 de 1</span>
             <button id="table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
+        </div>
+      </section>
+      </div><!-- /#main-view -->
+
+      <!-- ===================== TELA DE DETALHE (drill-down ao clicar num KPI) ===================== -->
+      <section id="status-detail-view" class="table-card" aria-label="Detalhe da categoria selecionada" hidden>
+        <div class="status-detail-view__header">
+          <button id="btn-back-home" class="btn-back-home" title="Voltar ao início" aria-label="Voltar ao início">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11.5 12 4l9 7.5"></path>
+              <path d="M5 10v9a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1v-9"></path>
+            </svg>
+          </button>
+          <div>
+            <h2 class="status-detail-view__title" id="detail-view-title">Detalhe</h2>
+            <p class="status-detail-view__subtitle">Registros que compõem o número do card selecionado, considerando os filtros atuais.</p>
+          </div>
+        </div>
+
+        <div class="table-card__header">
+          <div class="table-actions">
+            <button id="btn-export-csv-detail" class="btn">⬇️ Exportar CSV</button>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="data-table" id="detail-data-table">
+            <thead>
+              <tr>
+                <th data-field="nf">NF</th>
+                <th data-field="cliente">Cliente</th>
+                <th data-field="transportadora">Transportadora</th>
+                <th data-field="motorista">Motorista</th>
+                <th data-field="vendedor">Vendedor</th>
+                <th data-field="cidade">Cidade/UF</th>
+                <th data-field="status">Status</th>
+                <th data-field="prazoStatus">Prazo</th>
+                <th data-field="situacao">Situação</th>
+                <th data-field="valorNF">Valor NF</th>
+                <th data-field="dataEntrega">Data entrega</th>
+                <th data-field="dataAgendamento">Data agendada</th>
+              </tr>
+            </thead>
+            <tbody id="detail-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="table-footer">
+          <span id="detail-table-info">Nenhum registro</span>
+          <div class="pagination">
+            <button id="detail-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="detail-table-page-label">Página 1 de 1</span>
+            <button id="detail-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
           </div>
         </div>
       </section>
