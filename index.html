@@ -345,24 +345,20 @@
           <div class="chart-root" id="chart-ranking"></div>
         </div>
 
-        <div class="chart-card chart-card--wide">
+        <div class="chart-card">
           <div class="chart-card__header">
-            <h2 class="chart-card__title">Ranking de transportadoras — entregues vs. vencidas</h2>
-            <div style="display:flex; gap:8px;">
-              <select id="ranking-transportadoras-qtd">
-                <option value="15">15</option>
-                <option value="20">20</option>
-                <option value="25">25</option>
-                <option value="30">30</option>
-              </select>
-              <select id="ranking-transportadoras-filtro">
-                <option value="melhores">Melhores (maior taxa de entrega)</option>
-                <option value="piores">Piores (menor taxa de entrega)</option>
-              </select>
-            </div>
+            <h2 class="chart-card__title">Ranking de transportadoras — 15 melhores</h2>
           </div>
-          <div class="chart-root" id="chart-ranking-transportadoras"></div>
-          <p class="chart-card__hint">Considera apenas transportadoras com 3 ou mais notas no período filtrado.</p>
+          <div class="chart-root" id="chart-ranking-transportadoras-melhores"></div>
+          <p class="chart-card__hint">Maior taxa de entrega. Considera apenas transportadoras com 3 ou mais notas no período filtrado.</p>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card__header">
+            <h2 class="chart-card__title">Ranking de transportadoras — 15 piores</h2>
+          </div>
+          <div class="chart-root" id="chart-ranking-transportadoras-piores"></div>
+          <p class="chart-card__hint">Menor taxa de entrega. Considera apenas transportadoras com 3 ou mais notas no período filtrado.</p>
         </div>
 
         <div class="chart-card">

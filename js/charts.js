@@ -93,6 +93,12 @@ class DashChart {
   }
 
   _resize() {
+    // Container escondido (ex.: dentro de #main-view com [hidden] enquanto a tela de detalhe
+    // de um card está aberta) faz o ResizeObserver disparar com o box zerado. Sem essa guarda,
+    // o resto do método segue com width/height no piso mínimo (100x120), o que pode gerar raio
+    // negativo em _drawCircular — e ctx.ellipse() lança IndexSizeError com raio negativo.
+    if (this.plotArea.offsetParent === null) return;
+
     const rect = this.plotArea.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const width = Math.max(rect.width, 100);
@@ -523,7 +529,10 @@ class DashChart {
     const margin = hasThinSlice ? 74 : 16;
     const cx = this.width / 2;
     const cy = this.height / 2 - depth / 2;
-    const rx = Math.min(this.width / 2 - margin, (this.height - depth - 22) / 2 / 0.55);
+    // Trava em 0: com o card pequeno demais (ou escondido), essa conta pode dar negativa, e
+    // ctx.ellipse() lança IndexSizeError com raio negativo — sem nada pra desenhar, só sai.
+    const rx = Math.max(0, Math.min(this.width / 2 - margin, (this.height - depth - 22) / 2 / 0.55));
+    if (rx === 0) return;
     const ry = rx * 0.55;
     const innerRx = donut ? rx * 0.6 : 0;
     const innerRy = donut ? ry * 0.6 : 0;

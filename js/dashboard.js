@@ -224,15 +224,13 @@ const Dashboard = (() => {
   }
 
   /* ============================================================
-   * MOTIVOS (Devolução/Cancelado/Reentrega) — cobertura parcial (ver data.js)
+   * MOTIVOS — cobertura parcial, vem da coluna OBS (ver data.js). Não é restrito a
+   * nenhum status específico: a seção aparece pra qualquer card cujos registros tenham
+   * motivo registrado, e fica escondida quando não há nenhum (ex.: Entregue hoje).
    * ============================================================ */
-
-  const MOTIVO_RELEVANT_KEYS = new Set(['devolucao', 'cancelado', 'reentrega']);
 
   function renderMotivosBreakdown(records) {
     const section = document.getElementById('detail-motivos-section');
-    if (!MOTIVO_RELEVANT_KEYS.has(detailKey)) { section.hidden = true; return; }
-
     const comMotivo = records.filter(r => r.motivoCategoria);
     if (comMotivo.length === 0) { section.hidden = true; return; }
     section.hidden = false;
@@ -419,7 +417,7 @@ const Dashboard = (() => {
       // Entregues, Aguardando agendamento, Devolução, Cancelado, Reentrega, Em aberto — mesma
       // categorização dos cards de KPI (STATUS_DETAIL_DEFS), pra bater 1:1 com o que aparece lá.
       // Não tem categoria "Agendados" própria aqui: isso já é o gráfico "Situação de
-      // agendamento" ao lado, que usa a fonte de dados certa (necessitaAgendamento).
+      // agendamento" ao lado, que usa a coluna "Status" da planilha de Agendamentos.
       options: { colors: ['#16A34A', '#64748B', '#EAB308', '#8B5CF6', '#0EA5E9', '#DC2626'] }
     });
     charts.prazo = new DashChart(document.getElementById('chart-prazo'), {
@@ -428,12 +426,21 @@ const Dashboard = (() => {
     });
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
-      options: { colors: ['#2563EB', '#EAB308', '#64748B'] } // Agendado, Aguardando data, Não precisa
+      // Agendado, Aguardando agendamento, Aguardando Confirmação, Reagendar, Okker.
+      options: { colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6'] }
     });
     charts.transportadora = new DashChart(document.getElementById('chart-transportadora'), {
       type: 'bar', labels: [], series: [{ name: 'Notas', data: [], color: ChartPalette[1] }]
     });
-    charts.rankingTransportadoras = new DashChart(document.getElementById('chart-ranking-transportadoras'), {
+    charts.rankingTransportadorasMelhores = new DashChart(document.getElementById('chart-ranking-transportadoras-melhores'), {
+      type: 'hbar', labels: [],
+      series: [
+        { name: 'Entregues', data: [], color: '#16A34A' },
+        { name: 'Vencidas', data: [], color: '#DC2626' }
+      ],
+      options: { fullLabels: true }
+    });
+    charts.rankingTransportadorasPiores = new DashChart(document.getElementById('chart-ranking-transportadoras-piores'), {
       type: 'hbar', labels: [],
       series: [
         { name: 'Entregues', data: [], color: '#16A34A' },
@@ -458,8 +465,6 @@ const Dashboard = (() => {
     });
 
     document.getElementById('ranking-dimension').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
-    document.getElementById('ranking-transportadoras-filtro').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
-    document.getElementById('ranking-transportadoras-qtd').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
   }
 
   function renderCharts(records) {
@@ -496,20 +501,24 @@ const Dashboard = (() => {
     });
   }
 
-  /**
-   * Situação de agendamento: cruza necessitaAgendamento (planilha de Agendamentos) com a
-   * presença de uma data já definida — dá pra ver quantas notas ainda precisam de data.
-   */
+  // Por decisão do usuário (2026-08-14): o gráfico usa só estas 5 categorias, lidas direto
+  // da coluna "Status" da planilha de Agendamentos (r.statusAgendamento) — os demais valores
+  // que aparecem lá (Entrega Direta, Entregue, Devolução p/ Terrinha, Cancelado, Reentrega)
+  // são resultado de entrega, não situação de agendamento, e ficam de fora da contagem.
+  const AGENDAMENTO_STATUS_CATEGORIAS = [
+    'Agendado', 'Aguardando agendamento', 'Aguardando Confirmação', 'Reagendar', 'Okker'
+  ];
+
+  /** Situação de agendamento: contagem por valor bruto da coluna "Status" da planilha de
+   * Agendamentos, restrita às categorias que de fato representam etapas do agendamento. */
   function renderAgendamentoChart(records) {
-    let agendado = 0, aguardandoData = 0, naoPrecisa = 0;
+    const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     records.forEach(r => {
-      if (!r.necessitaAgendamento) { naoPrecisa++; return; }
-      if (r.dataAgendamento) agendado++;
-      else aguardandoData++;
+      if (Object.prototype.hasOwnProperty.call(counts, r.statusAgendamento)) counts[r.statusAgendamento]++;
     });
     charts.agendamento.update({
-      labels: ['Agendado', 'Aguardando data', 'Não precisa de agendamento'],
-      series: [{ data: [agendado, aguardandoData, naoPrecisa] }]
+      labels: AGENDAMENTO_STATUS_CATEGORIAS,
+      series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }]
     });
   }
 
@@ -528,37 +537,38 @@ const Dashboard = (() => {
   /**
    * Ranking de transportadoras por taxa de entrega (entregues ÷ total), não por volume bruto —
    * senão uma transportadora com poucas notas mas 100% de acerto nunca apareceria, e uma com
-   * muito volume dominaria só por tamanho. Exige >=3 notas para entrar no ranking.
+   * muito volume dominaria só por tamanho. Exige >=3 notas para entrar no ranking. Sempre
+   * mostra as 15 melhores e as 15 piores lado a lado, num gráfico cada.
    */
   function renderRankingTransportadoras(records) {
-    const filtro = document.getElementById('ranking-transportadoras-filtro').value || 'melhores';
-    const quantidade = Number(document.getElementById('ranking-transportadoras-qtd').value) || 15;
+    const QUANTIDADE = 15;
     const grouped = Utils.groupBy(records, r => r.transportadora);
 
-    let entries = Array.from(grouped.entries())
+    const entries = Array.from(grouped.entries())
       .map(([name, items]) => {
         const total = items.length;
         const entregues = items.filter(r => r.status === 'ENTREGUE').length;
         const vencidas = items.filter(r => r.prazoStatus === 'VENCIDO').length;
         return { name, total, entregues, vencidas, taxa: entregues / total };
       })
-      .filter(e => e.total >= 3);
+      .filter(e => e.total >= 3)
+      .sort((a, b) => b.taxa - a.taxa);
 
-    // "Melhores"/"piores" (por taxa) decide QUAIS transportadoras entram na lista — mas taxa
-    // não é o que aparece nas barras, então ordenar por ela deixava o gráfico com barras fora
-    // de ordem visualmente. Pra exibição, ordena sempre pela quantidade de Entregues
-    // (decrescente, igual ao "Ranking top 10") — é a métrica que as barras de fato mostram.
-    entries.sort((a, b) => b.taxa - a.taxa);
-    entries = filtro === 'piores' ? entries.slice(-quantidade) : entries.slice(0, quantidade);
-    entries.sort((a, b) => b.entregues - a.entregues);
+    // A taxa decide quem entra em cada lista — mas taxa não é o que aparece nas barras, então
+    // ordenar por ela deixava o gráfico com barras fora de ordem visualmente. Pra exibição,
+    // ordena sempre pela quantidade de Entregues (decrescente, igual ao "Ranking top 10").
+    const melhores = entries.slice(0, QUANTIDADE).sort((a, b) => b.entregues - a.entregues);
+    const piores = entries.slice(-QUANTIDADE).sort((a, b) => b.entregues - a.entregues);
 
-    charts.rankingTransportadoras.update({
-      labels: entries.map(e => e.name),
+    const toSeries = (list) => ({
+      labels: list.map(e => e.name),
       series: [
-        { name: 'Entregues', data: entries.map(e => e.entregues), color: '#16A34A' },
-        { name: 'Vencidas', data: entries.map(e => e.vencidas), color: '#DC2626' }
+        { name: 'Entregues', data: list.map(e => e.entregues), color: '#16A34A' },
+        { name: 'Vencidas', data: list.map(e => e.vencidas), color: '#DC2626' }
       ]
     });
+    charts.rankingTransportadorasMelhores.update(toSeries(melhores));
+    charts.rankingTransportadorasPiores.update(toSeries(piores));
   }
 
   function renderEvolucaoMensal(records) {
