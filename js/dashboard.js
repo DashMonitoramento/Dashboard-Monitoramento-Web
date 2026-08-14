@@ -438,7 +438,7 @@ const Dashboard = (() => {
         { name: 'Entregues', data: [], color: '#16A34A' },
         { name: 'Vencidas', data: [], color: '#DC2626' }
       ],
-      options: { fullLabels: true }
+      options: { fullLabels: true, thickBars: true }
     });
     charts.rankingTransportadorasPiores = new DashChart(document.getElementById('chart-ranking-transportadoras-piores'), {
       type: 'hbar', labels: [],
@@ -446,7 +446,7 @@ const Dashboard = (() => {
         { name: 'Entregues', data: [], color: '#16A34A' },
         { name: 'Vencidas', data: [], color: '#DC2626' }
       ],
-      options: { fullLabels: true }
+      options: { fullLabels: true, thickBars: true }
     });
     charts.evolucaoMensal = new DashChart(document.getElementById('chart-evolucao-mensal'), {
       type: 'area', labels: [], series: [{ name: 'Valor faturado', data: [], color: ChartPalette[0] }], options: { currency: true }
@@ -663,9 +663,12 @@ const Dashboard = (() => {
    * ============================================================ */
 
   function rowHtml(r) {
+    // Verde quando a NF já tem canhoto indexado (pasta do SharePoint), laranja quando não tem
+    // — só uma consulta O(1) no Map já carregado em memória, sem custo perceptível por linha.
+    const temCanhoto = canhotosIndex.has(r.nf.split('-')[0]);
     return `
       <tr>
-        <td><button type="button" class="nf-link" data-nf="${escapeAttr(r.nf)}" title="Buscar canhoto de entrega">${escapeAttr(r.nf)}</button></td>
+        <td><button type="button" class="nf-link${temCanhoto ? ' nf-link--tem-canhoto' : ''}" data-nf="${escapeAttr(r.nf)}" title="Buscar canhoto de entrega">${escapeAttr(r.nf)}</button></td>
         <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
         <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>

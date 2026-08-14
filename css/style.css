@@ -507,7 +507,11 @@ ul { list-style: none; margin: 0; padding: 0; }
   border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary);
 }
 .chart-root { flex: 1; min-height: 260px; display: flex; flex-direction: column; }
-.chart-root--donut { min-height: 250px; }
+/* Rosca/pizza precisa de mais altura que um gráfico de barras comum, não menos: a legenda em
+   grade (tiles com %, contagem) pode quebrar em 2-3 linhas, e as fatias finas (<18%) ganham um
+   rótulo com linha-guia por fora do círculo que fica perto da borda de cima — com pouca altura
+   sobrando pro círculo, esse rótulo nasce colado no topo do canvas e é cortado visualmente. */
+.chart-root--donut { min-height: 360px; }
 
 /* O canvas mora num wrapper próprio (.chart-plot-area), isolado via position:absolute, pra
    NUNCA contribuir com a altura automática do .chart-root — senão o ResizeObserver entra
@@ -579,6 +583,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   text-underline-offset: 3px; transition: text-decoration-color var(--transition);
 }
 .nf-link:hover, .nf-link:focus-visible { text-decoration-color: currentColor; }
+.nf-link--tem-canhoto { color: var(--color-success); }
 .text-right { text-align: right; }
 .table-empty { text-align: center !important; padding: 32px !important; color: var(--text-secondary); }
 

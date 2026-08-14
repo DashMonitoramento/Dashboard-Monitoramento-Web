@@ -267,8 +267,12 @@ class DashChart {
     const allValues = series.flatMap(s => s.data);
     const maxValue = Math.max(...allValues, 1) * 1.15;
 
+    // options.thickBars: pedido do usuário pros rankings de transportadoras (entregues vs.
+    // vencidas) — barras mais grossas, com menos espaço vazio entre elas.
+    const thick = !!this.options.thickBars;
+    const innerBarRatio = thick ? 0.94 : 0.86;
     const groupSize = horizontal ? plotH / n : plotW / n;
-    const barGap = groupSize * 0.28;
+    const barGap = groupSize * (thick ? 0.14 : 0.28);
     const barSlot = groupSize - barGap;
     const barWidth = barSlot / series.length;
 
@@ -284,7 +288,7 @@ class DashChart {
           const y = padding.top + i * groupSize + barGap / 2 + si * barWidth;
           const w = plotW * ratio;
           const x = padding.left;
-          const h = barWidth * 0.86;
+          const h = barWidth * innerBarRatio;
           this._roundRect(ctx, x, y, w, h, 4, color);
           this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name });
           this._drawValueInsideBar(ctx, x, y, w, h, value, true);
@@ -292,7 +296,7 @@ class DashChart {
           const x = padding.left + i * groupSize + barGap / 2 + si * barWidth;
           const h = plotH * ratio;
           const y = padding.top + plotH - h;
-          const w = barWidth * 0.86;
+          const w = barWidth * innerBarRatio;
           this._roundRect(ctx, x, y, w, h, 4, color);
           this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name });
           this._drawValueInsideBar(ctx, x, y, w, h, value, false);
