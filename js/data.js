@@ -585,7 +585,14 @@ const DataStore = (() => {
     const existingBaseNFs = new Set(rawRecords.map(r => r.nf.split('-')[0]));
 
     for (const r of rawRecords) {
-      if (r.situacao !== 'NF Não encontrada') continue;
+      // Antes só via a nota "NF Não encontrada" (situação em branco). Mas a planilha principal
+      // é atualizada com menos frequência que a Bluesoft — uma nota pode ficar registrada como
+      // "Em aberto" ali por dias depois de já ter sido entregue/devolvida/cancelada de verdade.
+      // "Em aberto" é o status menos conclusivo que existe (é literalmente "ainda não sei"), por
+      // isso também é elegível a receber a atualização da Bluesoft (confirmado: 96 notas da
+      // planilha principal presas em "Em aberto" tinham status mais conclusivo na Bluesoft —
+      // isso "roubava" notas do card Entregues e inflava o card Em aberto).
+      if (r.situacao !== 'NF Não encontrada' && r.situacao !== 'Em aberto') continue;
       const info = bluesoftByBaseNF.get(r.nf.split('-')[0]);
       if (!info) continue;
       r.situacao = info.status;
