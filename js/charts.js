@@ -531,11 +531,17 @@ class DashChart {
 
     const depth = 22;
     const margin = hasThinSlice ? 74 : 16;
+    // Fatia fina desenha o rótulo por fora, perto da borda de cima/baixo da elipse — sem
+    // reservar espaço vertical extra pra isso, um card largo o bastante deixa a elipse tão
+    // "gorda" (ry grande) que o rótulo de cima nasce colado (ou além) do topo do canvas e
+    // corta, mesmo com o .chart-root--donut mais alto. Espelha o "margin" horizontal, só que
+    // no eixo vertical, e limita ry (não só rx) independente da largura do card.
+    const verticalMargin = hasThinSlice ? 70 : 22;
     const cx = this.width / 2;
     const cy = this.height / 2 - depth / 2;
     // Trava em 0: com o card pequeno demais (ou escondido), essa conta pode dar negativa, e
     // ctx.ellipse() lança IndexSizeError com raio negativo — sem nada pra desenhar, só sai.
-    const rx = Math.max(0, Math.min(this.width / 2 - margin, (this.height - depth - 22) / 2 / 0.55));
+    const rx = Math.max(0, Math.min(this.width / 2 - margin, (this.height - depth - verticalMargin) / 2 / 0.55));
     if (rx === 0) return;
     const ry = rx * 0.55;
     const innerRx = donut ? rx * 0.6 : 0;
