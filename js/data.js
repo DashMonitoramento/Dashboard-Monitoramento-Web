@@ -411,9 +411,33 @@ function categorizeMotivo(rawMotivo) {
  * 4. DATASTORE — estado central de dados + filtros (padrão Observable simples)
  * ============================================================ */
 
-// Ordem de prioridade quando a mesma NF aparece mais de uma vez na Base Bluesoft
-// (viagens/tentativas repetidas) — o resultado mais conclusivo vence.
+// Usada só como critério de desempate (data igual, ou nenhuma das duas linhas tem data) —
+// o critério principal é sempre a data mais recente (ver bluesoftCandidatoMaisRecente).
 const BLUESOFT_PRIORITY = ['Entregue', 'Devolução', 'Cancelado', 'Reentrega', 'Em aberto'];
+
+/**
+ * Decide se `candidato` deve substituir `atual` quando a mesma NF aparece mais de uma vez na
+ * Base Bluesoft (viagens/tentativas repetidas). Por decisão do usuário (2026-08-14): vale
+ * sempre o registro mais RECENTE por data — não o "mais conclusivo" por categoria. Isso cobre
+ * tanto o caso comum (Em aberto numa data → Entregue numa data posterior, onde a mais nova já
+ * é a mais conclusiva mesmo) quanto o caso que motivou a mudança (Reentrega numa data, depois
+ * Em aberto de novo numa data posterior — saiu com uma transportadora, não foi entregue, saiu
+ * de novo com outra; a tentativa mais recente é a que reflete a realidade, mesmo que "menos
+ * conclusiva" que a anterior). Sem data em algum dos lados (ou empate exato), cai pra
+ * BLUESOFT_PRIORITY como critério de desempate.
+ */
+function bluesoftCandidatoMaisRecente(atual, candidato) {
+  if (!atual) return true;
+  const d1 = atual._dataEntregaParsed, d2 = candidato._dataEntregaParsed;
+  if (d1 && d2) {
+    const cmp = d2.getTime() - d1.getTime();
+    if (cmp !== 0) return cmp > 0;
+    return BLUESOFT_PRIORITY.indexOf(candidato.status) < BLUESOFT_PRIORITY.indexOf(atual.status);
+  }
+  if (d2 && !d1) return true;
+  if (!d2 && d1) return false;
+  return BLUESOFT_PRIORITY.indexOf(candidato.status) < BLUESOFT_PRIORITY.indexOf(atual.status);
+}
 
 function mapBluesoftStatus(raw) {
   const s = normalizeHeaderKey(raw || '');
@@ -535,12 +559,8 @@ const DataStore = (() => {
       const status = mapBluesoftStatus(statusHeader !== undefined ? row[statusHeader] : '');
       if (!nf || !status) continue;
 
-      // Uma NF pode aparecer em várias viagens/tentativas — fica a linha com o status
-      // mais conclusivo (ex.: "Entregue" vence "Em aberto" da mesma nota).
-      const existing = map.get(nf);
-      if (existing && BLUESOFT_PRIORITY.indexOf(existing.status) <= BLUESOFT_PRIORITY.indexOf(status)) continue;
-
-      map.set(nf, {
+      const dataEntregaRaw = pickField(row, headerIndex, 'dataEntrega');
+      const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
         transportadora: pickField(row, headerIndex, 'transportadora'),
@@ -548,9 +568,15 @@ const DataStore = (() => {
         cidade: pickField(row, headerIndex, 'cidade'),
         uf: pickField(row, headerIndex, 'uf'),
         valorNF: pickField(row, headerIndex, 'valorNF'),
-        dataEntrega: pickField(row, headerIndex, 'dataEntrega'),
+        dataEntrega: dataEntregaRaw,
+        _dataEntregaParsed: Utils.parseDate(dataEntregaRaw),
         cnpj: pickField(row, headerIndex, 'cnpj')
-      });
+      };
+
+      // Uma NF pode aparecer em várias viagens/tentativas — fica a linha mais recente por data
+      // (ver bluesoftCandidatoMaisRecente).
+      if (!bluesoftCandidatoMaisRecente(map.get(nf), candidato)) continue;
+      map.set(nf, candidato);
     }
     bluesoftStatusByNF = map;
   }
@@ -578,25 +604,36 @@ const DataStore = (() => {
     // física "não batia" nunca, e a nota acabava duplicada: uma vez vinda da base principal,
     // outra empurrada de novo pela Bluesoft (confirmado: 495 das 503 notas da base principal
     // também existem na Bluesoft). Um índice auxiliar por NF base resolve os dois lados.
+    // Sufixos diferentes (item/viagem) da mesma NF base também usam a data mais recente pra
+    // decidir qual prevalece (mesmo critério de bluesoftCandidatoMaisRecente).
     const bluesoftByBaseNF = new Map();
     for (const [nf, info] of bluesoftStatusByNF) {
-      bluesoftByBaseNF.set(nf.split('-')[0], info);
+      const baseNf = nf.split('-')[0];
+      if (bluesoftCandidatoMaisRecente(bluesoftByBaseNF.get(baseNf), info)) {
+        bluesoftByBaseNF.set(baseNf, info);
+      }
     }
     const existingBaseNFs = new Set(rawRecords.map(r => r.nf.split('-')[0]));
 
     for (const r of rawRecords) {
-      // Antes só via a nota "NF Não encontrada" (situação em branco). Mas a planilha principal
-      // é atualizada com menos frequência que a Bluesoft — uma nota pode ficar registrada como
-      // "Em aberto" ali por dias depois de já ter sido entregue/devolvida/cancelada de verdade.
-      // "Em aberto" é o status menos conclusivo que existe (é literalmente "ainda não sei"), por
-      // isso também é elegível a receber a atualização da Bluesoft (confirmado: 96 notas da
-      // planilha principal presas em "Em aberto" tinham status mais conclusivo na Bluesoft —
-      // isso "roubava" notas do card Entregues e inflava o card Em aberto).
-      if (r.situacao !== 'NF Não encontrada' && r.situacao !== 'Em aberto') continue;
+      // A Base Bluesoft é a fonte mais confiável e atualizada pro status real de entrega — a
+      // planilha principal é atualizada com menos frequência, e a coluna "Situação" dela
+      // acumula categorias improvisadas ("Em rota", "Cliente Retira Mercadoria na
+      // Transportadora", e até "Reentrega"/"Devolução" desatualizados) que na prática só
+      // significam "ainda não resolvido" — igual "Em aberto". Por decisão do usuário
+      // (2026-08-14, confirmado comparando direto com a Bluesoft): a Bluesoft sempre vence
+      // quando tem informação sobre a NF; a Situação própria da planilha principal só é usada
+      // quando a Bluesoft não conhece essa nota.
       const info = bluesoftByBaseNF.get(r.nf.split('-')[0]);
       if (!info) continue;
+      // A Bluesoft não distingue "aguardando agendamento" — pra ela é tudo "Em aberto" igual.
+      // Se a planilha principal já classificou como isso (mais específico, vem da flag
+      // NECESSITA AGENDAMENTO), não faz sentido rebaixar pra um "Em aberto" genérico. Qualquer
+      // status mais conclusivo da Bluesoft (Entregue/Devolução/Cancelado/Reentrega) continua
+      // vencendo normalmente — só o "Em aberto" genérico que não sobrescreve esse caso.
+      if (r.situacao === 'Aguardando agendamento' && info.status === 'Em aberto') continue;
       r.situacao = info.status;
-      if (info.status === 'Entregue') r.status = 'ENTREGUE';
+      r.status = info.status === 'Entregue' ? 'ENTREGUE' : 'EM_ABERTO';
       if (!r.cnpj && info.cnpj) r.cnpj = String(info.cnpj).trim();
       // "Data de Entrega" na Base Bluesoft é, na prática, a data de coleta/início da viagem
       // (confirmado com o usuário) — não a data real de entrega ao cliente. Mesmo assim,
