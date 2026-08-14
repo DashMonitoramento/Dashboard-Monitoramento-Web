@@ -599,7 +599,13 @@ const DataStore = (() => {
       if (info.status === 'Entregue') r.status = 'ENTREGUE';
       if (!r.cnpj && info.cnpj) r.cnpj = String(info.cnpj).trim();
       // "Data de Entrega" na Base Bluesoft é, na prática, a data de coleta/início da viagem
-      // (confirmado com o usuário) — não a data real de entrega ao cliente.
+      // (confirmado com o usuário) — não a data real de entrega ao cliente. Mesmo assim,
+      // precisa preencher r.dataEntrega (não só dataInicioViagem) quando a planilha principal
+      // não tem nenhuma data própria — é o mesmo campo usado pelo filtro de Período (Mês/Ano)
+      // pra decidir em qual mês a nota conta; sem isso, essas notas caiam no fallback errado
+      // (dataFaturamento/dataAgendamento/dataEmissao) e podiam contar num mês diferente do
+      // que a Bluesoft mostra, divergindo do resto das notas de status "Entregue".
+      if (!r.dataEntrega && info.dataEntrega) r.dataEntrega = Utils.parseDate(info.dataEntrega);
       if (!r.dataInicioViagem && info.dataEntrega) r.dataInicioViagem = Utils.parseDate(info.dataEntrega);
     }
 
