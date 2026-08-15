@@ -715,20 +715,24 @@ const DataStore = (() => {
   }
 
   /**
-   * Fonte da verdade pro campo Prazo (Entregue/Dentro do prazo/Vencido/Sem informação) — não
-   * confia mais no texto pronto da planilha principal (a coluna "Prazo" de lá vinha de uma
-   * fórmula frágil, e pras notas que só existem na Bluesoft ficava sempre "Sem informação").
-   * Conta os dias corridos a partir da Data de Agendamento (nota já agendada) ou da Data de
-   * Início de Viagem (Bluesoft, senão) e compara com o prazo em dias daquela nota específica
-   * (aba RETORNO, coluna "Prazo para Entrega" — ver applyRetornoEnrichment). Sem uma dessas
-   * datas ou sem o prazo em dias, fica "Sem informação" — por decisão do usuário (2026-08-15).
+   * Fonte da verdade pro campo Prazo (Entregue/No Prazo/Atrasado/Sem informação) — não confia
+   * mais no texto pronto da planilha principal (a coluna "Prazo" de lá vinha de uma fórmula
+   * frágil, e pras notas que só existem na Bluesoft ficava sempre "Sem informação"). Compara o
+   * prazo em dias daquela nota específica (aba RETORNO, coluna "Prazo para Entrega" — ver
+   * applyRetornoEnrichment) com os dias corridos contados a partir de:
+   * - Data de Início de Viagem/Coleta, pras notas que "Não Obriga Agenda" (necessitaAgendamento
+   *   false) — pra essas a data de coleta é sempre a referência.
+   * - Data de Agendamento, pras notas que "Obriga Agendamento" (necessitaAgendamento true) — a
+   *   data de coleta não vale nada aqui; sem uma Data de Agendamento definida ainda, fica "Sem
+   *   informação" (quem mostra a etapa dessas notas é o card "Situação de agendamento").
+   * Decisão do usuário (2026-08-15).
    */
   function recomputarPrazoStatus() {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     for (const r of rawRecords) {
       if (r.status === 'ENTREGUE') { r.prazoStatus = 'ENTREGUE'; continue; }
-      const referencia = r.dataAgendamento || r.dataInicioViagem;
+      const referencia = r.necessitaAgendamento ? r.dataAgendamento : r.dataInicioViagem;
       if (!referencia || r.prazoDiasPermitidos === null || r.prazoDiasPermitidos === undefined) {
         r.prazoStatus = 'SEM_INFO';
         continue;
