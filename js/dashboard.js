@@ -246,13 +246,18 @@ const Dashboard = (() => {
    * botões de mostrar/ocultar coluna) e tenta anexar o ARQUIVO de verdade usando o painel de
    * compartilhamento do próprio navegador/Windows — é a única forma de uma página web entregar
    * um arquivo pra dentro de um app específico (WhatsApp, e-mail etc.); o painel lista os apps
-   * instalados e quem escolhe o destino é o usuário, ali. Por decisão do usuário (2026-08-15),
-   * um botão único: antes eram dois (WhatsApp/E-mail) indo direto pro link de cada um sem anexo
-   * nenhum (só texto), justamente pra não passar por esse painel — mas sem passar por ele não
-   * tem como anexar arquivo, então o usuário preferiu voltar a usá-lo e escolher o destino ali.
-   * Se o navegador não suportar compartilhar arquivo (ou o compartilhamento falhar por outro
-   * motivo que não o usuário fechar o painel de propósito), cai no fallback: baixa o CSV pra a
-   * pessoa anexar manualmente em qualquer app.
+   * instalados e quem escolhe o destino é o usuário, ali.
+   *
+   * A maioria dos navegadores (Chrome/Edge incluídos) só aceita compartilhar arquivo se a
+   * extensão/tipo estiver numa lista restrita (imagens, áudio, vídeo, PDF, texto puro) — ".csv"
+   * quase sempre fica de fora dessa lista, então `canShare` volta false pro CSV. Por isso tenta
+   * de novo com o MESMO conteúdo só trocando pra ".txt"/text/plain (que costuma ser aceito) antes
+   * de desistir de anexar automaticamente.
+   *
+   * Se nenhuma das duas tentativas for aceita (ou o compartilhamento falhar por outro motivo que
+   * não o usuário fechar o painel de propósito), cai no fallback garantido: baixa o CSV (com a
+   * extensão certa pro Excel) e abre o WhatsApp Web com o texto-resumo, faltando só anexar o
+   * arquivo manualmente — assim sempre acontece alguma coisa em vez de só um aviso silencioso.
    */
   async function compartilharRelatorio() {
     const records = DataStore.getFilteredRecords();
@@ -260,22 +265,30 @@ const Dashboard = (() => {
 
     const colunas = colunasTabelaPrincipal().filter(c => !colunasOcultas.has(c.field));
     const csv = Utils.arrayToCSV(records, colunas);
-    const nomeArquivo = 'relatorio-entregas-daterrinha.csv';
+    const conteudo = '﻿' + csv;
+    const nomeArquivoCsv = 'relatorio-entregas-daterrinha.csv';
     const tituloCompartilhamento = 'Relatório de Entregas — Da Terrinha Alimentos';
     const resumo = `${tituloCompartilhamento}\n${Utils.formatNumber(records.length)} registro(s), gerado em ${Utils.formatDateTime(new Date())}.`;
 
-    const arquivo = new File(['﻿' + csv], nomeArquivo, { type: 'text/csv' });
-    if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
-      try {
-        await navigator.share({ files: [arquivo], title: tituloCompartilhamento, text: resumo });
-        return;
-      } catch (err) {
-        if (err && err.name === 'AbortError') return; // usuário fechou o painel de propósito
-        // qualquer outro erro (ex.: nenhum app compatível instalado) -> segue pro fallback abaixo
+    const tentativasDeArquivo = [
+      new File([conteudo], nomeArquivoCsv, { type: 'text/csv' }),
+      new File([conteudo], 'relatorio-entregas-daterrinha.txt', { type: 'text/plain' })
+    ];
+    for (const arquivo of tentativasDeArquivo) {
+      if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+        try {
+          await navigator.share({ files: [arquivo], title: tituloCompartilhamento, text: resumo });
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return; // usuário fechou o painel de propósito
+          // qualquer outro erro -> tenta o próximo formato, e se acabarem, cai no fallback abaixo
+        }
       }
     }
-    Utils.downloadTextFile(nomeArquivo, '﻿' + csv, 'text/csv');
-    Utils.showToast('Não foi possível anexar automaticamente — arquivo baixado, anexe ele no app que preferir.', 'info', 6000);
+
+    Utils.downloadTextFile(nomeArquivoCsv, conteudo, 'text/csv');
+    Utils.showToast('Não foi possível anexar automaticamente — arquivo baixado, anexe ele na conversa que vai abrir.', 'info', 6000);
+    window.open(`https://wa.me/?text=${encodeURIComponent(resumo)}`, '_blank');
   }
 
   /* ============================================================
