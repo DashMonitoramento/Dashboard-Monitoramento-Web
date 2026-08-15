@@ -104,6 +104,7 @@ const Dashboard = (() => {
     bindAgendamentoEdicao();
     renderColumnToggles();
     bindColumnToggles();
+    bindScrollTabela();
     createCharts();
     DataStore.onChange(render);
   }
@@ -474,6 +475,39 @@ const Dashboard = (() => {
   function aplicarColunasOcultas() {
     const tabela = document.getElementById('data-table');
     if (tabela) tabela.dataset.hide = Array.from(colunasOcultas).join(' ');
+    atualizarBotoesScrollTabela();
+  }
+
+  /** Setas de rolar a tabela "Registros detalhados" pros lados — só existem pra essa tabela
+   * (a única com os botões de mostrar/ocultar coluna); a tela de detalhe tem seu próprio
+   * .table-scroll, mas sem setas. */
+  function containerScrollTabelaPrincipal() {
+    const tabela = document.getElementById('data-table');
+    return tabela ? tabela.closest('.table-scroll') : null;
+  }
+
+  function bindScrollTabela() {
+    const container = containerScrollTabelaPrincipal();
+    const btnEsquerda = document.getElementById('btn-scroll-tabela-esquerda');
+    const btnDireita = document.getElementById('btn-scroll-tabela-direita');
+    if (!container || !btnEsquerda || !btnDireita) return;
+    btnEsquerda.addEventListener('click', () => container.scrollBy({ left: -240, behavior: 'smooth' }));
+    btnDireita.addEventListener('click', () => container.scrollBy({ left: 240, behavior: 'smooth' }));
+    container.addEventListener('scroll', atualizarBotoesScrollTabela);
+    window.addEventListener('resize', atualizarBotoesScrollTabela);
+    atualizarBotoesScrollTabela();
+  }
+
+  /** Só mostra cada seta quando dá pra rolar mais naquela direção — sem colunas ocultadas ou em
+   * telas largas o suficiente pra tabela caber inteira, as duas somem sozinhas. */
+  function atualizarBotoesScrollTabela() {
+    const container = containerScrollTabelaPrincipal();
+    const btnEsquerda = document.getElementById('btn-scroll-tabela-esquerda');
+    const btnDireita = document.getElementById('btn-scroll-tabela-direita');
+    if (!container || !btnEsquerda || !btnDireita) return;
+    const podeRolar = container.scrollWidth > container.clientWidth + 1;
+    btnEsquerda.hidden = !podeRolar || container.scrollLeft <= 0;
+    btnDireita.hidden = !podeRolar || container.scrollLeft >= container.scrollWidth - container.clientWidth - 1;
   }
 
   /* ============================================================
@@ -929,6 +963,7 @@ const Dashboard = (() => {
 
   function renderTable(records) {
     renderTableGeneric(records, table, MAIN_TABLE_IDS);
+    atualizarBotoesScrollTabela();
   }
 
   /* ============================================================
