@@ -119,6 +119,7 @@ const Dashboard = (() => {
     });
     $('filter-transportadora').addEventListener('change', (e) => DataStore.setFilters({ transportadora: e.target.value }));
     $('filter-motorista').addEventListener('change', (e) => DataStore.setFilters({ motorista: e.target.value }));
+    $('filter-tipo-transporte').addEventListener('change', (e) => DataStore.setFilters({ tipoTransporte: e.target.value }));
     $('filter-vendedor').addEventListener('change', (e) => DataStore.setFilters({ vendedor: e.target.value }));
     $('filter-cliente').addEventListener('change', (e) => DataStore.setFilters({ cliente: e.target.value }));
     $('filter-cidade').addEventListener('change', (e) => DataStore.setFilters({ cidade: e.target.value }));
@@ -415,6 +416,7 @@ const Dashboard = (() => {
 
     fillSelect('filter-transportadora', DataStore.getDistinctValues('transportadora'), 'Todas as transportadoras');
     fillSelect('filter-motorista', DataStore.getDistinctValues('motorista'), 'Todos os motoristas');
+    fillSelect('filter-tipo-transporte', DataStore.getDistinctValues('tipoTransporte'), 'Todos os tipos');
     let vendedores = DataStore.getDistinctValues('vendedor');
     if (ocultarVendedorSemCliente) vendedores = vendedores.filter(v => v !== 'Não informado');
     fillSelect('filter-vendedor', vendedores, 'Todos os vendedores');
