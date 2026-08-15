@@ -200,15 +200,16 @@
           <summary>Status</summary>
           <div class="filter-field">
             <div class="filter-checkbox-list" id="filter-status-list">
-              <label class="filter-checkbox"><input type="checkbox" value="Aguardando agendamento"> Aguardando agendamento</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Agendado"> Agendado</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Cancelado"> Cancelado</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Devolução"> Devolução</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Em aberto"> Em aberto</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Em rota"> Em rota</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Entregue"> Entregue</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Reentrega"> Reentrega</label>
-              <label class="filter-checkbox"><input type="checkbox" value="Recusa"> Recusa</label>
+              <label class="filter-checkbox filter-checkbox--todos"><input type="checkbox" class="filter-checkbox__todos"> <strong>Selecionar todos</strong></label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Aguardando agendamento"> Aguardando agendamento</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Agendado"> Agendado</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Cancelado"> Cancelado</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Devolução"> Devolução</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Em aberto"> Em aberto</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Em rota"> Em rota</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Entregue"> Entregue</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Reentrega"> Reentrega</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Recusa"> Recusa</label>
             </div>
           </div>
           <button id="btn-status-diversos" class="btn btn--ghost btn--block" type="button" title="Ver notas com status fora da lista acima">
@@ -219,36 +220,36 @@
         <details class="sidebar-accordion">
           <summary>Transporte</summary>
           <div class="filter-field">
-            <label for="filter-transportadora">Transportadora</label>
-            <select id="filter-transportadora"><option value="">Todas as transportadoras</option></select>
+            <label>Transportadora</label>
+            <div class="filter-checkbox-list" id="filter-transportadora-list"></div>
           </div>
           <div class="filter-field">
-            <label for="filter-motorista">Motorista</label>
-            <select id="filter-motorista"><option value="">Todos os motoristas</option></select>
+            <label>Motorista</label>
+            <div class="filter-checkbox-list" id="filter-motorista-list"></div>
           </div>
           <div class="filter-field">
-            <label for="filter-tipo-transporte">Tipo de transporte</label>
-            <select id="filter-tipo-transporte"><option value="">Todos os tipos</option></select>
+            <label>Tipo de transporte</label>
+            <div class="filter-checkbox-list" id="filter-tipo-transporte-list"></div>
           </div>
         </details>
 
         <details class="sidebar-accordion">
           <summary>Cliente</summary>
           <div class="filter-field">
-            <label for="filter-cliente">Cliente</label>
-            <select id="filter-cliente"><option value="">Todos os clientes</option></select>
+            <label>Cliente</label>
+            <div class="filter-checkbox-list" id="filter-cliente-list"></div>
           </div>
           <div class="filter-field">
-            <label for="filter-cidade">Cidade</label>
-            <select id="filter-cidade"><option value="">Todas as cidades</option></select>
+            <label>Cidade</label>
+            <div class="filter-checkbox-list" id="filter-cidade-list"></div>
           </div>
         </details>
 
         <details class="sidebar-accordion">
           <summary>Vendedor</summary>
           <div class="filter-field">
-            <label for="filter-vendedor">Vendedor(a)</label>
-            <select id="filter-vendedor"><option value="">Todos os vendedores</option></select>
+            <label>Vendedor(a)</label>
+            <div class="filter-checkbox-list" id="filter-vendedor-list"></div>
           </div>
           <button id="btn-toggle-vendedor-sem-cliente" class="btn btn--ghost btn--block" type="button" aria-pressed="true">
             🧹 Ocultar vendedores sem cliente
@@ -399,9 +400,13 @@
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
           </div>
           <div class="table-actions">
+            <button id="btn-share-whatsapp" class="btn" title="Enviar relatório pelo WhatsApp">📱 WhatsApp</button>
+            <button id="btn-share-email" class="btn" title="Enviar relatório por e-mail">📧 E-mail</button>
             <button id="btn-export-csv" class="btn">⬇️ Exportar CSV</button>
           </div>
         </div>
+
+        <div class="table-column-toggles" id="table-column-toggles"></div>
 
         <div class="table-scroll">
           <table class="data-table" id="data-table">
