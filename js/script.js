@@ -14,6 +14,7 @@ const DEFAULT_BLUESOFT_URL = 'assets/data/sample-data-bluesoft.csv';
 const DEFAULT_CLIENTES_URL = 'assets/data/sample-data-clientes.csv';
 const DEFAULT_AGENDAMENTOS_URL = 'assets/data/sample-data-agendamentos.csv';
 const DEFAULT_MOTIVOS_URL = 'assets/data/sample-data-motivos.csv';
+const DEFAULT_RETORNO_URL = 'assets/data/sample-data-retorno.csv';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 
 /* ============================================================
@@ -233,6 +234,17 @@ async function loadMotivosDataSilently(cacheBust) {
   }
 }
 
+/** Aba RETORNO (prazo de entrega em dias + tipo de transporte) — opcional; sem ela, o campo
+ * Prazo fica "Sem informação" e o filtro de Tipo de transporte fica vazio, sem quebrar o resto. */
+async function loadRetornoDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_RETORNO_URL}?t=${Date.now()}` : DEFAULT_RETORNO_URL;
+    await DataStore.loadRetornoFromUrl(url, 'csv');
+  } catch (err) {
+    console.warn('Aba RETORNO não carregada automaticamente:', err.message);
+  }
+}
+
 /** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
  * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
 async function loadCanhotosIndexSilently(cacheBust) {
@@ -283,6 +295,7 @@ async function loadInitialData() {
     await loadClientesDataSilently(false);
     await loadAgendamentosDataSilently(false);
     await loadMotivosDataSilently(false);
+    await loadRetornoDataSilently(false);
     await loadCanhotosIndexSilently(false);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
@@ -308,6 +321,7 @@ async function refreshData() {
     await loadClientesDataSilently(true);
     await loadAgendamentosDataSilently(true);
     await loadMotivosDataSilently(true);
+    await loadRetornoDataSilently(true);
     await loadCanhotosIndexSilently(true);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
