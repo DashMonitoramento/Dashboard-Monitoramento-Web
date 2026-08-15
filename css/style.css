@@ -278,21 +278,20 @@ ul { list-style: none; margin: 0; padding: 0; }
   border-color: var(--color-danger); box-shadow: 0 0 8px rgba(220,38,38,.55); background: rgba(220,38,38,.1);
 }
 /* Contorno laranja pulsante — pedido do usuário pra chamar atenção pro botão, já que ele
-   cobre casos "fora da lista fechada" que passariam desapercebidos nos filtros normais.
-   Reaproveitado em #btn-share-relatorio (mesmo destaque, outro botão). */
-#btn-status-diversos, #btn-share-relatorio {
+   cobre casos "fora da lista fechada" que passariam desapercebidos nos filtros normais. */
+#btn-status-diversos {
   margin-top: 4px; margin-bottom: 10px; font-size: 12px; padding: 7px 12px;
   border-width: 2px; border-color: var(--color-orange); background: rgba(255,122,26,.08); color: var(--color-orange);
   box-shadow: 0 0 8px 1px rgba(255,122,26,.5), 0 0 3px rgba(255,122,26,.8);
   animation: statusDiversosGlow 2.4s ease-in-out infinite;
   transition: transform var(--transition), box-shadow var(--transition);
 }
-#btn-status-diversos:hover, #btn-share-relatorio:hover { transform: translateY(-1px); box-shadow: 0 0 16px 3px rgba(255,122,26,.85); }
+#btn-status-diversos:hover { transform: translateY(-1px); box-shadow: 0 0 16px 3px rgba(255,122,26,.85); }
 @keyframes statusDiversosGlow {
   0%, 100% { box-shadow: 0 0 8px 1px rgba(255,122,26,.5), 0 0 3px rgba(255,122,26,.8); }
   50%      { box-shadow: 0 0 16px 4px rgba(255,122,26,.9), 0 0 5px rgba(255,122,26,1); }
 }
-@media (prefers-reduced-motion: reduce) { #btn-status-diversos, #btn-share-relatorio { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #btn-status-diversos { animation: none; } }
 
 #filter-busca {
   border-width: 2px; border-color: var(--color-orange); box-shadow: 0 0 6px rgba(255,122,26,.45);
