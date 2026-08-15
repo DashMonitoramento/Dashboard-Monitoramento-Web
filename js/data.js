@@ -468,6 +468,11 @@ const DataStore = (() => {
   let agendamentoByNF = new Map(); // NF -> { dataAgendamento, necessitaAgendamento, statusAgendamento, reagendar }
   let motivoByNfStatus = new Map(); // "NF|Situação" -> motivo bruto (cobertura parcial, ver Base BI)
   let retornoInfoByNF = new Map(); // NF -> { prazoDias, tipoTransporte } (aba RETORNO)
+  // Nome da transportadora (normalizado) -> tipo de transporte mais frequente entre as notas
+  // dela na aba RETORNO — usado como reserva pras ~77% das notas que a aba não cobre (ver
+  // applyRetornoEnrichment). Só serve pra tipoTransporte (propriedade fixa da transportadora);
+  // o prazo em dias fica de fora do fallback, pois pode variar por rota/cliente/pedido.
+  let retornoTipoPorTransportadora = new Map();
   const listeners = new Set();
 
   function emptyFilters() {
@@ -963,6 +968,9 @@ const DataStore = (() => {
 
   function indexRetornoRows(rawRows) {
     const map = new Map();
+    // nome da transportadora (normalizado) -> Map<tipo, contagem> — pra decidir o tipo mais
+    // frequente dela (ver comentário em retornoTipoPorTransportadora).
+    const contagemPorTransportadora = new Map();
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
       const nfHeader = FIELD_ALIASES.nf.map(a => headerIndex[a]).find(h => h !== undefined);
@@ -980,17 +988,44 @@ const DataStore = (() => {
         prazoDias: isNaN(prazoDiasRaw) ? null : prazoDiasRaw,
         tipoTransporte
       });
+
+      const transportadorHeader = headerIndex['transportador'];
+      const transportadorNome = transportadorHeader !== undefined ? String(row[transportadorHeader] || '').trim() : '';
+      if (transportadorNome && tipoTransporte) {
+        const chave = normalizeHeaderKey(transportadorNome);
+        if (!contagemPorTransportadora.has(chave)) contagemPorTransportadora.set(chave, new Map());
+        const contagem = contagemPorTransportadora.get(chave);
+        contagem.set(tipoTransporte, (contagem.get(tipoTransporte) || 0) + 1);
+      }
     }
     retornoInfoByNF = map;
+
+    const tipoPorTransportadora = new Map();
+    for (const [nome, contagem] of contagemPorTransportadora) {
+      let melhorTipo = null, melhorContagem = 0;
+      for (const [tipo, contagemTipo] of contagem) {
+        if (contagemTipo > melhorContagem) { melhorTipo = tipo; melhorContagem = contagemTipo; }
+      }
+      tipoPorTransportadora.set(nome, melhorTipo);
+    }
+    retornoTipoPorTransportadora = tipoPorTransportadora;
   }
 
   function applyRetornoEnrichment() {
-    if (retornoInfoByNF.size === 0) return;
+    if (retornoInfoByNF.size === 0 && retornoTipoPorTransportadora.size === 0) return;
     for (const r of rawRecords) {
       const info = retornoInfoByNF.get(r.nf.split('-')[0]);
-      if (!info) continue;
-      if (info.prazoDias !== null) r.prazoDiasPermitidos = info.prazoDias;
-      if (info.tipoTransporte) r.tipoTransporte = info.tipoTransporte;
+      if (info) {
+        if (info.prazoDias !== null) r.prazoDiasPermitidos = info.prazoDias;
+        if (info.tipoTransporte) r.tipoTransporte = info.tipoTransporte;
+        continue;
+      }
+      // A aba RETORNO cobre só uma fração das notas (ver decisão do usuário, 2026-08-15) — pra
+      // NF que ela não conhece, assume o tipo mais frequente já visto pra essa transportadora
+      // em outras notas, em vez de deixar "Não informado" à toa quando dá pra inferir com
+      // confiança (o tipo é uma característica fixa da transportadora, não varia por nota).
+      const tipoPorNome = retornoTipoPorTransportadora.get(normalizeHeaderKey(r.transportadora));
+      if (tipoPorNome) r.tipoTransporte = tipoPorNome;
     }
     recomputarPrazoStatus();
   }
