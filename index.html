@@ -104,6 +104,20 @@
   <p class="loading-overlay__text">Carregando dados...</p>
 </div>
 
+<!-- ===================== MODAL: GERENCIAR USUÁRIOS (só pro super admin) ===================== -->
+<div id="modal-usuarios" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h2 class="modal-card__title">Usuários cadastrados</h2>
+      <button id="btn-fechar-modal-usuarios" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <p class="modal-card__hint">Marque quem, além de você, pode preencher a data e o status de agendamento das notas.</p>
+    <div id="lista-usuarios" class="usuarios-lista">
+      <p class="usuarios-lista__carregando">Carregando usuários...</p>
+    </div>
+  </div>
+</div>
+
 <div id="app">
 
   <!-- ===================== HEADER ===================== -->
@@ -126,6 +140,7 @@
         <span>Última atualização: <span id="last-updated">—</span></span>
       </div>
       <button id="btn-theme-toggle" class="icon-btn" aria-label="Alternar tema claro/escuro" aria-pressed="false" title="Alternar tema">🌗</button>
+      <button id="btn-gerenciar-usuarios" class="icon-btn" title="Gerenciar usuários" aria-label="Gerenciar usuários" hidden>👥</button>
       <div class="user-chip">
         <button id="btn-change-avatar" class="user-chip__avatar" title="Alterar foto de perfil" aria-label="Alterar foto de perfil">👤</button>
         <input type="file" id="avatar-file-input" accept="image/*" hidden>
@@ -447,6 +462,17 @@
             <p class="detail-motivos__coverage" id="detail-motivos-coverage"></p>
           </div>
           <div class="detail-motivos__list" id="detail-motivos-list"></div>
+        </div>
+
+        <!-- Agendamento manual: só aparece na tela "Aguardando agendamento". Data e situação
+             de agendamento digitadas direto aqui (Firestore) — edição só pro usuário admin
+             configurado em dashboard.js; os demais veem só leitura. -->
+        <div id="detail-agendamento-section" class="detail-agendamento" hidden>
+          <div class="detail-agendamento__header">
+            <h3 class="detail-agendamento__title">Situação de agendamento por nota</h3>
+            <p class="detail-agendamento__hint" id="detail-agendamento-hint"></p>
+          </div>
+          <div class="detail-agendamento__list" id="detail-agendamento-list"></div>
         </div>
 
         <div class="table-card__header">
