@@ -238,36 +238,44 @@ const Dashboard = (() => {
       window.print();
     });
 
-    document.getElementById('btn-share-whatsapp').addEventListener('click', () => compartilharRelatorio('whatsapp'));
-    document.getElementById('btn-share-email').addEventListener('click', () => compartilharRelatorio('email'));
+    document.getElementById('btn-share-relatorio').addEventListener('click', () => compartilharRelatorio());
   }
 
   /**
    * Gera um CSV do "Relatório Detalhado" (só as colunas atualmente visíveis, respeitando os
-   * botões de mostrar/ocultar coluna) e vai DIRETO pro canal escolhido (sem passar pelo menu
-   * de compartilhamento do sistema operacional — esse menu deixa a pessoa escolher qualquer
-   * app instalado, inclusive e-mail, o que contradiz o botão específico que ela clicou; por
-   * decisão do usuário, 2026-08-15, depois de o botão "WhatsApp" abrir o e-mail em vez do
-   * WhatsApp). Baixa o CSV e abre o WhatsApp Web/o app de e-mail com uma mensagem pronta,
-   * faltando só anexar o arquivo baixado manualmente — não existe uma forma de anexar arquivo
-   * automaticamente nesses casos vinda de uma página web comum, sem um aplicativo próprio.
+   * botões de mostrar/ocultar coluna) e tenta anexar o ARQUIVO de verdade usando o painel de
+   * compartilhamento do próprio navegador/Windows — é a única forma de uma página web entregar
+   * um arquivo pra dentro de um app específico (WhatsApp, e-mail etc.); o painel lista os apps
+   * instalados e quem escolhe o destino é o usuário, ali. Por decisão do usuário (2026-08-15),
+   * um botão único: antes eram dois (WhatsApp/E-mail) indo direto pro link de cada um sem anexo
+   * nenhum (só texto), justamente pra não passar por esse painel — mas sem passar por ele não
+   * tem como anexar arquivo, então o usuário preferiu voltar a usá-lo e escolher o destino ali.
+   * Se o navegador não suportar compartilhar arquivo (ou o compartilhamento falhar por outro
+   * motivo que não o usuário fechar o painel de propósito), cai no fallback: baixa o CSV pra a
+   * pessoa anexar manualmente em qualquer app.
    */
-  function compartilharRelatorio(destino) {
+  async function compartilharRelatorio() {
     const records = DataStore.getFilteredRecords();
     if (!records.length) { Utils.showToast('Não há dados para enviar.', 'warning'); return; }
 
     const colunas = colunasTabelaPrincipal().filter(c => !colunasOcultas.has(c.field));
     const csv = Utils.arrayToCSV(records, colunas);
     const nomeArquivo = 'relatorio-entregas-daterrinha.csv';
-    const resumo = `Relatório de Entregas — Da Terrinha Alimentos\n${Utils.formatNumber(records.length)} registro(s), gerado em ${Utils.formatDateTime(new Date())}.`;
+    const tituloCompartilhamento = 'Relatório de Entregas — Da Terrinha Alimentos';
+    const resumo = `${tituloCompartilhamento}\n${Utils.formatNumber(records.length)} registro(s), gerado em ${Utils.formatDateTime(new Date())}.`;
 
-    Utils.downloadTextFile(nomeArquivo, '﻿' + csv, 'text/csv');
-    Utils.showToast('Arquivo baixado — anexe ele na conversa/e-mail que vai abrir a seguir.', 'info', 6000);
-    if (destino === 'whatsapp') {
-      window.open(`https://wa.me/?text=${encodeURIComponent(resumo)}`, '_blank');
-    } else {
-      window.location.href = `mailto:?subject=${encodeURIComponent('Relatório de Entregas — Da Terrinha Alimentos')}&body=${encodeURIComponent(resumo)}`;
+    const arquivo = new File(['﻿' + csv], nomeArquivo, { type: 'text/csv' });
+    if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({ files: [arquivo], title: tituloCompartilhamento, text: resumo });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // usuário fechou o painel de propósito
+        // qualquer outro erro (ex.: nenhum app compatível instalado) -> segue pro fallback abaixo
+      }
     }
+    Utils.downloadTextFile(nomeArquivo, '﻿' + csv, 'text/csv');
+    Utils.showToast('Não foi possível anexar automaticamente — arquivo baixado, anexe ele no app que preferir.', 'info', 6000);
   }
 
   /* ============================================================
