@@ -148,7 +148,6 @@ const FIELD_ALIASES = {
   cidade: ['cidade'],
   uf: ['uf'],
   status: ['status entregas', 'status', 'status da entrega'],
-  prazoStatus: ['prazo', 'situacao do prazo', 'situação do prazo'],
   valorNF: ['valor nf', 'valor da nf', 'valor pedido', 'valor nf/cf'],
   dataEmissao: ['data emissao pedido', 'data emissão pedido', 'data emissao'],
   dataAgendamento: [
@@ -258,6 +257,17 @@ function parseNecessitaAgendamento(rawValue) {
   return null;
 }
 
+// Coluna "Agendado" da Base Bluesoft ("Obriga Agenda" / "Não obriga agenda") — pergunta
+// diferente da coluna "Agendado" (Sim/Não) da planilha de Agendamentos: aqui é "o cliente
+// exige agendamento", não "essa nota já tem data marcada".
+function parseObrigaAgendamentoBluesoft(rawValue) {
+  const s = normalizeHeaderKey(rawValue || '');
+  if (!s) return null;
+  if (s.includes('nao obriga')) return false;
+  if (s.includes('obriga')) return true;
+  return null;
+}
+
 // Ocorrências raras (1-2 notas cada) que, por decisão do usuário, são tratadas como Devolução
 // mesmo sem a palavra "devolução" no texto — normalmente indicam um problema que resulta no
 // retorno da mercadoria (pedido divergente, duplicado, retido, problema fiscal etc.).
@@ -325,14 +335,6 @@ function normalizeStatus(rawStatus, dataEntrega, situacao) {
   return 'EM_ABERTO';
 }
 
-function normalizePrazo(rawPrazo, status) {
-  const s = normalizeHeaderKey(rawPrazo || '');
-  if (status === 'ENTREGUE') return 'ENTREGUE';
-  if (s.includes('fora') || s.includes('venc') || s.includes('atras')) return 'VENCIDO';
-  if (s.includes('dentro')) return 'DENTRO_PRAZO';
-  return 'SEM_INFO';
-}
-
 /** Converte uma linha "crua" (headers originais da planilha) para o registro canônico do dashboard. */
 function normalizeRecord(rawRow) {
   const headerIndex = buildHeaderIndex(rawRow);
@@ -355,7 +357,10 @@ function normalizeRecord(rawRow) {
     cidade: String(get('cidade') || 'Não informado').trim(),
     uf: String(get('uf') || '').trim().toUpperCase(),
     status,
-    prazoStatus: normalizePrazo(get('prazoStatus'), status),
+    // Recalculado logo em seguida por recomputarPrazoStatus() (ver setRawRows/applyBluesoftEnrichment)
+    // — não confia mais no texto pronto da planilha, ver comentário lá.
+    prazoStatus: 'SEM_INFO',
+    prazoDiasPermitidos: null,
     valorNF: parseMoney(get('valorNF')),
     dataEmissao: Utils.parseDate(get('dataEmissao')),
     dataAgendamento,
@@ -364,6 +369,9 @@ function normalizeRecord(rawRow) {
     // Só existe pra registros vindos da Base Bluesoft (ver applyBluesoftEnrichment) — a aba
     // "NF Aberta" não distingue início de viagem de entrega, então fica nulo aqui.
     dataInicioViagem: null,
+    // Transportadora própria (frota agregada) x transportadora terceirizada — vem da aba
+    // RETORNO, coluna "Tipo de Transporte" (ver applyRetornoEnrichment).
+    tipoTransporte: 'Não informado',
     situacao,
     // Preenchidos pela planilha de Agendamentos (cruzada por NF) — ficam nulos/vazios até
     // essa base ser carregada, já que nenhuma outra fonte hoje traz esses três campos.
@@ -459,6 +467,7 @@ const DataStore = (() => {
   let clienteEntriesList = []; // todas as linhas da Planilha1 (mesmo nomes repetidos), para o fallback por substring
   let agendamentoByNF = new Map(); // NF -> { dataAgendamento, necessitaAgendamento, statusAgendamento, reagendar }
   let motivoByNfStatus = new Map(); // "NF|Situação" -> motivo bruto (cobertura parcial, ver Base BI)
+  let retornoInfoByNF = new Map(); // NF -> { prazoDias, tipoTransporte } (aba RETORNO)
   const listeners = new Set();
 
   function emptyFilters() {
@@ -469,6 +478,7 @@ const DataStore = (() => {
       ano: '',       // 'YYYY'
       situacaoFiltro: [], // array de valores de r.situacao selecionados (vazio = todos)
       transportadora: '',
+      tipoTransporte: '',
       motorista: '',
       vendedor: '',
       cliente: '',
@@ -560,6 +570,11 @@ const DataStore = (() => {
       if (!nf || !status) continue;
 
       const dataEntregaRaw = pickField(row, headerIndex, 'dataEntrega');
+      // Coluna "Agendado" opcional (nem todo CSV de Bluesoft já exportado tem essa coluna
+      // ainda) — "Obriga Agenda" / "Não obriga agenda". Ausente, fica null e não afeta nada
+      // (ver applyBluesoftEnrichment: só define necessitaAgendamento quando não é null).
+      const agendadoHeader = headerIndex['agendado'];
+      const agendadoRaw = agendadoHeader !== undefined ? String(row[agendadoHeader] || '').trim() : '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -570,7 +585,8 @@ const DataStore = (() => {
         valorNF: pickField(row, headerIndex, 'valorNF'),
         dataEntrega: dataEntregaRaw,
         _dataEntregaParsed: Utils.parseDate(dataEntregaRaw),
-        cnpj: pickField(row, headerIndex, 'cnpj')
+        cnpj: pickField(row, headerIndex, 'cnpj'),
+        necessitaAgendamento: parseObrigaAgendamentoBluesoft(agendadoRaw)
       };
 
       // Uma NF pode aparecer em várias viagens/tentativas — fica a linha mais recente por data
@@ -626,6 +642,15 @@ const DataStore = (() => {
       // quando a Bluesoft não conhece essa nota.
       const info = bluesoftByBaseNF.get(r.nf.split('-')[0]);
       if (!info) continue;
+      // "Precisa de agendamento" agora vem da própria coluna "Agendado" da Base Bluesoft
+      // (mais precisa: usa CNPJ, não nome de cliente) — por decisão do usuário (2026-08-14),
+      // no lugar da planilha de Agendamentos, cuja fórmula quebra com frequência. Só aplica
+      // quando a coluna existe no CSV (info.necessitaAgendamento não é null) — CSVs antigos
+      // sem essa coluna deixam quem já foi definido por outra fonte (ex.: Agendamentos, se
+      // ainda estiver em uso) intacto.
+      if (info.necessitaAgendamento !== null && info.necessitaAgendamento !== undefined) {
+        r.necessitaAgendamento = info.necessitaAgendamento;
+      }
       // A Bluesoft não distingue "aguardando agendamento" — pra ela é tudo "Em aberto" igual.
       // Se a planilha principal já classificou como isso (mais específico, vem da flag
       // NECESSITA AGENDAMENTO), não faz sentido rebaixar pra um "Em aberto" genérico. Qualquer
@@ -663,17 +688,48 @@ const DataStore = (() => {
         cidade: String(info.cidade || 'Não informado').trim() || 'Não informado',
         uf: String(info.uf || '').trim().toUpperCase(),
         status,
-        prazoStatus: normalizePrazo('', status),
+        prazoStatus: 'SEM_INFO', // recalculado logo abaixo por recomputarPrazoStatus()
+        prazoDiasPermitidos: null,
         valorNF: parseMoney(info.valorNF),
         dataEmissao: null,
         dataAgendamento: null,
         dataFaturamento: null,
         dataEntrega: Utils.parseDate(info.dataEntrega),
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
+        tipoTransporte: 'Não informado',
         situacao: info.status,
+        necessitaAgendamento: info.necessitaAgendamento || false,
         motivo: '',
         motivoCategoria: ''
       });
+    }
+
+    recomputarPrazoStatus();
+  }
+
+  /**
+   * Fonte da verdade pro campo Prazo (Entregue/Dentro do prazo/Vencido/Sem informação) — não
+   * confia mais no texto pronto da planilha principal (a coluna "Prazo" de lá vinha de uma
+   * fórmula frágil, e pras notas que só existem na Bluesoft ficava sempre "Sem informação").
+   * Conta os dias corridos a partir da Data de Agendamento (nota já agendada) ou da Data de
+   * Início de Viagem (Bluesoft, senão) e compara com o prazo em dias daquela nota específica
+   * (aba RETORNO, coluna "Prazo para Entrega" — ver applyRetornoEnrichment). Sem uma dessas
+   * datas ou sem o prazo em dias, fica "Sem informação" — por decisão do usuário (2026-08-15).
+   */
+  function recomputarPrazoStatus() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    for (const r of rawRecords) {
+      if (r.status === 'ENTREGUE') { r.prazoStatus = 'ENTREGUE'; continue; }
+      const referencia = r.dataAgendamento || r.dataInicioViagem;
+      if (!referencia || r.prazoDiasPermitidos === null || r.prazoDiasPermitidos === undefined) {
+        r.prazoStatus = 'SEM_INFO';
+        continue;
+      }
+      const dataRef = new Date(referencia.getTime());
+      dataRef.setHours(0, 0, 0, 0);
+      const diasCorridos = Math.floor((hoje - dataRef) / 86400000);
+      r.prazoStatus = diasCorridos > r.prazoDiasPermitidos ? 'VENCIDO' : 'DENTRO_PRAZO';
     }
   }
 
@@ -864,7 +920,12 @@ const DataStore = (() => {
       // o sufixo aqui, esse cruzamento nunca batia pra nenhuma nota da Bluesoft (só pras ~503
       // da planilha "NF Aberta", cuja NF já vem sem sufixo).
       const info = agendamentoByNF.get(r.nf.split('-')[0]);
-      if (!info) { r.necessitaAgendamento = false; continue; }
+      // Antes, "sem info na planilha de Agendamentos" forçava necessitaAgendamento pra false,
+      // mesmo que a Base Bluesoft já tivesse determinado que sim (coluna "Agendado" dela) —
+      // por decisão do usuário (2026-08-14), essa planilha virou uma fonte OPCIONAL/aditiva:
+      // se ela não conhece a nota, mantém o que já foi definido por outra fonte, em vez de
+      // zerar. Isso permite abandonar a planilha de Agendamentos aos poucos sem quebrar nada.
+      if (!info) { continue; }
       if (info.dataAgendamento) r.dataAgendamento = info.dataAgendamento;
       r.necessitaAgendamento = info.necessitaAgendamento;
       r.statusAgendamento = info.statusAgendamento;
@@ -874,6 +935,62 @@ const DataStore = (() => {
       // (Entregue/Devolução/Cancelado/Reentrega/Em aberto), pra não perder essa informação nas
       // notas que também aparecem na planilha de Agendamentos.
     }
+    recomputarPrazoStatus(); // a Data de Agendamento pode ter mudado acima
+  }
+
+  /**
+   * Carrega a aba "RETORNO" (consolidação própria do usuário, cruzando Base Bluesoft + Base
+   * Lincros + Base BI) — usada aqui só por duas colunas: "Prazo para Entrega" (dias, usado
+   * por recomputarPrazoStatus) e "Tipo de Transporte" (Transportadora x Agregado, usado pelo
+   * filtro de Transporte). Por decisão do usuário (2026-08-15).
+   */
+  async function loadRetornoFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexRetornoRows(rawRows);
+    applyRetornoEnrichment();
+    notify();
+  }
+
+  async function loadRetornoFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexRetornoRows(rawRows);
+    applyRetornoEnrichment();
+    notify();
+  }
+
+  function indexRetornoRows(rawRows) {
+    const map = new Map();
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const nfHeader = FIELD_ALIASES.nf.map(a => headerIndex[a]).find(h => h !== undefined);
+      const nfRaw = String((nfHeader !== undefined ? row[nfHeader] : '') || '').trim();
+      if (!nfRaw) continue;
+      const nf = nfRaw.split('-')[0].trim();
+      if (!nf) continue;
+      const prazoHeader = headerIndex['prazo para entrega'];
+      const prazoDiasRaw = prazoHeader !== undefined ? parseInt(String(row[prazoHeader]).trim(), 10) : NaN;
+      const tipoHeader = headerIndex['tipo de transporte'];
+      const tipoTransporte = tipoHeader !== undefined ? String(row[tipoHeader] || '').trim() : '';
+      map.set(nf, {
+        prazoDias: isNaN(prazoDiasRaw) ? null : prazoDiasRaw,
+        tipoTransporte
+      });
+    }
+    retornoInfoByNF = map;
+  }
+
+  function applyRetornoEnrichment() {
+    if (retornoInfoByNF.size === 0) return;
+    for (const r of rawRecords) {
+      const info = retornoInfoByNF.get(r.nf.split('-')[0]);
+      if (!info) continue;
+      if (info.prazoDias !== null) r.prazoDiasPermitidos = info.prazoDias;
+      if (info.tipoTransporte) r.tipoTransporte = info.tipoTransporte;
+    }
+    recomputarPrazoStatus();
   }
 
   /**
@@ -943,7 +1060,7 @@ const DataStore = (() => {
   function getFilteredRecords() {
     const {
       dataInicio, dataFim, mes, ano,
-      situacaoFiltro, transportadora, motorista, vendedor, cliente, cidade, busca
+      situacaoFiltro, transportadora, tipoTransporte, motorista, vendedor, cliente, cidade, busca
     } = filters;
 
     return rawRecords.filter(r => {
@@ -956,6 +1073,7 @@ const DataStore = (() => {
 
       if (situacaoFiltro && situacaoFiltro.length && !situacaoFiltro.includes(r.situacao)) return false;
       if (transportadora && r.transportadora !== transportadora) return false;
+      if (tipoTransporte && r.tipoTransporte !== tipoTransporte) return false;
       if (motorista && r.motorista !== motorista) return false;
       if (vendedor && r.vendedor !== vendedor) return false;
       if (cliente && r.cliente !== cliente) return false;
@@ -982,12 +1100,34 @@ const DataStore = (() => {
     return Utils.uniqueSorted(years).sort((a, b) => b - a);
   }
 
+  /**
+   * Mescla os agendamentos preenchidos manualmente no site (Firestore, ver
+   * Firebase.getAgendamentosManuais() em firebase-init.js) nos registros já carregados.
+   * `porNf` é o objeto { [nf sem sufixo]: { statusAgendamento, dataAgendamento } }. Substitui
+   * a antiga dependência da planilha de Agendamentos pra ESSAS duas informações
+   * especificamente — por decisão do usuário (2026-08-14), que prefere digitar a data/status
+   * direto no dashboard em vez de manter uma planilha separada com fórmulas frágeis.
+   */
+  function applyAgendamentoManual(porNf) {
+    if (!porNf) return;
+    for (const r of rawRecords) {
+      const info = porNf[r.nf.split('-')[0]];
+      if (!info) continue;
+      if (info.statusAgendamento) r.statusAgendamento = info.statusAgendamento;
+      if (info.dataAgendamento) r.dataAgendamento = Utils.parseDate(info.dataAgendamento);
+    }
+    recomputarPrazoStatus(); // a Data de Agendamento pode ter mudado acima
+    notify();
+  }
+
   return {
     loadFromUrl, loadFromFile, setRawRows,
     loadBluesoftFromUrl, loadBluesoftFromFile,
     loadClientesFromUrl, loadClientesFromFile,
     loadAgendamentosFromUrl, loadAgendamentosFromFile,
     loadMotivosFromUrl, loadMotivosFromFile,
+    loadRetornoFromUrl, loadRetornoFromFile,
+    applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getAvailableYears,
