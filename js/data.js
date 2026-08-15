@@ -611,13 +611,12 @@ const DataStore = (() => {
    *  - Se a NF só existe na Base Bluesoft (não está na base principal), cria um registro novo
    *    com os dados que a Base Bluesoft tem disponíveis.
    *
-   * "Valor NF" por decisão do usuário (2026-08-14): quando a nota existe nas duas bases, o
-   * "Valor NF" da planilha principal é quem vale — nunca é sobrescrito pela Bluesoft aqui.
-   * Motivo: as duas bases divergem MUITO no valor pra toda nota que aparece nas duas (0 de 495
-   * batiam, diferenças de até 9x) — provavelmente "Valor NF" tem significado diferente em cada
-   * uma (ex.: pedido inteiro vs. só uma parte da entrega). Sem uma fonte confirmada como
-   * correta, a decisão foi manter a prioridade que já existia pra vendedor/situação. O valor
-   * da Bluesoft só é usado quando a nota não existe na planilha principal.
+   * "Valor NF" por decisão do usuário (2026-08-15, revendo a decisão de 2026-08-14): quando a
+   * nota existe nas duas bases, o "Valor NF" da Base Bluesoft é quem vale agora — confirmado
+   * com o usuário comparando direto com a planilha de origem que o valor da Bluesoft é o
+   * correto/atualizado (ex.: NF 185310, R$10.489,20 na Bluesoft vs R$148.584,00 desatualizado
+   * na planilha principal). Mesmo critério do status: Bluesoft sempre vence quando conhece a
+   * nota; o valor da planilha principal só continua valendo pras notas que a Bluesoft não tem.
    */
   function applyBluesoftEnrichment() {
     if (bluesoftStatusByNF.size === 0) return;
@@ -649,6 +648,12 @@ const DataStore = (() => {
       // quando a Bluesoft não conhece essa nota.
       const info = bluesoftByBaseNF.get(r.nf.split('-')[0]);
       if (!info) continue;
+      // Valor NF: Bluesoft sempre vence quando tem a nota (ver decisão 2026-08-15 no
+      // comentário da função) — aplicado incondicionalmente aqui, antes de qualquer outro
+      // critério, pra não ficar de fora no caso raro de "Aguardando agendamento" abaixo.
+      if (info.valorNF !== null && info.valorNF !== undefined && info.valorNF !== '') {
+        r.valorNF = parseMoney(info.valorNF);
+      }
       // "Precisa de agendamento" agora vem da própria coluna "Agendado" da Base Bluesoft
       // (mais precisa: usa CNPJ, não nome de cliente) — por decisão do usuário (2026-08-14),
       // no lugar da planilha de Agendamentos, cuja fórmula quebra com frequência. Só aplica
