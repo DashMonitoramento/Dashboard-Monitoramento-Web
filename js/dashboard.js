@@ -449,10 +449,8 @@ const Dashboard = (() => {
       { label: 'Prazo', value: r => prazoLabel(r.prazoStatus) },
       { label: 'Situação', value: r => r.situacao },
       { label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
-      { label: 'Data Entrega', value: r => Utils.formatDate(r.dataEntrega) },
-      { label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) },
-      { label: 'Motivo', value: r => r.motivo },
-      { label: 'Categoria do Motivo', value: r => r.motivoCategoria }
+      { label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
+      { label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
     ];
   }
 
@@ -472,7 +470,7 @@ const Dashboard = (() => {
       { field: 'prazoStatus', label: 'Prazo', value: r => prazoLabel(r.prazoStatus) },
       { field: 'situacao', label: 'Situação', value: r => r.situacao },
       { field: 'valorNF', label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
-      { field: 'dataEntrega', label: 'Data Entrega', value: r => Utils.formatDate(r.dataEntrega) },
+      { field: 'dataEntrega', label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
       { field: 'dataAgendamento', label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
     ];
   }
@@ -561,7 +559,7 @@ const Dashboard = (() => {
     return { ENTREGUE: 'badge--success', EM_ABERTO: 'badge--danger', AGUARDANDO_AGENDAMENTO: 'badge--neutral' }[status] || 'badge--neutral';
   }
   function prazoLabel(prazo) {
-    return { DENTRO_PRAZO: 'Dentro do prazo', VENCIDO: 'Vencido', ENTREGUE: 'Entregue', SEM_INFO: 'Sem informação' }[prazo] || prazo;
+    return { DENTRO_PRAZO: 'No Prazo', VENCIDO: 'ATRASADO', ENTREGUE: 'Entregue', SEM_INFO: 'Sem informação' }[prazo] || prazo;
   }
   function prazoBadgeClass(prazo) {
     return { DENTRO_PRAZO: 'badge--warning', VENCIDO: 'badge--danger', ENTREGUE: 'badge--success', SEM_INFO: 'badge--neutral' }[prazo] || 'badge--neutral';
@@ -661,7 +659,7 @@ const Dashboard = (() => {
     });
     charts.prazo = new DashChart(document.getElementById('chart-prazo'), {
       type: 'donut', labels: [], series: [{ data: [] }],
-      options: { colors: ['#EAB308', '#DC2626', '#16A34A', '#64748B'] } // Dentro do prazo, Vencido, Entregue, Sem informação
+      options: { colors: ['#EAB308', '#DC2626', '#16A34A', '#64748B'] } // No Prazo, Atrasado, Entregue, Sem informação
     });
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
@@ -735,7 +733,7 @@ const Dashboard = (() => {
     const groups = { DENTRO_PRAZO: 0, VENCIDO: 0, ENTREGUE: 0, SEM_INFO: 0 };
     records.forEach(r => { groups[r.prazoStatus] = (groups[r.prazoStatus] || 0) + 1; });
     charts.prazo.update({
-      labels: ['Dentro do prazo', 'Vencido', 'Entregue', 'Sem informação'],
+      labels: ['No Prazo', 'ATRASADO', 'Entregue', 'Sem informação'],
       series: [{ data: [groups.DENTRO_PRAZO, groups.VENCIDO, groups.ENTREGUE, groups.SEM_INFO] }]
     });
   }
