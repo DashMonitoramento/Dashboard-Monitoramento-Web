@@ -481,13 +481,15 @@ const DataStore = (() => {
       dataFim: null,
       mes: '',       // '1'..'12'
       ano: '',       // 'YYYY'
-      situacaoFiltro: [], // array de valores de r.situacao selecionados (vazio = todos)
-      transportadora: '',
-      tipoTransporte: '',
-      motorista: '',
-      vendedor: '',
-      cliente: '',
-      cidade: '',
+      // Todos os filtros de múltipla escolha abaixo seguem o mesmo padrão: array de valores
+      // marcados (vazio = todos, sem filtro) — mesma convenção do checkbox de Status.
+      situacaoFiltro: [],
+      transportadora: [],
+      tipoTransporte: [],
+      motorista: [],
+      vendedor: [],
+      cliente: [],
+      cidade: [],
       busca: ''
     };
   }
@@ -1109,12 +1111,12 @@ const DataStore = (() => {
       if (ano && ref && String(ref.getFullYear()) !== String(ano)) return false;
 
       if (situacaoFiltro && situacaoFiltro.length && !situacaoFiltro.includes(r.situacao)) return false;
-      if (transportadora && r.transportadora !== transportadora) return false;
-      if (tipoTransporte && r.tipoTransporte !== tipoTransporte) return false;
-      if (motorista && r.motorista !== motorista) return false;
-      if (vendedor && r.vendedor !== vendedor) return false;
-      if (cliente && r.cliente !== cliente) return false;
-      if (cidade && r.cidade !== cidade) return false;
+      if (transportadora && transportadora.length && !transportadora.includes(r.transportadora)) return false;
+      if (tipoTransporte && tipoTransporte.length && !tipoTransporte.includes(r.tipoTransporte)) return false;
+      if (motorista && motorista.length && !motorista.includes(r.motorista)) return false;
+      if (vendedor && vendedor.length && !vendedor.includes(r.vendedor)) return false;
+      if (cliente && cliente.length && !cliente.includes(r.cliente)) return false;
+      if (cidade && cidade.length && !cidade.includes(r.cidade)) return false;
 
       if (busca) {
         const needle = busca.toLowerCase();
