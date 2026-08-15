@@ -244,14 +244,15 @@ const Dashboard = (() => {
 
   /**
    * Gera um CSV do "Relatório Detalhado" (só as colunas atualmente visíveis, respeitando os
-   * botões de mostrar/ocultar coluna) e tenta compartilhar direto pro WhatsApp ou E-mail via
-   * Web Share API (funciona em celular, abre a lista de apps já com o arquivo anexado). Sem
-   * suporte a isso (comum em navegador de computador), baixa o CSV e abre o WhatsApp Web/o
-   * app de e-mail com uma mensagem pronta, faltando só anexar o arquivo baixado manualmente —
-   * não existe uma forma de anexar arquivo automaticamente nesses casos vinda de uma página
-   * web comum, sem um aplicativo próprio por trás.
+   * botões de mostrar/ocultar coluna) e vai DIRETO pro canal escolhido (sem passar pelo menu
+   * de compartilhamento do sistema operacional — esse menu deixa a pessoa escolher qualquer
+   * app instalado, inclusive e-mail, o que contradiz o botão específico que ela clicou; por
+   * decisão do usuário, 2026-08-15, depois de o botão "WhatsApp" abrir o e-mail em vez do
+   * WhatsApp). Baixa o CSV e abre o WhatsApp Web/o app de e-mail com uma mensagem pronta,
+   * faltando só anexar o arquivo baixado manualmente — não existe uma forma de anexar arquivo
+   * automaticamente nesses casos vinda de uma página web comum, sem um aplicativo próprio.
    */
-  async function compartilharRelatorio(destino) {
+  function compartilharRelatorio(destino) {
     const records = DataStore.getFilteredRecords();
     if (!records.length) { Utils.showToast('Não há dados para enviar.', 'warning'); return; }
 
@@ -259,17 +260,6 @@ const Dashboard = (() => {
     const csv = Utils.arrayToCSV(records, colunas);
     const nomeArquivo = 'relatorio-entregas-daterrinha.csv';
     const resumo = `Relatório de Entregas — Da Terrinha Alimentos\n${Utils.formatNumber(records.length)} registro(s), gerado em ${Utils.formatDateTime(new Date())}.`;
-
-    const arquivo = new File(['﻿' + csv], nomeArquivo, { type: 'text/csv' });
-    if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
-      try {
-        await navigator.share({ files: [arquivo], title: 'Relatório de Entregas', text: resumo });
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return; // usuário cancelou o compartilhamento — não é erro
-        console.warn('Compartilhamento nativo falhou, usando alternativa:', err);
-      }
-    }
 
     Utils.downloadTextFile(nomeArquivo, '﻿' + csv, 'text/csv');
     Utils.showToast('Arquivo baixado — anexe ele na conversa/e-mail que vai abrir a seguir.', 'info', 6000);
