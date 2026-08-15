@@ -492,6 +492,59 @@ ul { list-style: none; margin: 0; padding: 0; }
 @media (prefers-reduced-motion: reduce) { .motivo-bar-row__fill { transition: none; } }
 .motivo-bar-row__count { color: var(--text-secondary); font-weight: 700; white-space: nowrap; text-align: right; }
 
+/* Agendamento manual (tela "Aguardando agendamento") — data/status digitados direto no
+   site (Firestore), no lugar da planilha de Agendamentos. Edição só pro admin configurado;
+   os demais usuários veem os mesmos dados, só sem os controles de edição. */
+.detail-agendamento {
+  margin-bottom: 18px; padding: 14px 16px; border: 1px solid var(--border);
+  border-radius: var(--radius-md); background: var(--surface-alt);
+}
+.detail-agendamento__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.detail-agendamento__title { font-size: 13px; font-weight: 800; }
+.detail-agendamento__hint { font-size: 11.5px; color: var(--text-secondary); }
+.detail-agendamento__list { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+.agendamento-row {
+  display: grid; grid-template-columns: minmax(90px, 120px) minmax(140px, 1fr) auto auto auto;
+  align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border); font-size: 12.5px;
+}
+.agendamento-row__nf { font-weight: 700; color: var(--color-orange); white-space: nowrap; }
+.agendamento-row__cliente { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agendamento-row select, .agendamento-row input[type="date"] {
+  padding: 5px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface-alt); color: var(--text-primary); font-size: 12px;
+}
+.agendamento-row__status--somente-leitura { padding: 5px 6px; color: var(--text-primary); white-space: nowrap; }
+.agendamento-row__salvar { font-size: 11.5px; padding: 5px 10px; }
+.agendamento-row__salvar[disabled] { opacity: .5; cursor: default; }
+
+/* Modal "Gerenciar usuários" — só o super admin vê o botão que abre isso (ver
+   btn-gerenciar-usuarios no header e Dashboard.isSuperAdminAgendamento em dashboard.js). */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1500; display: flex; align-items: center; justify-content: center;
+  background: rgba(15,23,42,.6); padding: 20px;
+}
+.modal-overlay[hidden] { display: none; }
+.modal-card {
+  background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+  padding: 22px; width: 100%; max-width: 520px; max-height: 82vh; overflow-y: auto;
+}
+.modal-card__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal-card__title { font-size: 16px; font-weight: 800; }
+.modal-card__hint { font-size: 12.5px; color: var(--text-secondary); margin: 6px 0 14px; }
+.usuarios-lista { display: flex; flex-direction: column; gap: 8px; }
+.usuarios-lista__carregando, .usuarios-lista__vazio { font-size: 13px; color: var(--text-secondary); }
+.usuario-row {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+  padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt);
+}
+.usuario-row__nome { font-weight: 700; font-size: 13.5px; }
+.usuario-row__email { font-size: 12px; color: var(--text-secondary); }
+.usuario-row__toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.usuario-row__toggle input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--color-blue); }
+.usuario-row--super-admin .usuario-row__toggle { color: var(--text-secondary); cursor: default; }
+.usuario-row--super-admin .usuario-row__toggle input { cursor: default; }
+
 /* ---------- 9. Gráficos ---------- */
 .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
 .charts-grid--donuts { grid-template-columns: repeat(3, 1fr); }
