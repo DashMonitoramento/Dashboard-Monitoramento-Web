@@ -298,12 +298,20 @@ ul { list-style: none; margin: 0; padding: 0; }
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-.filter-checkbox-list { display: flex; flex-direction: column; gap: 6px; }
+.filter-checkbox-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 220px; overflow-y: auto; padding-right: 4px;
+}
 .filter-checkbox {
   display: flex; align-items: center; gap: 8px; font-size: 12.5px;
   color: var(--text-primary); cursor: pointer;
 }
 .filter-checkbox input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--color-blue); }
+/* "Selecionar todos" fica fixo no topo ao rolar listas longas (Cliente/Transportadora). */
+.filter-checkbox--todos {
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+  padding-bottom: 6px; margin-bottom: 2px; border-bottom: 1px solid var(--border);
+}
 #filter-busca.is-filled {
   border-color: var(--color-success); box-shadow: 0 0 8px rgba(22,163,74,.55);
 }
@@ -609,7 +617,45 @@ ul { list-style: none; margin: 0; padding: 0; }
 .table-card__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
 .table-search { display: flex; align-items: center; gap: 8px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 10px; min-width: 240px; }
 .table-search input { border: none; background: transparent; outline: none; color: var(--text-primary); width: 100%; }
-.table-actions { display: flex; gap: 8px; }
+.table-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Botões de mostrar/ocultar coluna — ficam onde antes só tinha a borda laranja separando o
+   título da tabela; verde brilhante = coluna visível, vermelho brilhante = oculta. */
+.table-column-toggles {
+  display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  padding-bottom: 12px; margin-bottom: 14px; border-bottom: 2px solid var(--color-orange);
+}
+.col-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.col-toggle__checkbox { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.col-toggle__track {
+  position: relative; width: 32px; height: 17px; border-radius: 999px; flex-shrink: 0;
+  background: var(--color-danger); box-shadow: 0 0 6px rgba(220,38,38,.55);
+  transition: background var(--transition), box-shadow var(--transition);
+}
+.col-toggle__thumb {
+  position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%;
+  background: #fff; transition: transform var(--transition);
+}
+.col-toggle__checkbox:checked + .col-toggle__track { background: var(--color-success); box-shadow: 0 0 6px rgba(22,163,74,.55); }
+.col-toggle__checkbox:checked + .col-toggle__track .col-toggle__thumb { transform: translateX(15px); }
+.col-toggle__checkbox:focus-visible + .col-toggle__track { outline: 2px solid var(--color-blue); outline-offset: 2px; }
+.col-toggle__label { font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+
+/* Esconde a coluna correspondente quando o campo aparece em data-hide (ver
+   aplicarColunasOcultas em dashboard.js) — índices batem com a ordem das colunas de
+   #data-table (thead th / rowHtml). */
+#data-table[data-hide~="nf"] th:nth-child(1), #data-table[data-hide~="nf"] td:nth-child(1) { display: none; }
+#data-table[data-hide~="cliente"] th:nth-child(2), #data-table[data-hide~="cliente"] td:nth-child(2) { display: none; }
+#data-table[data-hide~="transportadora"] th:nth-child(3), #data-table[data-hide~="transportadora"] td:nth-child(3) { display: none; }
+#data-table[data-hide~="motorista"] th:nth-child(4), #data-table[data-hide~="motorista"] td:nth-child(4) { display: none; }
+#data-table[data-hide~="vendedor"] th:nth-child(5), #data-table[data-hide~="vendedor"] td:nth-child(5) { display: none; }
+#data-table[data-hide~="cidade"] th:nth-child(6), #data-table[data-hide~="cidade"] td:nth-child(6) { display: none; }
+#data-table[data-hide~="status"] th:nth-child(7), #data-table[data-hide~="status"] td:nth-child(7) { display: none; }
+#data-table[data-hide~="prazoStatus"] th:nth-child(8), #data-table[data-hide~="prazoStatus"] td:nth-child(8) { display: none; }
+#data-table[data-hide~="situacao"] th:nth-child(9), #data-table[data-hide~="situacao"] td:nth-child(9) { display: none; }
+#data-table[data-hide~="valorNF"] th:nth-child(10), #data-table[data-hide~="valorNF"] td:nth-child(10) { display: none; }
+#data-table[data-hide~="dataEntrega"] th:nth-child(11), #data-table[data-hide~="dataEntrega"] td:nth-child(11) { display: none; }
+#data-table[data-hide~="dataAgendamento"] th:nth-child(12), #data-table[data-hide~="dataAgendamento"] td:nth-child(12) { display: none; }
 
 /* Card com altura travada e rolagem própria (vertical + horizontal) — assim a tabela não
    empurra a paginação pra fora da tela quando tem muita linha por página. */
