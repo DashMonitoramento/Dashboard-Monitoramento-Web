@@ -87,6 +87,10 @@ const Dashboard = (() => {
   // assets/data/canhotos-index.json (gerado por scripts/gerar-indice-canhotos.ps1).
   let canhotosIndex = new Map();
 
+  // Campos das colunas atualmente ocultas na tabela "Registros detalhados" (botões redondos
+  // acima da tabela) — nomes batem com data-field do <thead> e com COLUNAS_TABELA_PRINCIPAL.
+  let colunasOcultas = new Set();
+
   /* ============================================================
    * INICIALIZAÇÃO
    * ============================================================ */
@@ -98,6 +102,8 @@ const Dashboard = (() => {
     bindStatusDetail();
     bindCanhotoLinks();
     bindAgendamentoEdicao();
+    renderColumnToggles();
+    bindColumnToggles();
     createCharts();
     DataStore.onChange(render);
   }
@@ -113,16 +119,14 @@ const Dashboard = (() => {
     });
     $('filter-mes').addEventListener('change', (e) => DataStore.setFilters({ mes: e.target.value }));
     $('filter-ano').addEventListener('change', (e) => DataStore.setFilters({ ano: e.target.value }));
-    $('filter-status-list').addEventListener('change', () => {
-      const checked = Array.from(document.querySelectorAll('#filter-status-list input[type="checkbox"]:checked')).map(cb => cb.value);
-      DataStore.setFilters({ situacaoFiltro: checked });
-    });
-    $('filter-transportadora').addEventListener('change', (e) => DataStore.setFilters({ transportadora: e.target.value }));
-    $('filter-motorista').addEventListener('change', (e) => DataStore.setFilters({ motorista: e.target.value }));
-    $('filter-tipo-transporte').addEventListener('change', (e) => DataStore.setFilters({ tipoTransporte: e.target.value }));
-    $('filter-vendedor').addEventListener('change', (e) => DataStore.setFilters({ vendedor: e.target.value }));
-    $('filter-cliente').addEventListener('change', (e) => DataStore.setFilters({ cliente: e.target.value }));
-    $('filter-cidade').addEventListener('change', (e) => DataStore.setFilters({ cidade: e.target.value }));
+
+    bindFilterCheckboxList('filter-status-list', 'situacaoFiltro');
+    bindFilterCheckboxList('filter-transportadora-list', 'transportadora');
+    bindFilterCheckboxList('filter-motorista-list', 'motorista');
+    bindFilterCheckboxList('filter-tipo-transporte-list', 'tipoTransporte');
+    bindFilterCheckboxList('filter-vendedor-list', 'vendedor');
+    bindFilterCheckboxList('filter-cliente-list', 'cliente');
+    bindFilterCheckboxList('filter-cidade-list', 'cidade');
 
     const buscaHandler = Utils.debounce((value) => DataStore.setFilters({ busca: value }), 250);
     const buscaInput = $('filter-busca');
@@ -135,7 +139,7 @@ const Dashboard = (() => {
     $('btn-reset-filters').addEventListener('click', () => {
       DataStore.resetFilters();
       document.querySelectorAll('.filters-panel select, .filters-panel input').forEach(el => { el.value = ''; });
-      document.querySelectorAll('#filter-status-list input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+      document.querySelectorAll('.filters-panel .filter-checkbox-list input[type="checkbox"]').forEach(cb => { cb.checked = false; });
       buscaInput.classList.remove('is-filled');
       Utils.showToast('Filtros limpos.', 'info', 2000);
     });
@@ -147,6 +151,26 @@ const Dashboard = (() => {
       localStorage.setItem(VENDEDOR_SEM_CLIENTE_KEY, ocultarVendedorSemCliente ? '1' : '0');
       btnToggleVendedor.setAttribute('aria-pressed', String(ocultarVendedorSemCliente));
       populateFilterOptions();
+    });
+  }
+
+  /** Amarra UMA lista de checkbox (Status/Transportadora/Cliente/...) ao filtro `filterKey` do
+   * DataStore, incluindo o checkbox "Selecionar todos" (marca/desmarca tudo, e reflete se já
+   * está tudo marcado). Serve tanto pra lista fixa (Status, HTML hardcoded) quanto pras
+   * dinâmicas (populadas por fillCheckboxList) — só depende das classes .filter-checkbox__todos
+   * / .filter-checkbox__item já estarem no HTML. */
+  function bindFilterCheckboxList(containerId, filterKey) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.addEventListener('change', (e) => {
+      const todos = container.querySelector('.filter-checkbox__todos');
+      if (e.target === todos) {
+        container.querySelectorAll('.filter-checkbox__item').forEach(cb => { cb.checked = todos.checked; });
+      }
+      const itens = Array.from(container.querySelectorAll('.filter-checkbox__item'));
+      if (todos) todos.checked = itens.length > 0 && itens.every(cb => cb.checked);
+      const marcados = itens.filter(cb => cb.checked).map(cb => cb.value);
+      DataStore.setFilters({ [filterKey]: marcados });
     });
   }
 
@@ -213,6 +237,47 @@ const Dashboard = (() => {
       Utils.showToast('Escolha "Salvar como PDF" na janela de impressão.', 'info', 5000);
       window.print();
     });
+
+    document.getElementById('btn-share-whatsapp').addEventListener('click', () => compartilharRelatorio('whatsapp'));
+    document.getElementById('btn-share-email').addEventListener('click', () => compartilharRelatorio('email'));
+  }
+
+  /**
+   * Gera um CSV do "Relatório Detalhado" (só as colunas atualmente visíveis, respeitando os
+   * botões de mostrar/ocultar coluna) e tenta compartilhar direto pro WhatsApp ou E-mail via
+   * Web Share API (funciona em celular, abre a lista de apps já com o arquivo anexado). Sem
+   * suporte a isso (comum em navegador de computador), baixa o CSV e abre o WhatsApp Web/o
+   * app de e-mail com uma mensagem pronta, faltando só anexar o arquivo baixado manualmente —
+   * não existe uma forma de anexar arquivo automaticamente nesses casos vinda de uma página
+   * web comum, sem um aplicativo próprio por trás.
+   */
+  async function compartilharRelatorio(destino) {
+    const records = DataStore.getFilteredRecords();
+    if (!records.length) { Utils.showToast('Não há dados para enviar.', 'warning'); return; }
+
+    const colunas = colunasTabelaPrincipal().filter(c => !colunasOcultas.has(c.field));
+    const csv = Utils.arrayToCSV(records, colunas);
+    const nomeArquivo = 'relatorio-entregas-daterrinha.csv';
+    const resumo = `Relatório de Entregas — Da Terrinha Alimentos\n${Utils.formatNumber(records.length)} registro(s), gerado em ${Utils.formatDateTime(new Date())}.`;
+
+    const arquivo = new File(['﻿' + csv], nomeArquivo, { type: 'text/csv' });
+    if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({ files: [arquivo], title: 'Relatório de Entregas', text: resumo });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // usuário cancelou o compartilhamento — não é erro
+        console.warn('Compartilhamento nativo falhou, usando alternativa:', err);
+      }
+    }
+
+    Utils.downloadTextFile(nomeArquivo, '﻿' + csv, 'text/csv');
+    Utils.showToast('Arquivo baixado — anexe ele na conversa/e-mail que vai abrir a seguir.', 'info', 6000);
+    if (destino === 'whatsapp') {
+      window.open(`https://wa.me/?text=${encodeURIComponent(resumo)}`, '_blank');
+    } else {
+      window.location.href = `mailto:?subject=${encodeURIComponent('Relatório de Entregas — Da Terrinha Alimentos')}&body=${encodeURIComponent(resumo)}`;
+    }
   }
 
   /* ============================================================
@@ -401,27 +466,88 @@ const Dashboard = (() => {
     ];
   }
 
+  /** As 12 colunas realmente exibidas em #data-table (thead/rowHtml) — usadas pelos botões de
+   * mostrar/ocultar coluna e pelo envio de relatório por WhatsApp/E-mail. Separado de
+   * tableColumns() porque aquele array serve pro CSV (15 colunas, inclui Motivo/Categoria/UF
+   * separado) e não precisa mudar de comportamento por causa dessa funcionalidade nova. */
+  function colunasTabelaPrincipal() {
+    return [
+      { field: 'nf', label: 'NF', value: r => r.nf },
+      { field: 'cliente', label: 'Cliente', value: r => r.cliente },
+      { field: 'transportadora', label: 'Transportadora', value: r => r.transportadora },
+      { field: 'motorista', label: 'Motorista', value: r => r.motorista },
+      { field: 'vendedor', label: 'Vendedor', value: r => r.vendedor },
+      { field: 'cidade', label: 'Cidade/UF', value: r => `${r.cidade}${r.uf ? '/' + r.uf : ''}` },
+      { field: 'status', label: 'Status', value: r => statusLabel(r.status) },
+      { field: 'prazoStatus', label: 'Prazo', value: r => prazoLabel(r.prazoStatus) },
+      { field: 'situacao', label: 'Situação', value: r => r.situacao },
+      { field: 'valorNF', label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
+      { field: 'dataEntrega', label: 'Data Entrega', value: r => Utils.formatDate(r.dataEntrega) },
+      { field: 'dataAgendamento', label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
+    ];
+  }
+
+  /** Desenha os botõezinhos redondos (um por coluna) acima da tabela "Registros detalhados" —
+   * no lugar da borda laranja que separava o título da tabela. Verde brilhante = coluna
+   * visível, vermelho brilhante = oculta (ver .col-toggle* em style.css). */
+  function renderColumnToggles() {
+    const container = document.getElementById('table-column-toggles');
+    if (!container) return;
+    container.innerHTML = colunasTabelaPrincipal().map(c => `
+      <label class="col-toggle" title="Mostrar/ocultar coluna ${escapeAttr(c.label)}">
+        <input type="checkbox" class="col-toggle__checkbox" data-field="${c.field}"${colunasOcultas.has(c.field) ? '' : ' checked'}>
+        <span class="col-toggle__track"><span class="col-toggle__thumb"></span></span>
+        <span class="col-toggle__label">${escapeAttr(c.label)}</span>
+      </label>
+    `).join('');
+  }
+
+  function bindColumnToggles() {
+    const container = document.getElementById('table-column-toggles');
+    if (!container) return;
+    container.addEventListener('change', (e) => {
+      const checkbox = e.target.closest('.col-toggle__checkbox');
+      if (!checkbox) return;
+      const field = checkbox.dataset.field;
+      if (checkbox.checked) colunasOcultas.delete(field); else colunasOcultas.add(field);
+      aplicarColunasOcultas();
+    });
+  }
+
+  function aplicarColunasOcultas() {
+    const tabela = document.getElementById('data-table');
+    if (tabela) tabela.dataset.hide = Array.from(colunasOcultas).join(' ');
+  }
+
   /* ============================================================
    * FILTROS — popula selects com valores distintos dos dados
    * ============================================================ */
 
-  function populateFilterOptions() {
-    const fillSelect = (id, values, placeholder) => {
-      const el = document.getElementById(id);
-      const current = el.value;
-      el.innerHTML = `<option value="">${placeholder}</option>` +
-        values.map(v => `<option value="${escapeAttr(v)}">${escapeAttr(v)}</option>`).join('');
-      if (values.includes(current)) el.value = current;
-    };
+  /** Repopula uma lista de checkbox dinâmica (Transportadora/Motorista/.../Cidade) a partir dos
+   * valores distintos dos dados carregados — preserva o que já estava marcado (o filtro
+   * continua valendo mesmo depois de "Atualizar dados"). */
+  function fillCheckboxList(containerId, values) {
+    const container = document.getElementById(containerId);
+    const jaMarcados = new Set(
+      Array.from(container.querySelectorAll('.filter-checkbox__item:checked')).map(cb => cb.value)
+    );
+    container.innerHTML =
+      `<label class="filter-checkbox filter-checkbox--todos"><input type="checkbox" class="filter-checkbox__todos"> <strong>Selecionar todos</strong></label>` +
+      values.map(v => `<label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="${escapeAttr(v)}"${jaMarcados.has(v) ? ' checked' : ''}> ${escapeAttr(v)}</label>`).join('');
+    const todos = container.querySelector('.filter-checkbox__todos');
+    const itens = container.querySelectorAll('.filter-checkbox__item');
+    todos.checked = itens.length > 0 && Array.from(itens).every(cb => cb.checked);
+  }
 
-    fillSelect('filter-transportadora', DataStore.getDistinctValues('transportadora'), 'Todas as transportadoras');
-    fillSelect('filter-motorista', DataStore.getDistinctValues('motorista'), 'Todos os motoristas');
-    fillSelect('filter-tipo-transporte', DataStore.getDistinctValues('tipoTransporte'), 'Todos os tipos');
+  function populateFilterOptions() {
+    fillCheckboxList('filter-transportadora-list', DataStore.getDistinctValues('transportadora'));
+    fillCheckboxList('filter-motorista-list', DataStore.getDistinctValues('motorista'));
+    fillCheckboxList('filter-tipo-transporte-list', DataStore.getDistinctValues('tipoTransporte'));
     let vendedores = DataStore.getDistinctValues('vendedor');
     if (ocultarVendedorSemCliente) vendedores = vendedores.filter(v => v !== 'Não informado');
-    fillSelect('filter-vendedor', vendedores, 'Todos os vendedores');
-    fillSelect('filter-cliente', DataStore.getDistinctValues('cliente'), 'Todos os clientes');
-    fillSelect('filter-cidade', DataStore.getDistinctValues('cidade'), 'Todas as cidades');
+    fillCheckboxList('filter-vendedor-list', vendedores);
+    fillCheckboxList('filter-cliente-list', DataStore.getDistinctValues('cliente'));
+    fillCheckboxList('filter-cidade-list', DataStore.getDistinctValues('cidade'));
 
     const anoEl = document.getElementById('filter-ano');
     const currentAno = anoEl.value;
