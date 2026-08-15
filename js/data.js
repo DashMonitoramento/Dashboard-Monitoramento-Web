@@ -371,7 +371,7 @@ function normalizeRecord(rawRow) {
     dataInicioViagem: null,
     // Transportadora própria (frota agregada) x transportadora terceirizada — vem da aba
     // RETORNO, coluna "Tipo de Transporte" (ver applyRetornoEnrichment).
-    tipoTransporte: 'Não informado',
+    tipoTransporte: 'NÃO INFORMADO',
     situacao,
     // Preenchidos pela planilha de Agendamentos (cruzada por NF) — ficam nulos/vazios até
     // essa base ser carregada, já que nenhuma outra fonte hoje traz esses três campos.
@@ -696,7 +696,7 @@ const DataStore = (() => {
         dataFaturamento: null,
         dataEntrega: Utils.parseDate(info.dataEntrega),
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
-        tipoTransporte: 'Não informado',
+        tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
         motivo: '',
@@ -973,7 +973,9 @@ const DataStore = (() => {
       const prazoHeader = headerIndex['prazo para entrega'];
       const prazoDiasRaw = prazoHeader !== undefined ? parseInt(String(row[prazoHeader]).trim(), 10) : NaN;
       const tipoHeader = headerIndex['tipo de transporte'];
-      const tipoTransporte = tipoHeader !== undefined ? String(row[tipoHeader] || '').trim() : '';
+      // Maiúsculas por padrão — a planilha traz uma mistura ("Transportadora", "FROTA
+      // PROPRIA", "PROPRIO RETIRA"), e o filtro fica mais consistente com um único padrão.
+      const tipoTransporte = tipoHeader !== undefined ? String(row[tipoHeader] || '').trim().toUpperCase() : '';
       map.set(nf, {
         prazoDias: isNaN(prazoDiasRaw) ? null : prazoDiasRaw,
         tipoTransporte
