@@ -47,6 +47,37 @@ const Dashboard = (() => {
     'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) }
   };
 
+  // Super admin: sempre pode editar a data/status de agendamento manual (Firestore) e é o
+  // único que vê o botão "Gerenciar usuários" — por decisão do usuário (2026-08-14). Além
+  // dele, qualquer usuário que o super admin habilitar pelo modal "Gerenciar usuários"
+  // também pode editar (flag `podeEditarAgendamento` em users/{uid}, ver script.js/
+  // firebase-init.js) — os demais veem os mesmos dados, só sem os controles de edição.
+  const SUPER_ADMIN_EMAIL_AGENDAMENTO = 'thiago.barbosadaterrinha@gmail.com';
+  let podeEditarAgendamentoUsuarioAtual = false;
+
+  function isSuperAdminAgendamento() {
+    return window.Firebase?.auth?.currentUser?.email === SUPER_ADMIN_EMAIL_AGENDAMENTO;
+  }
+  function isSuperAdminEmailAgendamento(email) {
+    return email === SUPER_ADMIN_EMAIL_AGENDAMENTO;
+  }
+  function isAdminAgendamento() {
+    return isSuperAdminAgendamento() || podeEditarAgendamentoUsuarioAtual;
+  }
+  /** Chamado de fora (script.js) assim que a permissão do usuário logado for lida do
+   * Firestore — atualiza a tela de detalhe na hora, caso já esteja aberta. */
+  function setPermissaoEdicaoAgendamento(pode) {
+    podeEditarAgendamentoUsuarioAtual = !!pode;
+    renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
+  }
+  function formatDateParaInput(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '';
+    const ano = date.getFullYear();
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const dia = String(date.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  }
+
   // "Não informado" é um rótulo de ausência, não um vendedor real — por padrão fica fora
   // do filtro pra não poluir a lista com algo que não representa ninguém de fato.
   const VENDEDOR_SEM_CLIENTE_KEY = 'dashboard_ocultar_vendedor_sem_cliente';
@@ -66,6 +97,7 @@ const Dashboard = (() => {
     bindActionButtons();
     bindStatusDetail();
     bindCanhotoLinks();
+    bindAgendamentoEdicao();
     createCharts();
     DataStore.onChange(render);
   }
@@ -221,6 +253,7 @@ const Dashboard = (() => {
     document.getElementById('detail-view-title').textContent = `${def.title} (${Utils.formatNumber(detailRecords.length)})`;
     renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS);
     renderMotivosBreakdown(detailRecords);
+    renderAgendamentoEdicao(detailRecords);
   }
 
   /* ============================================================
@@ -256,6 +289,94 @@ const Dashboard = (() => {
     `).join('');
     requestAnimationFrame(() => {
       list.querySelectorAll('.motivo-bar-row__fill').forEach(el => { el.style.width = `${el.dataset.pct}%`; });
+    });
+  }
+
+  /* ============================================================
+   * AGENDAMENTO MANUAL — só na tela "Aguardando agendamento". Data/status digitados direto
+   * aqui (Firestore), no lugar da planilha de Agendamentos (ver applyAgendamentoManual em
+   * data.js). Edição só pro admin (isAdminAgendamento) — os demais veem só leitura.
+   * ============================================================ */
+
+  const AGENDAMENTO_EDICAO_LIMITE = 200;
+
+  function renderAgendamentoEdicao(records) {
+    const section = document.getElementById('detail-agendamento-section');
+    if (detailKey !== 'aguardando') { section.hidden = true; return; }
+    section.hidden = false;
+
+    const admin = isAdminAgendamento();
+    document.getElementById('detail-agendamento-hint').textContent = admin
+      ? 'Preencha o status e, se já tiver, a data de agendamento — salva direto aqui, sem precisar de planilha.'
+      : 'Situação de agendamento de cada nota (só o usuário responsável pode editar).';
+
+    const list = document.getElementById('detail-agendamento-list');
+    const itens = records.slice(0, AGENDAMENTO_EDICAO_LIMITE);
+
+    list.innerHTML = itens.map(r => {
+      const nfBase = r.nf.split('-')[0];
+      const statusAtual = r.statusAgendamento || '';
+      const dataAtual = formatDateParaInput(r.dataAgendamento);
+
+      if (!admin) {
+        return `
+          <div class="agendamento-row">
+            <span class="agendamento-row__nf">${escapeAttr(r.nf)}</span>
+            <span class="agendamento-row__cliente" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</span>
+            <span class="agendamento-row__status--somente-leitura">${escapeAttr(statusAtual || 'Sem informação')}</span>
+            <span class="agendamento-row__status--somente-leitura">${dataAtual ? Utils.formatDate(r.dataAgendamento) : '—'}</span>
+            <span></span>
+          </div>
+        `;
+      }
+
+      const opcoes = AGENDAMENTO_STATUS_CATEGORIAS.map(cat =>
+        `<option value="${escapeAttr(cat)}"${cat === statusAtual ? ' selected' : ''}>${escapeAttr(cat)}</option>`
+      ).join('');
+      return `
+        <div class="agendamento-row" data-nf="${escapeAttr(nfBase)}">
+          <span class="agendamento-row__nf">${escapeAttr(r.nf)}</span>
+          <span class="agendamento-row__cliente" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</span>
+          <select class="agendamento-row__status-select">
+            <option value=""${statusAtual ? '' : ' selected'}>Sem informação</option>
+            ${opcoes}
+          </select>
+          <input type="date" class="agendamento-row__data-input" value="${dataAtual}">
+          <button type="button" class="btn agendamento-row__salvar">Salvar</button>
+        </div>
+      `;
+    }).join('');
+
+    if (records.length > AGENDAMENTO_EDICAO_LIMITE) {
+      list.insertAdjacentHTML('beforeend',
+        `<p class="chart-card__hint">Mostrando as primeiras ${AGENDAMENTO_EDICAO_LIMITE} de ${Utils.formatNumber(records.length)} notas.</p>`);
+    }
+  }
+
+  function bindAgendamentoEdicao() {
+    document.getElementById('detail-agendamento-list').addEventListener('click', async (e) => {
+      const botao = e.target.closest('.agendamento-row__salvar');
+      if (!botao) return;
+      const linha = botao.closest('.agendamento-row');
+      const nf = linha.dataset.nf;
+      const status = linha.querySelector('.agendamento-row__status-select').value;
+      const data = linha.querySelector('.agendamento-row__data-input').value;
+
+      botao.disabled = true;
+      botao.textContent = 'Salvando...';
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        await fb.salvarAgendamentoManual(nf, status, data);
+        DataStore.applyAgendamentoManual({ [nf]: { statusAgendamento: status, dataAgendamento: data } });
+        Utils.showToast(`NF ${nf}: agendamento salvo.`, 'success', 2500);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar o agendamento.', 'error', 5000);
+        botao.disabled = false;
+        botao.textContent = 'Salvar';
+      }
     });
   }
 
@@ -771,5 +892,5 @@ const Dashboard = (() => {
     }
   }
 
-  return { init, renderAll, loadCanhotosIndex };
+  return { init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento };
 })();

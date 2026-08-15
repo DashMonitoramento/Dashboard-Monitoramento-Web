@@ -240,6 +240,41 @@ async function loadCanhotosIndexSilently(cacheBust) {
   await Dashboard.loadCanhotosIndex(url);
 }
 
+/** Espera window.Firebase existir (ver firebase-init.js) — mesma lógica do waitFirebase()
+ * privado dentro de Auth, mas essa função precisa dela fora daquele módulo. */
+function waitFirebaseReady() {
+  if (window.Firebase) return Promise.resolve(window.Firebase);
+  return new Promise(resolve => {
+    window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+  });
+}
+
+/** Data/status de agendamento preenchidos manualmente no site (Firestore) — substitui a
+ * planilha de Agendamentos pra essas duas informações. Opcional: sem o Firestore disponível,
+ * o dashboard segue funcionando normalmente, só sem essa camada extra. */
+async function loadAgendamentosManuaisSilently() {
+  try {
+    const fb = await waitFirebaseReady();
+    const porNf = await fb.getAgendamentosManuais();
+    DataStore.applyAgendamentoManual(porNf);
+  } catch (err) {
+    console.warn('Agendamentos manuais (Firestore) não carregados:', err.message);
+  }
+}
+
+/** Verifica se o usuário logado tem permissão de editar agendamento (super admin sempre
+ * tem; os demais, só se o super admin habilitou pelo modal "Gerenciar usuários") e repassa
+ * pro Dashboard, que decide se mostra os controles de edição na tela "Aguardando agendamento". */
+async function loadPermissaoEdicaoAgendamentoSilently() {
+  try {
+    const fb = await waitFirebaseReady();
+    const pode = await fb.getMinhaPermissaoEdicaoAgendamento();
+    Dashboard.setPermissaoEdicaoAgendamento(pode);
+  } catch (err) {
+    console.warn('Permissão de edição de agendamento não verificada:', err.message);
+  }
+}
+
 async function loadInitialData() {
   Loading.show('Carregando dados da planilha...');
   try {
@@ -249,6 +284,8 @@ async function loadInitialData() {
     await loadAgendamentosDataSilently(false);
     await loadMotivosDataSilently(false);
     await loadCanhotosIndexSilently(false);
+    await loadAgendamentosManuaisSilently();
+    await loadPermissaoEdicaoAgendamentoSilently();
     Dashboard.renderAll();
     Utils.showToast(`${DataStore.getRecords().length} registros carregados com sucesso.`, 'success');
   } catch (err) {
@@ -272,6 +309,8 @@ async function refreshData() {
     await loadAgendamentosDataSilently(true);
     await loadMotivosDataSilently(true);
     await loadCanhotosIndexSilently(true);
+    await loadAgendamentosManuaisSilently();
+    await loadPermissaoEdicaoAgendamentoSilently();
     Dashboard.renderAll();
     Utils.showToast('Dados atualizados com sucesso.', 'success');
   } catch (err) {
@@ -314,6 +353,84 @@ function bindDataControls() {
   dropzone.addEventListener('drop', (e) => {
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (file) loadDataFromFile(file);
+  });
+}
+
+/* ============================================================
+ * GERENCIAR USUÁRIOS (modal, só visível pro super admin)
+ * ------------------------------------------------------------
+ * Lista os usuários cadastrados (Firestore, coleção "users") e deixa o super admin marcar
+ * quem mais, além dele, pode editar a data/status de agendamento manual. O toggle salva na
+ * hora (sem botão "Salvar" separado) — mais rápido pra uma ação tão simples.
+ * ============================================================ */
+
+function escapeAttrLocal(str) {
+  return String(str).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function bindGerenciarUsuarios() {
+  const btnAbrir = document.getElementById('btn-gerenciar-usuarios');
+  const modal = document.getElementById('modal-usuarios');
+  const btnFechar = document.getElementById('btn-fechar-modal-usuarios');
+  const lista = document.getElementById('lista-usuarios');
+  if (!btnAbrir || !modal) return;
+
+  function renderListaUsuarios(usuarios) {
+    if (!usuarios.length) {
+      lista.innerHTML = '<p class="usuarios-lista__vazio">Nenhum usuário cadastrado ainda.</p>';
+      return;
+    }
+    lista.innerHTML = usuarios.map(u => {
+      const ehSuperAdmin = Dashboard.isSuperAdminEmailAgendamento(u.email);
+      const marcado = ehSuperAdmin || u.podeEditarAgendamento;
+      return `<div class="usuario-row${ehSuperAdmin ? ' usuario-row--super-admin' : ''}" data-uid="${escapeAttrLocal(u.uid)}">
+        <div>
+          <div class="usuario-row__nome">${escapeAttrLocal(u.nome)}</div>
+          <div class="usuario-row__email">${escapeAttrLocal(u.email)}</div>
+        </div>
+        <label class="usuario-row__toggle">
+          <input type="checkbox" class="usuario-row__checkbox" ${marcado ? 'checked' : ''} ${ehSuperAdmin ? 'disabled' : ''}>
+          Pode editar agendamentos
+        </label>
+      </div>`;
+    }).join('');
+  }
+
+  async function abrirModal() {
+    modal.hidden = false;
+    lista.innerHTML = '<p class="usuarios-lista__carregando">Carregando usuários...</p>';
+    try {
+      const fb = await waitFirebaseReady();
+      const usuarios = await fb.getUsuarios();
+      renderListaUsuarios(usuarios);
+    } catch (err) {
+      console.error(err);
+      lista.innerHTML = `<p class="usuarios-lista__vazio">Não foi possível carregar os usuários: ${escapeAttrLocal(err.message || err)}</p>`;
+    }
+  }
+
+  btnAbrir.addEventListener('click', abrirModal);
+  btnFechar.addEventListener('click', () => { modal.hidden = true; });
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+  lista.addEventListener('change', async (e) => {
+    const checkbox = e.target.closest('.usuario-row__checkbox');
+    if (!checkbox) return;
+    const linha = checkbox.closest('.usuario-row');
+    const uid = linha.dataset.uid;
+    const pode = checkbox.checked;
+    checkbox.disabled = true;
+    try {
+      const fb = await waitFirebaseReady();
+      await fb.definirPermissaoEdicaoAgendamento(uid, pode);
+      Utils.showToast(pode ? 'Usuário habilitado a editar agendamentos.' : 'Edição de agendamento removida desse usuário.', 'success', 2500);
+    } catch (err) {
+      console.error(err);
+      checkbox.checked = !pode; // reverte, já que a gravação falhou
+      Utils.showToast(err.message || 'Falha ao atualizar a permissão do usuário.', 'error', 5000);
+    } finally {
+      checkbox.disabled = false;
+    }
   });
 }
 
@@ -491,6 +608,8 @@ function initLogin() {
       Auth.setUser(user);
       userChip.textContent = user.name;
       renderAvatar(user.photoURL);
+      const btnGerenciarUsuarios = document.getElementById('btn-gerenciar-usuarios');
+      if (btnGerenciarUsuarios) btnGerenciarUsuarios.hidden = !Dashboard.isSuperAdminAgendamento();
       overlay.classList.add('login-overlay--hidden');
       bootstrapApp();
     } else {
@@ -513,6 +632,7 @@ function bootstrapApp() {
 
   Dashboard.init();
   bindDataControls();
+  bindGerenciarUsuarios();
   initProfilePhoto();
   loadInitialData();
 

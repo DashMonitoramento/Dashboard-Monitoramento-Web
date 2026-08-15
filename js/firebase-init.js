@@ -19,8 +19,12 @@ import {
 import {
   getFirestore,
   doc,
+  getDoc,
   setDoc,
-  serverTimestamp
+  updateDoc,
+  serverTimestamp,
+  collection,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -53,7 +57,8 @@ async function createUser(email, password, nome) {
   setDoc(doc(db, 'users', credential.user.uid), {
     nome,
     email,
-    criadoEm: serverTimestamp()
+    criadoEm: serverTimestamp(),
+    podeEditarAgendamento: false
   }).catch(e => console.warn('Perfil não salvo no Firestore (login funciona normalmente):', e.code || e.message));
   return credential;
 }
@@ -75,5 +80,75 @@ function onAuthChange(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
-window.Firebase = { auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange };
+// Substitui a planilha de Agendamentos como fonte da DATA/status de agendamento (a Base
+// Bluesoft já cobre "precisa de agendamento" via a própria coluna "Agendado", cruzada por
+// CNPJ) — por decisão do usuário (2026-08-14). Uma coleção só, documento por NF (sem
+// sufixo de viagem/item, igual ao resto do dashboard).
+const AGENDAMENTOS_MANUAIS_COLECAO = 'agendamentosManuais';
+
+/** Busca todos os agendamentos preenchidos manualmente. Devolve um objeto simples
+ * { [nf]: { statusAgendamento, dataAgendamento, atualizadoPorEmail } } — mais fácil de
+ * cruzar em data.js do que ficar repassando objetos do Firestore adiante. */
+async function getAgendamentosManuais() {
+  const snapshot = await getDocs(collection(db, AGENDAMENTOS_MANUAIS_COLECAO));
+  const porNf = {};
+  snapshot.forEach(docSnap => { porNf[docSnap.id] = docSnap.data(); });
+  return porNf;
+}
+
+/** Grava/atualiza o agendamento manual de uma NF. `dataAgendamento` é uma string
+ * "yyyy-MM-dd" (ou '' pra limpar) — mais simples de editar num <input type="date"> do que
+ * lidar com Timestamp do Firestore na hora de preencher o campo de volta. */
+async function salvarAgendamentoManual(nf, statusAgendamento, dataAgendamento) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  await setDoc(doc(db, AGENDAMENTOS_MANUAIS_COLECAO, nf), {
+    statusAgendamento: statusAgendamento || '',
+    dataAgendamento: dataAgendamento || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  });
+}
+
+// Permissão de edição de agendamento por usuário: quem loga com o e-mail configurado como
+// super admin (ver SUPER_ADMIN_EMAIL_AGENDAMENTO em dashboard.js) sempre pode editar; os
+// demais usuários só podem se o super admin habilitar isso pelo modal "Gerenciar usuários"
+// (que grava esse campo aqui no próprio perfil, em `users/{uid}`).
+
+/** Lista todos os usuários cadastrados — usado só no modal "Gerenciar usuários". As regras
+ * de segurança do Firestore restringem essa consulta ao super admin (ver Regras no console). */
+async function getUsuarios() {
+  const snapshot = await getDocs(collection(db, 'users'));
+  const lista = [];
+  snapshot.forEach(docSnap => {
+    const d = docSnap.data();
+    lista.push({
+      uid: docSnap.id,
+      nome: d.nome || d.email || docSnap.id,
+      email: d.email || '',
+      podeEditarAgendamento: !!d.podeEditarAgendamento
+    });
+  });
+  return lista;
+}
+
+/** Habilita/desabilita a edição de agendamento de um usuário específico. */
+async function definirPermissaoEdicaoAgendamento(uid, pode) {
+  await updateDoc(doc(db, 'users', uid), { podeEditarAgendamento: !!pode });
+}
+
+/** Verifica se o usuário logado agora tem permissão de editar agendamento (chamado 1x no
+ * login) — separado de getUsuarios() porque um usuário comum só pode ler o próprio perfil. */
+async function getMinhaPermissaoEdicaoAgendamento() {
+  const usuario = auth.currentUser;
+  if (!usuario) return false;
+  const snap = await getDoc(doc(db, 'users', usuario.uid));
+  return snap.exists() ? !!snap.data().podeEditarAgendamento : false;
+}
+
+window.Firebase = {
+  auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
+  getAgendamentosManuais, salvarAgendamentoManual,
+  getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento
+};
 window.dispatchEvent(new Event('firebase-ready'));
