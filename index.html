@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260816g">
+<link rel="stylesheet" href="css/style.css?v=20260816h">
 </head>
 <body>
 
@@ -405,7 +405,7 @@
         <div class="table-card__header">
           <div class="tabs-registros-mapa" id="tabs-registros-mapa">
             <button type="button" class="toggle-view-btn toggle-view-btn--ativo" id="btn-ver-registros" data-view="registros">📋 Registros detalhados</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" id="btn-ver-mapa-regioes" data-view="mapa">🗺️ Dashboard Logístico por Região</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" id="btn-ver-mapa-regioes" data-view="mapa">🗺️ Análise por Região</button>
           </div>
           <div class="table-search">
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
@@ -469,15 +469,15 @@
       </section>
       </div><!-- /#main-view -->
 
-      <!-- ===================== DASHBOARD LOGÍSTICO POR REGIÃO (embutido via iframe) ===================== -->
-      <section id="mapa-regioes-embed" class="table-card" aria-label="Dashboard Logístico por Região" hidden>
+      <!-- ===================== ANÁLISE POR REGIÃO (embutido via iframe) ===================== -->
+      <section id="mapa-regioes-embed" class="table-card" aria-label="Análise por Região" hidden>
         <div class="table-card__header">
           <div class="tabs-registros-mapa">
             <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="registros">📋 Registros detalhados</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="mapa">🗺️ Dashboard Logístico por Região</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="mapa">🗺️ Análise por Região</button>
           </div>
         </div>
-        <iframe id="iframe-mapa-regioes" title="Dashboard Logístico por Região" style="width:100%; height:calc(100vh - 160px); min-height:640px; border:none; border-radius:8px; background:#333;"></iframe>
+        <iframe id="iframe-mapa-regioes" title="Análise por Região" style="width:100%; height:calc(100vh - 160px); min-height:640px; border:none; border-radius:8px; background:#333;"></iframe>
       </section>
 
       <!-- ===================== TELA DE DETALHE (drill-down ao clicar num KPI) ===================== -->
@@ -561,11 +561,11 @@
   </main>
 </div>
 
-<script type="module" src="js/firebase-init.js?v=20260816g"></script>
-<script src="js/utils.js?v=20260816g"></script>
-<script src="js/data.js?v=20260816g"></script>
-<script src="js/charts.js?v=20260816g"></script>
-<script src="js/dashboard.js?v=20260816g"></script>
-<script src="js/script.js?v=20260816g"></script>
+<script type="module" src="js/firebase-init.js?v=20260816h"></script>
+<script src="js/utils.js?v=20260816h"></script>
+<script src="js/data.js?v=20260816h"></script>
+<script src="js/charts.js?v=20260816h"></script>
+<script src="js/dashboard.js?v=20260816h"></script>
+<script src="js/script.js?v=20260816h"></script>
 </body>
 </html>
