@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Logístico por Região · Da Terrinha Alimentos</title>
+<meta name="description" content="Indicadores de entregas por região comercial — Da Terrinha Alimentos">
+<link rel="icon" href="../assets/img/favicon-round.png">
+
+<!-- Leaflet (mapa) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Chart.js (gráficos) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<link rel="stylesheet" href="dashboard.css?v=1">
+</head>
+<body>
+<div class="app">
+
+  <header class="cabecalho">
+    <h1 class="cabecalho__titulo">DASHBOARD LOGÍSTICO POR REGIÃO</h1>
+    <p class="cabecalho__atualizado" id="texto-atualizado">Carregando dados...</p>
+  </header>
+
+  <!-- ===================== FILTROS ===================== -->
+  <section class="filtros" aria-label="Filtros">
+    <div class="filtro-campo">
+      <label for="filtro-data-inicio">Data inicial</label>
+      <input type="date" id="filtro-data-inicio">
+    </div>
+    <div class="filtro-campo">
+      <label for="filtro-data-fim">Data final</label>
+      <input type="date" id="filtro-data-fim">
+    </div>
+    <div class="filtro-campo">
+      <label for="filtro-regiao">Região comercial</label>
+      <select id="filtro-regiao">
+        <option value="">Todas as regiões</option>
+      </select>
+    </div>
+    <div class="filtro-campo">
+      <label for="filtro-supervisor">Supervisor</label>
+      <select id="filtro-supervisor" disabled title="Indisponível — a fonte de dados atual não traz supervisor por nota, só por cidade">
+        <option value="">Sem dados</option>
+      </select>
+    </div>
+    <div class="filtro-campo">
+      <label for="filtro-vendedor">Vendedor</label>
+      <select id="filtro-vendedor" disabled title="Indisponível — a fonte de dados atual não traz vendedor por nota, só por cidade">
+        <option value="">Sem dados</option>
+      </select>
+    </div>
+    <div class="filtro-campo">
+      <label for="filtro-transportadora">Categoria de transporte</label>
+      <select id="filtro-transportadora" disabled title="Indisponível na fonte de dados atual (dados_regioes.json não traz transportadora)">
+        <option value="">Sem dados</option>
+      </select>
+    </div>
+    <div class="filtro-campo">
+      <label for="filtro-status">Status da entrega</label>
+      <select id="filtro-status">
+        <option value="">Todos</option>
+        <option value="entregues">Entregues</option>
+        <option value="reentregas">Reentregas</option>
+        <option value="devolucoes">Devoluções</option>
+        <option value="em_aberto">Em aberto</option>
+      </select>
+    </div>
+    <div class="filtros__acoes">
+      <button type="button" class="btn btn--aplicar" id="btn-aplicar-filtros">Aplicar filtros</button>
+      <button type="button" class="btn btn--limpar" id="btn-limpar-filtros">Limpar filtros</button>
+      <button type="button" class="btn btn--atualizar" id="btn-atualizar-dados">Atualizar dados</button>
+    </div>
+  </section>
+
+  <!-- ===================== 3 ÁREAS ===================== -->
+  <main class="painéis">
+
+    <!-- ------------- Área esquerda: mapa ------------- -->
+    <section class="painel area-mapa" aria-label="Mapa de regiões comerciais">
+      <h2 class="painel__titulo">Mapa por região comercial</h2>
+      <div id="mapa"></div>
+      <div class="mapa-legenda" id="mapa-legenda">
+        <span class="mapa-legenda__item"><span class="mapa-legenda__dot" style="background:#2ecc71"></span>≥ 98% entregue</span>
+        <span class="mapa-legenda__item"><span class="mapa-legenda__dot" style="background:#f1c40f"></span>95% – 97,99%</span>
+        <span class="mapa-legenda__item"><span class="mapa-legenda__dot" style="background:#e67e22"></span>90% – 94,99%</span>
+        <span class="mapa-legenda__item"><span class="mapa-legenda__dot" style="background:#e74c3c"></span>&lt; 90%</span>
+        <span class="mapa-legenda__item"><span class="mapa-legenda__dot" style="background:#7f8c8d"></span>Sem dados</span>
+      </div>
+    </section>
+
+    <!-- ------------- Área central: KPIs + gráfico ------------- -->
+    <section class="area-central" aria-label="Indicadores e gráfico de entregas">
+
+      <div class="painel kpis-bloco">
+        <h2 class="painel__titulo" id="kpis-titulo">Indicadores — Todas as regiões</h2>
+        <div class="kpis" id="kpis-container">
+          <div class="kpi-card"><span class="kpi-card__label">Total de notas</span><span class="kpi-card__valor" id="kpi-total-notas">—</span></div>
+          <div class="kpi-card"><span class="kpi-card__label">Total entregue</span><span class="kpi-card__valor" id="kpi-entregues">—</span></div>
+          <div class="kpi-card"><span class="kpi-card__label">% Entregue</span><span class="kpi-card__valor" id="kpi-percentual">—</span></div>
+          <div class="kpi-card"><span class="kpi-card__label">Reentregas</span><span class="kpi-card__valor" id="kpi-reentregas">—</span></div>
+          <div class="kpi-card"><span class="kpi-card__label">Devoluções</span><span class="kpi-card__valor" id="kpi-devolucoes">—</span></div>
+          <div class="kpi-card"><span class="kpi-card__label">Valor total das notas</span><span class="kpi-card__valor" id="kpi-valor">—</span></div>
+          <div class="kpi-card"><span class="kpi-card__label">Prazo médio de entrega</span><span class="kpi-card__valor" id="kpi-prazo">—</span></div>
+        </div>
+      </div>
+
+      <div class="painel grafico-bloco grafico-central">
+        <h2 class="painel__titulo">Entregas e ocorrências por região</h2>
+        <div class="grafico-central__canvas-wrap">
+          <canvas id="grafico-entregas"></canvas>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ------------- Área direita: ranking ------------- -->
+    <section class="painel area-ranking" aria-label="Ranking das regiões comerciais">
+      <h2 class="painel__titulo">Desempenho das regiões</h2>
+      <div class="painel__conteudo">
+        <canvas id="grafico-ranking"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="rodape">
+    Dashboard Logístico por Região · Da Terrinha Alimentos — dados agregados a partir do monitoramento de entregas.
+  </footer>
+</div>
+
+<script src="dashboard.js?v=1"></script>
+</body>
+</html>
