@@ -115,6 +115,7 @@ const Dashboard = (() => {
     bindColumnToggles();
     bindScrollTabela();
     bindAlternarViewMapaRegioes();
+    bindMapaRegioesMensagens();
     createCharts();
     DataStore.onChange(render);
   }
@@ -154,6 +155,94 @@ const Dashboard = (() => {
     } else {
       document.getElementById('registros-detalhados').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  }
+
+  /* ============================================================
+   * DASHBOARD LOGÍSTICO POR REGIÃO (iframe) — dados ao vivo
+   * ============================================================
+   * O mapa-regioes/ não tem filtro próprio (removidos em 2026-08-16): ele reflete os mesmos
+   * filtros já aplicados aqui (período, vendedor, região comercial etc.) recebendo, via
+   * postMessage, os totais por região já recalculados a partir de DataStore.getFilteredRecords().
+   * O iframe avisa quando terminou de carregar e está pronto ("mapa-regioes:pronto"); a partir
+   * daí, toda vez que os filtros mudam (DataStore.onChange -> render), reenviamos os dados. Se
+   * o iframe nunca foi aberto (src vazio) ou ainda não anunciou que carregou, o postMessage é
+   * simplesmente descartado (sem handler do outro lado) — nenhum erro, nenhuma trava.
+   *
+   * "prazo_medio_dias" fica sempre null aqui: não existe, nos dados ao vivo, um campo de data
+   * de entrega efetiva equivalente ao que a planilha original usava pra esse cálculo (decisão
+   * do usuário, 2026-08-16: preferiu "Sem dados" a um número aproximado/errado).
+   */
+  const VALOR_REGIAO_NAO_INFORMADO = new Set(['', 'Não informado']);
+
+  function computarDadosRegioesAoVivo(records) {
+    const porCodigo = new Map();
+    DataStore.getRegioesComerciaisComCodigo().forEach(({ codigo, nome }) => {
+      porCodigo.set(codigo, {
+        codigo, regiao: nome,
+        total_notas: 0, entregues: 0, reentregas: 0, devolucoes: 0, cancelados: 0, em_aberto: 0,
+        valor_nf: 0,
+        cidades: new Set(), supervisores: new Set(), vendedores: new Set(),
+      });
+    });
+
+    records.forEach((r) => {
+      const codigo = DataStore.getCodigoRegiaoComercial(r.regiaoComercial);
+      const bucket = codigo && porCodigo.get(codigo);
+      if (!bucket) return; // "Não classificado"/RC13 (sem geografia própria): fora do mapa, mesma regra já documentada.
+      bucket.total_notas++;
+      if (r.status === 'ENTREGUE') bucket.entregues++;
+      if (r.situacao === 'Reentrega') bucket.reentregas++;
+      if (r.situacao === 'Devolução') bucket.devolucoes++;
+      if (r.situacao === 'Cancelado') bucket.cancelados++;
+      if (r.situacao === 'Em aberto') bucket.em_aberto++;
+      bucket.valor_nf += r.valorNF || 0;
+      if (r.cidade) bucket.cidades.add(r.cidade);
+      if (r.supervisor && !VALOR_REGIAO_NAO_INFORMADO.has(r.supervisor)) bucket.supervisores.add(r.supervisor);
+      if (r.vendedor && !VALOR_REGIAO_NAO_INFORMADO.has(r.vendedor)) bucket.vendedores.add(r.vendedor);
+    });
+
+    const regioes = Array.from(porCodigo.values()).map((b) => ({
+      codigo: b.codigo,
+      regiao: b.regiao,
+      total_notas: b.total_notas,
+      entregues: b.entregues,
+      reentregas: b.reentregas,
+      devolucoes: b.devolucoes,
+      cancelados: b.cancelados,
+      em_aberto: b.em_aberto,
+      percentual_entregue: b.total_notas ? (b.entregues / b.total_notas) * 100 : null,
+      valor_nf: b.valor_nf,
+      prazo_medio_dias: null,
+      quantidade_cidades: b.cidades.size,
+      quantidade_supervisores: b.supervisores.size,
+      quantidade_vendedores: b.vendedores.size,
+    }));
+
+    const filtros = DataStore.getFilters();
+    return {
+      atualizado_em: new Date().toISOString(),
+      periodo_inicio: filtros.dataInicio ? new Date(filtros.dataInicio).toISOString() : null,
+      periodo_fim: filtros.dataFim ? new Date(filtros.dataFim).toISOString() : null,
+      regioes,
+    };
+  }
+
+  function enviarDadosRegioesParaIframe(records) {
+    const iframe = document.getElementById('iframe-mapa-regioes');
+    if (!iframe || !iframe.src || !iframe.contentWindow) return;
+    iframe.contentWindow.postMessage(
+      { tipo: 'mapa-regioes:dados', dados: computarDadosRegioesAoVivo(records) },
+      window.location.origin
+    );
+  }
+
+  function bindMapaRegioesMensagens() {
+    window.addEventListener('message', (e) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data && e.data.tipo === 'mapa-regioes:pronto') {
+        enviarDadosRegioesParaIframe(DataStore.getFilteredRecords());
+      }
+    });
   }
 
   function bindFilterInputs() {
@@ -628,6 +717,7 @@ const Dashboard = (() => {
     renderTable(records);
     renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
     updateLastUpdatedLabel();
+    enviarDadosRegioesParaIframe(records);
   }
 
   function renderAll() {
@@ -1076,5 +1166,8 @@ const Dashboard = (() => {
     }
   }
 
-  return { init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento };
+  return {
+    init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento,
+    computarDadosRegioesAoVivo, enviarDadosRegioesParaIframe,
+  };
 })();
