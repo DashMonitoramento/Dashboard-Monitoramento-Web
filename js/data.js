@@ -803,12 +803,22 @@ const DataStore = (() => {
     for (const r of rawRecords) {
       if (r.status === 'ENTREGUE') { r.prazoStatus = 'ENTREGUE'; continue; }
       const referencia = r.necessitaAgendamento ? r.dataAgendamento : r.dataInicioViagem;
-      if (!referencia || r.prazoDiasPermitidos === null || r.prazoDiasPermitidos === undefined) {
-        r.prazoStatus = 'SEM_INFO';
-        continue;
-      }
+      if (!referencia) { r.prazoStatus = 'SEM_INFO'; continue; }
+
       const dataRef = new Date(referencia.getTime());
       dataRef.setHours(0, 0, 0, 0);
+
+      if (r.prazoDiasPermitidos === null || r.prazoDiasPermitidos === undefined) {
+        // Sem prazo em dias cadastrado (aba RETORNO) pra essa transportadora/NF. Pras notas com
+        // Data de Agendamento já definida (necessitaAgendamento), decisão do usuário
+        // (2026-08-16): compara a própria data agendada contra hoje, em vez de ficar presa em
+        // "Sem informação" só por faltar o prazo em dias (a data agendada já é, nesse caso, o
+        // compromisso que interessa observar). Pras que usam Data de Início de Viagem, mantém
+        // "Sem informação" como sempre — não é o cenário que motivou essa mudança.
+        r.prazoStatus = r.necessitaAgendamento ? (dataRef < hoje ? 'VENCIDO' : 'DENTRO_PRAZO') : 'SEM_INFO';
+        continue;
+      }
+
       const diasCorridos = Math.floor((hoje - dataRef) / 86400000);
       r.prazoStatus = diasCorridos > r.prazoDiasPermitidos ? 'VENCIDO' : 'DENTRO_PRAZO';
     }
