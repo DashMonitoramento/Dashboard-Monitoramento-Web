@@ -43,7 +43,16 @@ const Dashboard = (() => {
     'devolucao': { title: 'Devolução', test: r => r.situacao === 'Devolução' },
     'cancelado': { title: 'Cancelado', test: r => r.situacao === 'Cancelado' },
     'reentrega': { title: 'Reentrega', test: r => r.situacao === 'Reentrega' },
-    'aguardando': { title: 'Aguardando agendamento', test: r => r.status === 'AGUARDANDO_AGENDAMENTO' },
+    // "Aguardando agendamento" por decisão do usuário (2026-08-16): não é mais só a situação
+    // específica com esse nome — é TUDO que ainda não teve uma resolução final (Entregue,
+    // Devolução ou Cancelado). "Em aberto" e "Reentrega" só saem daqui quando alguém preenche
+    // manualmente a "Situação de agendamento por nota" (ver detail-agendamento-section). Por
+    // isso esse card agora se sobrepõe de propósito com "Notas em aberto"/"Reentrega" — é uma
+    // fila de "precisa de ação", não uma categoria exclusiva de status.
+    'aguardando': {
+      title: 'Aguardando agendamento',
+      test: r => r.situacao !== 'Entregue' && r.situacao !== 'Devolução' && r.situacao !== 'Cancelado'
+    },
     'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) }
   };
 
@@ -720,10 +729,10 @@ const Dashboard = (() => {
 
   function renderStatusChart(records) {
     // Usa exatamente os mesmos critérios dos cards de KPI (STATUS_DETAIL_DEFS), pra nunca
-    // divergir do que aparece lá. Sem categoria própria pra "Agendado": esse valor de situação
-    // só existe pras ~503 notas da planilha principal (raramente usado) e a informação de
-    // agendamento de verdade já tem gráfico dedicado ("Situação de agendamento").
-    const keys = ['entregue', 'em-aberto', 'devolucao', 'cancelado', 'reentrega', 'aguardando'];
+    // divergir do que aparece lá. Sem "aguardando": desde 2026-08-16 esse card deixou de ser
+    // uma categoria exclusiva (passou a se sobrepor com "em-aberto"/"reentrega" de propósito —
+    // ver STATUS_DETAIL_DEFS), e essa pizza só faz sentido com fatias mutuamente exclusivas.
+    const keys = ['entregue', 'em-aberto', 'devolucao', 'cancelado', 'reentrega'];
     const counts = keys.map(k => records.filter(STATUS_DETAIL_DEFS[k].test).length);
 
     charts.status.update({
@@ -750,10 +759,18 @@ const Dashboard = (() => {
   ];
 
   /** Situação de agendamento: contagem por valor bruto da coluna "Status" da planilha de
-   * Agendamentos, restrita às categorias que de fato representam etapas do agendamento. */
+   * Agendamentos, restrita às categorias que de fato representam etapas do agendamento.
+   *
+   * Além disso, ignora notas que já têm uma resolução final MAIS RECENTE em outro lugar
+   * (Entregue ou Cancelado) — por decisão do usuário (2026-08-16), depois de notar que a
+   * planilha de Agendamentos não é atualizada quando a nota avança: das 304 notas que
+   * apareciam como "Aguardando agendamento" nela, 176 já tinham sido entregues e 2 já
+   * canceladas em outra fonte mais atual. Sem esse filtro, o gráfico ficava com dado
+   * defasado, bem maior que o card "Aguardando agendamento" (que usa a situação atual). */
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     records.forEach(r => {
+      if (r.status === 'ENTREGUE' || r.situacao === 'Cancelado') return;
       if (Object.prototype.hasOwnProperty.call(counts, r.statusAgendamento)) counts[r.statusAgendamento]++;
     });
     charts.agendamento.update({
