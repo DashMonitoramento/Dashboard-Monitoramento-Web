@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260816i">
+<link rel="stylesheet" href="css/style.css?v=20260816j">
 </head>
 <body>
 
@@ -411,7 +411,7 @@
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
           </div>
           <div class="table-actions">
-            <button id="btn-export-csv" class="btn">⬇️ Exportar CSV</button>
+            <button id="btn-export-csv" class="btn">⬇️ Exportar Excel</button>
           </div>
         </div>
 
@@ -518,7 +518,7 @@
 
         <div class="table-card__header">
           <div class="table-actions">
-            <button id="btn-export-csv-detail" class="btn">⬇️ Exportar CSV</button>
+            <button id="btn-export-csv-detail" class="btn">⬇️ Exportar Excel</button>
           </div>
         </div>
 
@@ -561,11 +561,14 @@
   </main>
 </div>
 
-<script type="module" src="js/firebase-init.js?v=20260816i"></script>
-<script src="js/utils.js?v=20260816i"></script>
-<script src="js/data.js?v=20260816i"></script>
-<script src="js/charts.js?v=20260816i"></script>
-<script src="js/dashboard.js?v=20260816i"></script>
-<script src="js/script.js?v=20260816i"></script>
+<!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
+     coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script type="module" src="js/firebase-init.js?v=20260816j"></script>
+<script src="js/utils.js?v=20260816j"></script>
+<script src="js/data.js?v=20260816j"></script>
+<script src="js/charts.js?v=20260816j"></script>
+<script src="js/dashboard.js?v=20260816j"></script>
+<script src="js/script.js?v=20260816j"></script>
 </body>
 </html>
