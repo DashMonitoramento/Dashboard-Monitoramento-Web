@@ -750,20 +750,24 @@ const Dashboard = (() => {
     });
   }
 
+  // "Sem etapa definida" (não "Aguardando agendamento") de propósito — por decisão do usuário
+  // (2026-08-16): o card "Aguardando agendamento" é o TOTAL (1.442); esse gráfico quebra esse
+  // total em fatias, e uma fatia com o MESMO nome do card mas um número diferente (por excluir
+  // as notas que já têm uma etapa mais específica, ex.: "Okker") confundia quem tá analisando.
   const AGENDAMENTO_STATUS_CATEGORIAS = [
-    'Agendado', 'Aguardando agendamento', 'Aguardando Confirmação', 'Reagendar', 'Okker'
+    'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker'
   ];
   // As 4 etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
   // (valor bruto da coluna "Status" da planilha de Agendamentos). Qualquer nota da população
-  // (ver renderAgendamentoChart) que não tenha uma dessas 4 cai em "Aguardando agendamento" por
+  // (ver renderAgendamentoChart) que não tenha uma dessas 4 cai em "Sem etapa definida" por
   // padrão — não depende mais do texto literal "Aguardando agendamento" estar naquela planilha
   // (que fica desatualizado, ver decisão abaixo).
   const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker'];
 
   /** Situação de agendamento: mesma população do card "Aguardando agendamento" — exclui só
    * Entregue/Devolução/Cancelado (por decisão do usuário, 2026-08-16) — quebrada pelas etapas
-   * específicas já registradas na planilha de Agendamentos; o que sobra vai pra "Aguardando
-   * agendamento". Isso faz a SOMA das 5 fatias sempre bater com o total do card — antes, o
+   * específicas já registradas na planilha de Agendamentos; o que sobra vai pra "Sem etapa
+   * definida". Isso faz a SOMA das 5 fatias sempre bater com o total do card — antes, o
    * gráfico só contava quem tinha o texto exato "Aguardando agendamento" naquela planilha (que
    * não é atualizada quando a nota avança), ficando bem menor e dessincronizado do card. */
   function renderAgendamentoChart(records) {
@@ -773,7 +777,7 @@ const Dashboard = (() => {
       if (AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)) {
         counts[r.statusAgendamento]++;
       } else {
-        counts['Aguardando agendamento']++;
+        counts['Sem etapa definida']++;
       }
     });
     charts.agendamento.update({
