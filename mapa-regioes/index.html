@@ -14,7 +14,7 @@
 <!-- Chart.js (gráficos) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
-<link rel="stylesheet" href="dashboard.css?v=1">
+<link rel="stylesheet" href="dashboard.css?v=3">
 </head>
 <body>
 <div class="app">
@@ -33,7 +33,22 @@
     <div class="linha-superior">
       <section class="painel area-mapa" aria-label="Mapa de regiões comerciais">
         <h2 class="painel__titulo">Mapa por região comercial</h2>
-        <div id="mapa"></div>
+        <div class="area-mapa__mapa-wrap">
+          <div id="mapa"></div>
+
+          <!-- Mapa de detalhe de São Paulo (sempre visível) — as 4 regiões de SP (Capital,
+               Grande SP, Baixada Santista, Interior) ficam pequenas/próximas demais no mapa
+               nacional pra rotular sem sobrepor; aqui elas aparecem com nome completo, cor e
+               tooltip/clique idênticos ao mapa principal (ver dashboard.js). -->
+          <div class="painel-detalhe-sp" id="painel-detalhe-sp">
+            <div class="painel-detalhe-sp__header">Detalhe de São Paulo</div>
+            <div id="mapa-detalhe-sp"></div>
+          </div>
+
+          <!-- Só aparece depois de clicar numa das 4 regiões de SP no mapa nacional (o clique
+               também aproxima o mapa nelas) — restaura a visão do país inteiro. -->
+          <button type="button" id="btn-voltar-brasil" class="btn-voltar-brasil" hidden>Voltar ao Brasil</button>
+        </div>
         <div class="mapa-legenda" id="mapa-legenda">
           <span class="mapa-legenda__item"><span class="mapa-legenda__dot" style="background:#2ecc71"></span>≥ 98% entregue</span>
           <span class="mapa-legenda__item"><span class="mapa-legenda__dot" style="background:#f1c40f"></span>95% – 97,99%</span>
@@ -81,6 +96,6 @@
   </footer>
 </div>
 
-<script src="dashboard.js?v=1"></script>
+<script src="dashboard.js?v=3"></script>
 </body>
 </html>
