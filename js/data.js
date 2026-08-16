@@ -1260,7 +1260,12 @@ const DataStore = (() => {
       if (mes && ref && String(ref.getMonth() + 1) !== String(mes)) return false;
       if (ano && ref && String(ref.getFullYear()) !== String(ano)) return false;
 
-      if (situacaoFiltro && situacaoFiltro.length && !situacaoFiltro.includes(r.situacao)) return false;
+      // "Aguardando Confirmação"/"Reagendar"/"Okker" (decisão do usuário, 2026-08-16) não são
+      // valores de r.situacao — são etapas de r.statusAgendamento (Situação de Agendamento).
+      // Pra caberem no MESMO filtro "Status" da barra lateral, casa contra os dois campos: cada
+      // valor marcado bate se for a situação da nota OU a etapa de agendamento dela.
+      if (situacaoFiltro && situacaoFiltro.length &&
+          !situacaoFiltro.includes(r.situacao) && !situacaoFiltro.includes(r.statusAgendamento)) return false;
       if (transportadora && transportadora.length && !transportadora.includes(r.transportadora)) return false;
       if (tipoTransporte && tipoTransporte.length && !tipoTransporte.includes(r.tipoTransporte)) return false;
       if (motorista && motorista.length && !motorista.includes(r.motorista)) return false;
