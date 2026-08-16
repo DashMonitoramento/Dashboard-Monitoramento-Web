@@ -1091,17 +1091,21 @@ const DataStore = (() => {
     if (retornoInfoByNF.size === 0 && retornoTipoPorTransportadora.size === 0) return;
     for (const r of rawRecords) {
       const info = retornoInfoByNF.get(r.nf.split('-')[0]);
-      if (info) {
-        if (info.prazoDias !== null) r.prazoDiasPermitidos = info.prazoDias;
-        if (info.tipoTransporte) r.tipoTransporte = info.tipoTransporte;
-        continue;
-      }
+      if (info && info.prazoDias !== null) r.prazoDiasPermitidos = info.prazoDias;
+
       // A aba RETORNO cobre só uma fração das notas (ver decisão do usuário, 2026-08-15) — pra
-      // NF que ela não conhece, assume o tipo mais frequente já visto pra essa transportadora
-      // em outras notas, em vez de deixar "Não informado" à toa quando dá pra inferir com
-      // confiança (o tipo é uma característica fixa da transportadora, não varia por nota).
-      const tipoPorNome = retornoTipoPorTransportadora.get(normalizeHeaderKey(r.transportadora));
-      if (tipoPorNome) r.tipoTransporte = tipoPorNome;
+      // NF que ela não conhece o tipo (não está na aba, OU está mas com a coluna "Tipo de
+      // Transporte" em branco — bug corrigido em 2026-08-16: antes, ter uma linha na aba só
+      // pra prazo, sem tipo preenchido, já bastava pra pular esse fallback e deixar a nota
+      // presa em "Não informado" à toa), assume o tipo mais frequente já visto pra essa
+      // transportadora em outras notas (o tipo é uma característica fixa da transportadora,
+      // não varia por nota).
+      if (info && info.tipoTransporte) {
+        r.tipoTransporte = info.tipoTransporte;
+      } else {
+        const tipoPorNome = retornoTipoPorTransportadora.get(normalizeHeaderKey(r.transportadora));
+        if (tipoPorNome) r.tipoTransporte = tipoPorNome;
+      }
     }
     recomputarPrazoStatus();
   }
