@@ -462,6 +462,12 @@ const DataStore = (() => {
   let filters = emptyFilters();
   let lastUpdated = null;
   let bluesoftStatusByNF = new Map(); // NF -> status consolidado ('Entregue'|'Reentrega'|'Devolução'|'Cancelado'|'Em aberto')
+  // NF base (sem sufixo) -> data de coleta mais ANTIGA entre TODAS as linhas da Bluesoft com
+  // essa NF, mesmo repetindo o mesmo sufixo (ex.: duas linhas "178473-1", uma de julho e outra
+  // de agosto — a mesma viagem reexportada depois de resolvida). Calculado à parte de
+  // bluesoftStatusByNF porque aquele já reduz a UMA linha por sufixo exato (a mais recente),
+  // perdendo a data mais antiga se o sufixo se repetir — ver indexBluesoftRows.
+  let bluesoftDataColetaMaisAntigaPorBaseNF = new Map();
   let clienteInfoByName = new Map(); // nome do cliente (normalizado) -> { vendedor, grupoEconomico }
   let clienteInfoByCNPJ = new Map(); // CNPJ (normalizado) -> { vendedor, grupoEconomico } — mais preciso que o nome, distingue filiais
   let clienteEntriesList = []; // todas as linhas da Planilha1 (mesmo nomes repetidos), para o fallback por substring
@@ -566,6 +572,7 @@ const DataStore = (() => {
 
   function indexBluesoftRows(rawRows) {
     const map = new Map();
+    const dataMaisAntigaPorBaseNF = new Map();
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
       // Aceita tanto o CSV enxuto (NF; Status Bluesoft) quanto uma exportação bruta
@@ -577,6 +584,7 @@ const DataStore = (() => {
       if (!nf || !status) continue;
 
       const dataEntregaRaw = pickField(row, headerIndex, 'dataEntrega');
+      const dataEntregaParsed = Utils.parseDate(dataEntregaRaw);
       // Coluna "Agendado" opcional (nem todo CSV de Bluesoft já exportado tem essa coluna
       // ainda) — "Obriga Agenda" / "Não obriga agenda". Ausente, fica null e não afeta nada
       // (ver applyBluesoftEnrichment: só define necessitaAgendamento quando não é null).
@@ -591,10 +599,21 @@ const DataStore = (() => {
         uf: pickField(row, headerIndex, 'uf'),
         valorNF: pickField(row, headerIndex, 'valorNF'),
         dataEntrega: dataEntregaRaw,
-        _dataEntregaParsed: Utils.parseDate(dataEntregaRaw),
+        _dataEntregaParsed: dataEntregaParsed,
         cnpj: pickField(row, headerIndex, 'cnpj'),
         necessitaAgendamento: parseObrigaAgendamentoBluesoft(agendadoRaw)
       };
+
+      // Data de coleta mais antiga por NF BASE — calculada aqui, sobre TODAS as linhas brutas,
+      // porque o mapa abaixo (bluesoftStatusByNF) reduz a UMA linha por sufixo EXATO (a mais
+      // recente); se o mesmo sufixo aparecer mais de uma vez (a mesma viagem reexportada depois
+      // de resolvida, ex.: "178473-1" uma vez em julho e de novo em agosto), a ocorrência mais
+      // antiga se perderia antes de chegar aqui. Ver applyBluesoftEnrichment/decisão 2026-08-16.
+      if (dataEntregaParsed) {
+        const baseNf = nf.split('-')[0];
+        const atual = dataMaisAntigaPorBaseNF.get(baseNf);
+        if (!atual || dataEntregaParsed < atual) dataMaisAntigaPorBaseNF.set(baseNf, dataEntregaParsed);
+      }
 
       // Uma NF pode aparecer em várias viagens/tentativas — fica a linha mais recente por data
       // (ver bluesoftCandidatoMaisRecente).
@@ -602,6 +621,7 @@ const DataStore = (() => {
       map.set(nf, candidato);
     }
     bluesoftStatusByNF = map;
+    bluesoftDataColetaMaisAntigaPorBaseNF = dataMaisAntigaPorBaseNF;
   }
 
   /**
@@ -632,9 +652,16 @@ const DataStore = (() => {
     for (const [nf, info] of bluesoftStatusByNF) {
       const baseNf = nf.split('-')[0];
       if (bluesoftCandidatoMaisRecente(bluesoftByBaseNF.get(baseNf), info)) {
-        bluesoftByBaseNF.set(baseNf, info);
+        bluesoftByBaseNF.set(baseNf, { ...info, nfCompleta: nf });
       }
     }
+    // Data de Coleta por NF base = a mais ANTIGA entre TODAS as linhas brutas da Bluesoft (não
+    // só entre sufixos distintos — o mesmo sufixo pode se repetir, ver indexBluesoftRows) — por
+    // decisão do usuário (2026-08-16): uma nota que saiu pra entrega em julho e só foi resolvida
+    // (reentrega/devolução) em agosto continua contando em julho, que foi quando ela realmente
+    // entrou no sistema. Status/Valor/etc. continuam vindo da tentativa MAIS recente
+    // (bluesoftByBaseNF) — só a data usada pro filtro de Período/"Data Coleta" muda de critério.
+    const earliestDataEntregaByBaseNF = bluesoftDataColetaMaisAntigaPorBaseNF;
     const existingBaseNFs = new Set(rawRecords.map(r => r.nf.split('-')[0]));
 
     for (const r of rawRecords) {
@@ -672,24 +699,32 @@ const DataStore = (() => {
       r.situacao = info.status;
       r.status = info.status === 'Entregue' ? 'ENTREGUE' : 'EM_ABERTO';
       if (!r.cnpj && info.cnpj) r.cnpj = String(info.cnpj).trim();
-      // "Data de Entrega" na Base Bluesoft é, na prática, a data de coleta/início da viagem
-      // (confirmado com o usuário) — não a data real de entrega ao cliente. Mesmo assim,
-      // precisa preencher r.dataEntrega (não só dataInicioViagem) quando a planilha principal
-      // não tem nenhuma data própria — é o mesmo campo usado pelo filtro de Período (Mês/Ano)
-      // pra decidir em qual mês a nota conta; sem isso, essas notas caiam no fallback errado
-      // (dataFaturamento/dataAgendamento/dataEmissao) e podiam contar num mês diferente do
-      // que a Bluesoft mostra, divergindo do resto das notas de status "Entregue".
-      if (!r.dataEntrega && info.dataEntrega) r.dataEntrega = Utils.parseDate(info.dataEntrega);
+      // "Data de Entrega"/"Data Coleta" na Base Bluesoft é, na prática, a data de coleta/início
+      // da viagem (confirmado com o usuário) — não a data real de entrega ao cliente. Mesmo
+      // assim, precisa preencher r.dataEntrega (não só dataInicioViagem) quando a planilha
+      // principal não tem nenhuma data própria — é o mesmo campo usado pelo filtro de Período
+      // (Mês/Ano) pra decidir em qual mês a nota conta. Usa a coleta MAIS ANTIGA entre as
+      // tentativas dessa NF (earliestDataEntregaByBaseNF), não a da tentativa mais recente —
+      // por decisão do usuário (2026-08-16), uma nota conta no mês em que entrou no sistema,
+      // mesmo que só tenha sido resolvida (reentrega/devolução) num mês seguinte.
+      if (!r.dataEntrega) {
+        const dataColeta = earliestDataEntregaByBaseNF.get(r.nf.split('-')[0]);
+        if (dataColeta) r.dataEntrega = dataColeta;
+      }
       if (!r.dataInicioViagem && info.dataEntrega) r.dataInicioViagem = Utils.parseDate(info.dataEntrega);
     }
 
-    for (const [nf, info] of bluesoftStatusByNF) {
-      const baseNf = nf.split('-')[0];
+    // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
+    // bluesoftStatusByNF (uma linha por tentativa) — sem isso, uma NF só-Bluesoft com mais de
+    // uma tentativa criava o registro com dados de QUALQUER tentativa (a que aparecesse
+    // primeiro no CSV), não necessariamente a mais recente.
+    for (const [baseNf, info] of bluesoftByBaseNF) {
       if (existingBaseNFs.has(baseNf)) continue;
       existingBaseNFs.add(baseNf);
       const status = info.status === 'Entregue' ? 'ENTREGUE' : 'EM_ABERTO';
+      const dataColeta = earliestDataEntregaByBaseNF.get(baseNf) || Utils.parseDate(info.dataEntrega);
       rawRecords.push({
-        nf,
+        nf: info.nfCompleta,
         cliente: String(info.cliente || 'Não informado').trim() || 'Não informado',
         grupoEconomico: '',
         cnpj: String(info.cnpj || '').trim(),
@@ -706,7 +741,7 @@ const DataStore = (() => {
         dataEmissao: null,
         dataAgendamento: null,
         dataFaturamento: null,
-        dataEntrega: Utils.parseDate(info.dataEntrega),
+        dataEntrega: dataColeta,
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
         tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
