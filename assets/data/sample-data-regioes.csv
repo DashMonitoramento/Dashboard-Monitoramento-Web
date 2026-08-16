@@ -1,0 +1,334 @@
+Cidade;UF;Regiao;Codigo
+Bertioga;SP;Baixada Santista;RC03
+Cubatão;SP;Baixada Santista;RC03
+Guarujá;SP;Baixada Santista;RC03
+Itanhaém;SP;Baixada Santista;RC03
+Mongaguá;SP;Baixada Santista;RC03
+Peruíbe;SP;Baixada Santista;RC03
+Praia Grande;SP;Baixada Santista;RC03
+Santos;SP;Baixada Santista;RC03
+São Vicente;SP;Baixada Santista;RC03
+São Paulo;SP;Capital SP;RC01
+Anápolis;GO;Centro-Oeste;RC10
+Aparecida de Goiânia;GO;Centro-Oeste;RC10
+Brasília;DF;Centro-Oeste;RC10
+Campo Grande;MS;Centro-Oeste;RC10
+Dourados;MS;Centro-Oeste;RC10
+Goiânia;GO;Centro-Oeste;RC10
+Itumbiara;GO;Centro-Oeste;RC10
+Lucas do Rio Verde;MT;Centro-Oeste;RC10
+Sidrolândia;MS;Centro-Oeste;RC10
+Sinop;MT;Centro-Oeste;RC10
+Sorriso;MT;Centro-Oeste;RC10
+Várzea Grande;MT;Centro-Oeste;RC10
+Cachoeiro de Itapemirim;ES;Espírito Santo;RC07
+Cariacica;ES;Espírito Santo;RC07
+Guarapari;ES;Espírito Santo;RC07
+Linhares;ES;Espírito Santo;RC07
+Piúma;ES;Espírito Santo;RC07
+Serra;ES;Espírito Santo;RC07
+Vila Velha;ES;Espírito Santo;RC07
+Vitória;ES;Espírito Santo;RC07
+Exterior;EX;Exterior / Não mapeado;RC13
+Arujá;SP;Grande São Paulo;RC02
+Barueri;SP;Grande São Paulo;RC02
+Caieiras;SP;Grande São Paulo;RC02
+Cajamar;SP;Grande São Paulo;RC02
+Carapicuíba;SP;Grande São Paulo;RC02
+Cotia;SP;Grande São Paulo;RC02
+Diadema;SP;Grande São Paulo;RC02
+Embu das Artes;SP;Grande São Paulo;RC02
+Embu-Guaçu;SP;Grande São Paulo;RC02
+Ferraz de Vasconcelos;SP;Grande São Paulo;RC02
+Francisco Morato;SP;Grande São Paulo;RC02
+Franco da Rocha;SP;Grande São Paulo;RC02
+Guararema;SP;Grande São Paulo;RC02
+Guarulhos;SP;Grande São Paulo;RC02
+Itapecerica da Serra;SP;Grande São Paulo;RC02
+Itapevi;SP;Grande São Paulo;RC02
+Itaquaquecetuba;SP;Grande São Paulo;RC02
+Jandira;SP;Grande São Paulo;RC02
+Juquitiba;SP;Grande São Paulo;RC02
+Mairiporã;SP;Grande São Paulo;RC02
+Mauá;SP;Grande São Paulo;RC02
+Mogi das Cruzes;SP;Grande São Paulo;RC02
+Osasco;SP;Grande São Paulo;RC02
+Poá;SP;Grande São Paulo;RC02
+Ribeirão Pires;SP;Grande São Paulo;RC02
+Rio Grande da Serra;SP;Grande São Paulo;RC02
+Salesópolis;SP;Grande São Paulo;RC02
+Santa Isabel;SP;Grande São Paulo;RC02
+Santana de Parnaíba;SP;Grande São Paulo;RC02
+Santo André;SP;Grande São Paulo;RC02
+Suzano;SP;Grande São Paulo;RC02
+São Bernardo do Campo;SP;Grande São Paulo;RC02
+São Caetano do Sul;SP;Grande São Paulo;RC02
+São Lourenço da Serra;SP;Grande São Paulo;RC02
+Taboão da Serra;SP;Grande São Paulo;RC02
+Vargem Grande Paulista;SP;Grande São Paulo;RC02
+Aguaí;SP;Interior de São Paulo;RC04
+Agudos;SP;Interior de São Paulo;RC04
+Alumínio;SP;Interior de São Paulo;RC04
+Americana;SP;Interior de São Paulo;RC04
+Amparo;SP;Interior de São Paulo;RC04
+Américo Brasiliense;SP;Interior de São Paulo;RC04
+Analândia;SP;Interior de São Paulo;RC04
+Angatuba;SP;Interior de São Paulo;RC04
+Aparecida;SP;Interior de São Paulo;RC04
+Araraquara;SP;Interior de São Paulo;RC04
+Araras;SP;Interior de São Paulo;RC04
+Araçatuba;SP;Interior de São Paulo;RC04
+Araçoiaba da Serra;SP;Interior de São Paulo;RC04
+Assis;SP;Interior de São Paulo;RC04
+Atibaia;SP;Interior de São Paulo;RC04
+Barretos;SP;Interior de São Paulo;RC04
+Bauru;SP;Interior de São Paulo;RC04
+Birigui;SP;Interior de São Paulo;RC04
+Biritiba-Mirim;SP;Interior de São Paulo;RC04
+Boa Esperança do Sul;SP;Interior de São Paulo;RC04
+Bocaina;SP;Interior de São Paulo;RC04
+Bofete;SP;Interior de São Paulo;RC04
+Botucatu;SP;Interior de São Paulo;RC04
+Bragança Paulista;SP;Interior de São Paulo;RC04
+Brotas;SP;Interior de São Paulo;RC04
+Buri;SP;Interior de São Paulo;RC04
+Cabreúva;SP;Interior de São Paulo;RC04
+Cachoeira Paulista;SP;Interior de São Paulo;RC04
+Caconde;SP;Interior de São Paulo;RC04
+Cajati;SP;Interior de São Paulo;RC04
+Campinas;SP;Interior de São Paulo;RC04
+Campo Limpo Paulista;SP;Interior de São Paulo;RC04
+Campos do Jordão;SP;Interior de São Paulo;RC04
+Cananéia;SP;Interior de São Paulo;RC04
+Capela do Alto;SP;Interior de São Paulo;RC04
+Capivari;SP;Interior de São Paulo;RC04
+Capão Bonito;SP;Interior de São Paulo;RC04
+Caraguatatuba;SP;Interior de São Paulo;RC04
+Catanduva;SP;Interior de São Paulo;RC04
+Caçapava;SP;Interior de São Paulo;RC04
+Cesário Lange;SP;Interior de São Paulo;RC04
+Cordeirópolis;SP;Interior de São Paulo;RC04
+Cosmópolis;SP;Interior de São Paulo;RC04
+Cruzeiro;SP;Interior de São Paulo;RC04
+Cunha;SP;Interior de São Paulo;RC04
+Cândido Mota;SP;Interior de São Paulo;RC04
+Descalvado;SP;Interior de São Paulo;RC04
+Divinolândia;SP;Interior de São Paulo;RC04
+Franca;SP;Interior de São Paulo;RC04
+Guaratinguetá;SP;Interior de São Paulo;RC04
+Guareí;SP;Interior de São Paulo;RC04
+Holambra;SP;Interior de São Paulo;RC04
+Hortolândia;SP;Interior de São Paulo;RC04
+Ibaté;SP;Interior de São Paulo;RC04
+Ibitinga;SP;Interior de São Paulo;RC04
+Ibiúna;SP;Interior de São Paulo;RC04
+Igaratá;SP;Interior de São Paulo;RC04
+Ilha Comprida;SP;Interior de São Paulo;RC04
+Ilhabela;SP;Interior de São Paulo;RC04
+Indaiatuba;SP;Interior de São Paulo;RC04
+Iperó;SP;Interior de São Paulo;RC04
+Itaberá;SP;Interior de São Paulo;RC04
+Itapetininga;SP;Interior de São Paulo;RC04
+Itapeva;SP;Interior de São Paulo;RC04
+Itaporanga;SP;Interior de São Paulo;RC04
+Itararé;SP;Interior de São Paulo;RC04
+Itariri;SP;Interior de São Paulo;RC04
+Itatiba;SP;Interior de São Paulo;RC04
+Itirapina;SP;Interior de São Paulo;RC04
+Itupeva;SP;Interior de São Paulo;RC04
+Itu;SP;Interior de São Paulo;RC04
+Jaboticabal;SP;Interior de São Paulo;RC04
+Jacareí;SP;Interior de São Paulo;RC04
+Jacupiranga;SP;Interior de São Paulo;RC04
+Jardinópolis;SP;Interior de São Paulo;RC04
+Jarinu;SP;Interior de São Paulo;RC04
+Jaú;SP;Interior de São Paulo;RC04
+Joanópolis;SP;Interior de São Paulo;RC04
+José Bonifácio;SP;Interior de São Paulo;RC04
+Jundiaí;SP;Interior de São Paulo;RC04
+Juquiá;SP;Interior de São Paulo;RC04
+Laranjal Paulista;SP;Interior de São Paulo;RC04
+Lençóis Paulista;SP;Interior de São Paulo;RC04
+Limeira;SP;Interior de São Paulo;RC04
+Lorena;SP;Interior de São Paulo;RC04
+Mairinque;SP;Interior de São Paulo;RC04
+Marília;SP;Interior de São Paulo;RC04
+Matão;SP;Interior de São Paulo;RC04
+Miracatu;SP;Interior de São Paulo;RC04
+Mirassol;SP;Interior de São Paulo;RC04
+Mococa;SP;Interior de São Paulo;RC04
+Mogi Guaçu;SP;Interior de São Paulo;RC04
+Mogi Mirim;SP;Interior de São Paulo;RC04
+Monte Mor;SP;Interior de São Paulo;RC04
+Morro Agudo;SP;Interior de São Paulo;RC04
+Morungaba;SP;Interior de São Paulo;RC04
+Nazaré Paulista;SP;Interior de São Paulo;RC04
+Nova Odessa;SP;Interior de São Paulo;RC04
+Olímpia;SP;Interior de São Paulo;RC04
+Ourinhos;SP;Interior de São Paulo;RC04
+Paraibuna;SP;Interior de São Paulo;RC04
+Pariquera-Açu;SP;Interior de São Paulo;RC04
+Patrocínio Paulista;SP;Interior de São Paulo;RC04
+Paulínia;SP;Interior de São Paulo;RC04
+Pedra Bela;SP;Interior de São Paulo;RC04
+Pedregulho;SP;Interior de São Paulo;RC04
+Pedreira;SP;Interior de São Paulo;RC04
+Pedro de Toledo;SP;Interior de São Paulo;RC04
+Piedade;SP;Interior de São Paulo;RC04
+Pilar do Sul;SP;Interior de São Paulo;RC04
+Pindamonhangaba;SP;Interior de São Paulo;RC04
+Pinhalzinho;SP;Interior de São Paulo;RC04
+Piracaia;SP;Interior de São Paulo;RC04
+Piracicaba;SP;Interior de São Paulo;RC04
+Piraju;SP;Interior de São Paulo;RC04
+Pirassununga;SP;Interior de São Paulo;RC04
+Pitangueiras;SP;Interior de São Paulo;RC04
+Pontal;SP;Interior de São Paulo;RC04
+Porto Feliz;SP;Interior de São Paulo;RC04
+Porto Ferreira;SP;Interior de São Paulo;RC04
+Presidente Prudente;SP;Interior de São Paulo;RC04
+Rafard;SP;Interior de São Paulo;RC04
+Registro;SP;Interior de São Paulo;RC04
+Ribeirão Branco;SP;Interior de São Paulo;RC04
+Ribeirão Preto;SP;Interior de São Paulo;RC04
+Rincão;SP;Interior de São Paulo;RC04
+Rio Claro;SP;Interior de São Paulo;RC04
+Roseira;SP;Interior de São Paulo;RC04
+Salto de Pirapora;SP;Interior de São Paulo;RC04
+Salto;SP;Interior de São Paulo;RC04
+Santa Branca;SP;Interior de São Paulo;RC04
+Santa Bárbara d'Oeste;SP;Interior de São Paulo;RC04
+Santa Cruz das Palmeiras;SP;Interior de São Paulo;RC04
+Santa Gertrudes;SP;Interior de São Paulo;RC04
+Santo Antônio de Posse;SP;Interior de São Paulo;RC04
+Santo Antônio do Pinhal;SP;Interior de São Paulo;RC04
+Sarapuí;SP;Interior de São Paulo;RC04
+Serra Negra;SP;Interior de São Paulo;RC04
+Serrana;SP;Interior de São Paulo;RC04
+Sertãozinho;SP;Interior de São Paulo;RC04
+Sete Barras;SP;Interior de São Paulo;RC04
+Socorro;SP;Interior de São Paulo;RC04
+Sorocaba;SP;Interior de São Paulo;RC04
+Sumaré;SP;Interior de São Paulo;RC04
+São Bento do Sapucaí;SP;Interior de São Paulo;RC04
+São Carlos;SP;Interior de São Paulo;RC04
+São José do Rio Pardo;SP;Interior de São Paulo;RC04
+São José do Rio Preto;SP;Interior de São Paulo;RC04
+São José dos Campos;SP;Interior de São Paulo;RC04
+São João da Boa Vista;SP;Interior de São Paulo;RC04
+São Miguel Arcanjo;SP;Interior de São Paulo;RC04
+São Roque;SP;Interior de São Paulo;RC04
+São Sebastião;SP;Interior de São Paulo;RC04
+Tabatinga;SP;Interior de São Paulo;RC04
+Tatuí;SP;Interior de São Paulo;RC04
+Taubaté;SP;Interior de São Paulo;RC04
+Tietê;SP;Interior de São Paulo;RC04
+Tremembé;SP;Interior de São Paulo;RC04
+Ubatuba;SP;Interior de São Paulo;RC04
+Valinhos;SP;Interior de São Paulo;RC04
+Vargem;SP;Interior de São Paulo;RC04
+Vinhedo;SP;Interior de São Paulo;RC04
+Votorantim;SP;Interior de São Paulo;RC04
+Várzea Paulista;SP;Interior de São Paulo;RC04
+Águas da Prata;SP;Interior de São Paulo;RC04
+Além Paraíba;MG;Minas Gerais;RC06
+Belo Horizonte;MG;Minas Gerais;RC06
+Betim;MG;Minas Gerais;RC06
+Brazópolis;MG;Minas Gerais;RC06
+Contagem;MG;Minas Gerais;RC06
+Cruzília;MG;Minas Gerais;RC06
+Divinópolis;MG;Minas Gerais;RC06
+Governador Valadares;MG;Minas Gerais;RC06
+Guaxupé;MG;Minas Gerais;RC06
+Ipatinga;MG;Minas Gerais;RC06
+Itamonte;MG;Minas Gerais;RC06
+Itanhandu;MG;Minas Gerais;RC06
+Juiz de Fora;MG;Minas Gerais;RC06
+Monte Sião;MG;Minas Gerais;RC06
+Montes Claros;MG;Minas Gerais;RC06
+Muzambinho;MG;Minas Gerais;RC06
+Nova Lima;MG;Minas Gerais;RC06
+Pouso Alegre;MG;Minas Gerais;RC06
+Poços de Caldas;MG;Minas Gerais;RC06
+Ribeirão das Neves;MG;Minas Gerais;RC06
+Sabará;MG;Minas Gerais;RC06
+Sete Lagoas;MG;Minas Gerais;RC06
+São Lourenço;MG;Minas Gerais;RC06
+São Sebastião do Paraíso;MG;Minas Gerais;RC06
+Uberlândia;MG;Minas Gerais;RC06
+Vespasiano;MG;Minas Gerais;RC06
+Barreiras;BA;Nordeste;RC11
+Camaçari;BA;Nordeste;RC11
+Eunápolis;BA;Nordeste;RC11
+Feira de Santana;BA;Nordeste;RC11
+Fortaleza;CE;Nordeste;RC11
+Igarassu;PE;Nordeste;RC11
+Ilhéus;BA;Nordeste;RC11
+Irecê;BA;Nordeste;RC11
+Itaberaba;BA;Nordeste;RC11
+Itaitinga;CE;Nordeste;RC11
+João Pessoa;PB;Nordeste;RC11
+Juazeiro;BA;Nordeste;RC11
+Lauro de Freitas;BA;Nordeste;RC11
+Maceió;AL;Nordeste;RC11
+Parnamirim;RN;Nordeste;RC11
+Salvador;BA;Nordeste;RC11
+Simões Filho;BA;Nordeste;RC11
+Vitória da Conquista;BA;Nordeste;RC11
+Aliança do Tocantins;TO;Norte;RC12
+Alvorada;TO;Norte;RC12
+Belém;PA;Norte;RC12
+Cariri do Tocantins;TO;Norte;RC12
+Cristalândia;TO;Norte;RC12
+Dianópolis;TO;Norte;RC12
+Divinópolis do Tocantins;TO;Norte;RC12
+Figueirópolis;TO;Norte;RC12
+Formoso do Araguaia;TO;Norte;RC12
+Gurupi;TO;Norte;RC12
+Lagoa da Confusão;TO;Norte;RC12
+Miranorte;TO;Norte;RC12
+Novo Jardim;TO;Norte;RC12
+Paraíso do Tocantins;TO;Norte;RC12
+Porto Nacional;TO;Norte;RC12
+Cambé;PR;Paraná;RC08
+Curitiba;PR;Paraná;RC08
+Foz do Iguaçu;PR;Paraná;RC08
+Guarapuava;PR;Paraná;RC08
+Londrina;PR;Paraná;RC08
+Maringá;PR;Paraná;RC08
+Planaltina do Paraná;PR;Paraná;RC08
+Santa Isabel do Ivaí;PR;Paraná;RC08
+Barra do Piraí;RJ;Rio de Janeiro;RC05
+Belford Roxo;RJ;Rio de Janeiro;RC05
+Cabo Frio;RJ;Rio de Janeiro;RC05
+Campos dos Goytacazes;RJ;Rio de Janeiro;RC05
+Duque de Caxias;RJ;Rio de Janeiro;RC05
+Macaé;RJ;Rio de Janeiro;RC05
+Maricá;RJ;Rio de Janeiro;RC05
+Nova Friburgo;RJ;Rio de Janeiro;RC05
+Nova Iguaçu;RJ;Rio de Janeiro;RC05
+Paraty;RJ;Rio de Janeiro;RC05
+Resende;RJ;Rio de Janeiro;RC05
+Rio das Ostras;RJ;Rio de Janeiro;RC05
+Rio de Janeiro;RJ;Rio de Janeiro;RC05
+São Gonçalo;RJ;Rio de Janeiro;RC05
+São Pedro da Aldeia;RJ;Rio de Janeiro;RC05
+Três Rios;RJ;Rio de Janeiro;RC05
+Volta Redonda;RJ;Rio de Janeiro;RC05
+Arroio do Sal;RS;Sul (RS e SC);RC09
+Bento Gonçalves;RS;Sul (RS e SC);RC09
+Brusque;SC;Sul (RS e SC);RC09
+Capão da Canoa;RS;Sul (RS e SC);RC09
+Carlos Barbosa;RS;Sul (RS e SC);RC09
+Caxias do Sul;RS;Sul (RS e SC);RC09
+Erechim;RS;Sul (RS e SC);RC09
+Farroupilha;RS;Sul (RS e SC);RC09
+Flores da Cunha;RS;Sul (RS e SC);RC09
+Gravataí;RS;Sul (RS e SC);RC09
+Marau;RS;Sul (RS e SC);RC09
+Montenegro;RS;Sul (RS e SC);RC09
+Nova Petrópolis;RS;Sul (RS e SC);RC09
+Porto Alegre;RS;Sul (RS e SC);RC09
+São Marcos;RS;Sul (RS e SC);RC09
+Vacaria;RS;Sul (RS e SC);RC09
+Vale Real;RS;Sul (RS e SC);RC09
