@@ -9,6 +9,13 @@
  * Sem filtros próprios (decisão do usuário, 2026-08-16) — essa tela usa os filtros já
  * existentes na barra lateral do Dashboard de Entregas (que embute essa página num iframe),
  * incluindo o filtro "Região Comercial" adicionado lá.
+ *
+ * Dados ao vivo (decisão do usuário, 2026-08-16): quando embutida num iframe, essa página
+ * avisa o pai que terminou de carregar ("mapa-regioes:pronto") e passa a receber, por
+ * postMessage, os totais por região já recalculados com os filtros atuais (ver
+ * enviarDadosRegioesParaIframe em js/dashboard.js do site principal). dados_regioes.json
+ * continua sendo usado pro carregamento inicial (e é a ÚNICA fonte quando a página é aberta
+ * sozinha, fora do iframe) — a mensagem do pai só chega DEPOIS, sobrescrevendo os números.
  */
 
 (() => {
@@ -488,6 +495,24 @@
       window.addEventListener('resize', () => { if (mapaLeaflet) mapaLeaflet.invalidateSize(); });
     }
 
+    /** Recebe os totais por região recalculados ao vivo pelo site principal (filtro de
+     * período/vendedor/etc já aplicado) e redesenha tudo com o mesmo `renderizarTudo` usado
+     * pro carregamento estático — só troca a fonte dos números, o resto do fluxo é idêntico. */
+    function aplicarDadosAoVivo(dadosCompletos) {
+      if (!dadosCompletos || !Array.isArray(dadosCompletos.regioes)) return;
+      regioes = dadosCompletos.regioes;
+      renderizarTudo(dadosCompletos);
+    }
+
+    function bindMensagensDoPai() {
+      window.addEventListener('message', (e) => {
+        if (e.origin !== window.location.origin) return;
+        if (e.data && e.data.tipo === 'mapa-regioes:dados') {
+          aplicarDadosAoVivo(e.data.dados);
+        }
+      });
+    }
+
     async function init() {
       bindEventos();
       try {
@@ -495,9 +520,15 @@
       } catch (err) {
         mostrarErroCarregamento(err.message);
       }
+      // Só faz o handshake com o pai se estiver de fato embutida num iframe (evita erro/ruído
+      // quando a página é aberta sozinha, fora do site principal).
+      if (window.parent && window.parent !== window) {
+        bindMensagensDoPai();
+        window.parent.postMessage({ tipo: 'mapa-regioes:pronto' }, window.location.origin);
+      }
     }
 
-    return { init, corPorPercentual, agregarRegioes };
+    return { init, corPorPercentual, agregarRegioes, aplicarDadosAoVivo };
   })();
 
   if (typeof window !== 'undefined') {
