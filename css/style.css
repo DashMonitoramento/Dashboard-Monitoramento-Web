@@ -294,6 +294,35 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 @media (prefers-reduced-motion: reduce) { #btn-status-diversos, .btn-scroll-tabela { animation: none; } }
 
+/* Botões redondos (pill) de alternar entre "Registros detalhados" e o "Dashboard Logístico
+   por Região" (iframe) — mesmo efeito brilhante pulsante dos botões acima, só que verde pra
+   indicar qual tela está ativa no momento e cinza pra indicar a inativa (decisão do usuário,
+   2026-08-16). Existem DUAS cópias desse par de botões no HTML (uma no cabeçalho de
+   "Registros detalhados", outra no topo do embed do mapa) pra sempre dar pra trocar de tela
+   não importa qual das duas esteja visível — ver bindAlternarViewMapaRegioes em dashboard.js. */
+.tabs-registros-mapa { display: flex; gap: 10px; flex-wrap: wrap; }
+.toggle-view-btn {
+  border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700;
+  cursor: pointer; border-width: 2px; transition: transform var(--transition), box-shadow var(--transition), background var(--transition), color var(--transition);
+}
+.toggle-view-btn:hover { transform: translateY(-1px); }
+.toggle-view-btn--ativo {
+  background: rgba(22,163,74,.1); color: var(--color-success); border-color: var(--color-success);
+  box-shadow: 0 0 8px 1px rgba(22,163,74,.5), 0 0 3px rgba(22,163,74,.8);
+  animation: toggleViewGlow 2.4s ease-in-out infinite;
+}
+.toggle-view-btn--ativo:hover { box-shadow: 0 0 16px 3px rgba(22,163,74,.85); }
+.toggle-view-btn--inativo {
+  background: rgba(100,116,139,.1); color: var(--color-neutral); border-color: var(--color-neutral);
+  box-shadow: 0 0 6px 1px rgba(100,116,139,.45);
+}
+.toggle-view-btn--inativo:hover { box-shadow: 0 0 12px 2px rgba(100,116,139,.7); }
+@keyframes toggleViewGlow {
+  0%, 100% { box-shadow: 0 0 8px 1px rgba(22,163,74,.5), 0 0 3px rgba(22,163,74,.8); }
+  50%      { box-shadow: 0 0 16px 4px rgba(22,163,74,.9), 0 0 5px rgba(22,163,74,1); }
+}
+@media (prefers-reduced-motion: reduce) { .toggle-view-btn--ativo { animation: none; } }
+
 .table-column-toggles-row {
   display: flex; align-items: center; gap: 8px;
   padding-bottom: 12px; margin-bottom: 14px; border-bottom: 2px solid var(--color-orange);
