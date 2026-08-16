@@ -100,15 +100,30 @@ html, body {
 }
 
 /* Mapa bem maior que antes (pedido do usuário, 2026-08-16: regiões pequenas — o cluster de SP
-   — ficavam apertadas demais pra identificar) — 74% da linha de cima; ranking com o resto. */
-.area-mapa { flex: 0 0 74%; }
-.area-ranking { flex: 1 1 26%; }
+   — ficavam apertadas demais pra identificar) — 78% da linha de cima; ranking com o resto
+   (22%). Padding mais justo que o padrão de .painel — sobra mais espaço pro desenho do
+   território em vez de moldura/respiro ao redor. */
+.area-mapa { flex: 0 0 78%; padding: 10px 10px 8px; }
+.area-ranking { flex: 1 1 22%; }
+.area-mapa .painel__titulo { margin-bottom: 6px; }
 
 /* ---------------- Mapa ---------------- */
 
+/* Envolve #mapa (não o painel inteiro) — é o contexto de posicionamento do quadro de detalhe
+   de SP e do botão "Voltar ao Brasil" (ambos position:absolute), pra ficarem ancorados só na
+   área do desenho do mapa, não no título/legenda que ficam por cima/embaixo dele. */
+.area-mapa__mapa-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
 /* Sem zoom/arrasto — mapa fixo, só pra visualizar e passar o mouse/clicar nas regiões (pedido
    do usuário, 2026-08-16); os controles de zoom do Leaflet ficam desligados via JS
-   (zoomControl:false etc.), e essa regra aqui é só um reforço/fallback visual. */
+   (zoomControl:false etc.), e essa regra aqui é só um reforço/fallback visual. O
+   fitBounds+zoomSnap fracionário (ver dashboard.js) é que faz o TERRITÓRIO em si preencher
+   quase toda essa área, em vez de sobrar oceano em volta. */
 #mapa {
   flex: 1;
   min-height: 760px;
@@ -119,6 +134,83 @@ html, body {
 #mapa .leaflet-control-zoom,
 #mapa .leaflet-control-attribution { display: none; }
 #mapa .leaflet-interactive { cursor: pointer; }
+
+/* ---------------- Quadro de detalhe de São Paulo (sempre visível) ---------------- */
+
+/* As 4 regiões de SP (Capital/Grande SP/Baixada Santista/Interior) ficam pequenas/próximas
+   demais no mapa nacional pra rotular sem sobrepor (pedido do usuário, 2026-08-16) — em vez
+   disso, ganham este mapa dedicado, fixo no canto inferior direito, com nome completo/tooltip/
+   clique iguais ao mapa principal. z-index acima das camadas do Leaflet (painéis internos
+   chegam a ~650) pra nunca ficar por baixo do mapa nacional. */
+.painel-detalhe-sp {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 34%;
+  max-width: 300px;
+  height: 42%;
+  max-height: 250px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-painel-alt);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.5);
+  overflow: hidden;
+  z-index: 1000;
+}
+.painel-detalhe-sp__header {
+  flex-shrink: 0;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--texto);
+  background: var(--bg-painel);
+  border-bottom: 1px solid var(--borda);
+}
+#mapa-detalhe-sp {
+  flex: 1;
+  min-height: 0;
+  background: var(--mapa-fundo);
+  cursor: default;
+}
+#mapa-detalhe-sp .leaflet-control-zoom,
+#mapa-detalhe-sp .leaflet-control-attribution { display: none; }
+#mapa-detalhe-sp .leaflet-interactive { cursor: pointer; }
+
+/* Nome completo das 4 regiões de SP dentro do quadro de detalhe — precisa poder quebrar linha
+   (diferente de .rotulo-regiao no mapa nacional, que é só a sigla curta numa linha só). */
+.rotulo-regiao--detalhe {
+  font-size: 9.5px;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+/* Botão "Voltar ao Brasil" — só aparece depois de clicar numa região de SP no mapa nacional
+   (ver mostrarSpNoMapaPrincipal em dashboard.js); fica no canto oposto ao quadro de detalhe
+   pra nunca sobrepor os dois. */
+.btn-voltar-brasil {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1000;
+  background: var(--cor-azul);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+  transition: filter var(--transition);
+}
+.btn-voltar-brasil:hover { filter: brightness(1.12); }
 
 /* "Relevo" leve (sombra suave, sem precisar de textura de terreno) — pedido do usuário, "se
    der, no mesmo modelo com relevo". Some quando a região está selecionada (a borda branca já
@@ -149,11 +241,12 @@ html, body {
 }
 
 .mapa-legenda {
-  margin-top: 10px;
+  margin-top: 6px;
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 16px;
-  font-size: 12px;
+  gap: 6px 16px;
+  font-size: 11.5px;
 }
 
 .mapa-legenda__item {
@@ -293,6 +386,7 @@ html, body {
   .area-mapa, .area-ranking { flex-basis: auto; width: 100%; }
   #mapa { min-height: 520px; }
   .area-ranking .painel__conteudo { min-height: 320px; }
+  .painel-detalhe-sp { width: 42%; max-width: 220px; height: 46%; max-height: 190px; }
 }
 
 /* Celular: ordem pedida — 1) Indicadores 2) Mapa 3) Gráfico de entregas 4) Ranking.
@@ -309,4 +403,8 @@ html, body {
 
   #mapa { min-height: 300px; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
+
+  /* Sem espaço pra um quadro de detalhe legível nessa largura — some, e as 4 regiões de SP
+     continuam identificáveis pelo tooltip ao tocar (mesmo caminho de qualquer outra região). */
+  .painel-detalhe-sp, .btn-voltar-brasil { display: none; }
 }
