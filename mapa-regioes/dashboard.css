@@ -60,83 +60,25 @@ html, body {
   color: var(--texto-secundario);
 }
 
-/* ---------------- Filtros ---------------- */
-
-.filtros {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 12px 20px;
-  background: var(--bg-painel-alt);
-  border-bottom: 1px solid var(--borda);
-}
-
-.filtro-campo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 140px;
-}
-
-.filtro-campo label {
-  font-size: 11px;
-  color: var(--texto-secundario);
-  text-transform: uppercase;
-  letter-spacing: .03em;
-}
-
-.filtro-campo select,
-.filtro-campo input {
-  background: var(--bg);
-  border: 1px solid var(--borda);
-  color: var(--texto);
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.filtros__acoes {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-
-/* Botão redondo/brilhante — mesmo padrão do toggle "Registros detalhados ⇄ Mapa" do site
-   principal: cinza brilhante parado, verde brilhante ao passar o mouse/focar (decisão do
-   usuário, 2026-08-16) — os 3 botões de ação (Aplicar/Limpar/Atualizar) usam a mesma cor,
-   só o formato redondo e o brilho importam aqui. */
-.btn-pill {
-  border-radius: 999px;
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  border: 2px solid var(--cor-cinza);
-  background: rgba(100,116,139,.12);
-  color: var(--texto);
-  box-shadow: 0 0 6px 1px rgba(100,116,139,.45);
-  transition: transform var(--transition), box-shadow var(--transition), background var(--transition), border-color var(--transition), color var(--transition);
-}
-.btn-pill:hover, .btn-pill:focus-visible {
-  border-color: var(--cor-verde);
-  background: rgba(22,163,74,.14);
-  color: #fff;
-  box-shadow: 0 0 16px 3px rgba(22,163,74,.85), 0 0 4px rgba(22,163,74,.9);
-  transform: translateY(-1px);
-  outline: none;
-}
-.btn-pill:active { transform: translateY(0); }
-
-/* ---------------- Layout principal: 3 áreas ---------------- */
+/* ---------------- Layout principal: linha de cima (mapa maior + ranking),
+   linha de baixo (indicadores + gráfico) — decisão do usuário, 2026-08-16, depois de achar o
+   layout de 3 colunas lado a lado muito apertado. Sem filtros próprios (ver cabeçalho do
+   arquivo). ---------------- */
 
 .painéis {
   flex: 1;
   display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 12px 20px 20px;
+}
+
+.linha-superior, .linha-inferior {
+  display: flex;
+  gap: 12px;
   align-items: stretch;
 }
+.linha-inferior { flex-direction: column; }
 
 .painel {
   background: var(--bg-painel);
@@ -157,9 +99,9 @@ html, body {
   color: var(--texto);
 }
 
-.area-mapa { flex: 0 0 35%; }
-.area-central { flex: 0 0 35%; display: flex; flex-direction: column; gap: 12px; }
-.area-ranking { flex: 0 0 30%; }
+/* Mapa bem maior que antes (pedido do usuário) — 65% da linha de cima; ranking com o resto. */
+.area-mapa { flex: 0 0 65%; }
+.area-ranking { flex: 1 1 35%; }
 
 /* ---------------- Mapa ---------------- */
 
@@ -168,7 +110,7 @@ html, body {
    (zoomControl:false etc.), e essa regra aqui é só um reforço/fallback visual. */
 #mapa {
   flex: 1;
-  min-height: 420px;
+  min-height: 560px;
   border-radius: 6px;
   background: var(--mapa-fundo);
   cursor: default;
@@ -176,6 +118,34 @@ html, body {
 #mapa .leaflet-control-zoom,
 #mapa .leaflet-control-attribution { display: none; }
 #mapa .leaflet-interactive { cursor: pointer; }
+
+/* "Relevo" leve (sombra suave, sem precisar de textura de terreno) — pedido do usuário, "se
+   der, no mesmo modelo com relevo". Some quando a região está selecionada (a borda branca já
+   basta como destaque ali). */
+#mapa path.regiao-relevo {
+  filter: drop-shadow(1px 2px 2px rgba(0,0,0,.4)) drop-shadow(-1px -1px 1px rgba(255,255,255,.08));
+  transition: filter var(--transition);
+}
+
+/* Pulso rápido na região que acabou de ser selecionada — feedback de "mudou de região". */
+@keyframes regiaoPulso {
+  0% { filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  40% { filter: drop-shadow(0 0 10px rgba(255,255,255,.9)); }
+  100% { filter: drop-shadow(1px 2px 2px rgba(0,0,0,.4)); }
+}
+#mapa path.regiao-pulso { animation: regiaoPulso .6s ease-out; }
+
+/* Sigla curta de cada região (ROTULO_CURTO em dashboard.js), no centro da forma — mesmo
+   espírito do mapa de referência que mostra a sigla de cada UF por cima da cor. */
+.rotulo-regiao {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.85);
+  pointer-events: none;
+  white-space: nowrap;
+}
 
 .mapa-legenda {
   margin-top: 10px;
@@ -316,39 +286,25 @@ html, body {
    Responsividade
    ============================================================ */
 
-/* Tablet: duas áreas por linha */
+/* Tablet: mapa e ranking empilham (o mapa já é grande, não sobra espaço lado a lado) */
 @media (max-width: 1100px) {
-  .painéis { flex-wrap: wrap; }
-  .area-mapa, .area-central, .area-ranking {
-    flex: 0 0 calc(50% - 6px);
-  }
-  .area-ranking { flex-basis: 100%; }
+  .linha-superior { flex-direction: column; }
+  .area-mapa, .area-ranking { flex-basis: auto; width: 100%; }
+  #mapa { min-height: 420px; }
+  .area-ranking .painel__conteudo { min-height: 320px; }
 }
 
-/* Celular: empilhado na ordem pedida (via order + flex-direction: column) */
+/* Celular: ordem pedida — 1) Indicadores 2) Mapa 3) Gráfico de entregas 4) Ranking.
+   .linha-superior/.linha-inferior viram "display:contents" pra seus filhos (mapa/ranking/
+   kpis/gráfico) participarem diretamente do flex de .painéis — assim os 4 blocos podem ser
+   reordenados livremente entre si por "order". */
 @media (max-width: 720px) {
-  .filtros { flex-direction: column; align-items: stretch; }
-  .filtros__acoes { margin-left: 0; }
-  .filtro-campo { min-width: 0; }
-
-  .painéis {
-    flex-direction: column;
-  }
-  .area-mapa, .area-central, .area-ranking {
-    flex-basis: auto;
-    width: 100%;
-  }
-
-  /* Ordem pedida: 1) Indicadores 2) Mapa 3) Gráfico de entregas 4) Ranking 5) Filtros.
-     .area-central vira "display:contents" pra seus dois filhos (kpis-bloco e grafico-bloco)
-     participarem diretamente do flex de .painéis, junto com .area-mapa e .area-ranking —
-     assim os 4 blocos podem ser reordenados livremente entre si por "order". */
-  .area-central { display: contents; }
-  .area-central .kpis-bloco { order: 1; }
+  .painéis { flex-direction: column; }
+  .linha-superior, .linha-inferior { display: contents; }
+  .kpis-bloco { order: 1; }
   .area-mapa { order: 2; }
-  .area-central .grafico-bloco { order: 3; }
+  .grafico-bloco { order: 3; }
   .area-ranking { order: 4; }
-  .filtros { order: 5; }
 
   #mapa { min-height: 300px; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
