@@ -207,6 +207,55 @@ const Utils = (() => {
     downloadTextFile(filename, '﻿' + csv, 'text/csv');
   }
 
+  /**
+   * Gera um .xlsx de verdade (não CSV) com cabeçalho estilizado e, opcionalmente, células
+   * coloridas por coluna/valor — pedido do usuário (2026-08-16), que queria o botão "Exportar
+   * CSV" com a formatação de um print do Excel (cabeçalho escuro, coluna Status verde/vermelho).
+   * CSV é texto puro e não guarda cor de célula, por isso a exportação precisou virar Excel.
+   * `colorirCelula(rotuloColuna, valorFormatado, registro)` — opcional; retorne
+   * `{ fundo: 'FFRRGGBB' }` pra colorir a célula, ou nada/null pra deixar sem cor.
+   */
+  async function exportToStyledExcel(filename, sheetName, columns, rows, colorirCelula) {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet(sheetName || 'Dados');
+    sheet.columns = columns.map(c => ({ header: c.label, width: c.width || 18 }));
+
+    const headerRow = sheet.getRow(1);
+    headerRow.height = 20;
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    rows.forEach((registro) => {
+      const valores = columns.map(c => c.value(registro));
+      const linha = sheet.addRow(valores);
+      if (!colorirCelula) return;
+      columns.forEach((coluna, i) => {
+        const estilo = colorirCelula(coluna.label, valores[i], registro);
+        if (!estilo) return;
+        const celula = linha.getCell(i + 1);
+        celula.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: estilo.fundo } };
+        celula.font = { bold: true, color: { argb: estilo.texto || 'FFFFFFFF' } };
+        celula.alignment = { vertical: 'middle', horizontal: 'center' };
+      });
+    });
+
+    sheet.views = [{ state: 'frozen', ySplit: 1 }]; // cabeçalho fixo ao rolar
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   /* ---------- Status / cores de indicadores ---------- */
 
   const STATUS_COLORS = {
@@ -245,7 +294,7 @@ const Utils = (() => {
     formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime,
     parseDate, startOfDay, isSameMonth, MONTH_NAMES,
     animateValue, debounce, showToast,
-    downloadTextFile, arrayToCSV, exportToCSV,
+    downloadTextFile, arrayToCSV, exportToCSV, exportToStyledExcel,
     getStatusColorVar, uniqueSorted, sum, groupBy
   };
 })();
