@@ -694,9 +694,10 @@ ul { list-style: none; margin: 0; padding: 0; }
 #data-table[data-hide~="status"] th:nth-child(7), #data-table[data-hide~="status"] td:nth-child(7) { display: none; }
 #data-table[data-hide~="prazoStatus"] th:nth-child(8), #data-table[data-hide~="prazoStatus"] td:nth-child(8) { display: none; }
 #data-table[data-hide~="situacao"] th:nth-child(9), #data-table[data-hide~="situacao"] td:nth-child(9) { display: none; }
-#data-table[data-hide~="valorNF"] th:nth-child(10), #data-table[data-hide~="valorNF"] td:nth-child(10) { display: none; }
-#data-table[data-hide~="dataEntrega"] th:nth-child(11), #data-table[data-hide~="dataEntrega"] td:nth-child(11) { display: none; }
-#data-table[data-hide~="dataAgendamento"] th:nth-child(12), #data-table[data-hide~="dataAgendamento"] td:nth-child(12) { display: none; }
+#data-table[data-hide~="statusAgendamento"] th:nth-child(10), #data-table[data-hide~="statusAgendamento"] td:nth-child(10) { display: none; }
+#data-table[data-hide~="valorNF"] th:nth-child(11), #data-table[data-hide~="valorNF"] td:nth-child(11) { display: none; }
+#data-table[data-hide~="dataEntrega"] th:nth-child(12), #data-table[data-hide~="dataEntrega"] td:nth-child(12) { display: none; }
+#data-table[data-hide~="dataAgendamento"] th:nth-child(13), #data-table[data-hide~="dataAgendamento"] td:nth-child(13) { display: none; }
 
 /* Card com altura travada e rolagem própria (vertical + horizontal) — assim a tabela não
    empurra a paginação pra fora da tela quando tem muita linha por página. */
