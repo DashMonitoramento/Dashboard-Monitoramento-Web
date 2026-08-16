@@ -1205,6 +1205,17 @@ const DataStore = (() => {
     }
   }
 
+  // Nome -> código (RC01..RC13), o inverso de NOME_REGIAO_POR_CODIGO — usado pelo Dashboard
+  // Logístico por Região (mapa-regioes/, embutido em iframe) pra montar os dados ao vivo a
+  // partir dos registros já filtrados (ver enviarDadosRegioesParaIframe em dashboard.js).
+  const CODIGO_POR_NOME_REGIAO = new Map(
+    Object.entries(NOME_REGIAO_POR_CODIGO).map(([codigo, nome]) => [nome, codigo])
+  );
+  function getCodigoRegiaoComercial(nome) { return CODIGO_POR_NOME_REGIAO.get(nome) || null; }
+  function getRegioesComerciaisComCodigo() {
+    return Object.entries(NOME_REGIAO_POR_CODIGO).map(([codigo, nome]) => ({ codigo, nome }));
+  }
+
   function getRecords() { return rawRecords.slice(); }
   function getLastUpdated() { return lastUpdated; }
 
@@ -1297,6 +1308,7 @@ const DataStore = (() => {
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getAvailableYears,
+    getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
     onChange
   };
 })();
