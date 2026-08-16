@@ -1,0 +1,322 @@
+/* ============================================================
+   Dashboard Logístico por Região — Da Terrinha Alimentos
+   Paleta: fundo cinza-escuro, texto branco, acentos coloridos.
+   ============================================================ */
+
+:root {
+  --bg: #333333;
+  --bg-painel: #3d3d3d;
+  --bg-painel-alt: #454545;
+  --borda: #4d4d4d;
+  --texto: #ffffff;
+  --texto-secundario: #b9b9b9;
+
+  --cor-verde: #2ecc71;
+  --cor-amarelo: #f1c40f;
+  --cor-laranja: #e67e22;
+  --cor-vermelho: #e74c3c;
+  --cor-cinza: #7f8c8d;
+  --cor-azul: #3498db;
+  --cor-azul-escuro: #1f6f9c;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.app {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------- Cabeçalho ---------------- */
+
+.cabecalho {
+  padding: 14px 20px;
+  text-align: center;
+  border-bottom: 2px solid var(--cor-azul);
+  background: var(--bg-painel);
+}
+
+.cabecalho__titulo {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.cabecalho__atualizado {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--texto-secundario);
+}
+
+/* ---------------- Filtros ---------------- */
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--bg-painel-alt);
+  border-bottom: 1px solid var(--borda);
+}
+
+.filtro-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.filtro-campo label {
+  font-size: 11px;
+  color: var(--texto-secundario);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.filtro-campo select,
+.filtro-campo input {
+  background: var(--bg);
+  border: 1px solid var(--borda);
+  color: var(--texto);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.filtro-campo select:disabled {
+  color: var(--texto-secundario);
+  cursor: not-allowed;
+}
+
+.filtros__acoes {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.btn {
+  border: none;
+  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  transition: filter .15s ease, transform .15s ease;
+}
+.btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+
+.btn--aplicar { background: var(--cor-azul); }
+.btn--limpar { background: var(--cor-vermelho); }
+.btn--atualizar { background: var(--cor-verde); }
+
+/* ---------------- Layout principal: 3 áreas ---------------- */
+
+.painéis {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  padding: 12px 20px 20px;
+  align-items: stretch;
+}
+
+.painel {
+  background: var(--bg-painel);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.painel__titulo {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--texto);
+}
+
+.area-mapa { flex: 0 0 35%; }
+.area-central { flex: 0 0 35%; display: flex; flex-direction: column; gap: 12px; }
+.area-ranking { flex: 0 0 30%; }
+
+/* ---------------- Mapa ---------------- */
+
+#mapa {
+  flex: 1;
+  min-height: 420px;
+  border-radius: 6px;
+  background: #2a2a2a;
+}
+
+.mapa-legenda {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 12px;
+}
+
+.mapa-legenda__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--texto-secundario);
+}
+
+.mapa-legenda__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.mapa-tooltip {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #222;
+}
+.mapa-tooltip strong { font-size: 13.5px; }
+.mapa-tooltip .linha { display: flex; justify-content: space-between; gap: 14px; }
+
+.mapa-mensagem-erro {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--texto-secundario);
+  padding: 20px;
+  font-size: 13px;
+}
+
+/* ---------------- Indicadores (KPIs) ---------------- */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.kpi-card {
+  background: var(--bg-painel-alt);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.kpi-card__label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--texto-secundario);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-card__valor {
+  display: block;
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-card--regiao-selecionada { grid-column: 1 / -1; text-align: center; color: var(--cor-azul); font-size: 12px; }
+
+/* ---------------- Gráfico central ---------------- */
+
+.grafico-central {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+}
+
+.grafico-central__canvas-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 220px;
+}
+
+/* ---------------- Ranking lateral ---------------- */
+
+.area-ranking .painel__conteudo {
+  flex: 1;
+  position: relative;
+  min-height: 420px;
+}
+
+/* ---------------- Rodapé ---------------- */
+
+.rodape {
+  text-align: center;
+  padding: 10px;
+  font-size: 11px;
+  color: var(--texto-secundario);
+  border-top: 1px solid var(--borda);
+}
+
+/* ============================================================
+   Responsividade
+   ============================================================ */
+
+/* Tablet: duas áreas por linha */
+@media (max-width: 1100px) {
+  .painéis { flex-wrap: wrap; }
+  .area-mapa, .area-central, .area-ranking {
+    flex: 0 0 calc(50% - 6px);
+  }
+  .area-ranking { flex-basis: 100%; }
+}
+
+/* Celular: empilhado na ordem pedida (via order + flex-direction: column) */
+@media (max-width: 720px) {
+  .filtros { flex-direction: column; align-items: stretch; }
+  .filtros__acoes { margin-left: 0; }
+  .filtro-campo { min-width: 0; }
+
+  .painéis {
+    flex-direction: column;
+  }
+  .area-mapa, .area-central, .area-ranking {
+    flex-basis: auto;
+    width: 100%;
+  }
+
+  /* Ordem pedida: 1) Indicadores 2) Mapa 3) Gráfico de entregas 4) Ranking 5) Filtros.
+     .area-central vira "display:contents" pra seus dois filhos (kpis-bloco e grafico-bloco)
+     participarem diretamente do flex de .painéis, junto com .area-mapa e .area-ranking —
+     assim os 4 blocos podem ser reordenados livremente entre si por "order". */
+  .area-central { display: contents; }
+  .area-central .kpis-bloco { order: 1; }
+  .area-mapa { order: 2; }
+  .area-central .grafico-bloco { order: 3; }
+  .area-ranking { order: 4; }
+  .filtros { order: 5; }
+
+  #mapa { min-height: 300px; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+}
