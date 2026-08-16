@@ -566,6 +566,7 @@ const Dashboard = (() => {
       { label: 'Status', value: r => statusLabel(r.status) },
       { label: 'Prazo', value: r => prazoLabel(r.prazoStatus) },
       { label: 'Situação', value: r => r.situacao },
+      { label: 'Situação Agendamento', value: r => r.statusAgendamento || '—' },
       { label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
       { label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
       { label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
@@ -587,6 +588,7 @@ const Dashboard = (() => {
       { field: 'status', label: 'Status', value: r => statusLabel(r.status) },
       { field: 'prazoStatus', label: 'Prazo', value: r => prazoLabel(r.prazoStatus) },
       { field: 'situacao', label: 'Situação', value: r => r.situacao },
+      { field: 'statusAgendamento', label: 'Situação Agendamento', value: r => r.statusAgendamento || '—' },
       { field: 'valorNF', label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
       { field: 'dataEntrega', label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
       { field: 'dataAgendamento', label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
@@ -1084,6 +1086,7 @@ const Dashboard = (() => {
         <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
         <td><span class="badge ${prazoBadgeClass(r.prazoStatus)}">${prazoLabel(r.prazoStatus)}</span></td>
         <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
+        <td>${escapeAttr(r.statusAgendamento || '—')}</td>
         <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
         <td>${Utils.formatDate(r.dataEntrega)}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
@@ -1111,7 +1114,7 @@ const Dashboard = (() => {
     const tbody = document.getElementById(ids.tbody);
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="13" class="table-empty">Nenhum registro encontrado para os filtros atuais.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="14" class="table-empty">Nenhum registro encontrado para os filtros atuais.</td></tr>`;
     } else {
       tbody.innerHTML = pageItems.map(rowHtml).join('');
     }
