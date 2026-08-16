@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260816d">
+<link rel="stylesheet" href="css/style.css?v=20260816e">
 </head>
 <body>
 
@@ -395,7 +395,10 @@
       <!-- TABELA -->
       <section class="table-card" id="registros-detalhados" aria-label="Tabela de registros">
         <div class="table-card__header">
-          <h2 class="chart-card__title">Registros detalhados</h2>
+          <div class="tabs-registros-mapa" id="tabs-registros-mapa">
+            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" id="btn-ver-registros" data-view="registros">📋 Registros detalhados</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" id="btn-ver-mapa-regioes" data-view="mapa">🗺️ Dashboard Logístico por Região</button>
+          </div>
           <div class="table-search">
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
           </div>
@@ -457,6 +460,17 @@
         </div>
       </section>
       </div><!-- /#main-view -->
+
+      <!-- ===================== DASHBOARD LOGÍSTICO POR REGIÃO (embutido via iframe) ===================== -->
+      <section id="mapa-regioes-embed" class="table-card" aria-label="Dashboard Logístico por Região" hidden>
+        <div class="table-card__header">
+          <div class="tabs-registros-mapa">
+            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="registros">📋 Registros detalhados</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="mapa">🗺️ Dashboard Logístico por Região</button>
+          </div>
+        </div>
+        <iframe id="iframe-mapa-regioes" title="Dashboard Logístico por Região" style="width:100%; height:calc(100vh - 160px); min-height:640px; border:none; border-radius:8px; background:#333;"></iframe>
+      </section>
 
       <!-- ===================== TELA DE DETALHE (drill-down ao clicar num KPI) ===================== -->
       <section id="status-detail-view" class="table-card" aria-label="Detalhe da categoria selecionada" hidden>
@@ -532,11 +546,6 @@
         </div>
       </section>
 
-      <div style="display:flex; justify-content:center; gap:12px; padding:8px 0 4px; flex-wrap:wrap;">
-        <a href="#registros-detalhados" class="btn" style="text-decoration:none;">📋 Registros detalhados</a>
-        <a href="mapa-regioes/index.html" class="btn" target="_blank" rel="noopener" style="text-decoration:none;">🗺️ Dashboard Logístico por Região</a>
-      </div>
-
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
         Dashboard de Entregas · Da Terrinha Alimentos — dados atualizados automaticamente a partir da planilha.
       </footer>
@@ -544,11 +553,11 @@
   </main>
 </div>
 
-<script type="module" src="js/firebase-init.js?v=20260816d"></script>
-<script src="js/utils.js?v=20260816d"></script>
-<script src="js/data.js?v=20260816d"></script>
-<script src="js/charts.js?v=20260816d"></script>
-<script src="js/dashboard.js?v=20260816d"></script>
-<script src="js/script.js?v=20260816d"></script>
+<script type="module" src="js/firebase-init.js?v=20260816e"></script>
+<script src="js/utils.js?v=20260816e"></script>
+<script src="js/data.js?v=20260816e"></script>
+<script src="js/charts.js?v=20260816e"></script>
+<script src="js/dashboard.js?v=20260816e"></script>
+<script src="js/script.js?v=20260816e"></script>
 </body>
 </html>
