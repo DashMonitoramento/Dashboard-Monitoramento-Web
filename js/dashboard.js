@@ -750,28 +750,31 @@ const Dashboard = (() => {
     });
   }
 
-  // Por decisão do usuário (2026-08-14): o gráfico usa só estas 5 categorias, lidas direto
-  // da coluna "Status" da planilha de Agendamentos (r.statusAgendamento) — os demais valores
-  // que aparecem lá (Entrega Direta, Entregue, Devolução p/ Terrinha, Cancelado, Reentrega)
-  // são resultado de entrega, não situação de agendamento, e ficam de fora da contagem.
   const AGENDAMENTO_STATUS_CATEGORIAS = [
     'Agendado', 'Aguardando agendamento', 'Aguardando Confirmação', 'Reagendar', 'Okker'
   ];
+  // As 4 etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
+  // (valor bruto da coluna "Status" da planilha de Agendamentos). Qualquer nota da população
+  // (ver renderAgendamentoChart) que não tenha uma dessas 4 cai em "Aguardando agendamento" por
+  // padrão — não depende mais do texto literal "Aguardando agendamento" estar naquela planilha
+  // (que fica desatualizado, ver decisão abaixo).
+  const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker'];
 
-  /** Situação de agendamento: contagem por valor bruto da coluna "Status" da planilha de
-   * Agendamentos, restrita às categorias que de fato representam etapas do agendamento.
-   *
-   * Além disso, ignora notas que já têm uma resolução final MAIS RECENTE em outro lugar
-   * (Entregue ou Cancelado) — por decisão do usuário (2026-08-16), depois de notar que a
-   * planilha de Agendamentos não é atualizada quando a nota avança: das 304 notas que
-   * apareciam como "Aguardando agendamento" nela, 176 já tinham sido entregues e 2 já
-   * canceladas em outra fonte mais atual. Sem esse filtro, o gráfico ficava com dado
-   * defasado, bem maior que o card "Aguardando agendamento" (que usa a situação atual). */
+  /** Situação de agendamento: mesma população do card "Aguardando agendamento" — exclui só
+   * Entregue/Devolução/Cancelado (por decisão do usuário, 2026-08-16) — quebrada pelas etapas
+   * específicas já registradas na planilha de Agendamentos; o que sobra vai pra "Aguardando
+   * agendamento". Isso faz a SOMA das 5 fatias sempre bater com o total do card — antes, o
+   * gráfico só contava quem tinha o texto exato "Aguardando agendamento" naquela planilha (que
+   * não é atualizada quando a nota avança), ficando bem menor e dessincronizado do card. */
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     records.forEach(r => {
-      if (r.status === 'ENTREGUE' || r.situacao === 'Cancelado') return;
-      if (Object.prototype.hasOwnProperty.call(counts, r.statusAgendamento)) counts[r.statusAgendamento]++;
+      if (r.situacao === 'Entregue' || r.situacao === 'Devolução' || r.situacao === 'Cancelado') return;
+      if (AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)) {
+        counts[r.statusAgendamento]++;
+      } else {
+        counts['Aguardando agendamento']++;
+      }
     });
     charts.agendamento.update({
       labels: AGENDAMENTO_STATUS_CATEGORIAS,
