@@ -114,8 +114,46 @@ const Dashboard = (() => {
     renderColumnToggles();
     bindColumnToggles();
     bindScrollTabela();
+    bindAlternarViewMapaRegioes();
     createCharts();
     DataStore.onChange(render);
+  }
+
+  /** Alterna, na mesma aba, entre "Registros detalhados" (#main-view) e o Dashboard Logístico
+   * por Região (#mapa-regioes-embed, um iframe carregado sob demanda) — por decisão do usuário
+   * (2026-08-16): preferiu isso a abrir em outra aba, mesmo perdendo os KPIs/gráficos de cima
+   * enquanto o mapa está aberto (voltam ao clicar em "Registros detalhados" de novo). Existem
+   * duas cópias do par de botões no HTML (uma em cada tela) — todas com o mesmo data-view, pra
+   * sempre ter como trocar de tela não importa qual das duas esteja visível no momento. */
+  function bindAlternarViewMapaRegioes() {
+    const botoes = document.querySelectorAll('[data-view]');
+    botoes.forEach((botao) => {
+      botao.addEventListener('click', () => mostrarViewMapaRegioes(botao.dataset.view));
+    });
+  }
+
+  function mostrarViewMapaRegioes(view) {
+    const main = document.getElementById('main-view');
+    const embed = document.getElementById('mapa-regioes-embed');
+    const mostrarMapa = view === 'mapa';
+
+    main.hidden = mostrarMapa;
+    embed.hidden = !mostrarMapa;
+
+    document.querySelectorAll('[data-view]').forEach((botao) => {
+      const ativo = botao.dataset.view === view;
+      botao.classList.toggle('toggle-view-btn--ativo', ativo);
+      botao.classList.toggle('toggle-view-btn--inativo', !ativo);
+    });
+
+    if (mostrarMapa) {
+      // Carrega o iframe só na primeira vez que o usuário abrir o mapa (evita buscar
+      // Leaflet/Chart.js/dados_regioes.json sem necessidade em quem nunca clicar nele).
+      const iframe = document.getElementById('iframe-mapa-regioes');
+      if (!iframe.src) iframe.src = 'mapa-regioes/index.html';
+    } else {
+      document.getElementById('registros-detalhados').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function bindFilterInputs() {
