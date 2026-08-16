@@ -20,7 +20,6 @@
 <div class="app">
 
   <header class="cabecalho">
-    <h1 class="cabecalho__titulo">DASHBOARD LOGÍSTICO POR REGIÃO</h1>
     <p class="cabecalho__atualizado" id="texto-atualizado">Carregando dados...</p>
   </header>
 
@@ -51,9 +50,9 @@
       </select>
     </div>
     <div class="filtros__acoes">
-      <button type="button" class="btn btn--aplicar" id="btn-aplicar-filtros">Aplicar filtros</button>
-      <button type="button" class="btn btn--limpar" id="btn-limpar-filtros">Limpar filtros</button>
-      <button type="button" class="btn btn--atualizar" id="btn-atualizar-dados">Atualizar dados</button>
+      <button type="button" class="btn-pill" id="btn-aplicar-filtros">Aplicar filtros</button>
+      <button type="button" class="btn-pill" id="btn-limpar-filtros">Limpar filtros</button>
+      <button type="button" class="btn-pill" id="btn-atualizar-dados">Atualizar dados</button>
     </div>
   </section>
 
@@ -79,13 +78,13 @@
       <div class="painel kpis-bloco">
         <h2 class="painel__titulo" id="kpis-titulo">Indicadores — Todas as regiões</h2>
         <div class="kpis" id="kpis-container">
-          <div class="kpi-card"><span class="kpi-card__label">Total de notas</span><span class="kpi-card__valor" id="kpi-total-notas">—</span></div>
-          <div class="kpi-card"><span class="kpi-card__label">Total entregue</span><span class="kpi-card__valor" id="kpi-entregues">—</span></div>
-          <div class="kpi-card"><span class="kpi-card__label">% Entregue</span><span class="kpi-card__valor" id="kpi-percentual">—</span></div>
-          <div class="kpi-card"><span class="kpi-card__label">Reentregas</span><span class="kpi-card__valor" id="kpi-reentregas">—</span></div>
-          <div class="kpi-card"><span class="kpi-card__label">Devoluções</span><span class="kpi-card__valor" id="kpi-devolucoes">—</span></div>
-          <div class="kpi-card"><span class="kpi-card__label">Valor total das notas</span><span class="kpi-card__valor" id="kpi-valor">—</span></div>
-          <div class="kpi-card"><span class="kpi-card__label">Prazo médio de entrega</span><span class="kpi-card__valor" id="kpi-prazo">—</span></div>
+          <div class="kpi-card kpi-card--primary"><span class="kpi-card__label">Total de notas</span><span class="kpi-card__valor" id="kpi-total-notas">—</span></div>
+          <div class="kpi-card kpi-card--success"><span class="kpi-card__label">Total entregue</span><span class="kpi-card__valor" id="kpi-entregues">—</span></div>
+          <div class="kpi-card kpi-card--success"><span class="kpi-card__label">% Entregue</span><span class="kpi-card__valor" id="kpi-percentual">—</span></div>
+          <div class="kpi-card kpi-card--warning"><span class="kpi-card__label">Reentregas</span><span class="kpi-card__valor" id="kpi-reentregas">—</span></div>
+          <div class="kpi-card kpi-card--danger"><span class="kpi-card__label">Devoluções</span><span class="kpi-card__valor" id="kpi-devolucoes">—</span></div>
+          <div class="kpi-card kpi-card--secondary"><span class="kpi-card__label">Valor total das notas</span><span class="kpi-card__valor" id="kpi-valor">—</span></div>
+          <div class="kpi-card kpi-card--neutral"><span class="kpi-card__label">Prazo médio de entrega</span><span class="kpi-card__valor" id="kpi-prazo">—</span></div>
         </div>
       </div>
 
