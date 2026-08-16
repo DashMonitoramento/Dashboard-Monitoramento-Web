@@ -815,7 +815,7 @@ const Dashboard = (() => {
       type: 'hbar', labels: [],
       series: [
         { name: 'Entregues', data: [], color: '#16A34A' },
-        { name: 'Vencidas', data: [], color: '#DC2626' }
+        { name: 'Devolvidos', data: [], color: '#DC2626' }
       ],
       options: { fullLabels: true, thickBars: true }
     });
@@ -823,7 +823,7 @@ const Dashboard = (() => {
       type: 'hbar', labels: [],
       series: [
         { name: 'Entregues', data: [], color: '#16A34A' },
-        { name: 'Vencidas', data: [], color: '#DC2626' }
+        { name: 'Devolvidos', data: [], color: '#DC2626' }
       ],
       options: { fullLabels: true, thickBars: true }
     });
@@ -938,12 +938,14 @@ const Dashboard = (() => {
     const QUANTIDADE = 15;
     const grouped = Utils.groupBy(records, r => r.transportadora);
 
+    // "Devolvidos" agrupa as 3 situações que significam que a nota voltou (por decisão do
+    // usuário, 2026-08-16): Devolução, Reentrega e Cancelado — não é mais sobre prazo vencido.
     const entries = Array.from(grouped.entries())
       .map(([name, items]) => {
         const total = items.length;
         const entregues = items.filter(r => r.status === 'ENTREGUE').length;
-        const vencidas = items.filter(r => r.prazoStatus === 'VENCIDO').length;
-        return { name, total, entregues, vencidas, taxa: entregues / total };
+        const devolvidos = items.filter(r => r.situacao === 'Devolução' || r.situacao === 'Reentrega' || r.situacao === 'Cancelado').length;
+        return { name, total, entregues, devolvidos, taxa: entregues / total };
       })
       .filter(e => e.total >= 3)
       .sort((a, b) => b.taxa - a.taxa);
@@ -958,7 +960,7 @@ const Dashboard = (() => {
       labels: list.map(e => e.name),
       series: [
         { name: 'Entregues', data: list.map(e => e.entregues), color: '#16A34A' },
-        { name: 'Vencidas', data: list.map(e => e.vencidas), color: '#DC2626' }
+        { name: 'Devolvidos', data: list.map(e => e.devolvidos), color: '#DC2626' }
       ]
     });
     charts.rankingTransportadorasMelhores.update(toSeries(melhores));
