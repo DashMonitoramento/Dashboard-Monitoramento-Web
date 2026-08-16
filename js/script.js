@@ -15,6 +15,7 @@ const DEFAULT_CLIENTES_URL = 'assets/data/sample-data-clientes.csv';
 const DEFAULT_AGENDAMENTOS_URL = 'assets/data/sample-data-agendamentos.csv';
 const DEFAULT_MOTIVOS_URL = 'assets/data/sample-data-motivos.csv';
 const DEFAULT_RETORNO_URL = 'assets/data/sample-data-retorno.csv';
+const DEFAULT_REGIOES_URL = 'assets/data/sample-data-regioes.csv';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 
 /* ============================================================
@@ -245,6 +246,17 @@ async function loadRetornoDataSilently(cacheBust) {
   }
 }
 
+/** Cadastro cidade -> região comercial (mesma fonte do Dashboard Logístico por Região) —
+ * opcional; sem ele, o filtro "Região Comercial" da barra lateral simplesmente fica vazio. */
+async function loadRegioesDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_REGIOES_URL}?t=${Date.now()}` : DEFAULT_REGIOES_URL;
+    await DataStore.loadRegioesFromUrl(url, 'csv');
+  } catch (err) {
+    console.warn('Cadastro de Região Comercial não carregado automaticamente:', err.message);
+  }
+}
+
 /** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
  * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
 async function loadCanhotosIndexSilently(cacheBust) {
@@ -296,6 +308,7 @@ async function loadInitialData() {
     await loadAgendamentosDataSilently(false);
     await loadMotivosDataSilently(false);
     await loadRetornoDataSilently(false);
+    await loadRegioesDataSilently(false);
     await loadCanhotosIndexSilently(false);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
@@ -322,6 +335,7 @@ async function refreshData() {
     await loadAgendamentosDataSilently(true);
     await loadMotivosDataSilently(true);
     await loadRetornoDataSilently(true);
+    await loadRegioesDataSilently(true);
     await loadCanhotosIndexSilently(true);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
