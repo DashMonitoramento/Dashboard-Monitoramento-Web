@@ -419,6 +419,30 @@ function categorizeMotivo(rawMotivo) {
  * 4. DATASTORE — estado central de dados + filtros (padrão Observable simples)
  * ============================================================ */
 
+/**
+ * Fallback por UF pro filtro "Região Comercial" — mesma regra da aba "Orientacoes" da
+ * planilha Mapa_Dashboard_Regioes_Comerciais.xlsx ("Regra SP: São Paulo capital, Grande São
+ * Paulo, Baixada Santista e Interior de São Paulo. Demais estados: RJ, MG, ES e PR separados;
+ * demais UFs agrupadas em Sul, Centro-Oeste, Nordeste e Norte."). Usado só quando a cidade da
+ * nota não está no cadastro de 334 cidades (ver regiaoPorCidadeUf) — cobre QUALQUER cidade
+ * brasileira pela UF, mesmo uma que nunca apareceu na base até agora. Cidade de SP fora do
+ * cadastro cai em "Interior de São Paulo" (RC04), o mesmo padrão já usado no GeoJSON do
+ * Dashboard Logístico por Região.
+ */
+const REGIAO_POR_UF_FALLBACK = {
+  SP: 'RC04', RJ: 'RC05', MG: 'RC06', ES: 'RC07', PR: 'RC08',
+  RS: 'RC09', SC: 'RC09',
+  MT: 'RC10', MS: 'RC10', GO: 'RC10', DF: 'RC10',
+  MA: 'RC11', PI: 'RC11', CE: 'RC11', RN: 'RC11', PB: 'RC11', PE: 'RC11', AL: 'RC11', SE: 'RC11', BA: 'RC11',
+  AC: 'RC12', RO: 'RC12', RR: 'RC12', AP: 'RC12', PA: 'RC12', TO: 'RC12', AM: 'RC12',
+};
+const NOME_REGIAO_POR_CODIGO = {
+  RC01: 'Capital SP', RC02: 'Grande São Paulo', RC03: 'Baixada Santista', RC04: 'Interior de São Paulo',
+  RC05: 'Rio de Janeiro', RC06: 'Minas Gerais', RC07: 'Espírito Santo', RC08: 'Paraná',
+  RC09: 'Sul (RS e SC)', RC10: 'Centro-Oeste', RC11: 'Nordeste', RC12: 'Norte',
+  RC13: 'Exterior / Não mapeado',
+};
+
 // Usada só como critério de desempate (data igual, ou nenhuma das duas linhas tem data) —
 // o critério principal é sempre a data mais recente (ver bluesoftCandidatoMaisRecente).
 const BLUESOFT_PRIORITY = ['Entregue', 'Devolução', 'Cancelado', 'Reentrega', 'Em aberto'];
@@ -479,6 +503,11 @@ const DataStore = (() => {
   // applyRetornoEnrichment). Só serve pra tipoTransporte (propriedade fixa da transportadora);
   // o prazo em dias fica de fora do fallback, pois pode variar por rota/cliente/pedido.
   let retornoTipoPorTransportadora = new Map();
+  // "cidade|uf" (normalizado) -> código da região comercial (RC01..RC12) — cadastro da
+  // planilha Mapa_Dashboard_Regioes_Comerciais.xlsx (aba "Cadastro Regioes"), usado pelo filtro
+  // "Região Comercial" da barra lateral. Só cobre cidades que já tiveram nota (334 no
+  // cadastro); cidade fora dessa lista cai no fallback por UF (REGIAO_POR_UF_FALLBACK).
+  let regiaoPorCidadeUf = new Map();
   const listeners = new Set();
 
   function emptyFilters() {
@@ -496,6 +525,7 @@ const DataStore = (() => {
       vendedor: [],
       cliente: [],
       cidade: [],
+      regiaoComercial: [],
       busca: ''
     };
   }
@@ -1125,6 +1155,56 @@ const DataStore = (() => {
     }
   }
 
+  /**
+   * Carrega o cadastro cidade -> região comercial (aba "Cadastro Regioes" da planilha
+   * Mapa_Dashboard_Regioes_Comerciais.xlsx, mesma fonte do Dashboard Logístico por Região) —
+   * usado só pra classificar cada nota numa das 12 regiões (filtro "Região Comercial" da
+   * barra lateral). Opcional: sem essa base, o filtro simplesmente não aparece populado.
+   */
+  async function loadRegioesFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexRegioesRows(rawRows);
+    applyRegiaoEnrichment();
+    notify();
+  }
+
+  async function loadRegioesFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexRegioesRows(rawRows);
+    applyRegiaoEnrichment();
+    notify();
+  }
+
+  function indexRegioesRows(rawRows) {
+    const map = new Map();
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const cidadeHeader = headerIndex['cidade'];
+      const ufHeader = headerIndex['uf'];
+      const codigoHeader = headerIndex['codigo'];
+      const cidade = cidadeHeader !== undefined ? String(row[cidadeHeader] || '').trim() : '';
+      const uf = ufHeader !== undefined ? String(row[ufHeader] || '').trim().toUpperCase() : '';
+      const codigo = codigoHeader !== undefined ? String(row[codigoHeader] || '').trim().toUpperCase() : '';
+      if (!cidade || !uf || !codigo) continue;
+      map.set(`${normalizeHeaderKey(cidade)}|${uf}`, codigo);
+    }
+    regiaoPorCidadeUf = map;
+  }
+
+  /** Toda nota recebe uma região (mesmo sem UF reconhecida cai em "Não classificado") — cidade
+   * exata primeiro (cadastro de 334 cidades), senão pela UF (REGIAO_POR_UF_FALLBACK, cobre
+   * qualquer UF válida do Brasil). */
+  function applyRegiaoEnrichment() {
+    for (const r of rawRecords) {
+      const chaveCidade = `${normalizeHeaderKey(r.cidade || '')}|${(r.uf || '').toUpperCase()}`;
+      const codigo = regiaoPorCidadeUf.get(chaveCidade) || REGIAO_POR_UF_FALLBACK[(r.uf || '').toUpperCase()];
+      r.regiaoComercial = (codigo && NOME_REGIAO_POR_CODIGO[codigo]) || 'Não classificado';
+    }
+  }
+
   function getRecords() { return rawRecords.slice(); }
   function getLastUpdated() { return lastUpdated; }
 
@@ -1143,7 +1223,8 @@ const DataStore = (() => {
   function getFilteredRecords() {
     const {
       dataInicio, dataFim, mes, ano,
-      situacaoFiltro, transportadora, tipoTransporte, motorista, vendedor, cliente, cidade, busca
+      situacaoFiltro, transportadora, tipoTransporte, motorista, vendedor, cliente, cidade,
+      regiaoComercial, busca
     } = filters;
 
     return rawRecords.filter(r => {
@@ -1161,6 +1242,7 @@ const DataStore = (() => {
       if (vendedor && vendedor.length && !vendedor.includes(r.vendedor)) return false;
       if (cliente && cliente.length && !cliente.includes(r.cliente)) return false;
       if (cidade && cidade.length && !cidade.includes(r.cidade)) return false;
+      if (regiaoComercial && regiaoComercial.length && !regiaoComercial.includes(r.regiaoComercial)) return false;
 
       if (busca) {
         const needle = busca.toLowerCase();
@@ -1210,6 +1292,7 @@ const DataStore = (() => {
     loadAgendamentosFromUrl, loadAgendamentosFromFile,
     loadMotivosFromUrl, loadMotivosFromFile,
     loadRetornoFromUrl, loadRetornoFromFile,
+    loadRegioesFromUrl, loadRegioesFromFile,
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
