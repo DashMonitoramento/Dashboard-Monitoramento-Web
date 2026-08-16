@@ -175,6 +175,7 @@ const Dashboard = (() => {
     bindFilterCheckboxList('filter-vendedor-list', 'vendedor');
     bindFilterCheckboxList('filter-cliente-list', 'cliente');
     bindFilterCheckboxList('filter-cidade-list', 'cidade');
+    bindFilterCheckboxList('filter-regiao-comercial-list', 'regiaoComercial');
 
     const buscaHandler = Utils.debounce((value) => DataStore.setFilters({ busca: value }), 250);
     const buscaInput = $('filter-busca');
@@ -586,6 +587,7 @@ const Dashboard = (() => {
     fillCheckboxList('filter-vendedor-list', vendedores);
     fillCheckboxList('filter-cliente-list', DataStore.getDistinctValues('cliente'));
     fillCheckboxList('filter-cidade-list', DataStore.getDistinctValues('cidade'));
+    fillCheckboxList('filter-regiao-comercial-list', DataStore.getDistinctValues('regiaoComercial'));
 
     const anoEl = document.getElementById('filter-ano');
     const currentAno = anoEl.value;
