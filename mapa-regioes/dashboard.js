@@ -66,6 +66,13 @@
     RC09: 'Sul', RC10: 'CO', RC11: 'NE', RC12: 'N',
   };
 
+  // As 4 regiões comerciais de São Paulo — ocupam uma área geográfica pequena demais pra caber
+  // sigla + nome legíveis no mapa nacional sem sobrepor (decisão do usuário, 2026-08-16): em vez
+  // de tentar rotular essas 4 no mapa do Brasil, elas ganham um mapa de detalhe dedicado (ver
+  // inicializarOuAtualizarDetalheSp) e saem da lista de rótulos do mapa nacional (ver
+  // desenharRotulosRegiao) — a cor de cada uma continua aparecendo normalmente lá.
+  const CODIGOS_SP = ['RC01', 'RC02', 'RC03', 'RC04'];
+
   /** Verde >=98% / Amarelo 95-97,99% / Laranja 90-94,99% / Vermelho <90% / Cinza sem dado. */
   function corPorPercentual(percentual) {
     if (percentual === null || percentual === undefined || isNaN(percentual)) return '#7f8c8d';
@@ -109,6 +116,10 @@
     let mapaLeaflet = null;
     let camadaGeojson = null;
     let rotulosRegiao = []; // marcadores com o código curto de cada região (ver ROTULO_CURTO)
+    let visualizacaoPrincipal = 'brasil'; // 'brasil' (todo o país) | 'sp' (zoom nas 4 regiões de SP)
+    let mapaDetalheSp = null;
+    let camadaDetalheSp = null;
+    let rotulosDetalheSp = [];
     let chartEntregas = null;
     let chartRanking = null;
 
@@ -139,6 +150,10 @@
       if (mapaEl) {
         mapaEl.outerHTML = `<div class="mapa-mensagem-erro" id="mapa">⚠️ ${mensagem}<br>Confira se os arquivos "dados_regioes.json" e "regioes_comerciais.geojson" estão na mesma pasta do site.</div>`;
       }
+      const painelDetalheSp = document.getElementById('painel-detalhe-sp');
+      if (painelDetalheSp) painelDetalheSp.hidden = true;
+      const botaoVoltar = document.getElementById('btn-voltar-brasil');
+      if (botaoVoltar) botaoVoltar.hidden = true;
       document.getElementById('texto-atualizado').textContent = 'Sem dados — falha ao carregar.';
       atualizarKpis(null, 'Sem dados');
     }
@@ -154,6 +169,7 @@
         `· Atualizado em ${Utils.dataHora(dadosCompletos.atualizado_em)}`;
 
       inicializarOuAtualizarMapa();
+      inicializarOuAtualizarDetalheSp();
       atualizarKpis(regiaoSelecionada);
       renderizarGraficoEntregas();
       renderizarRanking();
@@ -184,6 +200,12 @@
           dragging: false,
           keyboard: false,
           tap: false,
+          // Zoom "livre" (não só níveis inteiros) — sem isso, o fitBounds só podia escolher
+          // entre zoom 4, 5, 6..., e como o território não cabia no nível de cima, sobrava um
+          // monte de oceano em volta (o mapa parecia pequeno dentro da caixa, mesmo com a caixa
+          // grande). Como não existe zoom manual aqui (é só ilustração fixa), não tem problema
+          // nenhum usar uma fração — só ajuda a preencher melhor o espaço.
+          zoomSnap: 0.05,
         });
       }
       if (camadaGeojson) {
@@ -194,10 +216,44 @@
         onEachFeature: configurarInteracaoRegiao,
       }).addTo(mapaLeaflet);
 
-      const bounds = camadaGeojson.getBounds();
-      if (bounds.isValid()) mapaLeaflet.fitBounds(bounds, { padding: [12, 12] });
-
+      ajustarEnquadramentoMapaPrincipal();
       desenharRotulosRegiao();
+    }
+
+    /** Recalcula o tamanho real do container (o painel pode ter mudado de tamanho — ex.:
+     * primeira renderização antes do layout flex terminar de se ajustar, ou o usuário
+     * redimensionando a janela) e reenquadra o território nele, bem justo (ver zoomSnap
+     * acima). Respeita a visualização atual: todo o Brasil, ou só as 4 regiões de SP quando o
+     * usuário clicou numa delas (ver mostrarSpNoMapaPrincipal). Chamado no carregamento
+     * inicial, no resize e sempre que a visualização muda (ver bindEventos). */
+    function ajustarEnquadramentoMapaPrincipal() {
+      if (!mapaLeaflet || !camadaGeojson) return;
+      mapaLeaflet.invalidateSize();
+      const todasAsCamadas = camadaGeojson.getLayers();
+      const camadas = visualizacaoPrincipal === 'sp'
+        ? todasAsCamadas.filter((l) => CODIGOS_SP.includes(l.feature.properties.codigo))
+        : todasAsCamadas;
+      if (!camadas.length) return;
+      const bounds = L.featureGroup(camadas).getBounds();
+      if (bounds.isValid()) mapaLeaflet.fitBounds(bounds, { padding: [8, 8] });
+    }
+
+    /** Zoom do mapa nacional nas 4 regiões de São Paulo — disparado ao clicar numa delas (ver
+     * configurarInteracaoRegiao) enquanto o botão "Voltar ao Brasil" some/aparece junto (ver
+     * index.html/bindEventos). Não mexe no mapa de detalhe (que já mostra SP sempre, num
+     * zoom fixo e bem mais de perto). */
+    function mostrarSpNoMapaPrincipal() {
+      visualizacaoPrincipal = 'sp';
+      ajustarEnquadramentoMapaPrincipal();
+      const botao = document.getElementById('btn-voltar-brasil');
+      if (botao) botao.hidden = false;
+    }
+
+    function mostrarBrasilNoMapaPrincipal() {
+      visualizacaoPrincipal = 'brasil';
+      ajustarEnquadramentoMapaPrincipal();
+      const botao = document.getElementById('btn-voltar-brasil');
+      if (botao) botao.hidden = true;
     }
 
     /** Um marcador de texto (sigla curta, ver ROTULO_CURTO) no centro de cada região — mesmo
@@ -205,12 +261,15 @@
      * cor. Usa o centro do retângulo que envolve a forma (getBounds().getCenter()) — não é o
      * centro geométrico exato pra formas muito recortadas/espalhadas (ex.: "Norte", que junta
      * 7 estados), mas é uma aproximação razoável sem precisar de uma lib de geometria no
-     * navegador só pra isso. */
+     * navegador só pra isso. As 4 regiões de SP (CODIGOS_SP) ficam de fora daqui — muito
+     * pequenas/próximas pra caber uma sigla legível sem sobrepor; têm o mapa de detalhe
+     * dedicado em vez disso (ver inicializarOuAtualizarDetalheSp). */
     function desenharRotulosRegiao() {
       rotulosRegiao.forEach((marcador) => marcador.remove());
       rotulosRegiao = [];
       camadaGeojson.eachLayer((layer) => {
         const codigo = layer.feature.properties.codigo;
+        if (CODIGOS_SP.includes(codigo)) return;
         const rotulo = ROTULO_CURTO[codigo];
         if (!rotulo) return;
         const marcador = L.marker(layer.getBounds().getCenter(), {
@@ -218,6 +277,67 @@
           icon: L.divIcon({ className: 'rotulo-regiao', html: rotulo, iconSize: [40, 16] }),
         }).addTo(mapaLeaflet);
         rotulosRegiao.push(marcador);
+      });
+    }
+
+    /* ============================================================
+     * MAPA DE DETALHE — São Paulo (Capital/Grande SP/Baixada Santista/Interior)
+     * ============================================================ */
+
+    /** Mapa pequeno e fixo (mesmas opções do principal) só com as 4 regiões de SP, sempre
+     * visível no canto inferior direito da área do mapa (ver dashboard.css/index.html) — a
+     * solução escolhida pelo usuário (2026-08-16) pra essas regiões ficarem identificáveis sem
+     * depender de rótulo sobreposto no mapa nacional. Reaproveita estiloRegiao/
+     * configurarInteracaoRegiao: cores, tooltip e clique (que também filtra os KPIs) idênticos
+     * ao mapa principal. */
+    function inicializarOuAtualizarDetalheSp() {
+      if (!geojson) return;
+      const featuresSp = geojson.features.filter((f) => CODIGOS_SP.includes(f.properties.codigo));
+      if (!featuresSp.length) return; // geojson sem as 4 regiões de SP: não quebra, só não desenha o detalhe.
+      if (!mapaDetalheSp) {
+        mapaDetalheSp = L.map('mapa-detalhe-sp', {
+          attributionControl: false,
+          zoomControl: false,
+          scrollWheelZoom: false,
+          doubleClickZoom: false,
+          boxZoom: false,
+          touchZoom: false,
+          dragging: false,
+          keyboard: false,
+          tap: false,
+          zoomSnap: 0.05,
+        });
+      }
+      if (camadaDetalheSp) camadaDetalheSp.remove();
+      camadaDetalheSp = L.geoJSON({ type: 'FeatureCollection', features: featuresSp }, {
+        // Borda um pouco mais grossa que o mapa principal — linhas divisórias bem visíveis
+        // entre as 4 regiões, que aqui ficam bem próximas umas das outras.
+        style: (feature) => ({ ...estiloRegiao(feature), weight: (estiloRegiao(feature).weight || 1) + 1 }),
+        onEachFeature: configurarInteracaoRegiao,
+      }).addTo(mapaDetalheSp);
+
+      ajustarEnquadramentoDetalheSp();
+      desenharRotulosDetalheSp();
+    }
+
+    function ajustarEnquadramentoDetalheSp() {
+      if (!mapaDetalheSp || !camadaDetalheSp) return;
+      mapaDetalheSp.invalidateSize();
+      const bounds = camadaDetalheSp.getBounds();
+      if (bounds.isValid()) mapaDetalheSp.fitBounds(bounds, { padding: [10, 10] });
+    }
+
+    /** Nome completo de cada uma das 4 regiões (não a sigla curta) — no detalhe elas têm
+     * espaço de sobra pra isso, já que é só um mapa dedicado a essas 4 formas. */
+    function desenharRotulosDetalheSp() {
+      rotulosDetalheSp.forEach((marcador) => marcador.remove());
+      rotulosDetalheSp = [];
+      camadaDetalheSp.eachLayer((layer) => {
+        const marcador = L.marker(layer.getBounds().getCenter(), {
+          interactive: false,
+          icon: L.divIcon({ className: 'rotulo-regiao rotulo-regiao--detalhe', html: layer.feature.properties.regiao, iconSize: [100, 28] }),
+        }).addTo(mapaDetalheSp);
+        rotulosDetalheSp.push(marcador);
       });
     }
 
@@ -265,20 +385,33 @@
       layer.bindTooltip(() => montarTooltipHtml(feature), { sticky: true });
       layer.on('mouseover', () => layer.setStyle({ weight: 2.5 }));
       layer.on('mouseout', () => layer.setStyle(estiloRegiao(feature)));
-      layer.on('click', () => selecionarRegiao(feature.properties.codigo));
+      layer.on('click', () => {
+        const selecionado = selecionarRegiao(feature.properties.codigo);
+        // Clicar numa das 4 regiões de SP (no mapa nacional OU no mapa de detalhe) também
+        // aproxima o mapa nacional nelas — "Voltar ao Brasil" restaura a visão do país
+        // inteiro (pedido do usuário, 2026-08-16). Só quando a região ACABOU de ficar
+        // selecionada (não quando o clique desmarcou) — senão, clicar de novo pra desmarcar
+        // uma região de SP depois de já ter voltado ao Brasil reacenderia o zoom sozinho.
+        if (selecionado && CODIGOS_SP.includes(selecionado) && visualizacaoPrincipal === 'brasil') {
+          mostrarSpNoMapaPrincipal();
+        }
+      });
     }
 
     /* ============================================================
      * SELEÇÃO DE REGIÃO (mapa/ranking) -> atualiza os cards de KPI
      * ============================================================ */
 
+    /** @returns {string|null} o código que ficou selecionado, ou null se o clique desmarcou. */
     function selecionarRegiao(codigo) {
       regiaoSelecionada = regiaoSelecionada === codigo ? null : codigo; // clicar de novo desmarca
-      if (camadaGeojson) {
-        camadaGeojson.eachLayer((layer) => {
+      [camadaGeojson, camadaDetalheSp].forEach((camada) => {
+        if (!camada) return;
+        camada.eachLayer((layer) => {
           layer.setStyle(estiloRegiao(layer.feature));
           // Pulso rápido na região que acabou de virar a selecionada — feedback visual da troca
-          // (pedido do usuário: "relevo... quando muda de região").
+          // (pedido do usuário: "relevo... quando muda de região"). Acontece nos dois mapas
+          // (nacional e detalhe de SP) ao mesmo tempo, sempre que a região existir neles.
           if (layer.feature.properties.codigo === regiaoSelecionada) {
             const elemento = layer.getElement && layer.getElement();
             if (elemento) {
@@ -288,8 +421,9 @@
             }
           }
         });
-      }
+      });
       atualizarKpis(regiaoSelecionada);
+      return regiaoSelecionada;
     }
 
     function atualizarKpis(codigo, mensagemSemDados) {
@@ -492,7 +626,12 @@
     }
 
     function bindEventos() {
-      window.addEventListener('resize', () => { if (mapaLeaflet) mapaLeaflet.invalidateSize(); });
+      window.addEventListener('resize', () => {
+        ajustarEnquadramentoMapaPrincipal();
+        ajustarEnquadramentoDetalheSp();
+      });
+      const botaoVoltar = document.getElementById('btn-voltar-brasil');
+      if (botaoVoltar) botaoVoltar.addEventListener('click', mostrarBrasilNoMapaPrincipal);
     }
 
     /** Recebe os totais por região recalculados ao vivo pelo site principal (filtro de
