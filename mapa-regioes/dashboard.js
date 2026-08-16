@@ -161,10 +161,24 @@
      * MAPA (Leaflet)
      * ============================================================ */
 
+    /** Mapa fixo, sem zoom nem arrasto (decisão do usuário, 2026-08-16) — é só uma ilustração
+     * territorial pra olhar/passar o mouse/clicar, não uma ferramenta de navegação. Desliga
+     * TODOS os controles de zoom/pan do Leaflet; só a interação com as regiões (hover/clique)
+     * continua funcionando, via os listeners de cada camada (ver configurarInteracaoRegiao). */
     function inicializarOuAtualizarMapa() {
       if (!geojson) return;
       if (!mapaLeaflet) {
-        mapaLeaflet = L.map('mapa', { attributionControl: false, zoomControl: true });
+        mapaLeaflet = L.map('mapa', {
+          attributionControl: false,
+          zoomControl: false,
+          scrollWheelZoom: false,
+          doubleClickZoom: false,
+          boxZoom: false,
+          touchZoom: false,
+          dragging: false,
+          keyboard: false,
+          tap: false,
+        });
       }
       if (camadaGeojson) {
         camadaGeojson.remove();
@@ -262,22 +276,32 @@
      * ============================================================ */
 
     /** Plugin mínimo do Chart.js pra escrever o valor acima de cada barra — evita depender de
-     * uma lib externa (chartjs-plugin-datalabels) só pra isso. */
+     * uma lib externa (chartjs-plugin-datalabels) só pra isso.
+     *
+     * Contorno escuro atrás do texto branco (stroke antes do fill) — sem isso, valores baixos
+     * (barra bem curta, o número praticamente colado no eixo/nas barras vizinhas do grupo)
+     * ficavam difíceis de ler contra o fundo escuro do painel; o contorno garante contraste
+     * não importa o que esteja atrás (decisão do usuário, 2026-08-16). */
     const pluginValoresAcimaDaBarra = {
       id: 'valoresAcimaDaBarra',
       afterDatasetsDraw(chart) {
         const { ctx } = chart;
         ctx.save();
-        ctx.font = '10px Segoe UI, Arial, sans-serif';
-        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px Segoe UI, Arial, sans-serif';
         ctx.textAlign = 'center';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(15,23,42,.9)';
+        ctx.fillStyle = '#ffffff';
         chart.data.datasets.forEach((dataset, di) => {
           const meta = chart.getDatasetMeta(di);
           if (meta.hidden) return;
           meta.data.forEach((elemento, i) => {
             const valor = dataset.data[i];
             if (!valor) return;
-            ctx.fillText(String(valor), elemento.x, elemento.y - 4);
+            const texto = String(valor);
+            ctx.strokeText(texto, elemento.x, elemento.y - 4);
+            ctx.fillText(texto, elemento.x, elemento.y - 4);
           });
         });
         ctx.restore();
@@ -302,6 +326,9 @@
         data: lista.map((r) => r[chave] || 0),
       }));
 
+      // Legenda e grades removidas de propósito (decisão do usuário, 2026-08-16) — passar o
+      // mouse já mostra Entregues/Reentregas/Devoluções/Em aberto no tooltip; os quadradinhos
+      // coloridos da legenda só duplicavam essa informação ocupando espaço.
       if (chartEntregas) chartEntregas.destroy();
       chartEntregas = new Chart(canvas, {
         type: 'bar',
@@ -310,12 +337,12 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { labels: { color: '#ffffff' } },
+            legend: { display: false },
             tooltip: { mode: 'index', intersect: false },
           },
           scales: {
-            x: { ticks: { color: '#dddddd', maxRotation: 45, minRotation: 0 }, grid: { color: '#4d4d4d' } },
-            y: { beginAtZero: true, ticks: { color: '#dddddd' }, grid: { color: '#4d4d4d' } },
+            x: { ticks: { color: '#dddddd', maxRotation: 45, minRotation: 0 }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: '#dddddd' }, grid: { display: false } },
           },
         },
         plugins: [pluginValoresAcimaDaBarra],
@@ -326,6 +353,50 @@
      * RANKING LATERAL — Desempenho das regiões
      * ============================================================ */
 
+    const COR_RANKING = '#2563EB';        // mesma cor pra todas as barras (decisão do usuário)
+    const COR_RANKING_BRILHO = 'rgba(37,99,235,.95)';
+
+    /** Escreve o "% Entregue" DENTRO da barra, encostado na ponta direita — em vez de deixar
+     * o eixo X mostrar uma escala de porcentagem embaixo (removida, ver "scales.x.display"
+     * abaixo) e em vez de uma legenda separada (decisão do usuário, 2026-08-16). */
+    const pluginPercentualNaBarra = {
+      id: 'percentualNaBarra',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        const meta = chart.getDatasetMeta(0);
+        ctx.save();
+        ctx.font = 'bold 11px Segoe UI, Arial, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        meta.data.forEach((elemento, i) => {
+          const valor = chart.data.datasets[0].data[i];
+          ctx.fillText(`${valor}%`, elemento.x - 8, elemento.y);
+        });
+        ctx.restore();
+      },
+    };
+
+    /** Brilho (glow) que intensifica na barra sob o mouse — Chart.js já troca a cor pra
+     * "hoverBackgroundColor" sozinho; esse plugin só desenha uma sombra difusa atrás da barra
+     * ativa ANTES dela ser redesenhada, then Chart.js finishes drawing on top of it. */
+    const pluginBrilhoNoHover = {
+      id: 'brilhoNoHover',
+      beforeDatasetsDraw(chart) {
+        const ativos = chart.getActiveElements();
+        if (!ativos.length) return;
+        const { ctx } = chart;
+        ctx.save();
+        ctx.shadowColor = COR_RANKING_BRILHO;
+        ctx.shadowBlur = 18;
+        ativos.forEach(({ element }) => {
+          ctx.fillStyle = COR_RANKING_BRILHO;
+          ctx.fillRect(element.base, element.y - element.height / 2, element.x - element.base, element.height);
+        });
+        ctx.restore();
+      },
+    };
+
     function renderizarRanking() {
       const canvas = document.getElementById('grafico-ranking');
       if (!canvas || typeof Chart === 'undefined') return;
@@ -335,17 +406,6 @@
         .slice()
         .sort((a, b) => b.percentual_entregue - a.percentual_entregue);
 
-      const n = ordenado.length || 1;
-      const tonsAzul = ordenado.map((_, i) => {
-        // Do azul claro (topo do ranking) ao azul escuro (fim) — mesma família de cor da
-        // imagem de referência, variando só a luminosidade por posição.
-        const t = n > 1 ? i / (n - 1) : 0;
-        const claro = [93, 173, 226];   // #5DADE2
-        const escuro = [21, 67, 96];    // #154360
-        const rgb = claro.map((c, idx) => Math.round(c + (escuro[idx] - c) * t));
-        return `rgb(${rgb.join(',')})`;
-      });
-
       if (chartRanking) chartRanking.destroy();
       chartRanking = new Chart(canvas, {
         type: 'bar',
@@ -354,7 +414,8 @@
           datasets: [{
             label: '% Entregue',
             data: ordenado.map((r) => Number(r.percentual_entregue.toFixed(1))),
-            backgroundColor: tonsAzul,
+            backgroundColor: COR_RANKING,
+            hoverBackgroundColor: COR_RANKING_BRILHO,
           }],
         },
         options: {
@@ -381,10 +442,12 @@
             },
           },
           scales: {
-            x: { beginAtZero: true, max: 100, ticks: { color: '#dddddd', callback: (v) => `${v}%` }, grid: { color: '#4d4d4d' } },
-            y: { ticks: { color: '#ffffff' }, grid: { color: '#4d4d4d' } },
+            // Sem eixo/grade — o valor já aparece dentro da própria barra (pluginPercentualNaBarra).
+            x: { display: false, beginAtZero: true, max: 100 },
+            y: { ticks: { color: '#ffffff' }, grid: { display: false } },
           },
         },
+        plugins: [pluginBrilhoNoHover, pluginPercentualNaBarra],
       });
     }
 
