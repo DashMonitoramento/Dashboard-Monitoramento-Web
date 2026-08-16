@@ -6,11 +6,9 @@
  *  - regioes_comerciais.geojson: geometria das 12 regiões com território real (RC13,
  *    "Exterior / Não mapeado", não tem geografia própria e por isso não aparece no mapa).
  *
- * Observação sobre os filtros de Supervisor/Vendedor/Categoria de transporte: a fonte de
- * dados atual (dados_regioes.json) só traz totais agregados por região — não tem essas
- * dimensões por nota. Os campos continuam na tela (desabilitados, com um título explicando o
- * motivo) para não fugir do layout pedido, mas não inventam opções/valores que não existem
- * nos dados reais.
+ * Sem filtros próprios (decisão do usuário, 2026-08-16) — essa tela usa os filtros já
+ * existentes na barra lateral do Dashboard de Entregas (que embute essa página num iframe),
+ * incluindo o filtro "Região Comercial" adicionado lá.
  */
 
 (() => {
@@ -49,6 +47,16 @@
       if (isNaN(d)) return 'Sem dados';
       return d.toLocaleDateString('pt-BR');
     },
+  };
+
+  /** Rótulo curto pra escrever dentro/perto de cada região no mapa (estilo "sigla de UF" do
+   * mapa de referência) — como 5 das 12 regiões juntam vários estados numa forma só (Sul,
+   * Centro-Oeste, Nordeste, Norte) ou são pedaços de um único estado (as 4 de SP), usei um
+   * código curto próprio em vez da sigla de UF literal, que não existe 1:1 pra essas. */
+  const ROTULO_CURTO = {
+    RC01: 'Cap', RC02: 'GSP', RC03: 'BS', RC04: 'Int',
+    RC05: 'RJ', RC06: 'MG', RC07: 'ES', RC08: 'PR',
+    RC09: 'Sul', RC10: 'CO', RC11: 'NE', RC12: 'N',
   };
 
   /** Verde >=98% / Amarelo 95-97,99% / Laranja 90-94,99% / Vermelho <90% / Cinza sem dado. */
@@ -93,6 +101,7 @@
     let regiaoSelecionada = null; // codigo (ex.: "RC01") ou null = todas
     let mapaLeaflet = null;
     let camadaGeojson = null;
+    let rotulosRegiao = []; // marcadores com o código curto de cada região (ver ROTULO_CURTO)
     let chartEntregas = null;
     let chartRanking = null;
 
@@ -104,11 +113,10 @@
      * CARREGAMENTO
      * ============================================================ */
 
-    async function carregarTudo(cacheBust) {
-      const sufixo = cacheBust ? `?t=${Date.now()}` : '';
+    async function carregarTudo() {
       const [respDados, respGeo] = await Promise.all([
-        fetch(JSON_URL + sufixo),
-        fetch(GEOJSON_URL + sufixo),
+        fetch(JSON_URL),
+        fetch(GEOJSON_URL),
       ]);
       if (!respDados.ok) throw new Error('Não foi possível carregar dados_regioes.json.');
       if (!respGeo.ok) throw new Error('Não foi possível carregar regioes_comerciais.geojson.');
@@ -138,19 +146,10 @@
         `Período: ${Utils.data(dadosCompletos.periodo_inicio)} até ${Utils.data(dadosCompletos.periodo_fim)} ` +
         `· Atualizado em ${Utils.dataHora(dadosCompletos.atualizado_em)}`;
 
-      popularFiltroRegiao();
       inicializarOuAtualizarMapa();
       atualizarKpis(regiaoSelecionada);
       renderizarGraficoEntregas();
       renderizarRanking();
-    }
-
-    function popularFiltroRegiao() {
-      const select = document.getElementById('filtro-regiao');
-      const valorAtual = select.value;
-      select.innerHTML = '<option value="">Todas as regiões</option>' +
-        regioes.map((r) => `<option value="${r.codigo}">${escapeHtml(r.regiao)}</option>`).join('');
-      if (regioes.some((r) => r.codigo === valorAtual)) select.value = valorAtual;
     }
 
     function escapeHtml(str) {
@@ -190,16 +189,43 @@
 
       const bounds = camadaGeojson.getBounds();
       if (bounds.isValid()) mapaLeaflet.fitBounds(bounds, { padding: [12, 12] });
+
+      desenharRotulosRegiao();
     }
 
+    /** Um marcador de texto (sigla curta, ver ROTULO_CURTO) no centro de cada região — mesmo
+     * estilo do mapa de referência do usuário, que mostra a sigla de cada estado por cima da
+     * cor. Usa o centro do retângulo que envolve a forma (getBounds().getCenter()) — não é o
+     * centro geométrico exato pra formas muito recortadas/espalhadas (ex.: "Norte", que junta
+     * 7 estados), mas é uma aproximação razoável sem precisar de uma lib de geometria no
+     * navegador só pra isso. */
+    function desenharRotulosRegiao() {
+      rotulosRegiao.forEach((marcador) => marcador.remove());
+      rotulosRegiao = [];
+      camadaGeojson.eachLayer((layer) => {
+        const codigo = layer.feature.properties.codigo;
+        const rotulo = ROTULO_CURTO[codigo];
+        if (!rotulo) return;
+        const marcador = L.marker(layer.getBounds().getCenter(), {
+          interactive: false,
+          icon: L.divIcon({ className: 'rotulo-regiao', html: rotulo, iconSize: [40, 16] }),
+        }).addTo(mapaLeaflet);
+        rotulosRegiao.push(marcador);
+      });
+    }
+
+    /** className "regiao-relevo" dá um leve efeito de relevo (sombra suave por CSS, ver
+     * dashboard.css) pedido pelo usuário ("se der, no mesmo modelo com relevo") — sem precisar
+     * de textura/imagem de terreno, só uma sombra sutil por cima do preenchimento flat. */
     function estiloRegiao(feature) {
       const dados = regiaoPorCodigo(feature.properties.codigo);
       const cor = dados ? corPorPercentual(dados.percentual_entregue) : '#7f8c8d';
       const selecionada = regiaoSelecionada === feature.properties.codigo;
       return {
+        className: 'regiao-relevo',
         fillColor: cor,
-        fillOpacity: selecionada ? 0.9 : 0.7,
-        color: selecionada ? '#ffffff' : '#222222',
+        fillOpacity: selecionada ? 0.9 : 0.75,
+        color: selecionada ? '#ffffff' : '#1a1a1a',
         weight: selecionada ? 2.5 : 1,
       };
     }
@@ -241,8 +267,21 @@
 
     function selecionarRegiao(codigo) {
       regiaoSelecionada = regiaoSelecionada === codigo ? null : codigo; // clicar de novo desmarca
-      if (camadaGeojson) camadaGeojson.eachLayer((layer) => layer.setStyle(estiloRegiao(layer.feature)));
-      document.getElementById('filtro-regiao').value = regiaoSelecionada || '';
+      if (camadaGeojson) {
+        camadaGeojson.eachLayer((layer) => {
+          layer.setStyle(estiloRegiao(layer.feature));
+          // Pulso rápido na região que acabou de virar a selecionada — feedback visual da troca
+          // (pedido do usuário: "relevo... quando muda de região").
+          if (layer.feature.properties.codigo === regiaoSelecionada) {
+            const elemento = layer.getElement && layer.getElement();
+            if (elemento) {
+              elemento.classList.remove('regiao-pulso');
+              void elemento.offsetWidth; // força reflow pra reiniciar a animação
+              elemento.classList.add('regiao-pulso');
+            }
+          }
+        });
+      }
       atualizarKpis(regiaoSelecionada);
     }
 
@@ -308,18 +347,12 @@
       },
     };
 
-    function regioesParaGrafico() {
-      const filtroRegiao = document.getElementById('filtro-regiao').value;
-      return filtroRegiao ? regioes.filter((r) => r.codigo === filtroRegiao) : regioes;
-    }
-
     function renderizarGraficoEntregas() {
       const canvas = document.getElementById('grafico-entregas');
       if (!canvas || typeof Chart === 'undefined') return;
-      const filtroStatus = document.getElementById('filtro-status').value;
-      const lista = regioesParaGrafico();
+      const lista = regioes;
 
-      const chaves = filtroStatus ? [filtroStatus] : ['entregues', 'reentregas', 'devolucoes', 'em_aberto'];
+      const chaves = ['entregues', 'reentregas', 'devolucoes', 'em_aberto'];
       const datasets = chaves.map((chave) => ({
         label: LABELS_STATUS[chave],
         backgroundColor: CORES_STATUS[chave],
@@ -451,55 +484,14 @@
       });
     }
 
-    /* ============================================================
-     * FILTROS
-     * ============================================================ */
-
-    function aplicarFiltros() {
-      const codigo = document.getElementById('filtro-regiao').value;
-      regiaoSelecionada = codigo || null;
-      if (camadaGeojson) camadaGeojson.eachLayer((layer) => layer.setStyle(estiloRegiao(layer.feature)));
-      atualizarKpis(regiaoSelecionada);
-      renderizarGraficoEntregas();
-    }
-
-    function limparFiltros() {
-      document.getElementById('filtro-data-inicio').value = '';
-      document.getElementById('filtro-data-fim').value = '';
-      document.getElementById('filtro-regiao').value = '';
-      document.getElementById('filtro-status').value = '';
-      regiaoSelecionada = null;
-      if (camadaGeojson) camadaGeojson.eachLayer((layer) => layer.setStyle(estiloRegiao(layer.feature)));
-      atualizarKpis(null);
-      renderizarGraficoEntregas();
-    }
-
-    async function atualizarDados() {
-      const botao = document.getElementById('btn-atualizar-dados');
-      const textoOriginal = botao.textContent;
-      botao.textContent = 'Atualizando...';
-      botao.disabled = true;
-      try {
-        await carregarTudo(true);
-      } catch (err) {
-        mostrarErroCarregamento(err.message);
-      } finally {
-        botao.textContent = textoOriginal;
-        botao.disabled = false;
-      }
-    }
-
     function bindEventos() {
-      document.getElementById('btn-aplicar-filtros').addEventListener('click', aplicarFiltros);
-      document.getElementById('btn-limpar-filtros').addEventListener('click', limparFiltros);
-      document.getElementById('btn-atualizar-dados').addEventListener('click', atualizarDados);
       window.addEventListener('resize', () => { if (mapaLeaflet) mapaLeaflet.invalidateSize(); });
     }
 
     async function init() {
       bindEventos();
       try {
-        await carregarTudo(false);
+        await carregarTudo();
       } catch (err) {
         mostrarErroCarregamento(err.message);
       }
