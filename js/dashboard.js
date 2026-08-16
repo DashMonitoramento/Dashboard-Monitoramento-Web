@@ -356,18 +356,29 @@ const Dashboard = (() => {
     bindTableControlsFor(detailTable, DETAIL_TABLE_IDS, () => detailRecords);
   }
 
+  /** Cor da célula "Status" na exportação Excel (ver exportarRegistros) — mesmas cores dos
+   * badges já usados na tela (statusBadgeClass), só que como preenchimento sólido + texto
+   * branco em negrito, no estilo do print que o usuário mandou (2026-08-16). Só colore a
+   * coluna Status; as demais saem sem cor de fundo, igual ao print. */
+  function colorirCelulaExportacao(rotuloColuna, valorFormatado) {
+    if (rotuloColuna !== 'Status') return null;
+    const fundo = { Entregue: 'FF16A34A', 'Em aberto': 'FFDC2626', 'Aguardando agendamento': 'FF64748B' }[valorFormatado];
+    return fundo ? { fundo } : null;
+  }
+
+  async function exportarRegistros(filename, records) {
+    if (!records.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+    await Utils.exportToStyledExcel(filename, 'Entregas', tableColumns(), records, colorirCelulaExportacao);
+    Utils.showToast(`${records.length} registros exportados para Excel.`, 'success');
+  }
+
   function bindActionButtons() {
     document.getElementById('btn-export-csv').addEventListener('click', () => {
-      const records = DataStore.getFilteredRecords();
-      if (!records.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
-      Utils.exportToCSV('dashboard-entregas.csv', records, tableColumns());
-      Utils.showToast(`${records.length} registros exportados para CSV.`, 'success');
+      exportarRegistros('dashboard-entregas.xlsx', DataStore.getFilteredRecords());
     });
 
     document.getElementById('btn-export-csv-detail').addEventListener('click', () => {
-      if (!detailRecords.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
-      Utils.exportToCSV('dashboard-entregas-detalhe.csv', detailRecords, tableColumns());
-      Utils.showToast(`${detailRecords.length} registros exportados para CSV.`, 'success');
+      exportarRegistros('dashboard-entregas-detalhe.xlsx', detailRecords);
     });
 
     document.getElementById('btn-print-dashboard').addEventListener('click', () => window.print());
