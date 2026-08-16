@@ -96,11 +96,6 @@ html, body {
   font-size: 13px;
 }
 
-.filtro-campo select:disabled {
-  color: var(--texto-secundario);
-  cursor: not-allowed;
-}
-
 .filtros__acoes {
   display: flex;
   gap: 8px;
