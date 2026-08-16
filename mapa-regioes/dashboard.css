@@ -1,23 +1,30 @@
 /* ============================================================
    Dashboard Logístico por Região — Da Terrinha Alimentos
-   Paleta: fundo cinza-escuro, texto branco, acentos coloridos.
+   Paleta igual à do Dashboard de Entregas principal (tema escuro), pra manter os dois
+   dashboards visualmente consistentes agora que um abre embutido dentro do outro.
    ============================================================ */
 
 :root {
-  --bg: #333333;
-  --bg-painel: #3d3d3d;
-  --bg-painel-alt: #454545;
-  --borda: #4d4d4d;
-  --texto: #ffffff;
-  --texto-secundario: #b9b9b9;
+  --bg: #0F172A;
+  --bg-painel: #17233B;
+  --bg-painel-alt: #1C2A47;
+  --borda: #29365A;
+  --texto: #EDF1F7;
+  --texto-secundario: #9AACC7;
 
-  --cor-verde: #2ecc71;
-  --cor-amarelo: #f1c40f;
-  --cor-laranja: #e67e22;
-  --cor-vermelho: #e74c3c;
-  --cor-cinza: #7f8c8d;
-  --cor-azul: #3498db;
-  --cor-azul-escuro: #1f6f9c;
+  --cor-verde: #16A34A;
+  --cor-amarelo: #EAB308;
+  --cor-laranja: #FF7A1A;
+  --cor-vermelho: #DC2626;
+  --cor-cinza: #64748B;
+  --cor-azul: #2563EB;
+  --cor-azul-escuro: #1E4FCB;
+
+  /* "Oceano" ao redor do território no mapa — mais claro que o fundo, pra parecer um mapa de
+     verdade (terra colorida por % de entrega sobre um fundo de água), não só uma caixa escura. */
+  --mapa-fundo: #123456;
+
+  --transition: 200ms cubic-bezier(.4,0,.2,1);
 }
 
 * { box-sizing: border-box; }
@@ -41,21 +48,14 @@ html, body {
 /* ---------------- Cabeçalho ---------------- */
 
 .cabecalho {
-  padding: 14px 20px;
+  padding: 10px 20px;
   text-align: center;
   border-bottom: 2px solid var(--cor-azul);
   background: var(--bg-painel);
 }
 
-.cabecalho__titulo {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: 1px;
-}
-
 .cabecalho__atualizado {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 12px;
   color: var(--texto-secundario);
 }
@@ -102,22 +102,31 @@ html, body {
   margin-left: auto;
 }
 
-.btn {
-  border: none;
-  border-radius: 4px;
-  padding: 8px 14px;
+/* Botão redondo/brilhante — mesmo padrão do toggle "Registros detalhados ⇄ Mapa" do site
+   principal: cinza brilhante parado, verde brilhante ao passar o mouse/focar (decisão do
+   usuário, 2026-08-16) — os 3 botões de ação (Aplicar/Limpar/Atualizar) usam a mesma cor,
+   só o formato redondo e o brilho importam aqui. */
+.btn-pill {
+  border-radius: 999px;
+  padding: 8px 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  color: #fff;
-  transition: filter .15s ease, transform .15s ease;
+  border: 2px solid var(--cor-cinza);
+  background: rgba(100,116,139,.12);
+  color: var(--texto);
+  box-shadow: 0 0 6px 1px rgba(100,116,139,.45);
+  transition: transform var(--transition), box-shadow var(--transition), background var(--transition), border-color var(--transition), color var(--transition);
 }
-.btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
-.btn:active { transform: translateY(0); }
-
-.btn--aplicar { background: var(--cor-azul); }
-.btn--limpar { background: var(--cor-vermelho); }
-.btn--atualizar { background: var(--cor-verde); }
+.btn-pill:hover, .btn-pill:focus-visible {
+  border-color: var(--cor-verde);
+  background: rgba(22,163,74,.14);
+  color: #fff;
+  box-shadow: 0 0 16px 3px rgba(22,163,74,.85), 0 0 4px rgba(22,163,74,.9);
+  transform: translateY(-1px);
+  outline: none;
+}
+.btn-pill:active { transform: translateY(0); }
 
 /* ---------------- Layout principal: 3 áreas ---------------- */
 
@@ -154,12 +163,19 @@ html, body {
 
 /* ---------------- Mapa ---------------- */
 
+/* Sem zoom/arrasto — mapa fixo, só pra visualizar e passar o mouse/clicar nas regiões (pedido
+   do usuário, 2026-08-16); os controles de zoom do Leaflet ficam desligados via JS
+   (zoomControl:false etc.), e essa regra aqui é só um reforço/fallback visual. */
 #mapa {
   flex: 1;
   min-height: 420px;
   border-radius: 6px;
-  background: #2a2a2a;
+  background: var(--mapa-fundo);
+  cursor: default;
 }
+#mapa .leaflet-control-zoom,
+#mapa .leaflet-control-attribution { display: none; }
+#mapa .leaflet-interactive { cursor: pointer; }
 
 .mapa-legenda {
   margin-top: 10px;
@@ -202,26 +218,48 @@ html, body {
   font-size: 13px;
 }
 
-/* ---------------- Indicadores (KPIs) ---------------- */
+/* ---------------- Indicadores (KPIs) — mesmo padrão de card do Dashboard de Entregas
+   principal: fundo "surface", tarja colorida à esquerda (--kpi-accent) e brilho da cor de
+   destaque ao passar o mouse (decisão do usuário, 2026-08-16). ---------------- */
 
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 
 .kpi-card {
   background: var(--bg-painel-alt);
   border: 1px solid var(--borda);
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 10px;
+  padding: 10px 12px;
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
 }
+.kpi-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+  background: var(--kpi-accent, var(--cor-azul));
+}
+.kpi-card:hover {
+  border-color: var(--kpi-accent, var(--cor-azul));
+  box-shadow: 0 0 22px -6px var(--kpi-accent, var(--cor-azul));
+  transform: translateY(-2px);
+}
+.kpi-card--primary { --kpi-accent: var(--cor-laranja); }
+.kpi-card--success { --kpi-accent: var(--cor-verde); }
+.kpi-card--secondary { --kpi-accent: var(--cor-azul); }
+.kpi-card--warning { --kpi-accent: var(--cor-amarelo); }
+.kpi-card--danger { --kpi-accent: var(--cor-vermelho); }
+.kpi-card--neutral { --kpi-accent: var(--cor-cinza); }
 
 .kpi-card__label {
   display: block;
   font-size: 10.5px;
   color: var(--texto-secundario);
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .03em;
   white-space: nowrap;
