@@ -15,6 +15,7 @@ const DEFAULT_CLIENTES_URL = 'assets/data/sample-data-clientes.csv';
 const DEFAULT_AGENDAMENTOS_URL = 'assets/data/sample-data-agendamentos.csv';
 const DEFAULT_MOTIVOS_URL = 'assets/data/sample-data-motivos.csv';
 const DEFAULT_RETORNO_URL = 'assets/data/sample-data-retorno.csv';
+const DEFAULT_FATURAMENTO_URL = 'assets/data/sample-data-faturamento.csv';
 const DEFAULT_REGIOES_URL = 'assets/data/sample-data-regioes.csv';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 
@@ -246,6 +247,17 @@ async function loadRetornoDataSilently(cacheBust) {
   }
 }
 
+/** Data de Faturamento por NF (aba "Base BI") — opcional; sem ela, o filtro de Período/Mês/Ano
+ * cai pra Data de Coleta (comportamento de antes de 2026-08-17), sem quebrar o resto. */
+async function loadFaturamentoDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_FATURAMENTO_URL}?t=${Date.now()}` : DEFAULT_FATURAMENTO_URL;
+    await DataStore.loadFaturamentoFromUrl(url, 'csv');
+  } catch (err) {
+    console.warn('Data de Faturamento (Base BI) não carregada automaticamente:', err.message);
+  }
+}
+
 /** Cadastro cidade -> região comercial (mesma fonte do Dashboard Logístico por Região) —
  * opcional; sem ele, o filtro "Região Comercial" da barra lateral simplesmente fica vazio. */
 async function loadRegioesDataSilently(cacheBust) {
@@ -308,6 +320,7 @@ async function loadInitialData() {
     await loadAgendamentosDataSilently(false);
     await loadMotivosDataSilently(false);
     await loadRetornoDataSilently(false);
+    await loadFaturamentoDataSilently(false);
     await loadRegioesDataSilently(false);
     await loadCanhotosIndexSilently(false);
     await loadAgendamentosManuaisSilently();
@@ -335,6 +348,7 @@ async function refreshData() {
     await loadAgendamentosDataSilently(true);
     await loadMotivosDataSilently(true);
     await loadRetornoDataSilently(true);
+    await loadFaturamentoDataSilently(true);
     await loadRegioesDataSilently(true);
     await loadCanhotosIndexSilently(true);
     await loadAgendamentosManuaisSilently();
