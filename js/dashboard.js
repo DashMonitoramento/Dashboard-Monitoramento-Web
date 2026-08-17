@@ -23,6 +23,11 @@ const Dashboard = (() => {
   let detailTable = createTableState();
   let detailRecords = [];
   let detailKey = null;
+  // Busca própria da tela de detalhe (drill-down de um card) — separada do "busca" global da
+  // tabela principal, porque essa tela some quando o usuário volta (pedido do usuário,
+  // 2026-08-17: precisa dar pra pesquisar dentro do recorte do card, ex.: achar uma NF/cliente
+  // específico entre as 175 notas de "Aguardando agendamento").
+  let detailBusca = '';
   const DETAIL_TABLE_IDS = {
     tbody: 'detail-table-body', info: 'detail-table-info', pageLabel: 'detail-table-page-label',
     prev: 'detail-table-prev', next: 'detail-table-next', theadSelector: '#detail-data-table thead th[data-field]'
@@ -32,7 +37,7 @@ const Dashboard = (() => {
   // index.html — qualquer r.situacao fora dessa lista cai no botão "Status Diversos".
   const KNOWN_SITUACOES = [
     'Aguardando agendamento', 'Agendado', 'Cancelado', 'Devolução', 'Em aberto',
-    'Em rota', 'Entregue', 'Reentrega', 'Recusa'
+    'Em rota', 'Entregue', 'Reentrega', 'Recusa', 'Reagendar'
   ];
 
   // Cada entrada define o que um card de KPI representa, pra abrir a tela de detalhe com
@@ -359,6 +364,13 @@ const Dashboard = (() => {
     });
 
     bindTableControlsFor(detailTable, DETAIL_TABLE_IDS, () => detailRecords);
+
+    const detailSearchHandler = Utils.debounce((value) => {
+      detailBusca = value;
+      detailTable.page = 1;
+      renderStatusDetail();
+    }, 250);
+    document.getElementById('detail-table-search').addEventListener('input', (e) => detailSearchHandler(e.target.value));
   }
 
   /** Cor da célula "Status" na exportação Excel (ver exportarRegistros) — mesmas cores dos
@@ -412,6 +424,9 @@ const Dashboard = (() => {
     // Muda os campos no mesmo objeto (em vez de reatribuir `detailTable`) porque os cliques
     // de ordenação/paginação já foram amarrados a essa referência específica em bindTableControls.
     Object.assign(detailTable, createTableState());
+    detailBusca = '';
+    const buscaDetalhe = document.getElementById('detail-table-search');
+    if (buscaDetalhe) buscaDetalhe.value = '';
     renderStatusDetail();
     document.getElementById('main-view').hidden = true;
     document.getElementById('status-detail-view').hidden = false;
@@ -428,7 +443,14 @@ const Dashboard = (() => {
   function renderStatusDetail() {
     if (!detailKey) return;
     const def = STATUS_DETAIL_DEFS[detailKey];
-    detailRecords = DataStore.getFilteredRecords().filter(def.test);
+    let registros = DataStore.getFilteredRecords().filter(def.test);
+    if (detailBusca) {
+      const needle = detailBusca.toLowerCase();
+      registros = registros.filter(r =>
+        `${r.nf} ${r.cliente} ${r.transportadora} ${r.motorista} ${r.vendedor} ${r.cidade} ${r.situacao}`
+          .toLowerCase().includes(needle));
+    }
+    detailRecords = registros;
     document.getElementById('detail-view-title').textContent = `${def.title} (${Utils.formatNumber(detailRecords.length)})`;
     renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS);
     renderMotivosBreakdown(detailRecords);
@@ -496,6 +518,7 @@ const Dashboard = (() => {
       const nfBase = r.nf.split('-')[0];
       const statusAtual = r.statusAgendamento || '';
       const dataAtual = formatDateParaInput(r.dataAgendamento);
+      const observacaoAtual = r.observacaoAgendamento || '';
 
       if (!admin) {
         return `
@@ -504,6 +527,7 @@ const Dashboard = (() => {
             <span class="agendamento-row__cliente" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</span>
             <span class="agendamento-row__status--somente-leitura">${escapeAttr(statusAtual || 'Sem informação')}</span>
             <span class="agendamento-row__status--somente-leitura">${dataAtual ? Utils.formatDate(r.dataAgendamento) : '—'}</span>
+            <span class="agendamento-row__observacao--somente-leitura" title="${escapeAttr(observacaoAtual)}">${escapeAttr(observacaoAtual || '—')}</span>
             <span></span>
           </div>
         `;
@@ -521,6 +545,7 @@ const Dashboard = (() => {
             ${opcoes}
           </select>
           <input type="date" class="agendamento-row__data-input" value="${dataAtual}">
+          <input type="text" class="agendamento-row__observacao-input" placeholder="Observação (opcional)" value="${escapeAttr(observacaoAtual)}">
           <button type="button" class="btn agendamento-row__salvar">Salvar</button>
         </div>
       `;
@@ -540,6 +565,7 @@ const Dashboard = (() => {
       const nf = linha.dataset.nf;
       const status = linha.querySelector('.agendamento-row__status-select').value;
       const data = linha.querySelector('.agendamento-row__data-input').value;
+      const observacao = linha.querySelector('.agendamento-row__observacao-input').value.trim();
 
       botao.disabled = true;
       botao.textContent = 'Salvando...';
@@ -548,8 +574,8 @@ const Dashboard = (() => {
           if (window.Firebase) return resolve(window.Firebase);
           window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
         });
-        await fb.salvarAgendamentoManual(nf, status, data);
-        DataStore.applyAgendamentoManual({ [nf]: { statusAgendamento: status, dataAgendamento: data } });
+        await fb.salvarAgendamentoManual(nf, status, data, observacao);
+        DataStore.applyAgendamentoManual({ [nf]: { statusAgendamento: status, dataAgendamento: data, observacao } });
         Utils.showToast(`NF ${nf}: agendamento salvo.`, 'success', 2500);
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao salvar o agendamento.', 'error', 5000);
