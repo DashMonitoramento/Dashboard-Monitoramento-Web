@@ -98,13 +98,15 @@ async function getAgendamentosManuais() {
 
 /** Grava/atualiza o agendamento manual de uma NF. `dataAgendamento` é uma string
  * "yyyy-MM-dd" (ou '' pra limpar) — mais simples de editar num <input type="date"> do que
- * lidar com Timestamp do Firestore na hora de preencher o campo de volta. */
-async function salvarAgendamentoManual(nf, statusAgendamento, dataAgendamento) {
+ * lidar com Timestamp do Firestore na hora de preencher o campo de volta. `observacao`
+ * (2026-08-17) é um texto livre opcional pra quem edita anotar algo sobre a nota. */
+async function salvarAgendamentoManual(nf, statusAgendamento, dataAgendamento, observacao) {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
   await setDoc(doc(db, AGENDAMENTOS_MANUAIS_COLECAO, nf), {
     statusAgendamento: statusAgendamento || '',
     dataAgendamento: dataAgendamento || '',
+    observacao: observacao || '',
     atualizadoPorEmail: usuario.email,
     atualizadoEm: serverTimestamp()
   });
