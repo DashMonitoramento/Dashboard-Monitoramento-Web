@@ -377,6 +377,7 @@ function normalizeRecord(rawRow) {
     // essa base ser carregada, já que nenhuma outra fonte hoje traz esses três campos.
     necessitaAgendamento: null,
     statusAgendamento: '',
+    observacaoAgendamento: '',
     reagendar: '',
     // Preenchidos pela planilha de Motivos (Base BI), só para as notas que ela cobre —
     // ver applyMotivoEnrichment. Cobertura parcial (~dez/2025 a abr/2026), por isso não dá
@@ -776,11 +777,14 @@ const DataStore = (() => {
         tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
+        statusAgendamento: '',
+        observacaoAgendamento: '',
         motivo: '',
         motivoCategoria: ''
       });
     }
 
+    aplicarReagendarQuandoObrigaAgendamento();
     recomputarPrazoStatus();
   }
 
@@ -797,6 +801,22 @@ const DataStore = (() => {
    *   informação" (quem mostra a etapa dessas notas é o card "Situação de agendamento").
    * Decisão do usuário (2026-08-15).
    */
+  /** Nota que "Obriga Agendamento" mas cuja situação é "Reentrega" vira "Reagendar" — por
+   * decisão do usuário (2026-08-17): pra quem precisa agendar, uma reentrega na prática
+   * significa "precisa reagendar a entrega", não é só mais uma tentativa comum de reentrega.
+   * Chamada nos mesmos pontos que recomputarPrazoStatus() — sempre que necessitaAgendamento ou
+   * situacao podem ter mudado (enriquecimento da Bluesoft, Agendamentos, edição manual). Usa o
+   * necessitaAgendamento FINAL do registro (depois de toda enriquecimento já ter rodado), não
+   * o valor visto no momento da leitura da planilha principal — por isso é uma função própria,
+   * não faz parte de normalizeSituacao(). */
+  function aplicarReagendarQuandoObrigaAgendamento() {
+    for (const r of rawRecords) {
+      if (r.necessitaAgendamento && r.situacao === 'Reentrega') {
+        r.situacao = 'Reagendar';
+      }
+    }
+  }
+
   function recomputarPrazoStatus() {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -1026,6 +1046,7 @@ const DataStore = (() => {
       // (Entregue/Devolução/Cancelado/Reentrega/Em aberto), pra não perder essa informação nas
       // notas que também aparecem na planilha de Agendamentos.
     }
+    aplicarReagendarQuandoObrigaAgendamento();
     recomputarPrazoStatus(); // a Data de Agendamento pode ter mudado acima
   }
 
@@ -1117,6 +1138,7 @@ const DataStore = (() => {
         if (tipoPorNome) r.tipoTransporte = tipoPorNome;
       }
     }
+    aplicarReagendarQuandoObrigaAgendamento();
     recomputarPrazoStatus();
   }
 
@@ -1298,10 +1320,12 @@ const DataStore = (() => {
   /**
    * Mescla os agendamentos preenchidos manualmente no site (Firestore, ver
    * Firebase.getAgendamentosManuais() em firebase-init.js) nos registros já carregados.
-   * `porNf` é o objeto { [nf sem sufixo]: { statusAgendamento, dataAgendamento } }. Substitui
-   * a antiga dependência da planilha de Agendamentos pra ESSAS duas informações
+   * `porNf` é o objeto { [nf sem sufixo]: { statusAgendamento, dataAgendamento, observacao } }.
+   * Substitui a antiga dependência da planilha de Agendamentos pra ESSAS informações
    * especificamente — por decisão do usuário (2026-08-14), que prefere digitar a data/status
-   * direto no dashboard em vez de manter uma planilha separada com fórmulas frágeis.
+   * direto no dashboard em vez de manter uma planilha separada com fórmulas frágeis. A
+   * observação (2026-08-17) usa `!== undefined` (não um teste de "verdadeiro") de propósito —
+   * precisa dar pra limpar o campo salvando uma string vazia, não só preencher.
    */
   function applyAgendamentoManual(porNf) {
     if (!porNf) return;
@@ -1310,7 +1334,9 @@ const DataStore = (() => {
       if (!info) continue;
       if (info.statusAgendamento) r.statusAgendamento = info.statusAgendamento;
       if (info.dataAgendamento) r.dataAgendamento = Utils.parseDate(info.dataAgendamento);
+      if (info.observacao !== undefined) r.observacaoAgendamento = info.observacao;
     }
+    aplicarReagendarQuandoObrigaAgendamento();
     recomputarPrazoStatus(); // a Data de Agendamento pode ter mudado acima
     notify();
   }
