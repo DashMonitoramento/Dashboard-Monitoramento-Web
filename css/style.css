@@ -558,17 +558,21 @@ ul { list-style: none; margin: 0; padding: 0; }
 .detail-agendamento__hint { font-size: 11.5px; color: var(--text-secondary); }
 .detail-agendamento__list { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
 .agendamento-row {
-  display: grid; grid-template-columns: minmax(90px, 120px) minmax(140px, 1fr) auto auto auto;
+  display: grid; grid-template-columns: minmax(90px, 120px) minmax(140px, 1fr) auto auto minmax(140px, 1fr) auto;
   align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm);
   background: var(--surface); border: 1px solid var(--border); font-size: 12.5px;
 }
 .agendamento-row__nf { font-weight: 700; color: var(--color-orange); white-space: nowrap; }
 .agendamento-row__cliente { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.agendamento-row select, .agendamento-row input[type="date"] {
+.agendamento-row select, .agendamento-row input[type="date"], .agendamento-row input[type="text"] {
   padding: 5px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface-alt); color: var(--text-primary); font-size: 12px;
 }
+.agendamento-row input[type="text"] { width: 100%; }
 .agendamento-row__status--somente-leitura { padding: 5px 6px; color: var(--text-primary); white-space: nowrap; }
+.agendamento-row__observacao--somente-leitura {
+  padding: 5px 6px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .agendamento-row__salvar { font-size: 11.5px; padding: 5px 10px; }
 .agendamento-row__salvar[disabled] { opacity: .5; cursor: default; }
 
