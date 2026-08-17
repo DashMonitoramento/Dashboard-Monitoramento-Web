@@ -43,15 +43,20 @@ const Dashboard = (() => {
     'devolucao': { title: 'Devolução', test: r => r.situacao === 'Devolução' },
     'cancelado': { title: 'Cancelado', test: r => r.situacao === 'Cancelado' },
     'reentrega': { title: 'Reentrega', test: r => r.situacao === 'Reentrega' },
-    // "Aguardando agendamento" por decisão do usuário (2026-08-16): não é mais só a situação
-    // específica com esse nome — é TUDO que ainda não teve uma resolução final (Entregue,
-    // Devolução ou Cancelado). "Em aberto" e "Reentrega" só saem daqui quando alguém preenche
-    // manualmente a "Situação de agendamento por nota" (ver detail-agendamento-section). Por
-    // isso esse card agora se sobrepõe de propósito com "Notas em aberto"/"Reentrega" — é uma
-    // fila de "precisa de ação", não uma categoria exclusiva de status.
+    // "Aguardando agendamento" por decisão do usuário (2026-08-17): conta só quem REALMENTE
+    // precisa ser agendado ainda — "Obriga Agendamento" (necessitaAgendamento), situação "Em
+    // aberto" e NENHUMA etapa de agendamento já registrada (Agendado/Aguardando Confirmação/
+    // Reagendar/Okker — ver AGENDAMENTO_ETAPAS_ESPECIFICAS mais abaixo, mesma lista do gráfico
+    // "Situação de agendamento"). Antes contava TUDO que não fosse Entregue/Devolução/Cancelado
+    // (incluía Reentrega, notas que nem obrigam agendamento etc.), o que inflava muito esse
+    // número (1.442) em relação ao que o card deveria representar de verdade: notas realmente
+    // paradas esperando alguém agendar. Esse card agora bate exatamente com a fatia "Sem etapa
+    // definida" do gráfico de agendamento (não mais com o TOTAL do gráfico, ver
+    // renderAgendamentoChart) — faz sentido: lá ele é literalmente "ainda sem etapa nenhuma".
     'aguardando': {
       title: 'Aguardando agendamento',
-      test: r => r.situacao !== 'Entregue' && r.situacao !== 'Devolução' && r.situacao !== 'Cancelado'
+      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' &&
+        !AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)
     },
     'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) }
   };
@@ -893,30 +898,27 @@ const Dashboard = (() => {
     });
   }
 
-  // "Sem etapa definida" (não "Aguardando agendamento") de propósito — por decisão do usuário
-  // (2026-08-16): o card "Aguardando agendamento" é o TOTAL (1.442); esse gráfico quebra esse
-  // total em fatias, e uma fatia com o MESMO nome do card mas um número diferente (por excluir
-  // as notas que já têm uma etapa mais específica, ex.: "Okker") confundia quem tá analisando.
   const AGENDAMENTO_STATUS_CATEGORIAS = [
     'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker'
   ];
   // As 4 etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
   // (valor bruto da coluna "Status" da planilha de Agendamentos). Qualquer nota da população
   // (ver renderAgendamentoChart) que não tenha uma dessas 4 cai em "Sem etapa definida" por
-  // padrão — não depende mais do texto literal "Aguardando agendamento" estar naquela planilha
-  // (que fica desatualizado, ver decisão abaixo).
+  // padrão.
   const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker'];
 
-  /** Situação de agendamento: mesma população do card "Aguardando agendamento" — exclui só
-   * Entregue/Devolução/Cancelado (por decisão do usuário, 2026-08-16) — quebrada pelas etapas
-   * específicas já registradas na planilha de Agendamentos; o que sobra vai pra "Sem etapa
-   * definida". Isso faz a SOMA das 5 fatias sempre bater com o total do card — antes, o
-   * gráfico só contava quem tinha o texto exato "Aguardando agendamento" naquela planilha (que
-   * não é atualizada quando a nota avança), ficando bem menor e dessincronizado do card. */
+  /** Situação de agendamento: só entram notas que realmente "Obriga Agendamento" e estão "Em
+   * aberto" (mesma população do card "Aguardando agendamento", ver STATUS_DETAIL_DEFS —
+   * decisão do usuário, 2026-08-17), quebradas pelas etapas já registradas na planilha de
+   * Agendamentos; o que sobra vai pra "Sem etapa definida". Por causa disso, o card não bate
+   * mais com o TOTAL desse gráfico (soma das 5 fatias) — bate exatamente com a fatia "Sem etapa
+   * definida" sozinha, já que o card é, por definição, quem ainda não tem etapa nenhuma. As
+   * outras 4 fatias (Agendado/Aguardando Confirmação/Reagendar/Okker) mostram quem já avançou
+   * além do card, mas continua "Em aberto" aguardando a entrega de fato. */
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     records.forEach(r => {
-      if (r.situacao === 'Entregue' || r.situacao === 'Devolução' || r.situacao === 'Cancelado') return;
+      if (!r.necessitaAgendamento || r.situacao !== 'Em aberto') return;
       if (AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)) {
         counts[r.statusAgendamento]++;
       } else {
