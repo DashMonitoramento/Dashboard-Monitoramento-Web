@@ -369,6 +369,9 @@ function normalizeRecord(rawRow) {
     // Só existe pra registros vindos da Base Bluesoft (ver applyBluesoftEnrichment) — a aba
     // "NF Aberta" não distingue início de viagem de entrega, então fica nulo aqui.
     dataInicioViagem: null,
+    // Idem — só a Bluesoft distingue tentativas repetidas da mesma NF (ver
+    // bluesoftDataColetaMaisRecentePorBaseNF/getFilteredRecords).
+    dataUltimaTentativaBluesoft: null,
     // Transportadora própria (frota agregada) x transportadora terceirizada — vem da aba
     // RETORNO, coluna "Tipo de Transporte" (ver applyRetornoEnrichment).
     tipoTransporte: 'NÃO INFORMADO',
@@ -493,6 +496,14 @@ const DataStore = (() => {
   // bluesoftStatusByNF porque aquele já reduz a UMA linha por sufixo exato (a mais recente),
   // perdendo a data mais antiga se o sufixo se repetir — ver indexBluesoftRows.
   let bluesoftDataColetaMaisAntigaPorBaseNF = new Map();
+  // Contraparte "mais recente" do mapa acima — usada só como RESERVA pro filtro de
+  // Período/Mês/Ano (ver getFilteredRecords), quando a nota não tem Data de Faturamento na
+  // Base BI (decisão do usuário, 2026-08-17): nesse caso, uma nota com mais de uma
+  // tentativa (ex.: reentrega em junho, entregue em julho) passa a contar no mês da
+  // tentativa MAIS recente, não da mais antiga — reflete melhor "o que aconteceu esse mês"
+  // no relatório de Registros detalhados. Não afeta "Data Coleta" (r.dataEntrega) nem o
+  // card "Total geral de notas", que continuam usando a mais antiga de propósito.
+  let bluesoftDataColetaMaisRecentePorBaseNF = new Map();
   let clienteInfoByName = new Map(); // nome do cliente (normalizado) -> { vendedor, grupoEconomico }
   let clienteInfoByCNPJ = new Map(); // CNPJ (normalizado) -> { vendedor, grupoEconomico } — mais preciso que o nome, distingue filiais
   let clienteEntriesList = []; // todas as linhas da Planilha1 (mesmo nomes repetidos), para o fallback por substring
@@ -504,6 +515,12 @@ const DataStore = (() => {
   // applyRetornoEnrichment). Só serve pra tipoTransporte (propriedade fixa da transportadora);
   // o prazo em dias fica de fora do fallback, pois pode variar por rota/cliente/pedido.
   let retornoTipoPorTransportadora = new Map();
+  // NF (base) -> Data de Faturamento (aba "Base BI" da planilha, coluna "Data faturamento") —
+  // por decisão do usuário (2026-08-17), essa passou a ser a data prioritária pro filtro de
+  // Período/Mês (ver getFilteredRecords/getAvailableYears), no lugar da Data de Coleta: uma
+  // nota coletada num mês só é faturada no mês seguinte às vezes, e o relatório de "Registros
+  // detalhados" precisa contar pelo mês de faturamento nesses casos.
+  let faturamentoPorNF = new Map();
   // "cidade|uf" (normalizado) -> código da região comercial (RC01..RC12) — cadastro da
   // planilha Mapa_Dashboard_Regioes_Comerciais.xlsx (aba "Cadastro Regioes"), usado pelo filtro
   // "Região Comercial" da barra lateral. Só cobre cidades que já tiveram nota (334 no
@@ -604,6 +621,7 @@ const DataStore = (() => {
   function indexBluesoftRows(rawRows) {
     const map = new Map();
     const dataMaisAntigaPorBaseNF = new Map();
+    const dataMaisRecentePorBaseNF = new Map();
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
       // Aceita tanto o CSV enxuto (NF; Status Bluesoft) quanto uma exportação bruta
@@ -642,8 +660,10 @@ const DataStore = (() => {
       // antiga se perderia antes de chegar aqui. Ver applyBluesoftEnrichment/decisão 2026-08-16.
       if (dataEntregaParsed) {
         const baseNf = nf.split('-')[0];
-        const atual = dataMaisAntigaPorBaseNF.get(baseNf);
-        if (!atual || dataEntregaParsed < atual) dataMaisAntigaPorBaseNF.set(baseNf, dataEntregaParsed);
+        const maisAntiga = dataMaisAntigaPorBaseNF.get(baseNf);
+        if (!maisAntiga || dataEntregaParsed < maisAntiga) dataMaisAntigaPorBaseNF.set(baseNf, dataEntregaParsed);
+        const maisRecente = dataMaisRecentePorBaseNF.get(baseNf);
+        if (!maisRecente || dataEntregaParsed > maisRecente) dataMaisRecentePorBaseNF.set(baseNf, dataEntregaParsed);
       }
 
       // Uma NF pode aparecer em várias viagens/tentativas — fica a linha mais recente por data
@@ -653,6 +673,7 @@ const DataStore = (() => {
     }
     bluesoftStatusByNF = map;
     bluesoftDataColetaMaisAntigaPorBaseNF = dataMaisAntigaPorBaseNF;
+    bluesoftDataColetaMaisRecentePorBaseNF = dataMaisRecentePorBaseNF;
   }
 
   /**
@@ -743,6 +764,11 @@ const DataStore = (() => {
         if (dataColeta) r.dataEntrega = dataColeta;
       }
       if (!r.dataInicioViagem && info.dataEntrega) r.dataInicioViagem = Utils.parseDate(info.dataEntrega);
+      // Reserva pro filtro de Período/Mês/Ano quando não há Data de Faturamento na Base BI
+      // (ver getFilteredRecords/decisão do usuário, 2026-08-17) — a tentativa MAIS recente
+      // entre as da Bluesoft, não a mais antiga (essa é r.dataEntrega, usada em "Data Coleta"
+      // e no card "Total geral de notas", que continuam por critério antigo de propósito).
+      r.dataUltimaTentativaBluesoft = bluesoftDataColetaMaisRecentePorBaseNF.get(r.nf.split('-')[0]) || null;
     }
 
     // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
@@ -774,6 +800,7 @@ const DataStore = (() => {
         dataFaturamento: null,
         dataEntrega: dataColeta,
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
+        dataUltimaTentativaBluesoft: bluesoftDataColetaMaisRecentePorBaseNF.get(baseNf) || null,
         tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
@@ -1143,6 +1170,58 @@ const DataStore = (() => {
   }
 
   /**
+   * Carrega a Data de Faturamento por NF (aba "Base BI", coluna "Data faturamento" — ver
+   * scripts/atualizar-dados-dashboard.ps1/Extrair-Faturamento). Cobertura completa (toda linha
+   * com NF preenchido, não só as com motivo registrado como em loadMotivosFromUrl abaixo).
+   * Decisão do usuário (2026-08-17): essa passou a ser a data prioritária pro filtro de
+   * Período/Mês/Ano — ver applyFaturamentoEnrichment e getFilteredRecords/getAvailableYears.
+   */
+  async function loadFaturamentoFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexFaturamentoRows(rawRows);
+    applyFaturamentoEnrichment();
+    notify();
+  }
+
+  async function loadFaturamentoFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexFaturamentoRows(rawRows);
+    applyFaturamentoEnrichment();
+    notify();
+  }
+
+  function indexFaturamentoRows(rawRows) {
+    const map = new Map();
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const nfHeader = FIELD_ALIASES.nf.map(a => headerIndex[a]).find(h => h !== undefined);
+      const nfRaw = String((nfHeader !== undefined ? row[nfHeader] : '') || '').trim();
+      if (!nfRaw) continue;
+      const nf = nfRaw.split('-')[0].trim();
+      if (!nf) continue;
+      const dataFaturamentoHeader = headerIndex['data faturamento'];
+      const dataFaturamento = dataFaturamentoHeader !== undefined ? Utils.parseDate(row[dataFaturamentoHeader]) : null;
+      if (dataFaturamento) map.set(nf, dataFaturamento);
+    }
+    faturamentoPorNF = map;
+  }
+
+  /** Sobrescreve r.dataFaturamento com o valor da Base BI (fonte dedicada e mais confiável pra
+   * esse campo especificamente — antes ele só vinha, de forma inconsistente, de outras
+   * planilhas). Só sobrescreve quando a Base BI TEM a informação; sem ela, mantém o que já
+   * existia (ex.: notas só-Bluesoft, cobertas só por Data de Coleta). */
+  function applyFaturamentoEnrichment() {
+    if (faturamentoPorNF.size === 0) return;
+    for (const r of rawRecords) {
+      const dataFaturamento = faturamentoPorNF.get(r.nf.split('-')[0]);
+      if (dataFaturamento) r.dataFaturamento = dataFaturamento;
+    }
+  }
+
+  /**
    * Carrega a planilha de Motivos (extraída da coluna "OBS." da Base BI, único lugar com
    * motivo detalhado que bate com a Situação real da nota) — cruzada por NF + Situação.
    * Cobertura parcial (só ~dez/2025 a abr/2026, a janela da Base BI): sem essa base, os
@@ -1275,7 +1354,13 @@ const DataStore = (() => {
     } = filters;
 
     return rawRecords.filter(r => {
-      const ref = r.dataEntrega || r.dataFaturamento || r.dataAgendamento || r.dataEmissao;
+      // Prioriza Data de Faturamento (decisão do usuário, 2026-08-17): uma nota pode ser
+      // coletada num mês e faturada só no seguinte — o filtro de Período/Mês/Ano (e por
+      // consequência o relatório exportado de "Registros detalhados") passou a contar pelo mês
+      // de faturamento nesses casos. Sem faturamento na Base BI (notas só-Bluesoft), usa a
+      // tentativa MAIS RECENTE da Bluesoft — não a mais antiga (essa é r.dataEntrega/"Data
+      // Coleta", que continua por critério antigo pro card "Total geral de notas").
+      const ref = r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao;
 
       if (dataInicio && ref && ref < dataInicio) return false;
       if (dataFim && ref && ref > dataFim) return false;
@@ -1311,7 +1396,7 @@ const DataStore = (() => {
 
   function getAvailableYears() {
     const years = rawRecords
-      .map(r => (r.dataEntrega || r.dataFaturamento || r.dataAgendamento || r.dataEmissao))
+      .map(r => (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao))
       .filter(Boolean)
       .map(d => d.getFullYear());
     return Utils.uniqueSorted(years).sort((a, b) => b - a);
@@ -1348,6 +1433,7 @@ const DataStore = (() => {
     loadAgendamentosFromUrl, loadAgendamentosFromFile,
     loadMotivosFromUrl, loadMotivosFromFile,
     loadRetornoFromUrl, loadRetornoFromFile,
+    loadFaturamentoFromUrl, loadFaturamentoFromFile,
     loadRegioesFromUrl, loadRegioesFromFile,
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
