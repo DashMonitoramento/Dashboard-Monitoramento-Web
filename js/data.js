@@ -263,7 +263,13 @@ function parseNecessitaAgendamento(rawValue) {
 function parseObrigaAgendamentoBluesoft(rawValue) {
   const s = normalizeHeaderKey(rawValue || '');
   if (!s) return null;
-  if (s.includes('nao obriga')) return false;
+  // Só existem 2 valores possíveis nessa coluna ("Obriga Agenda" / "Não obriga agenda"). Uma
+  // exportação manual (Salvar Como CSV) da Base Bluesoft às vezes grava "ã" como um único byte
+  // inválido em UTF-8 (visto 2026-08-18) — o navegador troca esse byte pelo caractere de
+  // substituição U+FFFD, quebrando o "nao obriga" de "n�o obriga" e caindo, por engano, no
+  // "obriga" positivo abaixo. O "." no lugar do "a"/"ã" tolera esse caractere sem exigir que o
+  // texto esteja limpo.
+  if (/n.?o\s+obriga/.test(s)) return false;
   if (s.includes('obriga')) return true;
   return null;
 }
