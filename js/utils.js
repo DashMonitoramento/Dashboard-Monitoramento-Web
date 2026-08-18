@@ -52,6 +52,17 @@ const Utils = (() => {
     const str = String(value).trim();
     if (!str) return null;
 
+    // Serial do Excel que chegou como TEXTO em vez de número (célula de origem formatada como
+    // Texto em vez de Data — já visto na Base Bluesoft, 2026-08-18, num lote reimportado). Um
+    // número puro de 5-6 dígitos aqui só pode ser um serial de data (o intervalo cobre qualquer
+    // ano entre 1927 e 2173); sem este bloco cai no "generic = new Date(str)" mais abaixo, que
+    // interpreta "46251" como se fosse o ANO 46251 em vez do serial de uma data de 2026.
+    if (/^\d{5,6}$/.test(str)) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const d = new Date(excelEpoch.getTime() + Number(str) * 86400000);
+      return isNaN(d) ? null : d;
+    }
+
     // dd/mm/aaaa ou dd-mm-aaaa
     let m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
     if (m) {
