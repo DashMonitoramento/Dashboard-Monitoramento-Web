@@ -755,11 +755,24 @@ const Dashboard = (() => {
     const labels = meses.map(m => `${Utils.MONTH_NAMES[m.data.getMonth()]}/${String(m.data.getFullYear()).slice(2)}`);
     charts.registroDinamico.update({
       labels,
-      series: [
-        { name: 'Valor faturado', data: meses.map(m => m.valorTotal), color: ChartPalette[0], format: 'currency' },
-        { name: 'Quantidade de notas', data: meses.map(m => m.quantidade), color: ChartPalette[1], format: 'number' }
-      ]
+      series: [{ name: 'Valor faturado', data: meses.map(m => m.valorTotal), color: ChartPalette[0] }]
     });
+    renderRegistroDinamicoCardsMes(meses);
+  }
+
+  /** Um card pequeno por mês com a quantidade de notas — decisão do usuário (2026-08-18):
+   * ocupa o espaço que sobrou embaixo do gráfico depois que "Quantidade de notas" saiu de lá
+   * (grandeza incompatível com "Valor faturado" no mesmo eixo). */
+  function renderRegistroDinamicoCardsMes(meses) {
+    const container = document.getElementById('registro-dinamico-cards-mes');
+    if (!container) return;
+    container.innerHTML = meses.map(m => `
+      <div class="registro-dinamico__card-mes">
+        <div class="registro-dinamico__card-mes__mes">${Utils.MONTH_NAMES[m.data.getMonth()]}/${String(m.data.getFullYear()).slice(2)}</div>
+        <div class="registro-dinamico__card-mes__valor">${Utils.formatNumber(m.quantidade)}</div>
+        <div class="registro-dinamico__card-mes__label">nota${m.quantidade === 1 ? '' : 's'}</div>
+      </div>
+    `).join('');
   }
 
   function registrosDoDiaSelecionado() {
@@ -1046,16 +1059,11 @@ const Dashboard = (() => {
     charts.evolucaoMensal = new DashChart(document.getElementById('chart-evolucao-mensal'), {
       type: 'area', labels: [], series: [{ name: 'Valor faturado', data: [], color: ChartPalette[0] }], options: { currency: true }
     });
-    // Registro Dinâmico: Valor (R$) e Quantidade (unidades) têm grandezas muito diferentes —
-    // perSeriesScale dá um eixo próprio pra cada série, senão "Quantidade" vira uma linha
-    // reta colada no fundo do gráfico ao lado de "Valor faturado" na casa dos milhões.
+    // Registro Dinâmico: mesmo visual de "Evolução mensal" (área com gradiente, sobe junto
+    // com o valor) — decisão do usuário (2026-08-18): a Quantidade de notas saiu do gráfico
+    // (grandeza muito diferente de Valor) e passou a ser um card por mês, abaixo dele.
     charts.registroDinamico = new DashChart(document.getElementById('chart-registro-dinamico'), {
-      type: 'line', labels: [],
-      series: [
-        { name: 'Valor faturado', data: [], color: ChartPalette[0], format: 'currency' },
-        { name: 'Quantidade de notas', data: [], color: ChartPalette[1], format: 'number' }
-      ],
-      options: { perSeriesScale: true }
+      type: 'area', labels: [], series: [{ name: 'Valor faturado', data: [], color: ChartPalette[0] }], options: { currency: true }
     });
     charts.comparativo = new DashChart(document.getElementById('chart-comparativo'), {
       type: 'line',
