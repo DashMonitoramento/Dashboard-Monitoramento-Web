@@ -33,6 +33,27 @@ const Dashboard = (() => {
     prev: 'detail-table-prev', next: 'detail-table-next', theadSelector: '#detail-data-table thead th[data-field]'
   };
 
+  // "Registro Dinâmico" (2026-08-18): consolida as notas filtradas por Data de Faturamento —
+  // uma linha por data, com soma de Valor e contagem de notas. Clicar na data abre, embaixo,
+  // o detalhe por nota daquele dia (2ª tabela/estado, registroDinamicoDetalheTable).
+  let registroDinamicoTable = Object.assign(createTableState(), { sortField: 'dataFaturamento', sortDir: 'asc' });
+  const REGISTRO_DINAMICO_TABLE_IDS = {
+    tbody: 'registro-dinamico-table-body', info: 'registro-dinamico-table-info',
+    pageLabel: 'registro-dinamico-table-page-label', prev: 'registro-dinamico-table-prev',
+    next: 'registro-dinamico-table-next', theadSelector: '#registro-dinamico-table thead th[data-field]',
+    colspan: 3
+  };
+  let registroDinamicoDetalheTable = Object.assign(createTableState(), { sortField: 'nf', sortDir: 'asc' });
+  const REGISTRO_DINAMICO_DETALHE_IDS = {
+    tbody: 'registro-dinamico-detalhe-table-body', info: 'registro-dinamico-detalhe-table-info',
+    pageLabel: 'registro-dinamico-detalhe-table-page-label', prev: 'registro-dinamico-detalhe-table-prev',
+    next: 'registro-dinamico-detalhe-table-next', theadSelector: '#registro-dinamico-detalhe-table thead th[data-field]',
+    colspan: 9
+  };
+  // Data (meia-noite) atualmente expandida na tabela de cima, ou null se nenhuma — controla
+  // a visibilidade/conteúdo da 2ª tabela e o destaque visual da linha clicada.
+  let registroDinamicoDataSelecionada = null;
+
   // Precisa ficar em sincronia com os valores dos checkboxes de #filter-status-list no
   // index.html — qualquer r.situacao fora dessa lista cai no botão "Status Diversos".
   const KNOWN_SITUACOES = [
@@ -125,6 +146,7 @@ const Dashboard = (() => {
     bindColumnToggles();
     bindScrollTabela();
     bindAlternarViewMapaRegioes();
+    bindRegistroDinamico();
     bindMapaRegioesMensagens();
     createCharts();
     DataStore.onChange(render);
@@ -146,10 +168,11 @@ const Dashboard = (() => {
   function mostrarViewMapaRegioes(view) {
     const main = document.getElementById('main-view');
     const embed = document.getElementById('mapa-regioes-embed');
-    const mostrarMapa = view === 'mapa';
+    const dinamico = document.getElementById('registro-dinamico-view');
 
-    main.hidden = mostrarMapa;
-    embed.hidden = !mostrarMapa;
+    main.hidden = view !== 'registros';
+    embed.hidden = view !== 'mapa';
+    dinamico.hidden = view !== 'dinamico';
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
       const ativo = botao.dataset.view === view;
@@ -157,11 +180,14 @@ const Dashboard = (() => {
       botao.classList.toggle('toggle-view-btn--inativo', !ativo);
     });
 
-    if (mostrarMapa) {
+    if (view === 'mapa') {
       // Carrega o iframe só na primeira vez que o usuário abrir o mapa (evita buscar
       // Leaflet/Chart.js/dados_regioes.json sem necessidade em quem nunca clicar nele).
       const iframe = document.getElementById('iframe-mapa-regioes');
       if (!iframe.src) iframe.src = 'mapa-regioes/index.html';
+    } else if (view === 'dinamico') {
+      renderRegistroDinamico();
+      dinamico.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       document.getElementById('registros-detalhados').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -322,8 +348,10 @@ const Dashboard = (() => {
     });
   }
 
-  /** Amarra ordenação/paginação de UMA tabela (estado + ids próprios) a uma fonte de registros. */
-  function bindTableControlsFor(state, ids, getRecords) {
+  /** Amarra ordenação/paginação de UMA tabela (estado + ids próprios) a uma fonte de registros.
+   * `rowRenderer` é opcional (default rowHtml, a linha de 13 colunas da tabela principal) —
+   * o Registro Dinâmico passa o seu próprio, já que as linhas lá não são um registro de NF. */
+  function bindTableControlsFor(state, ids, getRecords, rowRenderer = rowHtml) {
     document.querySelectorAll(`${ids.theadSelector}`).forEach(th => {
       th.addEventListener('click', () => {
         const field = th.dataset.field;
@@ -334,15 +362,15 @@ const Dashboard = (() => {
           state.sortDir = 'asc';
         }
         state.page = 1;
-        renderTableGeneric(getRecords(), state, ids);
+        renderTableGeneric(getRecords(), state, ids, rowRenderer);
       });
     });
 
     document.getElementById(ids.prev).addEventListener('click', () => {
-      if (state.page > 1) { state.page--; renderTableGeneric(getRecords(), state, ids); }
+      if (state.page > 1) { state.page--; renderTableGeneric(getRecords(), state, ids, rowRenderer); }
     });
     document.getElementById(ids.next).addEventListener('click', () => {
-      state.page++; renderTableGeneric(getRecords(), state, ids);
+      state.page++; renderTableGeneric(getRecords(), state, ids, rowRenderer);
     });
   }
 
@@ -692,6 +720,123 @@ const Dashboard = (() => {
   }
 
   /* ============================================================
+   * REGISTRO DINÂMICO — consolida as notas filtradas por Data de Faturamento (2026-08-18)
+   * ============================================================ */
+
+  /** Agrupa os registros (já filtrados) por dia de Data de Faturamento. Notas sem essa data
+   * (cobertura parcial, ver applyFaturamentoEnrichment em data.js) não entram em nenhum grupo —
+   * ficam de fora da tabela, mas contadas no aviso de cobertura acima dela. */
+  function calcularRegistroDinamico(records) {
+    const comData = records.filter(r => r.dataFaturamento);
+    const grupos = Utils.groupBy(comData, r => Utils.startOfDay(r.dataFaturamento).getTime());
+    const linhas = Array.from(grupos.entries()).map(([timestamp, registros]) => ({
+      dataFaturamento: new Date(Number(timestamp)),
+      valorTotal: Utils.sum(registros, r => r.valorNF),
+      quantidade: registros.length
+    }));
+    return { linhas, totalComData: comData.length, totalSemData: records.length - comData.length };
+  }
+
+  function registrosDoDiaSelecionado() {
+    if (!registroDinamicoDataSelecionada) return [];
+    const alvo = registroDinamicoDataSelecionada.getTime();
+    return DataStore.getFilteredRecords().filter(r => r.dataFaturamento && Utils.startOfDay(r.dataFaturamento).getTime() === alvo);
+  }
+
+  function rowHtmlRegistroDinamico(g) {
+    const ativa = registroDinamicoDataSelecionada && g.dataFaturamento.getTime() === registroDinamicoDataSelecionada.getTime();
+    return `
+      <tr>
+        <td><button type="button" class="nf-link${ativa ? ' nf-link--ativo' : ''}" data-data-fat="${g.dataFaturamento.getTime()}" title="Ver notas faturadas nessa data">${Utils.formatDate(g.dataFaturamento)}</button></td>
+        <td class="text-right">${Utils.formatCurrency(g.valorTotal)}</td>
+        <td class="text-right">${Utils.formatNumber(g.quantidade)}</td>
+      </tr>
+    `;
+  }
+
+  function rowHtmlRegistroDinamicoDetalhe(r) {
+    const temCanhoto = canhotosIndex.has(r.nf.split('-')[0]);
+    return `
+      <tr>
+        <td><button type="button" class="nf-link${temCanhoto ? ' nf-link--tem-canhoto' : ''}" data-nf="${escapeAttr(r.nf)}" title="Buscar canhoto de entrega">${escapeAttr(r.nf)}</button></td>
+        <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
+        <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
+        <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
+        <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
+        <td>${escapeAttr(r.cidade)}${r.uf ? '/' + escapeAttr(r.uf) : ''}</td>
+        <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
+        <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
+        <td>${Utils.formatDate(r.dataAgendamento)}</td>
+      </tr>
+    `;
+  }
+
+  /** Recalcula e redesenha a tela "Registro Dinâmico" inteira (tabela por data + total geral +
+   * detalhe do dia aberto, se houver). Só faz esse trabalho se a tela estiver de fato visível —
+   * evita reagrupar a base inteira a cada tecla digitada num filtro enquanto o usuário está
+   * olhando "Registros detalhados" ou "Análise por Região". */
+  function renderRegistroDinamico() {
+    const view = document.getElementById('registro-dinamico-view');
+    if (!view || view.hidden) return;
+
+    const registros = DataStore.getFilteredRecords();
+    const { linhas, totalComData, totalSemData } = calcularRegistroDinamico(registros);
+
+    const coverageEl = document.getElementById('registro-dinamico-coverage');
+    coverageEl.textContent = registros.length === 0
+      ? 'Nenhuma nota para os filtros atuais.'
+      : `${Utils.formatNumber(totalComData)} de ${Utils.formatNumber(registros.length)} notas têm Data de Faturamento registrada` +
+        (totalSemData > 0 ? ` — ${Utils.formatNumber(totalSemData)} sem essa informação não aparecem nesta tela.` : '.');
+
+    renderTableGeneric(linhas, registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS, rowHtmlRegistroDinamico);
+
+    document.getElementById('registro-dinamico-total-valor').textContent = Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal));
+    document.getElementById('registro-dinamico-total-quantidade').textContent = Utils.formatNumber(linhas.reduce((acc, l) => acc + l.quantidade, 0));
+
+    renderRegistroDinamicoDetalhe();
+  }
+
+  function renderRegistroDinamicoDetalhe() {
+    const secao = document.getElementById('registro-dinamico-detalhe');
+    if (!registroDinamicoDataSelecionada) { secao.hidden = true; return; }
+    secao.hidden = false;
+
+    const registros = registrosDoDiaSelecionado();
+    document.getElementById('registro-dinamico-detalhe-titulo').textContent =
+      `Notas faturadas em ${Utils.formatDate(registroDinamicoDataSelecionada)} (${Utils.formatNumber(registros.length)})`;
+    renderTableGeneric(registros, registroDinamicoDetalheTable, REGISTRO_DINAMICO_DETALHE_IDS, rowHtmlRegistroDinamicoDetalhe);
+  }
+
+  /** Clicar numa data já expandida fecha o detalhe de novo (alterna); clicar noutra data troca
+   * o detalhe pra ela, sem precisar fechar antes. */
+  function abrirRegistroDinamicoDetalhe(timestamp) {
+    const novaData = new Date(Number(timestamp));
+    const jaEstaAberta = registroDinamicoDataSelecionada && registroDinamicoDataSelecionada.getTime() === novaData.getTime();
+    registroDinamicoDataSelecionada = jaEstaAberta ? null : novaData;
+    registroDinamicoDetalheTable.page = 1;
+    renderRegistroDinamico();
+  }
+
+  function bindRegistroDinamico() {
+    bindTableControlsFor(registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS,
+      () => calcularRegistroDinamico(DataStore.getFilteredRecords()).linhas, rowHtmlRegistroDinamico);
+    bindTableControlsFor(registroDinamicoDetalheTable, REGISTRO_DINAMICO_DETALHE_IDS,
+      registrosDoDiaSelecionado, rowHtmlRegistroDinamicoDetalhe);
+
+    // Delegado no body (igual bindCanhotoLinks) porque a tabela é reconstruída a cada render.
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-data-fat]');
+      if (!btn) return;
+      abrirRegistroDinamicoDetalhe(btn.dataset.dataFat);
+    });
+
+    document.getElementById('registro-dinamico-detalhe-fechar').addEventListener('click', () => {
+      registroDinamicoDataSelecionada = null;
+      renderRegistroDinamico();
+    });
+  }
+
+  /* ============================================================
    * FILTROS — popula selects com valores distintos dos dados
    * ============================================================ */
 
@@ -760,6 +905,7 @@ const Dashboard = (() => {
     table.page = 1;
     renderTable(records);
     renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
+    renderRegistroDinamico(); // no-op se a tela "Registro Dinâmico" não estiver visível
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
   }
@@ -1122,9 +1268,10 @@ const Dashboard = (() => {
     `;
   }
 
-  /** Ordena, pagina e desenha uma tabela — usado tanto pela tabela principal quanto pela
-   * tela de detalhe (drill-down), cada uma com seu próprio estado e ids de elementos. */
-  function renderTableGeneric(records, state, ids) {
+  /** Ordena, pagina e desenha uma tabela — usado pela tabela principal, pela tela de detalhe
+   * (drill-down de KPI) e pelo Registro Dinâmico, cada uma com seu próprio estado, ids de
+   * elementos e (quando as linhas não são um registro de NF puro) renderizador de linha. */
+  function renderTableGeneric(records, state, ids, rowRenderer = rowHtml) {
     const sorted = records.slice().sort((a, b) => {
       let va = a[state.sortField];
       let vb = b[state.sortField];
@@ -1142,9 +1289,9 @@ const Dashboard = (() => {
     const tbody = document.getElementById(ids.tbody);
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="14" class="table-empty">Nenhum registro encontrado para os filtros atuais.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${ids.colspan || 14}" class="table-empty">Nenhum registro encontrado para os filtros atuais.</td></tr>`;
     } else {
-      tbody.innerHTML = pageItems.map(rowHtml).join('');
+      tbody.innerHTML = pageItems.map(rowRenderer).join('');
     }
 
     document.getElementById(ids.info).textContent =
@@ -1213,5 +1360,6 @@ const Dashboard = (() => {
   return {
     init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento,
     computarDadosRegioesAoVivo, enviarDadosRegioesParaIframe,
+    calcularRegistroDinamico,
   };
 })();
