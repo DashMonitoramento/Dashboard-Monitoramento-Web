@@ -41,7 +41,7 @@ const Dashboard = (() => {
     tbody: 'registro-dinamico-table-body', info: 'registro-dinamico-table-info',
     pageLabel: 'registro-dinamico-table-page-label', prev: 'registro-dinamico-table-prev',
     next: 'registro-dinamico-table-next', theadSelector: '#registro-dinamico-table thead th[data-field]',
-    colspan: 3
+    colspan: 3, emptyMessage: 'Clique num mês no card abaixo do gráfico pra ver o detalhe dia a dia.'
   };
   let registroDinamicoDetalheTable = Object.assign(createTableState(), { sortField: 'nf', sortDir: 'asc' });
   const REGISTRO_DINAMICO_DETALHE_IDS = {
@@ -50,9 +50,12 @@ const Dashboard = (() => {
     next: 'registro-dinamico-detalhe-table-next', theadSelector: '#registro-dinamico-detalhe-table thead th[data-field]',
     colspan: 9
   };
-  // Data (meia-noite) atualmente expandida na tabela de cima, ou null se nenhuma — controla
-  // a visibilidade/conteúdo da 2ª tabela e o destaque visual da linha clicada.
+  // Data (meia-noite) atualmente expandida na tabela de dias, ou null se nenhuma — controla
+  // a visibilidade/conteúdo da tabela de detalhe por nota e o destaque visual da linha clicada.
   let registroDinamicoDataSelecionada = null;
+  // Mês (1º dia, meia-noite) selecionado no card abaixo do gráfico, ou null se nenhum — decisão
+  // do usuário (2026-08-18): a tabela de dias (acima) só mostra algo depois desse clique.
+  let registroDinamicoMesSelecionado = null;
 
   // Precisa ficar em sincronia com os valores dos checkboxes de #filter-status-list no
   // index.html — qualquer r.situacao fora dessa lista cai no botão "Status Diversos".
@@ -725,10 +728,17 @@ const Dashboard = (() => {
 
   /** Agrupa os registros (já filtrados) por dia de Data de Faturamento. Notas sem essa data
    * (cobertura parcial, ver applyFaturamentoEnrichment em data.js) não entram em nenhum grupo —
-   * ficam de fora da tabela, mas contadas no aviso de cobertura acima dela. */
-  function calcularRegistroDinamico(records) {
+   * ficam de fora da tabela, mas contadas no aviso de cobertura acima dela.
+   * `mesSelecionado` (opcional, um Date no 1º dia do mês) restringe as linhas a só aquele mês
+   * — usado pela tabela de dias, que só mostra algo depois do usuário clicar num card de mês
+   * (decisão do usuário, 2026-08-18). totalComData/totalSemData continuam sendo do total GERAL
+   * (sem esse recorte), pra sempre refletir a cobertura de dados de todos os filtros ativos. */
+  function calcularRegistroDinamico(records, mesSelecionado) {
     const comData = records.filter(r => r.dataFaturamento);
-    const grupos = Utils.groupBy(comData, r => Utils.startOfDay(r.dataFaturamento).getTime());
+    const doMes = mesSelecionado
+      ? comData.filter(r => r.dataFaturamento.getFullYear() === mesSelecionado.getFullYear() && r.dataFaturamento.getMonth() === mesSelecionado.getMonth())
+      : comData;
+    const grupos = Utils.groupBy(doMes, r => Utils.startOfDay(r.dataFaturamento).getTime());
     const linhas = Array.from(grupos.entries()).map(([timestamp, registros]) => ({
       dataFaturamento: new Date(Number(timestamp)),
       valorTotal: Utils.sum(registros, r => r.valorNF),
@@ -762,17 +772,35 @@ const Dashboard = (() => {
 
   /** Um card pequeno por mês com a quantidade de notas — decisão do usuário (2026-08-18):
    * ocupa o espaço que sobrou embaixo do gráfico depois que "Quantidade de notas" saiu de lá
-   * (grandeza incompatível com "Valor faturado" no mesmo eixo). */
+   * (grandeza incompatível com "Valor faturado" no mesmo eixo). Clicável: é o que agora
+   * controla o que aparece na tabela de dias, à esquerda (ver registroDinamicoMesSelecionado). */
   function renderRegistroDinamicoCardsMes(meses) {
     const container = document.getElementById('registro-dinamico-cards-mes');
     if (!container) return;
-    container.innerHTML = meses.map(m => `
-      <div class="registro-dinamico__card-mes">
-        <div class="registro-dinamico__card-mes__mes">${Utils.MONTH_NAMES[m.data.getMonth()]}/${String(m.data.getFullYear()).slice(2)}</div>
-        <div class="registro-dinamico__card-mes__valor">${Utils.formatNumber(m.quantidade)}</div>
-        <div class="registro-dinamico__card-mes__label">nota${m.quantidade === 1 ? '' : 's'}</div>
-      </div>
-    `).join('');
+    container.innerHTML = meses.map(m => {
+      const ativo = registroDinamicoMesSelecionado && m.data.getTime() === registroDinamicoMesSelecionado.getTime();
+      return `
+        <button type="button" class="registro-dinamico__card-mes${ativo ? ' registro-dinamico__card-mes--ativo' : ''}" data-mes-fat="${m.data.getTime()}">
+          <div class="registro-dinamico__card-mes__mes">${Utils.MONTH_NAMES[m.data.getMonth()]}/${String(m.data.getFullYear()).slice(2)}</div>
+          <div class="registro-dinamico__card-mes__valor">${Utils.formatNumber(m.quantidade)}</div>
+          <div class="registro-dinamico__card-mes__label">nota${m.quantidade === 1 ? '' : 's'}</div>
+        </button>
+      `;
+    }).join('');
+  }
+
+  /** Clicar num card de mês já selecionado desmarca ele de novo (some a tabela de dias);
+   * clicar noutro mês troca direto, sem precisar desmarcar antes — mesmo padrão já usado pro
+   * clique numa data (abrirRegistroDinamicoDetalhe). */
+  function abrirRegistroDinamicoMes(timestamp) {
+    const novoMes = new Date(Number(timestamp));
+    const jaEstaSelecionado = registroDinamicoMesSelecionado && registroDinamicoMesSelecionado.getTime() === novoMes.getTime();
+    registroDinamicoMesSelecionado = jaEstaSelecionado ? null : novoMes;
+    // O detalhe por nota (de um dia) pode não pertencer mais ao mês recém-selecionado, ou a
+    // tabela de dias pode ter acabado de sumir (mês desmarcado) -- fecha pra não ficar órfão.
+    registroDinamicoDataSelecionada = null;
+    registroDinamicoTable.page = 1;
+    renderRegistroDinamico();
   }
 
   function registrosDoDiaSelecionado() {
@@ -818,7 +846,11 @@ const Dashboard = (() => {
     if (!view || view.hidden) return;
 
     const registros = DataStore.getFilteredRecords();
-    const { linhas, totalComData, totalSemData } = calcularRegistroDinamico(registros);
+    // totalComData/totalSemData são sempre do total GERAL (todos os meses) — só as LINHAS da
+    // tabela é que ficam restritas ao mês selecionado no card (ou vazias, se nenhum mês foi
+    // clicado ainda — decisão do usuário, 2026-08-18).
+    const { totalComData, totalSemData } = calcularRegistroDinamico(registros);
+    const linhas = registroDinamicoMesSelecionado ? calcularRegistroDinamico(registros, registroDinamicoMesSelecionado).linhas : [];
 
     const coverageEl = document.getElementById('registro-dinamico-coverage');
     coverageEl.textContent = registros.length === 0
@@ -828,8 +860,8 @@ const Dashboard = (() => {
 
     renderTableGeneric(linhas, registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS, rowHtmlRegistroDinamico);
 
-    document.getElementById('registro-dinamico-total-valor').textContent = Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal));
-    document.getElementById('registro-dinamico-total-quantidade').textContent = Utils.formatNumber(linhas.reduce((acc, l) => acc + l.quantidade, 0));
+    document.getElementById('registro-dinamico-total-valor').textContent = registroDinamicoMesSelecionado ? Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal)) : '—';
+    document.getElementById('registro-dinamico-total-quantidade').textContent = registroDinamicoMesSelecionado ? Utils.formatNumber(linhas.reduce((acc, l) => acc + l.quantidade, 0)) : '—';
 
     renderRegistroDinamicoChart(registros);
     renderRegistroDinamicoDetalhe();
@@ -858,15 +890,19 @@ const Dashboard = (() => {
 
   function bindRegistroDinamico() {
     bindTableControlsFor(registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS,
-      () => calcularRegistroDinamico(DataStore.getFilteredRecords()).linhas, rowHtmlRegistroDinamico);
+      () => registroDinamicoMesSelecionado ? calcularRegistroDinamico(DataStore.getFilteredRecords(), registroDinamicoMesSelecionado).linhas : [],
+      rowHtmlRegistroDinamico);
     bindTableControlsFor(registroDinamicoDetalheTable, REGISTRO_DINAMICO_DETALHE_IDS,
       registrosDoDiaSelecionado, rowHtmlRegistroDinamicoDetalhe);
 
-    // Delegado no body (igual bindCanhotoLinks) porque a tabela é reconstruída a cada render.
+    // Delegado no body (igual bindCanhotoLinks) porque a tabela/os cards são reconstruídos a
+    // cada render. Um só listener cobre os dois tipos de clique (card de mês e data do dia).
     document.body.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-data-fat]');
-      if (!btn) return;
-      abrirRegistroDinamicoDetalhe(btn.dataset.dataFat);
+      const btnMes = e.target.closest('[data-mes-fat]');
+      if (btnMes) { abrirRegistroDinamicoMes(btnMes.dataset.mesFat); return; }
+      const btnData = e.target.closest('[data-data-fat]');
+      if (!btnData) return;
+      abrirRegistroDinamicoDetalhe(btnData.dataset.dataFat);
     });
 
     document.getElementById('registro-dinamico-detalhe-fechar').addEventListener('click', () => {
@@ -1334,7 +1370,7 @@ const Dashboard = (() => {
     const tbody = document.getElementById(ids.tbody);
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="${ids.colspan || 14}" class="table-empty">Nenhum registro encontrado para os filtros atuais.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${ids.colspan || 14}" class="table-empty">${ids.emptyMessage || 'Nenhum registro encontrado para os filtros atuais.'}</td></tr>`;
     } else {
       tbody.innerHTML = pageItems.map(rowRenderer).join('');
     }
