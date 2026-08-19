@@ -1352,6 +1352,13 @@ const DataStore = (() => {
 
   function getFilters() { return { ...filters }; }
 
+  // Espelha AGENDAMENTO_ETAPAS_ESPECIFICAS de dashboard.js (não dá pra importar de lá — data.js
+  // é carregado antes e não depende desse módulo). Só ESSES 4 valores são etapas que
+  // legitimamente vivem em r.statusAgendamento; qualquer outro texto que apareça ali (ex.:
+  // "Em aberto", resquício da planilha de Agendamentos numa nota já entregue, ver bug
+  // 2026-08-18) não deve casar com o filtro de Status por acidente.
+  const AGENDAMENTO_ETAPAS_ESPECIFICAS_FILTRO = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker'];
+
   function getFilteredRecords() {
     const {
       dataInicio, dataFim, mes, ano,
@@ -1373,12 +1380,17 @@ const DataStore = (() => {
       if (mes && ref && String(ref.getMonth() + 1) !== String(mes)) return false;
       if (ano && ref && String(ref.getFullYear()) !== String(ano)) return false;
 
-      // "Aguardando Confirmação"/"Reagendar"/"Okker" (decisão do usuário, 2026-08-16) não são
-      // valores de r.situacao — são etapas de r.statusAgendamento (Situação de Agendamento).
-      // Pra caberem no MESMO filtro "Status" da barra lateral, casa contra os dois campos: cada
-      // valor marcado bate se for a situação da nota OU a etapa de agendamento dela.
-      if (situacaoFiltro && situacaoFiltro.length &&
-          !situacaoFiltro.includes(r.situacao) && !situacaoFiltro.includes(r.statusAgendamento)) return false;
+      // "Agendado"/"Aguardando Confirmação"/"Reagendar"/"Okker" (decisão do usuário,
+      // 2026-08-16) são etapas de r.statusAgendamento (Situação de Agendamento), não valores
+      // de r.situacao — pra caberem no MESMO filtro "Status" da barra lateral, uma nota também
+      // bate se a etapa de agendamento dela for uma dessas 4 marcadas. Restrito a essas 4
+      // (AGENDAMENTO_ETAPAS_ESPECIFICAS_FILTRO), NÃO a r.statusAgendamento inteiro: sem essa
+      // restrição, uma nota já Entregue mas com um "Em aberto" esquecido no statusAgendamento
+      // (resquício da planilha de Agendamentos que nunca foi atualizado) aparecia por engano
+      // ao marcar "Em aberto" no filtro — bug real, 2026-08-18.
+      const etapaBate = AGENDAMENTO_ETAPAS_ESPECIFICAS_FILTRO.includes(r.statusAgendamento) &&
+        situacaoFiltro && situacaoFiltro.includes(r.statusAgendamento);
+      if (situacaoFiltro && situacaoFiltro.length && !situacaoFiltro.includes(r.situacao) && !etapaBate) return false;
       if (transportadora && transportadora.length && !transportadora.includes(r.transportadora)) return false;
       if (tipoTransporte && tipoTransporte.length && !tipoTransporte.includes(r.tipoTransporte)) return false;
       if (motorista && motorista.length && !motorista.includes(r.motorista)) return false;
