@@ -871,7 +871,7 @@ const Dashboard = (() => {
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
         <td>${escapeAttr(r.cidade)}${r.uf ? '/' + escapeAttr(r.uf) : ''}</td>
         <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
-        <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
+        <td>${escapeAttr(r.statusAgendamento || '—')}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
       </tr>
     `;
