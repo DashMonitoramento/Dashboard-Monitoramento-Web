@@ -97,6 +97,18 @@ class DashChart {
     // Observa o .chart-plot-area (não o .chart-root inteiro) — sua altura já exclui a
     // legenda, então não é preciso subtrair offsetHeight do legend aqui.
     this._resizeObserver.observe(this.plotArea);
+
+    // Delegado no próprio elemento de legenda (persiste entre updates — só o innerHTML é
+    // trocado a cada _renderLegend) — só chama options.onLegendClick quando ela existe, então
+    // pizza/rosca sem essa option (a maioria) não ganham nenhum comportamento novo.
+    if (this.legend) {
+      this.legend.addEventListener('click', (e) => {
+        if (typeof this.options.onLegendClick !== 'function') return;
+        const tile = e.target.closest('.chart-stat-tile[data-label]');
+        if (!tile) return;
+        this.options.onLegendClick(tile.dataset.label);
+      });
+    }
   }
 
   _resize() {
@@ -188,8 +200,12 @@ class DashChart {
         const pct = v / total * 100;
         return { label: l, color: this._sliceColor(i), pct: pct.toFixed(pct < 10 ? 1 : 0), count: Utils.formatNumber(Math.round(v)) };
       });
+      // onLegendClick (opcional): só quando informado nas options, os tiles ficam clicáveis
+      // (cursor, hover, data-label pro delegado em _bindEvents) — os demais gráficos de
+      // pizza/rosca do dashboard não usam essa option e continuam com o tile só informativo.
+      const clicavel = typeof this.options.onLegendClick === 'function';
       this.legend.innerHTML = tiles.map(t => `
-        <div class="chart-stat-tile" style="border-color:${t.color}">
+        <div class="chart-stat-tile${clicavel ? ' chart-stat-tile--clickable' : ''}" style="border-color:${t.color}"${clicavel ? ` data-label="${this._escape(t.label)}"` : ''}>
           <span class="chart-stat-tile__dot" style="background:${t.color}"></span>
           <div class="chart-stat-tile__text">
             <span class="chart-stat-tile__label">${this._escape(t.label)}</span>
