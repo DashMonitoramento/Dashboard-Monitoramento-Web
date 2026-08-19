@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260819e">
+<link rel="stylesheet" href="css/style.css?v=20260819f">
 </head>
 <body>
 
@@ -450,6 +450,7 @@
                 <th data-field="valorNF" class="text-right">Valor NF</th>
                 <th data-field="dataEntrega">Data coleta</th>
                 <th data-field="dataAgendamento">Data agendada</th>
+                <th data-field="observacaoAgendamento">Observação</th>
               </tr>
             </thead>
             <tbody id="table-body"></tbody>
@@ -555,6 +556,7 @@
                   <th data-field="status">Status</th>
                   <th data-field="statusAgendamento">Situação Agendamento</th>
                   <th data-field="dataAgendamento">Data Agendada</th>
+                  <th data-field="observacaoAgendamento">Observação</th>
                 </tr>
               </thead>
               <tbody id="registro-dinamico-detalhe-table-body"></tbody>
@@ -607,6 +609,18 @@
           <div class="detail-agendamento__list" id="detail-agendamento-list"></div>
         </div>
 
+        <!-- Observação por nota: só aparece na tela "Notas em aberto" (2026-08-19) — mais
+             simples que o painel de agendamento acima (sem status/data), porque nem toda nota
+             em aberto precisa de agendamento. Mesmo esquema de permissão (admin edita, resto
+             só lê), mas grava só a observação (ver salvarObservacaoNota). -->
+        <div id="detail-observacao-section" class="detail-agendamento" hidden>
+          <div class="detail-agendamento__header">
+            <h3 class="detail-agendamento__title">Observação por nota</h3>
+            <p class="detail-agendamento__hint" id="detail-observacao-hint"></p>
+          </div>
+          <div class="detail-agendamento__list" id="detail-observacao-list"></div>
+        </div>
+
         <div class="table-card__header">
           <div class="table-search">
             🔎 <input type="search" id="detail-table-search" placeholder="Pesquisar...">
@@ -633,6 +647,7 @@
                 <th data-field="valorNF" class="text-right">Valor NF</th>
                 <th data-field="dataEntrega">Data coleta</th>
                 <th data-field="dataAgendamento">Data agendada</th>
+                <th data-field="observacaoAgendamento">Observação</th>
               </tr>
             </thead>
             <tbody id="detail-table-body"></tbody>
@@ -659,11 +674,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260819e"></script>
-<script src="js/utils.js?v=20260819e"></script>
-<script src="js/data.js?v=20260819e"></script>
-<script src="js/charts.js?v=20260819e"></script>
-<script src="js/dashboard.js?v=20260819e"></script>
-<script src="js/script.js?v=20260819e"></script>
+<script type="module" src="js/firebase-init.js?v=20260819f"></script>
+<script src="js/utils.js?v=20260819f"></script>
+<script src="js/data.js?v=20260819f"></script>
+<script src="js/charts.js?v=20260819f"></script>
+<script src="js/dashboard.js?v=20260819f"></script>
+<script src="js/script.js?v=20260819f"></script>
 </body>
 </html>
