@@ -1383,7 +1383,7 @@ const DataStore = (() => {
   // legitimamente vivem em r.statusAgendamento; qualquer outro texto que apareça ali (ex.:
   // "Em aberto", resquício da planilha de Agendamentos numa nota já entregue, ver bug
   // 2026-08-18) não deve casar com o filtro de Status por acidente.
-  const AGENDAMENTO_ETAPAS_ESPECIFICAS_FILTRO = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker'];
+  const AGENDAMENTO_ETAPAS_ESPECIFICAS_FILTRO = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'];
 
   function getFilteredRecords() {
     const {
