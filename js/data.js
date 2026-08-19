@@ -378,6 +378,9 @@ function normalizeRecord(rawRow) {
     // Idem — só a Bluesoft distingue tentativas repetidas da mesma NF (ver
     // bluesoftDataColetaMaisRecentePorBaseNF/getFilteredRecords).
     dataUltimaTentativaBluesoft: null,
+    // Status de Viagem ("Finalizado"/"Em trânsito"/etc.) — só existe pra registros vindos da
+    // Base Bluesoft (ver applyBluesoftEnrichment/removerNotasComViagemFinalizadaMasEmAberto).
+    viagem: '',
     // Transportadora própria (frota agregada) x transportadora terceirizada — vem da aba
     // RETORNO, coluna "Tipo de Transporte" (ver applyRetornoEnrichment).
     tipoTransporte: 'NÃO INFORMADO',
@@ -645,6 +648,11 @@ const DataStore = (() => {
       // (ver applyBluesoftEnrichment: só define necessitaAgendamento quando não é null).
       const agendadoHeader = headerIndex['agendado'];
       const agendadoRaw = agendadoHeader !== undefined ? String(row[agendadoHeader] || '').trim() : '';
+      // Coluna "Viagem" opcional (Status de Viagem: "Finalizado"/"Em trânsito"/etc.) — CSVs
+      // antigos sem essa coluna ficam com '' (nunca bate 'Finalizado', não muda nada). Ver
+      // removerNotasComViagemFinalizadaMasEmAberto, mais abaixo.
+      const viagemHeader = headerIndex['viagem'];
+      const viagemRaw = viagemHeader !== undefined ? String(row[viagemHeader] || '').trim() : '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -656,7 +664,8 @@ const DataStore = (() => {
         dataEntrega: dataEntregaRaw,
         _dataEntregaParsed: dataEntregaParsed,
         cnpj: pickField(row, headerIndex, 'cnpj'),
-        necessitaAgendamento: parseObrigaAgendamentoBluesoft(agendadoRaw)
+        necessitaAgendamento: parseObrigaAgendamentoBluesoft(agendadoRaw),
+        viagem: viagemRaw
       };
 
       // Data de coleta mais antiga por NF BASE — calculada aqui, sobre TODAS as linhas brutas,
@@ -775,6 +784,7 @@ const DataStore = (() => {
       // entre as da Bluesoft, não a mais antiga (essa é r.dataEntrega, usada em "Data Coleta"
       // e no card "Total geral de notas", que continuam por critério antigo de propósito).
       r.dataUltimaTentativaBluesoft = bluesoftDataColetaMaisRecentePorBaseNF.get(r.nf.split('-')[0]) || null;
+      r.viagem = info.viagem || '';
     }
 
     // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
@@ -807,6 +817,7 @@ const DataStore = (() => {
         dataEntrega: dataColeta,
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
         dataUltimaTentativaBluesoft: bluesoftDataColetaMaisRecentePorBaseNF.get(baseNf) || null,
+        viagem: info.viagem || '',
         tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
@@ -817,8 +828,23 @@ const DataStore = (() => {
       });
     }
 
+    removerNotasComViagemFinalizadaMasEmAberto();
     aplicarReagendarQuandoObrigaAgendamento();
     recomputarPrazoStatus();
+  }
+
+  /**
+   * Caso raro (1 em ~61 mil notas na base real, 2026-08-18): a viagem na Base Bluesoft já
+   * consta como "Finalizado", mas a Situação/Status da nota ainda ficou "Em aberto" — um
+   * resíduo/erro do sistema que, na prática, já está resolvido (confirmado com o usuário,
+   * casos reportados: NF 145017). Por decisão do usuário, essas notas somem de TODOS os
+   * relatórios (não só do filtro de Status), diferente do bug de statusAgendamento resolvido
+   * antes (ver getFilteredRecords em data.js), que só afetava o FILTRO, sem remover a nota.
+   * Não confundir com "Em aberto" + "Em trânsito"/"Aberto"/"Carregado WMS" — essas continuam
+   * genuinamente em aberto e não são tocadas (826+304+158 casos reais, bem mais comuns).
+   */
+  function removerNotasComViagemFinalizadaMasEmAberto() {
+    rawRecords = rawRecords.filter(r => !(r.situacao === 'Em aberto' && r.viagem === 'Finalizado'));
   }
 
   /**
