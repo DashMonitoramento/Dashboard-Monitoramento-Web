@@ -112,6 +112,22 @@ async function salvarAgendamentoManual(nf, statusAgendamento, dataAgendamento, o
   });
 }
 
+/** Grava só a observação de uma NF (usado pela tela "Notas em aberto", 2026-08-19 — uma nota
+ * aberta pode não precisar de agendamento nenhum, então essa tela não mexe em status/data).
+ * Usa `{merge: true}` de propósito — diferente de salvarAgendamentoManual acima, que sempre
+ * reescreve o documento inteiro (status+data+observação juntos, um edit coerente). Sem o
+ * merge aqui, salvar só a observação apagaria o status/data de agendamento que a nota já
+ * tivesse (o documento no Firestore é o mesmo, por NF). */
+async function salvarObservacaoNota(nf, observacao) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  await setDoc(doc(db, AGENDAMENTOS_MANUAIS_COLECAO, nf), {
+    observacao: observacao || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
 // Permissão de edição de agendamento por usuário: quem loga com o e-mail configurado como
 // super admin (ver SUPER_ADMIN_EMAIL_AGENDAMENTO em dashboard.js) sempre pode editar; os
 // demais usuários só podem se o super admin habilitar isso pelo modal "Gerenciar usuários"
@@ -150,7 +166,7 @@ async function getMinhaPermissaoEdicaoAgendamento() {
 
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
-  getAgendamentosManuais, salvarAgendamentoManual,
+  getAgendamentosManuais, salvarAgendamentoManual, salvarObservacaoNota,
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento
 };
 window.dispatchEvent(new Event('firebase-ready'));
