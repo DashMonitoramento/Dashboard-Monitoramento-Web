@@ -718,6 +718,11 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   color: var(--text-primary); font-weight: 800; border-bottom: 2px solid var(--color-orange); cursor: pointer;
   white-space: nowrap; user-select: none;
 }
+/* .data-table thead th tem mais especificidade que .text-right sozinha (2 elementos + 1
+   classe vs. 1 classe) e sempre ganhava, então um cabeçalho de coluna numérica com
+   class="text-right" continuava alinhado à esquerda, bem separado dos valores embaixo dele
+   (bug real, 2026-08-18). */
+.data-table thead th.text-right { text-align: right; }
 .data-table thead th::after { content: ''; margin-left: 4px; opacity: .4; }
 .data-table thead th.is-sorted-asc::after { content: '▲'; opacity: 1; color: var(--color-orange); }
 .data-table thead th.is-sorted-desc::after { content: '▼'; opacity: 1; color: var(--color-orange); }
@@ -748,7 +753,19 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .registro-dinamico__card-mes {
   flex: 1 1 82px; min-width: 76px; background: var(--surface-alt); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 8px 10px; text-align: center;
+  cursor: pointer; font: inherit; color: inherit;
+  transition: transform var(--transition), box-shadow var(--transition), background var(--transition), border-color var(--transition);
 }
+.registro-dinamico__card-mes:hover { transform: translateY(-1px); border-color: var(--color-success); }
+/* Card do mês selecionado: mesmo brilho verde pulsante dos botões de troca de tela
+   (.toggle-view-btn--ativo) — "verde brilhante" pedido pelo usuário, 2026-08-18. */
+.registro-dinamico__card-mes--ativo {
+  background: rgba(22,163,74,.14); border-color: var(--color-success);
+  box-shadow: 0 0 8px 1px rgba(22,163,74,.5), 0 0 3px rgba(22,163,74,.8);
+  animation: toggleViewGlow 2.4s ease-in-out infinite;
+}
+.registro-dinamico__card-mes--ativo:hover { box-shadow: 0 0 16px 3px rgba(22,163,74,.85); }
+@media (prefers-reduced-motion: reduce) { .registro-dinamico__card-mes--ativo { animation: none; } }
 .registro-dinamico__card-mes__mes { font-size: 10.5px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; }
 .registro-dinamico__card-mes__valor { font-size: 19px; font-weight: 800; color: var(--color-orange); line-height: 1.3; }
 .registro-dinamico__card-mes__label { font-size: 10px; color: var(--text-secondary); }
