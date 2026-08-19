@@ -109,6 +109,10 @@ const Dashboard = (() => {
     'agendamento-okker': {
       title: 'Okker',
       test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Okker'
+    },
+    'agendamento-devolucao-terrinha': {
+      title: 'Devolução para Terrinha',
+      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Devolução para Terrinha'
     }
   };
 
@@ -119,7 +123,8 @@ const Dashboard = (() => {
     'Sem etapa definida': 'aguardando',
     'Aguardando Confirmação': 'agendamento-aguardando-confirmacao',
     'Reagendar': 'agendamento-reagendar',
-    'Okker': 'agendamento-okker'
+    'Okker': 'agendamento-okker',
+    'Devolução para Terrinha': 'agendamento-devolucao-terrinha'
   };
 
   // Super admin: sempre pode editar a data/status de agendamento manual (Firestore) e é o
@@ -569,7 +574,7 @@ const Dashboard = (() => {
   // não precisa de chave própria aqui: ela É 'aguardando', já contemplada.
   const AGENDAMENTO_EDICAO_DETAIL_KEYS = [
     'aguardando', 'agendamento-agendado', 'agendamento-aguardando-confirmacao',
-    'agendamento-reagendar', 'agendamento-okker'
+    'agendamento-reagendar', 'agendamento-okker', 'agendamento-devolucao-terrinha'
   ];
 
   function renderAgendamentoEdicao(records) {
@@ -1126,9 +1131,9 @@ const Dashboard = (() => {
     });
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
-      // Agendado, Aguardando agendamento, Aguardando Confirmação, Reagendar, Okker.
+      // Agendado, Sem etapa definida, Aguardando Confirmação, Reagendar, Okker, Devolução p/ Terrinha.
       options: {
-        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6'],
+        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6', '#0EA5E9'],
         // Clicar num tile abre a mesma tela de detalhe (com edição de data/status) que já
         // existia só pro card "Aguardando agendamento" — pedido do usuário, 2026-08-19.
         onLegendClick: (label) => {
@@ -1216,13 +1221,14 @@ const Dashboard = (() => {
   }
 
   const AGENDAMENTO_STATUS_CATEGORIAS = [
-    'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker'
+    'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
   ];
-  // As 4 etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
-  // (valor bruto da coluna "Status" da planilha de Agendamentos). Qualquer nota da população
-  // (ver renderAgendamentoChart) que não tenha uma dessas 4 cai em "Sem etapa definida" por
-  // padrão.
-  const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker'];
+  // As etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
+  // (valor bruto da coluna "Status" da planilha de Agendamentos — precisa bater EXATAMENTE
+  // com esse texto, incluindo acento, senão a nota cai em "Sem etapa definida" por engano).
+  // Qualquer nota da população (ver renderAgendamentoChart) que não tenha uma dessas cai em
+  // "Sem etapa definida" por padrão.
+  const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'];
 
   /** Situação de agendamento: só entram notas que realmente "Obriga Agendamento" e estão "Em
    * aberto" (mesma população do card "Aguardando agendamento", ver STATUS_DETAIL_DEFS —
