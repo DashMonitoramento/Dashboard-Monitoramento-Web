@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260818c">
+<link rel="stylesheet" href="css/style.css?v=20260818d">
 </head>
 <body>
 
@@ -495,34 +495,43 @@
             <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="dinamico">📊 Registro Dinâmico</button>
           </div>
         </div>
-        <p class="registro-dinamico__coverage" id="registro-dinamico-coverage"></p>
+        <div class="registro-dinamico__topo">
+          <div class="registro-dinamico__tabela-col">
+            <p class="registro-dinamico__coverage" id="registro-dinamico-coverage"></p>
 
-        <div class="table-scroll">
-          <table class="data-table" id="registro-dinamico-table">
-            <thead>
-              <tr>
-                <th data-field="dataFaturamento">Data Faturamento</th>
-                <th data-field="valorTotal" class="text-right">Valor da NF</th>
-                <th data-field="quantidade" class="text-right">Quantidade de notas</th>
-              </tr>
-            </thead>
-            <tbody id="registro-dinamico-table-body"></tbody>
-            <tfoot>
-              <tr class="registro-dinamico__total-row">
-                <td>Total</td>
-                <td class="text-right" id="registro-dinamico-total-valor">—</td>
-                <td class="text-right" id="registro-dinamico-total-quantidade">—</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+            <div class="table-scroll">
+              <table class="data-table" id="registro-dinamico-table">
+                <thead>
+                  <tr>
+                    <th data-field="dataFaturamento">Data Faturamento</th>
+                    <th data-field="valorTotal" class="text-right">Valor da NF</th>
+                    <th data-field="quantidade" class="text-right">Quantidade de notas</th>
+                  </tr>
+                </thead>
+                <tbody id="registro-dinamico-table-body"></tbody>
+                <tfoot>
+                  <tr class="registro-dinamico__total-row">
+                    <td>Total</td>
+                    <td class="text-right" id="registro-dinamico-total-valor">—</td>
+                    <td class="text-right" id="registro-dinamico-total-quantidade">—</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
 
-        <div class="table-footer">
-          <span id="registro-dinamico-table-info">Nenhum registro</span>
-          <div class="pagination">
-            <button id="registro-dinamico-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
-            <span id="registro-dinamico-table-page-label">Página 1 de 1</span>
-            <button id="registro-dinamico-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+            <div class="table-footer">
+              <span id="registro-dinamico-table-info">Nenhum registro</span>
+              <div class="pagination">
+                <button id="registro-dinamico-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+                <span id="registro-dinamico-table-page-label">Página 1 de 1</span>
+                <button id="registro-dinamico-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="registro-dinamico__grafico-col chart-card">
+            <div class="chart-card__header"><h2 class="chart-card__title">Evolução mensal (valor e quantidade de notas)</h2></div>
+            <div class="chart-root" id="chart-registro-dinamico"></div>
           </div>
         </div>
 
@@ -649,11 +658,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260818c"></script>
-<script src="js/utils.js?v=20260818c"></script>
-<script src="js/data.js?v=20260818c"></script>
-<script src="js/charts.js?v=20260818c"></script>
-<script src="js/dashboard.js?v=20260818c"></script>
-<script src="js/script.js?v=20260818c"></script>
+<script type="module" src="js/firebase-init.js?v=20260818d"></script>
+<script src="js/utils.js?v=20260818d"></script>
+<script src="js/data.js?v=20260818d"></script>
+<script src="js/charts.js?v=20260818d"></script>
+<script src="js/dashboard.js?v=20260818d"></script>
+<script src="js/script.js?v=20260818d"></script>
 </body>
 </html>
