@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260818b">
+<link rel="stylesheet" href="css/style.css?v=20260818c">
 </head>
 <body>
 
@@ -409,6 +409,7 @@
           <div class="tabs-registros-mapa" id="tabs-registros-mapa">
             <button type="button" class="toggle-view-btn toggle-view-btn--ativo" id="btn-ver-registros" data-view="registros">📋 Registros detalhados</button>
             <button type="button" class="toggle-view-btn toggle-view-btn--inativo" id="btn-ver-mapa-regioes" data-view="mapa">🗺️ Análise por Região</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" id="btn-ver-registro-dinamico" data-view="dinamico">📊 Registro Dinâmico</button>
           </div>
           <div class="table-search">
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
@@ -479,9 +480,85 @@
           <div class="tabs-registros-mapa">
             <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="registros">📋 Registros detalhados</button>
             <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="mapa">🗺️ Análise por Região</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
           </div>
         </div>
         <iframe id="iframe-mapa-regioes" title="Análise por Região" style="width:100%; height:calc(100vh - 160px); min-height:640px; border:none; border-radius:8px; background:#333;"></iframe>
+      </section>
+
+      <!-- ===================== REGISTRO DINÂMICO (consolidado por Data de Faturamento) ===================== -->
+      <section id="registro-dinamico-view" class="table-card" aria-label="Registro Dinâmico" hidden>
+        <div class="table-card__header">
+          <div class="tabs-registros-mapa">
+            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="registros">📋 Registros detalhados</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="mapa">🗺️ Análise por Região</button>
+            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="dinamico">📊 Registro Dinâmico</button>
+          </div>
+        </div>
+        <p class="registro-dinamico__coverage" id="registro-dinamico-coverage"></p>
+
+        <div class="table-scroll">
+          <table class="data-table" id="registro-dinamico-table">
+            <thead>
+              <tr>
+                <th data-field="dataFaturamento">Data Faturamento</th>
+                <th data-field="valorTotal" class="text-right">Valor da NF</th>
+                <th data-field="quantidade" class="text-right">Quantidade de notas</th>
+              </tr>
+            </thead>
+            <tbody id="registro-dinamico-table-body"></tbody>
+            <tfoot>
+              <tr class="registro-dinamico__total-row">
+                <td>Total</td>
+                <td class="text-right" id="registro-dinamico-total-valor">—</td>
+                <td class="text-right" id="registro-dinamico-total-quantidade">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="table-footer">
+          <span id="registro-dinamico-table-info">Nenhum registro</span>
+          <div class="pagination">
+            <button id="registro-dinamico-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="registro-dinamico-table-page-label">Página 1 de 1</span>
+            <button id="registro-dinamico-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
+        </div>
+
+        <!-- Drill-down: aparece só depois de clicar numa data na tabela acima -->
+        <div id="registro-dinamico-detalhe" class="registro-dinamico__detalhe" hidden>
+          <div class="table-card__header">
+            <h3 id="registro-dinamico-detalhe-titulo">Notas faturadas</h3>
+            <button id="registro-dinamico-detalhe-fechar" class="btn" type="button">✕ Fechar</button>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="registro-dinamico-detalhe-table">
+              <thead>
+                <tr>
+                  <th data-field="nf">NF</th>
+                  <th data-field="valorNF" class="text-right">Valor</th>
+                  <th data-field="cliente">Cliente</th>
+                  <th data-field="transportadora">Transportadora</th>
+                  <th data-field="motorista">Motorista</th>
+                  <th data-field="cidade">Cidade/UF</th>
+                  <th data-field="status">Status</th>
+                  <th data-field="situacao">Situação</th>
+                  <th data-field="dataAgendamento">Data Agendada</th>
+                </tr>
+              </thead>
+              <tbody id="registro-dinamico-detalhe-table-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span id="registro-dinamico-detalhe-table-info">Nenhum registro</span>
+            <div class="pagination">
+              <button id="registro-dinamico-detalhe-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+              <span id="registro-dinamico-detalhe-table-page-label">Página 1 de 1</span>
+              <button id="registro-dinamico-detalhe-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ===================== TELA DE DETALHE (drill-down ao clicar num KPI) ===================== -->
@@ -572,11 +649,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260818b"></script>
-<script src="js/utils.js?v=20260818b"></script>
-<script src="js/data.js?v=20260818b"></script>
-<script src="js/charts.js?v=20260818b"></script>
-<script src="js/dashboard.js?v=20260818b"></script>
-<script src="js/script.js?v=20260818b"></script>
+<script type="module" src="js/firebase-init.js?v=20260818c"></script>
+<script src="js/utils.js?v=20260818c"></script>
+<script src="js/data.js?v=20260818c"></script>
+<script src="js/charts.js?v=20260818c"></script>
+<script src="js/dashboard.js?v=20260818c"></script>
+<script src="js/script.js?v=20260818c"></script>
 </body>
 </html>
