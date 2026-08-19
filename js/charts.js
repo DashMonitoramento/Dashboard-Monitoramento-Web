@@ -26,6 +26,13 @@ class DashChart {
       showLegend: true,
       currency: false,
       stacked: false,
+      // Cada série ganha seu próprio máximo (0 a 1.25x o maior valor DELA), em vez de todas
+      // dividirem o mesmo eixo — necessário quando as séries têm grandezas muito diferentes
+      // (ex.: "Valor faturado" em R$ x "Quantidade de notas" em unidades), senão a de menor
+      // grandeza vira uma linha reta quase no fundo do gráfico. Só usado quando pedido
+      // explicitamente (Registro Dinâmico) — as demais telas continuam comparando as séries
+      // no mesmo eixo, que é o que faz sentido pra elas (ex.: "Mês atual" x "Mês anterior").
+      perSeriesScale: false,
       emptyMessage: 'Sem dados para os filtros selecionados'
     }, config.options || {});
 
@@ -392,9 +399,13 @@ class DashChart {
     this._points = [];
 
     series.forEach((s, si) => {
+      // perSeriesScale: cada série usa o PRÓPRIO máximo pra posicionar os pontos no eixo Y —
+      // o valor real (não normalizado) continua saindo certo na etiqueta/tooltip (this._fmt
+      // usa s.format, não a posição no eixo).
+      const serieMax = this.options.perSeriesScale ? Math.max(...s.data, 1) * 1.25 : maxValue;
       const pts = s.data.map((v, i) => ({
         x: padding.left + i * stepX,
-        y: padding.top + plotH * (1 - v / maxValue),
+        y: padding.top + plotH * (1 - v / serieMax),
         value: v
       }));
 
@@ -431,7 +442,7 @@ class DashChart {
         ctx.lineWidth = 2;
         ctx.strokeStyle = s.color;
         ctx.stroke();
-        this._points.push({ ...p, color: s.color, series: s.name });
+        this._points.push({ ...p, color: s.color, series: s.name, format: s.format, label: this.labels[i] });
 
         // "R$ 0,00" repetido em cada ponto sem movimento só poluiria o gráfico. O espaço
         // mínimo entre etiquetas é calculado pela LARGURA REAL de cada valor (não um passo
@@ -439,7 +450,7 @@ class DashChart {
         // gap fixo deixava as "pills" grandes se sobrepondo mesmo com os pontos espaçados.
         const isLast = i === pts.length - 1;
         if (p.value !== 0) {
-          const text = this._fmt(p.value);
+          const text = this._fmt(p.value, s.format);
           ctx.font = labelFont;
           const halfWidth = ctx.measureText(text).width / 2 + 7;
           const gapNeeded = lastLabelHalfWidth + halfWidth + 6;
@@ -684,7 +695,7 @@ class DashChart {
       if (found) found = { label: found.label, lines: [`${found.series}: ${this._fmt(found.value)}`], color: found.color };
     } else if (this.type === 'line' || this.type === 'area') {
       const near = (this._points || []).find(p => Math.hypot(p.x - x, p.y - y) < 10);
-      if (near) found = { label: near.label, lines: [`${near.series}: ${this._fmt(near.value)}`], color: near.color };
+      if (near) found = { label: near.label, lines: [`${near.series}: ${this._fmt(near.value, near.format)}`], color: near.color };
     } else if (this.type === 'pie' || this.type === 'donut') {
       const slices = this._slices || [];
       if (slices.length) {
@@ -713,7 +724,12 @@ class DashChart {
 
   _onLeave() { this.tooltip.classList.remove('chart-tooltip--visible'); }
 
-  _fmt(value) {
+  /** `format` (opcional, por série: "currency" ou "number") sobrepõe options.currency —
+   * usado quando duas séries no MESMO gráfico representam grandezas diferentes (ver
+   * perSeriesScale), então cada uma precisa do seu próprio formato de etiqueta. */
+  _fmt(value, format) {
+    if (format === 'currency') return Utils.formatCurrency(value);
+    if (format === 'number') return Utils.formatNumber(Math.round(value));
     return this.options.currency ? Utils.formatCurrency(value) : Utils.formatNumber(Math.round(value));
   }
 
