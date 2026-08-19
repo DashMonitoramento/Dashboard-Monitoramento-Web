@@ -41,7 +41,7 @@ const Dashboard = (() => {
     tbody: 'registro-dinamico-table-body', info: 'registro-dinamico-table-info',
     pageLabel: 'registro-dinamico-table-page-label', prev: 'registro-dinamico-table-prev',
     next: 'registro-dinamico-table-next', theadSelector: '#registro-dinamico-table thead th[data-field]',
-    colspan: 3, emptyMessage: 'Clique num mês no card abaixo do gráfico pra ver o detalhe dia a dia.'
+    colspan: 3
   };
   let registroDinamicoDetalheTable = Object.assign(createTableState(), { sortField: 'nf', sortDir: 'asc' });
   const REGISTRO_DINAMICO_DETALHE_IDS = {
@@ -53,8 +53,9 @@ const Dashboard = (() => {
   // Data (meia-noite) atualmente expandida na tabela de dias, ou null se nenhuma — controla
   // a visibilidade/conteúdo da tabela de detalhe por nota e o destaque visual da linha clicada.
   let registroDinamicoDataSelecionada = null;
-  // Mês (1º dia, meia-noite) selecionado no card abaixo do gráfico, ou null se nenhum — decisão
-  // do usuário (2026-08-18): a tabela de dias (acima) só mostra algo depois desse clique.
+  // Mês (1º dia, meia-noite) selecionado no card abaixo do gráfico, ou null se nenhum — null
+  // mostra TODOS os dias normalmente na tabela de cima; selecionar um mês filtra só pra ele
+  // (decisão do usuário, 2026-08-19: clicar de novo no card ativo desmarca e volta a mostrar tudo).
   let registroDinamicoMesSelecionado = null;
 
   // Precisa ficar em sincronia com os valores dos checkboxes de #filter-status-list no
@@ -846,11 +847,10 @@ const Dashboard = (() => {
     if (!view || view.hidden) return;
 
     const registros = DataStore.getFilteredRecords();
-    // totalComData/totalSemData são sempre do total GERAL (todos os meses) — só as LINHAS da
-    // tabela é que ficam restritas ao mês selecionado no card (ou vazias, se nenhum mês foi
-    // clicado ainda — decisão do usuário, 2026-08-18).
-    const { totalComData, totalSemData } = calcularRegistroDinamico(registros);
-    const linhas = registroDinamicoMesSelecionado ? calcularRegistroDinamico(registros, registroDinamicoMesSelecionado).linhas : [];
+    // Sem mês selecionado, mostra TODOS os dias normalmente (decisão do usuário, 2026-08-19:
+    // reverteu a versão anterior, que começava vazia). O card de mês só FILTRA pra aquele mês
+    // específico; clicar de novo no card ativo desmarca e volta a mostrar tudo.
+    const { linhas, totalComData, totalSemData } = calcularRegistroDinamico(registros, registroDinamicoMesSelecionado);
 
     const coverageEl = document.getElementById('registro-dinamico-coverage');
     coverageEl.textContent = registros.length === 0
@@ -860,8 +860,8 @@ const Dashboard = (() => {
 
     renderTableGeneric(linhas, registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS, rowHtmlRegistroDinamico);
 
-    document.getElementById('registro-dinamico-total-valor').textContent = registroDinamicoMesSelecionado ? Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal)) : '—';
-    document.getElementById('registro-dinamico-total-quantidade').textContent = registroDinamicoMesSelecionado ? Utils.formatNumber(linhas.reduce((acc, l) => acc + l.quantidade, 0)) : '—';
+    document.getElementById('registro-dinamico-total-valor').textContent = Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal));
+    document.getElementById('registro-dinamico-total-quantidade').textContent = Utils.formatNumber(linhas.reduce((acc, l) => acc + l.quantidade, 0));
 
     renderRegistroDinamicoChart(registros);
     renderRegistroDinamicoDetalhe();
@@ -890,7 +890,7 @@ const Dashboard = (() => {
 
   function bindRegistroDinamico() {
     bindTableControlsFor(registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS,
-      () => registroDinamicoMesSelecionado ? calcularRegistroDinamico(DataStore.getFilteredRecords(), registroDinamicoMesSelecionado).linhas : [],
+      () => calcularRegistroDinamico(DataStore.getFilteredRecords(), registroDinamicoMesSelecionado).linhas,
       rowHtmlRegistroDinamico);
     bindTableControlsFor(registroDinamicoDetalheTable, REGISTRO_DINAMICO_DETALHE_IDS,
       registrosDoDiaSelecionado, rowHtmlRegistroDinamicoDetalhe);
@@ -918,11 +918,28 @@ const Dashboard = (() => {
   /** Repopula uma lista de checkbox dinâmica (Transportadora/Motorista/.../Cidade) a partir dos
    * valores distintos dos dados carregados — preserva o que já estava marcado (o filtro
    * continua valendo mesmo depois de "Atualizar dados"). */
-  function fillCheckboxList(containerId, values) {
+  /** `filterKey` (opcional) é a chave em DataStore.filters correspondente a essa lista — quando
+   * informada, PODA do filtro qualquer valor que não exista mais em `values` antes de redesenhar
+   * os checkboxes. Sem essa poda, um valor marcado (ex.: um Cliente) que deixa de aparecer nos
+   * dados depois de uma atualização (base mudou, ou uma nota foi removida — ver
+   * removerNotasComViagemFinalizadaMasEmAberto) some da LISTA (não tem mais checkbox pra ele),
+   * mas continua ativo por dentro em DataStore.filters — o resultado trava em zero pra sempre,
+   * sem nenhum checkbox marcado visível que explique por quê. Bug real, 2026-08-19 (descrito
+   * como "o filtro usado muitas vezes trava e não busca dados"). */
+  function fillCheckboxList(containerId, values, filterKey) {
     const container = document.getElementById(containerId);
     const jaMarcados = new Set(
       Array.from(container.querySelectorAll('.filter-checkbox__item:checked')).map(cb => cb.value)
     );
+    if (filterKey) {
+      const valoresValidos = new Set(values);
+      const atual = DataStore.getFilters()[filterKey] || [];
+      const podado = atual.filter(v => valoresValidos.has(v));
+      if (podado.length !== atual.length) {
+        DataStore.setFilters({ [filterKey]: podado });
+        jaMarcados.forEach(v => { if (!valoresValidos.has(v)) jaMarcados.delete(v); });
+      }
+    }
     container.innerHTML =
       `<label class="filter-checkbox filter-checkbox--todos"><input type="checkbox" class="filter-checkbox__todos"> <strong>Selecionar todos</strong></label>` +
       values.map(v => `<label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="${escapeAttr(v)}"${jaMarcados.has(v) ? ' checked' : ''}> ${escapeAttr(v)}</label>`).join('');
@@ -932,15 +949,15 @@ const Dashboard = (() => {
   }
 
   function populateFilterOptions() {
-    fillCheckboxList('filter-transportadora-list', DataStore.getDistinctValues('transportadora'));
-    fillCheckboxList('filter-motorista-list', DataStore.getDistinctValues('motorista'));
-    fillCheckboxList('filter-tipo-transporte-list', DataStore.getDistinctValues('tipoTransporte'));
+    fillCheckboxList('filter-transportadora-list', DataStore.getDistinctValues('transportadora'), 'transportadora');
+    fillCheckboxList('filter-motorista-list', DataStore.getDistinctValues('motorista'), 'motorista');
+    fillCheckboxList('filter-tipo-transporte-list', DataStore.getDistinctValues('tipoTransporte'), 'tipoTransporte');
     let vendedores = DataStore.getDistinctValues('vendedor');
     if (ocultarVendedorSemCliente) vendedores = vendedores.filter(v => v !== 'Não informado');
-    fillCheckboxList('filter-vendedor-list', vendedores);
-    fillCheckboxList('filter-cliente-list', DataStore.getDistinctValues('cliente'));
-    fillCheckboxList('filter-cidade-list', DataStore.getDistinctValues('cidade'));
-    fillCheckboxList('filter-regiao-comercial-list', DataStore.getDistinctValues('regiaoComercial'));
+    fillCheckboxList('filter-vendedor-list', vendedores, 'vendedor');
+    fillCheckboxList('filter-cliente-list', DataStore.getDistinctValues('cliente'), 'cliente');
+    fillCheckboxList('filter-cidade-list', DataStore.getDistinctValues('cidade'), 'cidade');
+    fillCheckboxList('filter-regiao-comercial-list', DataStore.getDistinctValues('regiaoComercial'), 'regiaoComercial');
 
     const anoEl = document.getElementById('filter-ano');
     const currentAno = anoEl.value;
