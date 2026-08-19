@@ -48,7 +48,7 @@ const Dashboard = (() => {
     tbody: 'registro-dinamico-detalhe-table-body', info: 'registro-dinamico-detalhe-table-info',
     pageLabel: 'registro-dinamico-detalhe-table-page-label', prev: 'registro-dinamico-detalhe-table-prev',
     next: 'registro-dinamico-detalhe-table-next', theadSelector: '#registro-dinamico-detalhe-table thead th[data-field]',
-    colspan: 9
+    colspan: 10
   };
   // Data (meia-noite) atualmente expandida na tabela de dias, ou null se nenhuma — controla
   // a visibilidade/conteúdo da tabela de detalhe por nota e o destaque visual da linha clicada.
@@ -182,6 +182,7 @@ const Dashboard = (() => {
     bindStatusDetail();
     bindCanhotoLinks();
     bindAgendamentoEdicao();
+    bindObservacaoEdicao();
     renderColumnToggles();
     bindColumnToggles();
     bindScrollTabela();
@@ -523,6 +524,7 @@ const Dashboard = (() => {
     renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS);
     renderMotivosBreakdown(detailRecords);
     renderAgendamentoEdicao(detailRecords);
+    renderObservacaoEdicao(detailRecords);
   }
 
   /* ============================================================
@@ -668,6 +670,85 @@ const Dashboard = (() => {
     });
   }
 
+  /* ============================================================
+   * OBSERVAÇÃO POR NOTA — só na tela "Notas em aberto" (2026-08-19). Mais simples que o
+   * painel de agendamento acima: sem status/data, porque nem toda nota em aberto precisa de
+   * agendamento. Grava só a observação (ver salvarObservacaoNota em firebase-init.js), sem
+   * mexer em nenhum status/data de agendamento que a nota já tivesse.
+   * ============================================================ */
+
+  const OBSERVACAO_EDICAO_LIMITE = 200;
+
+  function renderObservacaoEdicao(records) {
+    const section = document.getElementById('detail-observacao-section');
+    if (detailKey !== 'em-aberto') { section.hidden = true; return; }
+    section.hidden = false;
+
+    const admin = isAdminAgendamento();
+    document.getElementById('detail-observacao-hint').textContent = admin
+      ? 'Escreva uma observação livre sobre a nota — salva direto aqui, sem precisar de planilha.'
+      : 'Observação de cada nota (só o usuário responsável pode editar).';
+
+    const list = document.getElementById('detail-observacao-list');
+    const itens = records.slice(0, OBSERVACAO_EDICAO_LIMITE);
+
+    list.innerHTML = itens.map(r => {
+      const nfBase = r.nf.split('-')[0];
+      const observacaoAtual = r.observacaoAgendamento || '';
+
+      if (!admin) {
+        return `
+          <div class="observacao-row">
+            <span class="observacao-row__nf">${escapeAttr(r.nf)}</span>
+            <span class="observacao-row__cliente" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</span>
+            <span class="observacao-row__somente-leitura" title="${escapeAttr(observacaoAtual)}">${escapeAttr(observacaoAtual || '—')}</span>
+            <span></span>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="observacao-row" data-nf="${escapeAttr(nfBase)}">
+          <span class="observacao-row__nf">${escapeAttr(r.nf)}</span>
+          <span class="observacao-row__cliente" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</span>
+          <input type="text" class="observacao-row__input" placeholder="Observação (opcional)" value="${escapeAttr(observacaoAtual)}">
+          <button type="button" class="btn observacao-row__salvar">Salvar</button>
+        </div>
+      `;
+    }).join('');
+
+    if (records.length > OBSERVACAO_EDICAO_LIMITE) {
+      list.insertAdjacentHTML('beforeend',
+        `<p class="chart-card__hint">Mostrando as primeiras ${OBSERVACAO_EDICAO_LIMITE} de ${Utils.formatNumber(records.length)} notas.</p>`);
+    }
+  }
+
+  function bindObservacaoEdicao() {
+    document.getElementById('detail-observacao-list').addEventListener('click', async (e) => {
+      const botao = e.target.closest('.observacao-row__salvar');
+      if (!botao) return;
+      const linha = botao.closest('.observacao-row');
+      const nf = linha.dataset.nf;
+      const observacao = linha.querySelector('.observacao-row__input').value.trim();
+
+      botao.disabled = true;
+      botao.textContent = 'Salvando...';
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        await fb.salvarObservacaoNota(nf, observacao);
+        DataStore.applyAgendamentoManual({ [nf]: { observacao } });
+        Utils.showToast(`NF ${nf}: observação salva.`, 'success', 2500);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar a observação.', 'error', 5000);
+        botao.disabled = false;
+        botao.textContent = 'Salvar';
+      }
+    });
+  }
+
   function tableColumns() {
     return [
       { label: 'NF', value: r => r.nf },
@@ -683,7 +764,8 @@ const Dashboard = (() => {
       { label: 'Situação Agendamento', value: r => r.statusAgendamento || '—' },
       { label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
       { label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
-      { label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
+      { label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) },
+      { label: 'Observação', value: r => r.observacaoAgendamento || '—' }
     ];
   }
 
@@ -705,7 +787,8 @@ const Dashboard = (() => {
       { field: 'statusAgendamento', label: 'Situação Agendamento', value: r => r.statusAgendamento || '—' },
       { field: 'valorNF', label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
       { field: 'dataEntrega', label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
-      { field: 'dataAgendamento', label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) }
+      { field: 'dataAgendamento', label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) },
+      { field: 'observacaoAgendamento', label: 'Observação', value: r => r.observacaoAgendamento || '—' }
     ];
   }
 
@@ -885,6 +968,7 @@ const Dashboard = (() => {
         <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
         <td>${escapeAttr(r.statusAgendamento || '—')}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
+        <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${escapeAttr(r.observacaoAgendamento || '—')}</td>
       </tr>
     `;
   }
@@ -1130,7 +1214,16 @@ const Dashboard = (() => {
       // categorização dos cards de KPI (STATUS_DETAIL_DEFS), pra bater 1:1 com o que aparece lá.
       // Não tem categoria "Agendados" própria aqui: isso já é o gráfico "Situação de
       // agendamento" ao lado, que usa a coluna "Status" da planilha de Agendamentos.
-      options: { colors: ['#16A34A', '#64748B', '#EAB308', '#8B5CF6', '#0EA5E9', '#DC2626'] }
+      options: {
+        colors: ['#16A34A', '#64748B', '#EAB308', '#8B5CF6', '#0EA5E9', '#DC2626'],
+        // Clicar num tile abre a mesma tela de detalhe que o card de KPI equivalente já abre
+        // (pedido do usuário, 2026-08-19) — acha a chave comparando pelo título, já que os
+        // labels do gráfico SÃO os STATUS_DETAIL_DEFS[k].title (ver renderStatusChart).
+        onLegendClick: (label) => {
+          const entry = Object.entries(STATUS_DETAIL_DEFS).find(([, def]) => def.title === label);
+          if (entry) openStatusDetail(entry[0]);
+        }
+      }
     });
     charts.prazo = new DashChart(document.getElementById('chart-prazo'), {
       type: 'donut', labels: [], series: [{ data: [] }],
@@ -1422,6 +1515,7 @@ const Dashboard = (() => {
         <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
         <td>${Utils.formatDate(r.dataEntrega)}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
+        <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${escapeAttr(r.observacaoAgendamento || '—')}</td>
       </tr>
     `;
   }
