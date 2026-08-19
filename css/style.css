@@ -653,6 +653,10 @@ ul { list-style: none; margin: 0; padding: 0; }
   display: flex; align-items: center; gap: 8px; padding: 8px 10px;
   border: 1.5px solid; border-radius: var(--radius-sm); background: var(--surface-alt);
 }
+.chart-stat-tile--clickable {
+  cursor: pointer; transition: transform var(--transition), box-shadow var(--transition);
+}
+.chart-stat-tile--clickable:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 .chart-stat-tile__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .chart-stat-tile__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .chart-stat-tile__label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
