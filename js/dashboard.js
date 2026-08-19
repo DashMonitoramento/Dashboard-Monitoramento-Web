@@ -88,7 +88,38 @@ const Dashboard = (() => {
       test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' &&
         !AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)
     },
-    'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) }
+    'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) },
+    // Uma entrada por fatia do donut "Situação de agendamento" (pedido do usuário, 2026-08-19,
+    // pra editar a data/status/observação de quem já tem etapa — igual já funcionava só pro
+    // card "Aguardando agendamento"). Mesma população-base do gráfico (necessitaAgendamento +
+    // Em aberto — ver renderAgendamentoChart); "Sem etapa definida" não precisa de entrada
+    // própria, é literalmente o mesmo recorte de 'aguardando' acima.
+    'agendamento-agendado': {
+      title: 'Agendado',
+      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Agendado'
+    },
+    'agendamento-aguardando-confirmacao': {
+      title: 'Aguardando Confirmação',
+      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Aguardando Confirmação'
+    },
+    'agendamento-reagendar': {
+      title: 'Reagendar',
+      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Reagendar'
+    },
+    'agendamento-okker': {
+      title: 'Okker',
+      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Okker'
+    }
+  };
+
+  // Rótulo do tile do donut (ver renderAgendamentoChart/AGENDAMENTO_STATUS_CATEGORIAS) -> chave
+  // de STATUS_DETAIL_DEFS a abrir. "Sem etapa definida" aponta pro mesmo 'aguardando' de sempre.
+  const AGENDAMENTO_LABEL_PARA_DETAIL_KEY = {
+    'Agendado': 'agendamento-agendado',
+    'Sem etapa definida': 'aguardando',
+    'Aguardando Confirmação': 'agendamento-aguardando-confirmacao',
+    'Reagendar': 'agendamento-reagendar',
+    'Okker': 'agendamento-okker'
   };
 
   // Super admin: sempre pode editar a data/status de agendamento manual (Firestore) e é o
@@ -533,14 +564,22 @@ const Dashboard = (() => {
 
   const AGENDAMENTO_EDICAO_LIMITE = 200;
 
+  // Telas onde o painel de edição de agendamento aparece — a original ("Aguardando
+  // agendamento") mais as 4 novas fatias clicáveis do donut (2026-08-19). "Sem etapa definida"
+  // não precisa de chave própria aqui: ela É 'aguardando', já contemplada.
+  const AGENDAMENTO_EDICAO_DETAIL_KEYS = [
+    'aguardando', 'agendamento-agendado', 'agendamento-aguardando-confirmacao',
+    'agendamento-reagendar', 'agendamento-okker'
+  ];
+
   function renderAgendamentoEdicao(records) {
     const section = document.getElementById('detail-agendamento-section');
-    if (detailKey !== 'aguardando') { section.hidden = true; return; }
+    if (!AGENDAMENTO_EDICAO_DETAIL_KEYS.includes(detailKey)) { section.hidden = true; return; }
     section.hidden = false;
 
     const admin = isAdminAgendamento();
     document.getElementById('detail-agendamento-hint').textContent = admin
-      ? 'Preencha o status e, se já tiver, a data de agendamento — salva direto aqui, sem precisar de planilha.'
+      ? 'Preencha ou altere o status e a data de agendamento — salva direto aqui, sem precisar de planilha.'
       : 'Situação de agendamento de cada nota (só o usuário responsável pode editar).';
 
     const list = document.getElementById('detail-agendamento-list');
@@ -1088,7 +1127,15 @@ const Dashboard = (() => {
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
       // Agendado, Aguardando agendamento, Aguardando Confirmação, Reagendar, Okker.
-      options: { colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6'] }
+      options: {
+        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6'],
+        // Clicar num tile abre a mesma tela de detalhe (com edição de data/status) que já
+        // existia só pro card "Aguardando agendamento" — pedido do usuário, 2026-08-19.
+        onLegendClick: (label) => {
+          const key = AGENDAMENTO_LABEL_PARA_DETAIL_KEY[label];
+          if (key) openStatusDetail(key);
+        }
+      }
     });
     charts.transportadora = new DashChart(document.getElementById('chart-transportadora'), {
       type: 'bar', labels: [], series: [{ name: 'Notas', data: [], color: ChartPalette[1] }]
