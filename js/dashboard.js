@@ -737,6 +737,31 @@ const Dashboard = (() => {
     return { linhas, totalComData: comData.length, totalSemData: records.length - comData.length };
   }
 
+  /** Mesma base de calcularRegistroDinamico, só que agrupada por MÊS (não por dia) — usada
+   * só pelo gráfico "Evolução mensal", que não teria espaço legível pra 196 pontos diários. */
+  function calcularRegistroDinamicoPorMes(records) {
+    const comData = records.filter(r => r.dataFaturamento);
+    const grupos = Utils.groupBy(comData, r => `${r.dataFaturamento.getFullYear()}-${r.dataFaturamento.getMonth()}`);
+    return Array.from(grupos.entries())
+      .map(([chave, registros]) => {
+        const [ano, mes] = chave.split('-').map(Number);
+        return { data: new Date(ano, mes, 1), valorTotal: Utils.sum(registros, r => r.valorNF), quantidade: registros.length };
+      })
+      .sort((a, b) => a.data - b.data);
+  }
+
+  function renderRegistroDinamicoChart(records) {
+    const meses = calcularRegistroDinamicoPorMes(records);
+    const labels = meses.map(m => `${Utils.MONTH_NAMES[m.data.getMonth()]}/${String(m.data.getFullYear()).slice(2)}`);
+    charts.registroDinamico.update({
+      labels,
+      series: [
+        { name: 'Valor faturado', data: meses.map(m => m.valorTotal), color: ChartPalette[0], format: 'currency' },
+        { name: 'Quantidade de notas', data: meses.map(m => m.quantidade), color: ChartPalette[1], format: 'number' }
+      ]
+    });
+  }
+
   function registrosDoDiaSelecionado() {
     if (!registroDinamicoDataSelecionada) return [];
     const alvo = registroDinamicoDataSelecionada.getTime();
@@ -793,6 +818,7 @@ const Dashboard = (() => {
     document.getElementById('registro-dinamico-total-valor').textContent = Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal));
     document.getElementById('registro-dinamico-total-quantidade').textContent = Utils.formatNumber(linhas.reduce((acc, l) => acc + l.quantidade, 0));
 
+    renderRegistroDinamicoChart(registros);
     renderRegistroDinamicoDetalhe();
   }
 
@@ -1019,6 +1045,17 @@ const Dashboard = (() => {
     });
     charts.evolucaoMensal = new DashChart(document.getElementById('chart-evolucao-mensal'), {
       type: 'area', labels: [], series: [{ name: 'Valor faturado', data: [], color: ChartPalette[0] }], options: { currency: true }
+    });
+    // Registro Dinâmico: Valor (R$) e Quantidade (unidades) têm grandezas muito diferentes —
+    // perSeriesScale dá um eixo próprio pra cada série, senão "Quantidade" vira uma linha
+    // reta colada no fundo do gráfico ao lado de "Valor faturado" na casa dos milhões.
+    charts.registroDinamico = new DashChart(document.getElementById('chart-registro-dinamico'), {
+      type: 'line', labels: [],
+      series: [
+        { name: 'Valor faturado', data: [], color: ChartPalette[0], format: 'currency' },
+        { name: 'Quantidade de notas', data: [], color: ChartPalette[1], format: 'number' }
+      ],
+      options: { perSeriesScale: true }
     });
     charts.comparativo = new DashChart(document.getElementById('chart-comparativo'), {
       type: 'line',
@@ -1360,6 +1397,6 @@ const Dashboard = (() => {
   return {
     init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento,
     computarDadosRegioesAoVivo, enviarDadosRegioesParaIframe,
-    calcularRegistroDinamico,
+    calcularRegistroDinamico, calcularRegistroDinamicoPorMes,
   };
 })();
