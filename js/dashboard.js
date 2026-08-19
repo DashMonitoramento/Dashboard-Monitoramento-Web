@@ -584,7 +584,7 @@ const Dashboard = (() => {
 
     const admin = isAdminAgendamento();
     document.getElementById('detail-agendamento-hint').textContent = admin
-      ? 'Preencha ou altere o status e a data de agendamento — salva direto aqui, sem precisar de planilha.'
+      ? 'Preencha ou altere o status e a data de agendamento — salva direto aqui, sem precisar de planilha. Ao salvar, a nota já sai dessa lista e vai pra categoria certa (preencher só a data vira "Agendado" automaticamente).'
       : 'Situação de agendamento de cada nota (só o usuário responsável pode editar).';
 
     const list = document.getElementById('detail-agendamento-list');
@@ -639,9 +639,16 @@ const Dashboard = (() => {
       if (!botao) return;
       const linha = botao.closest('.agendamento-row');
       const nf = linha.dataset.nf;
-      const status = linha.querySelector('.agendamento-row__status-select').value;
+      let status = linha.querySelector('.agendamento-row__status-select').value;
       const data = linha.querySelector('.agendamento-row__data-input').value;
       const observacao = linha.querySelector('.agendamento-row__observacao-input').value.trim();
+
+      // Preencher uma Data de agendamento sem escolher um Status, na prática, já significa
+      // que a nota foi agendada — por decisão do usuário (2026-08-19), sobe pra "Agendado"
+      // sozinho nesse caso, em vez de ficar presa em "Aguardando agendamento" só porque o
+      // dropdown ficou em branco. Só entra quando o usuário não escolheu nada (status !==
+      // '' sempre vence, mesmo que seja pra "Sem informação" de propósito).
+      if (!status && data) status = 'Agendado';
 
       botao.disabled = true;
       botao.textContent = 'Salvando...';
