@@ -733,9 +733,13 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   text-underline-offset: 3px; transition: text-decoration-color var(--transition);
 }
 .nf-link:hover, .nf-link:focus-visible { text-decoration-color: currentColor; }
-.nf-link--tem-canhoto { color: var(--color-success); }
+.nf-link--tem-canhoto, .nf-link--ativo { color: var(--color-success); }
 .text-right { text-align: right; }
 .table-empty { text-align: center !important; padding: 32px !important; color: var(--text-secondary); }
+
+.registro-dinamico__coverage { font-size: 11.5px; color: var(--text-secondary); margin: 0 0 14px; }
+.registro-dinamico__total-row td { font-weight: 800; border-top: 2px solid var(--border); background: var(--surface-alt); }
+.registro-dinamico__detalhe { margin-top: 24px; padding-top: 20px; border-top: 2px solid var(--color-orange); }
 
 .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
 .badge--success { background: rgba(22,163,74,.14); color: var(--color-success); }
