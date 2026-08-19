@@ -576,6 +576,26 @@ ul { list-style: none; margin: 0; padding: 0; }
 .agendamento-row__salvar { font-size: 11.5px; padding: 5px 10px; }
 .agendamento-row__salvar[disabled] { opacity: .5; cursor: default; }
 
+/* Linha da tela "Observação por nota" (2026-08-19) — mesma linguagem visual do
+   .agendamento-row acima, só que sem as colunas de status/data (nem toda nota em aberto
+   precisa de agendamento, então essa tela edita só a observação). */
+.observacao-row {
+  display: grid; grid-template-columns: minmax(90px, 120px) minmax(140px, 1fr) minmax(200px, 1fr) auto;
+  align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border); font-size: 12.5px;
+}
+.observacao-row__nf { font-weight: 700; color: var(--color-orange); white-space: nowrap; }
+.observacao-row__cliente { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.observacao-row input[type="text"] {
+  width: 100%; padding: 5px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface-alt); color: var(--text-primary); font-size: 12px;
+}
+.observacao-row__somente-leitura {
+  padding: 5px 6px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.observacao-row__salvar { font-size: 11.5px; padding: 5px 10px; }
+.observacao-row__salvar[disabled] { opacity: .5; cursor: default; }
+
 /* Modal "Gerenciar usuários" — só o super admin vê o botão que abre isso (ver
    btn-gerenciar-usuarios no header e Dashboard.isSuperAdminAgendamento em dashboard.js). */
 .modal-overlay {
@@ -711,6 +731,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 #data-table[data-hide~="valorNF"] th:nth-child(11), #data-table[data-hide~="valorNF"] td:nth-child(11) { display: none; }
 #data-table[data-hide~="dataEntrega"] th:nth-child(12), #data-table[data-hide~="dataEntrega"] td:nth-child(12) { display: none; }
 #data-table[data-hide~="dataAgendamento"] th:nth-child(13), #data-table[data-hide~="dataAgendamento"] td:nth-child(13) { display: none; }
+#data-table[data-hide~="observacaoAgendamento"] th:nth-child(14), #data-table[data-hide~="observacaoAgendamento"] td:nth-child(14) { display: none; }
 
 /* Card com altura travada e rolagem própria (vertical + horizontal) — assim a tabela não
    empurra a paginação pra fora da tela quando tem muita linha por página. */
