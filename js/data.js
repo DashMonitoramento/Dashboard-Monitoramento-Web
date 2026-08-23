@@ -1559,9 +1559,15 @@ const DataStore = (() => {
    * cima disso ainda aplica os filtros PRÓPRIOS do painel (Situação/Prazo/Lead Time/Rota/CNPJ/
    * Número, que não existem na barra lateral). Os dois conjuntos de filtro se somam.
    */
+  // Pedidos dessas Transportadoras não têm prazo de transporte a medir (retirada pelo próprio
+  // cliente / exportação) — usuária pediu para excluir do painel de Lead Time (2026-08-23).
+  const TRANSPORTADORAS_EXCLUIDAS_LEADTIME = new Set(['proprio retira', 'exportacao']);
+
   function calcularLeadTimePedidos(filtros) {
     const hoje = new Date();
-    const enriquecido = getFilteredRecords().map(r => ({ r, calc: calcularLeadTimePedido(r, hoje) }));
+    const enriquecido = getFilteredRecords()
+      .filter(r => !TRANSPORTADORAS_EXCLUIDAS_LEADTIME.has(normalizeHeaderKey(r.transportadora)))
+      .map(r => ({ r, calc: calcularLeadTimePedido(r, hoje) }));
     const itens = aplicarFiltrosLeadTimePedidos(enriquecido, filtros);
     return { itens, kpis: calcularKpisLeadTimePedidos(itens) };
   }
