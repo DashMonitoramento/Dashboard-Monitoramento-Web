@@ -17,6 +17,7 @@ const DEFAULT_MOTIVOS_URL = 'assets/data/sample-data-motivos.csv';
 const DEFAULT_RETORNO_URL = 'assets/data/sample-data-retorno.csv';
 const DEFAULT_FATURAMENTO_URL = 'assets/data/sample-data-faturamento.csv';
 const DEFAULT_REGIOES_URL = 'assets/data/sample-data-regioes.csv';
+const DEFAULT_LEADTIME_URL = 'assets/data/sample-data-leadtime.csv';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 
 /* ============================================================
@@ -269,6 +270,18 @@ async function loadRegioesDataSilently(cacheBust) {
   }
 }
 
+/** Prazo esperado (dias úteis) por Transportadora + Cidade, aba "Lead Time Atualizado" — usado
+ * só como comparativo no relatório de Lead Time ("Análise por Região"); sem ele, o relatório
+ * mostra só a média real, sem a linha de referência. */
+async function loadLeadTimeDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_LEADTIME_URL}?t=${Date.now()}` : DEFAULT_LEADTIME_URL;
+    await DataStore.loadLeadTimeFromUrl(url, 'csv');
+  } catch (err) {
+    console.warn('Lead Time Atualizado não carregado automaticamente:', err.message);
+  }
+}
+
 /** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
  * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
 async function loadCanhotosIndexSilently(cacheBust) {
@@ -322,6 +335,7 @@ async function loadInitialData() {
     await loadRetornoDataSilently(false);
     await loadFaturamentoDataSilently(false);
     await loadRegioesDataSilently(false);
+    await loadLeadTimeDataSilently(false);
     await loadCanhotosIndexSilently(false);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
@@ -350,6 +364,7 @@ async function refreshData() {
     await loadRetornoDataSilently(true);
     await loadFaturamentoDataSilently(true);
     await loadRegioesDataSilently(true);
+    await loadLeadTimeDataSilently(true);
     await loadCanhotosIndexSilently(true);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
