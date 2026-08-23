@@ -1269,8 +1269,14 @@ const DataStore = (() => {
     return `${normalizeHeaderKey(transportadora || '')}|${normalizeHeaderKey(cidade || '')}`;
   }
 
+  // Linhas da aba "Lead Time Atualizado" com valor vazio/zero/inválido — populada por
+  // indexLeadTimeRows, exposta por listarLeadTimesInvalidos() (checagem de qualidade pedida
+  // pelo usuário no painel "Lead Time de Pedidos e Entregas").
+  let leadTimeLinhasInvalidas = [];
+
   function indexLeadTimeRows(rawRows) {
     const map = new Map();
+    const invalidas = [];
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
       const transportadora = row[headerIndex['transportadora']] || '';
@@ -1278,10 +1284,14 @@ const DataStore = (() => {
       const leadTimeRaw = row[headerIndex['leadtimediasuteis']];
       const leadTime = Number(String(leadTimeRaw || '').replace(',', '.'));
       if (!transportadora && !cidade) continue;
-      if (!Number.isFinite(leadTime)) continue;
+      if (!Number.isFinite(leadTime) || leadTime <= 0) {
+        invalidas.push({ transportadora, cidade, valorBruto: leadTimeRaw });
+        continue;
+      }
       map.set(leadTimeChave(transportadora, cidade), leadTime);
     }
     leadTimeBenchmarkByKey = map;
+    leadTimeLinhasInvalidas = invalidas;
   }
 
   async function loadLeadTimeFromUrl(url, format = 'csv') {
@@ -1352,6 +1362,212 @@ const DataStore = (() => {
       benchmark: { mediaDiasUteis: benchmarkN ? benchmarkSoma / benchmarkN : null, amostras: benchmarkN },
       totalRegistrosFiltrados: records.length
     };
+  }
+
+  /* ============================================================
+   * LEAD TIME DE PEDIDOS E ENTREGAS (painel completo, 2026-08-23) — deliberadamente
+   * INDEPENDENTE dos filtros globais da barra lateral (DataStore.filters/getFilteredRecords):
+   * esse painel tem seu próprio conjunto de ~14 filtros, mais específico, e misturar os dois
+   * mecanismos geraria confusão sobre "por que esse número não bate com a tela principal".
+   * Não reaproveita nem modifica getLeadTimeStats() (painel de "Análise por Região", em dias
+   * CORRIDOS) — motivo do usuário aqui é dias ÚTEIS, com regras de arredondamento diferentes.
+   *
+   * Campo de relacionamento com a aba "Lead Time Atualizado": TRANSPORTADORA + CIDADE (mesma
+   * chave já usada em getLeadTimeStats/leadTimeChave, acima) — é o único identificador comum
+   * às duas fontes; a aba "Lead Time Atualizado" não tem CNPJ, cliente, UF, CEP, região ou
+   * rota, só Transportadora/Cidade (e a própria coluna "CHAVE" da aba é literalmente essa
+   * concatenação, confirmando que é esse o cruzamento pretendido pela planilha).
+   * ============================================================ */
+
+  let feriadosSet = new Set();
+
+  async function loadFeriadosFromUrl(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Não foi possível carregar feriados (HTTP ${res.status}).`);
+    const json = await res.json();
+    feriadosSet = new Set(json.datas || []);
+  }
+
+  function isoDia(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function isDiaUtil(date) {
+    const dow = date.getDay();
+    if (dow === 0 || dow === 6) return false;
+    return !feriadosSet.has(isoDia(date));
+  }
+
+  /**
+   * Dias ÚTEIS entre duas datas — NÃO conta o dia inicial, conta o dia final se ele for útil,
+   * pula sábado/domingo/feriado (feriadosSet). Duas datas no mesmo dia = 0. `fim` antes de
+   * `inicio` devolve null (chamador trata como inconsistência de datas).
+   * Essa MESMA regra cobre "a contagem da entrega começa no 1º dia útil depois da coleta"
+   * (decisão do usuário, 2026-08-23) — o dia da coleta nunca conta, e sábado/domingo/feriado
+   * logo depois dela também não contam até cair num dia de fato útil.
+   */
+  function diasUteisEntre(inicio, fim) {
+    if (!inicio || !fim) return null;
+    const ini = Utils.startOfDay(inicio);
+    const fimDia = Utils.startOfDay(fim);
+    if (fimDia.getTime() < ini.getTime()) return null;
+    let d = ini;
+    let count = 0;
+    while (d.getTime() < fimDia.getTime()) {
+      d = new Date(d.getTime() + 86400000);
+      if (isDiaUtil(d)) count++;
+    }
+    return count;
+  }
+
+  function leadTimePrevistoPedido(r) {
+    if (!r.transportadora || r.transportadora === 'Não informado' || !r.cidade) return null;
+    const v = leadTimeBenchmarkByKey.get(leadTimeChave(r.transportadora, r.cidade));
+    return v === undefined ? null : v;
+  }
+
+  /**
+   * Classifica e calcula os prazos de UM pedido. `hoje` é injetado (não lê `new Date()` aqui
+   * dentro) pra garantir que todas as linhas de uma mesma chamada usem o mesmo "agora".
+   * Ordem de checagem (a primeira que bater decide a situação): sequência de datas
+   * inconsistente ou sem Data de Criação -> "Dados incompletos"; sem faturamento -> "Aguardando
+   * faturamento"; sem coleta -> "Aguardando coleta"; sem entrega -> "Em trânsito" (no prazo ou
+   * atrasado, comparando os dias ÚTEIS já decorridos desde a coleta contra o Lead Time
+   * previsto) ou "Sem Lead Time cadastrado" se a Transportadora+Cidade não bater em nenhuma
+   * linha da aba "Lead Time Atualizado"; com entrega -> "Entregue no prazo/atrasado" pela
+   * mesma comparação, usando os dias efetivos de entrega.
+   */
+  function calcularLeadTimePedido(r, hoje) {
+    const criacao = r.dataCriacao, faturamento = r.dataFaturamento, coleta = r.dataEntrega, entrega = r.dataEntregaNF;
+    const inconsistencias = [];
+    if (faturamento && criacao && faturamento.getTime() < criacao.getTime()) inconsistencias.push('faturamento_antes_da_criacao');
+    if (coleta && faturamento && coleta.getTime() < faturamento.getTime()) inconsistencias.push('coleta_antes_do_faturamento');
+    if (entrega && coleta && entrega.getTime() < coleta.getTime()) inconsistencias.push('entrega_antes_da_coleta');
+
+    const diasFaturar = diasUteisEntre(criacao, faturamento);
+    const diasColeta = diasUteisEntre(faturamento, coleta);
+    const diasEntregaEfetiva = diasUteisEntre(coleta, entrega);
+    const diasTotal = diasUteisEntre(criacao, entrega);
+    const leadTimePrevisto = leadTimePrevistoPedido(r);
+
+    let situacao;
+    let diasDecorridosTransito = null;
+    if (!criacao || inconsistencias.length > 0) {
+      situacao = 'Dados incompletos';
+    } else if (!faturamento) {
+      situacao = 'Aguardando faturamento';
+    } else if (!coleta) {
+      situacao = 'Aguardando coleta';
+    } else if (!entrega) {
+      if (leadTimePrevisto === null) {
+        situacao = 'Sem Lead Time cadastrado';
+      } else {
+        diasDecorridosTransito = diasUteisEntre(coleta, hoje);
+        situacao = (diasDecorridosTransito !== null && diasDecorridosTransito <= leadTimePrevisto) ? 'Em trânsito no prazo' : 'Em trânsito atrasado';
+      }
+    } else if (leadTimePrevisto === null) {
+      situacao = 'Sem Lead Time cadastrado';
+    } else {
+      situacao = (diasEntregaEfetiva !== null && diasEntregaEfetiva <= leadTimePrevisto) ? 'Entregue no prazo' : 'Entregue atrasado';
+    }
+
+    const desvio = (leadTimePrevisto !== null && diasEntregaEfetiva !== null) ? diasEntregaEfetiva - leadTimePrevisto : null;
+    let diasAtraso = null;
+    if (desvio !== null && desvio > 0) diasAtraso = desvio;
+    else if (situacao === 'Em trânsito atrasado' && leadTimePrevisto !== null && diasDecorridosTransito !== null) {
+      diasAtraso = diasDecorridosTransito - leadTimePrevisto;
+    }
+
+    return {
+      diasFaturar, diasColeta, diasEntregaEfetiva, diasTotal, leadTimePrevisto, desvio, situacao,
+      inconsistencias, diasAtraso, diasDecorridosTransito
+    };
+  }
+
+  function aplicarFiltrosLeadTimePedidos(itens, f) {
+    f = f || {};
+    return itens.filter(({ r, calc }) => {
+      if (f.dataInicio || f.dataFim) {
+        const campo = f.campoData || 'criacao';
+        const dataRef = { criacao: r.dataCriacao, faturamento: r.dataFaturamento, coleta: r.dataEntrega, entrega: r.dataEntregaNF }[campo];
+        if (!dataRef) return false;
+        if (f.dataInicio && dataRef < f.dataInicio) return false;
+        if (f.dataFim && dataRef > f.dataFim) return false;
+      }
+      if (f.cliente && f.cliente.length && !f.cliente.includes(r.cliente)) return false;
+      if (f.cnpj && !String(r.cnpj || '').includes(f.cnpj)) return false;
+      if (f.numeroPedido && !String(r.nf || '').toLowerCase().includes(f.numeroPedido.toLowerCase())) return false;
+      if (f.motorista && f.motorista.length && !f.motorista.includes(r.motorista)) return false;
+      if (f.transportadora && f.transportadora.length && !f.transportadora.includes(r.transportadora)) return false;
+      if (f.cidade && f.cidade.length && !f.cidade.includes(r.cidade)) return false;
+      if (f.uf && f.uf.length && !f.uf.includes(r.uf)) return false;
+      if (f.regiao && f.regiao.length && !f.regiao.includes(r.regiaoComercial)) return false;
+      if (f.situacao && f.situacao.length && !f.situacao.includes(calc.situacao)) return false;
+      if (f.prazo === 'no_prazo' && !calc.situacao.includes('no prazo')) return false;
+      if (f.prazo === 'atrasado' && !calc.situacao.includes('atrasado')) return false;
+      if (f.leadTime === 'com' && calc.leadTimePrevisto === null) return false;
+      if (f.leadTime === 'sem' && calc.leadTimePrevisto !== null) return false;
+      return true;
+    });
+  }
+
+  function mediaLista(valores) { return valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null; }
+  function medianaLista(valores) {
+    if (!valores.length) return null;
+    const s = valores.slice().sort((a, b) => a - b);
+    const meio = Math.floor(s.length / 2);
+    return s.length % 2 ? s[meio] : (s[meio - 1] + s[meio]) / 2;
+  }
+
+  function calcularKpisLeadTimePedidos(itens) {
+    const validos = (campo) => itens.map(x => x.calc[campo]).filter(v => v !== null && v >= 0);
+    const entreguesComLeadTime = itens.filter(x => x.r.dataEntregaNF && x.calc.leadTimePrevisto !== null);
+    const entreguesNoPrazo = entreguesComLeadTime.filter(x => x.calc.situacao === 'Entregue no prazo').length;
+    const atrasos = itens.map(x => x.calc.diasAtraso).filter(v => v !== null && v > 0);
+
+    return {
+      totalPedidos: itens.length,
+      faturados: itens.filter(x => x.r.dataFaturamento).length,
+      coletados: itens.filter(x => x.r.dataEntrega).length,
+      entregues: itens.filter(x => x.r.dataEntregaNF).length,
+      emTransito: itens.filter(x => x.calc.situacao.startsWith('Em trânsito')).length,
+      atrasados: itens.filter(x => x.calc.situacao.includes('atrasado')).length,
+      mediaDiasFaturar: mediaLista(validos('diasFaturar')), medianaDiasFaturar: medianaLista(validos('diasFaturar')),
+      mediaDiasColeta: mediaLista(validos('diasColeta')), medianaDiasColeta: medianaLista(validos('diasColeta')),
+      mediaDiasEntrega: mediaLista(validos('diasEntregaEfetiva')), medianaDiasEntrega: medianaLista(validos('diasEntregaEfetiva')),
+      mediaDiasTotal: mediaLista(validos('diasTotal')),
+      percentualNoPrazo: entreguesComLeadTime.length ? (entreguesNoPrazo / entreguesComLeadTime.length * 100) : null,
+      mediaDiasAtraso: mediaLista(atrasos),
+      semLeadTimeCadastrado: itens.filter(x => x.calc.leadTimePrevisto === null && (x.r.dataEntrega || x.r.dataEntregaNF)).length
+    };
+  }
+
+  /** Ponto de entrada único do painel "Lead Time de Pedidos e Entregas" — calcula por cima de
+   * TODOS os registros (não só os filtrados globalmente, ver comentário no topo desta seção),
+   * aplica os filtros próprios do painel, e devolve tanto a lista enriquecida (pra tabela/
+   * gráficos) quanto os KPIs já agregados. */
+  function calcularLeadTimePedidos(filtros) {
+    const hoje = new Date();
+    const enriquecido = rawRecords.map(r => ({ r, calc: calcularLeadTimePedido(r, hoje) }));
+    const itens = aplicarFiltrosLeadTimePedidos(enriquecido, filtros);
+    return { itens, kpis: calcularKpisLeadTimePedidos(itens) };
+  }
+
+  /** Lista de NFs que aparecem mais de uma vez em rawRecords — checagem de qualidade de dados
+   * pedida pelo usuário ("Pedidos duplicados"); normalmente vazia, já que o restante do
+   * pipeline (applyBluesoftEnrichment) já deduplica por NF, mas serve de alarme se algo mudar. */
+  function listarPedidosDuplicadosLeadTime() {
+    const contagem = new Map();
+    for (const r of rawRecords) contagem.set(r.nf, (contagem.get(r.nf) || 0) + 1);
+    return [...contagem.entries()].filter(([, c]) => c > 1).map(([nf, c]) => ({ nf, ocorrencias: c }));
+  }
+
+  /** Linhas da aba "Lead Time Atualizado" com valor vazio, zero ou não numérico — checagem de
+   * qualidade pedida pelo usuário ("Lead Time vazio, zerado ou inválido"). Essas linhas já são
+   * excluídas do benchmark (indexLeadTimeRows) para não distorcer a média/comparação — aqui só
+   * ficam listadas pra sinalização, não pra recalcular nada. */
+  function listarLeadTimesInvalidos() {
+    return leadTimeLinhasInvalidas.slice();
   }
 
   /**
@@ -1637,6 +1853,8 @@ const DataStore = (() => {
     loadFaturamentoFromUrl, loadFaturamentoFromFile,
     loadRegioesFromUrl, loadRegioesFromFile,
     loadLeadTimeFromUrl, loadLeadTimeFromFile,
+    loadFeriadosFromUrl,
+    calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
