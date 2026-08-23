@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260822c">
+<link rel="stylesheet" href="css/style.css?v=20260823a">
 </head>
 <body>
 
@@ -702,8 +702,12 @@
           <details class="sidebar-accordion" style="margin-bottom:16px;">
             <summary>Qualidade dos dados <span id="ltp-qualidade-contagem" class="badge badge--neutral"></span></summary>
             <div style="padding:12px;">
-              <p class="chart-card__hint">Pedidos com sequência de datas inconsistente (excluídos das médias, listados aqui):</p>
-              <div class="table-scroll"><table class="data-table" id="ltp-table-inconsistencias"><thead><tr><th>NF</th><th>Cliente</th><th>Inconsistência</th></tr></thead><tbody></tbody></table></div>
+              <p class="chart-card__hint">Pedidos com sequência de datas inconsistente (excluídos das médias, listados aqui para correção na planilha):</p>
+              <div class="table-scroll"><table class="data-table" id="ltp-table-inconsistencias"><thead><tr><th>NF</th><th>Cliente</th><th>Inconsistência</th><th>Data Criação</th><th>Data Faturamento</th><th>Data Coleta</th><th>Data Entrega</th></tr></thead><tbody></tbody></table></div>
+
+              <p class="chart-card__hint" style="margin-top:12px;">Transportadora + Cidade sem Lead Time cadastrado (priorize cadastrar as de maior volume na aba "Lead Time Atualizado"):</p>
+              <div class="table-scroll"><table class="data-table" id="ltp-table-sem-leadtime"><thead><tr><th>Transportadora</th><th>Cidade</th><th>UF</th><th class="text-right">Pedidos</th></tr></thead><tbody></tbody></table></div>
+              <p class="chart-card__hint" id="ltp-sem-leadtime-truncado" hidden></p>
               <p class="chart-card__hint" style="margin-top:12px;">Pedidos duplicados (mesma NF aparecendo mais de uma vez na base):</p>
               <div class="table-scroll"><table class="data-table" id="ltp-table-duplicados"><thead><tr><th>NF</th><th>Ocorrências</th></tr></thead><tbody></tbody></table></div>
               <p class="chart-card__hint" style="margin-top:12px;">Linhas da aba "Lead Time Atualizado" com prazo vazio, zero ou inválido (ignoradas no cálculo):</p>
@@ -856,11 +860,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260822c"></script>
-<script src="js/utils.js?v=20260822c"></script>
-<script src="js/data.js?v=20260822c"></script>
-<script src="js/charts.js?v=20260822c"></script>
-<script src="js/dashboard.js?v=20260822c"></script>
-<script src="js/script.js?v=20260822c"></script>
+<script type="module" src="js/firebase-init.js?v=20260823a"></script>
+<script src="js/utils.js?v=20260823a"></script>
+<script src="js/data.js?v=20260823a"></script>
+<script src="js/charts.js?v=20260823a"></script>
+<script src="js/dashboard.js?v=20260823a"></script>
+<script src="js/script.js?v=20260823a"></script>
 </body>
 </html>
