@@ -156,6 +156,12 @@ const FIELD_ALIASES = {
   ],
   dataFaturamento: ['data faturamento'],
   dataEntrega: ['data entrega', 'dt. entrega nf'],
+  // Campos novos da Base Bluesoft (relatório de Lead Time, 2026-08-22): "Data Criacao" e
+  // "Data Entrega NF" são nomes de coluna só do CSV gerado por essa extração — de propósito
+  // diferentes de "dt. entrega nf" (alias de dataEntrega acima, usado pela NF Aberta) pra não
+  // colidir com o campo "coleta" já estabelecido.
+  dataCriacao: ['data criacao'],
+  dataEntregaNF: ['data entrega nf'],
   // Coluna M da aba "NF ABERTA (BI STATUS ENTREGAS)" — ocorrência/status detalhado da nota.
   situacao: ['ocorrencias consolidada2', 'situacao', 'situação', 'status detalhado'],
   // Coluna "AGENDAMENTOS" (ou "Agendado" na planilha de agendamentos) — indica se a nota
@@ -391,6 +397,11 @@ function normalizeRecord(rawRow) {
     statusAgendamento: '',
     observacaoAgendamento: '',
     reagendar: '',
+    // Data de Criação do pedido e Data de Entrega da NF (distinta da "coleta" em dataEntrega)
+    // — só existem pra registros vindos da Base Bluesoft (ver applyBluesoftEnrichment), usadas
+    // pelo relatório de Lead Time em "Análise por Região".
+    dataCriacao: null,
+    dataEntregaNF: null,
     // Preenchidos pela planilha de Motivos (Base BI), só para as notas que ela cobre —
     // ver applyMotivoEnrichment. Cobertura parcial (~dez/2025 a abr/2026), por isso não dá
     // pra contar com esses campos pra todo o histórico.
@@ -524,6 +535,11 @@ const DataStore = (() => {
   // applyRetornoEnrichment). Só serve pra tipoTransporte (propriedade fixa da transportadora);
   // o prazo em dias fica de fora do fallback, pois pode variar por rota/cliente/pedido.
   let retornoTipoPorTransportadora = new Map();
+  // "transportadora normalizada|cidade normalizada" -> prazo esperado em dias úteis (aba
+  // "Lead Time Atualizado") — usado só como comparativo no relatório de Lead Time em
+  // "Análise por Região" (ver getLeadTimeStats). Vazio até a Transportadora voltar a existir
+  // na Base Bluesoft (2026-08-22, ver aviso no relatório).
+  let leadTimeBenchmarkByKey = new Map();
   // NF (base) -> Data de Faturamento (aba "Base BI" da planilha, coluna "Data faturamento") —
   // por decisão do usuário (2026-08-17), essa passou a ser a data prioritária pro filtro de
   // Período/Mês (ver getFilteredRecords/getAvailableYears), no lugar da Data de Coleta: uma
@@ -653,6 +669,10 @@ const DataStore = (() => {
       // removerNotasComViagemFinalizadaMasEmAberto, mais abaixo.
       const viagemHeader = headerIndex['viagem'];
       const viagemRaw = viagemHeader !== undefined ? String(row[viagemHeader] || '').trim() : '';
+      // Campos do relatório de Lead Time (2026-08-22) — opcionais, CSVs antigos sem essas
+      // colunas ficam com '' (Utils.parseDate('') retorna null, não afeta nada).
+      const dataCriacaoRaw = pickField(row, headerIndex, 'dataCriacao') || '';
+      const dataEntregaNFRaw = pickField(row, headerIndex, 'dataEntregaNF') || '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -665,7 +685,9 @@ const DataStore = (() => {
         _dataEntregaParsed: dataEntregaParsed,
         cnpj: pickField(row, headerIndex, 'cnpj'),
         necessitaAgendamento: parseObrigaAgendamentoBluesoft(agendadoRaw),
-        viagem: viagemRaw
+        viagem: viagemRaw,
+        dataCriacao: dataCriacaoRaw,
+        dataEntregaNF: dataEntregaNFRaw
       };
 
       // Data de coleta mais antiga por NF BASE — calculada aqui, sobre TODAS as linhas brutas,
@@ -785,6 +807,8 @@ const DataStore = (() => {
       // e no card "Total geral de notas", que continuam por critério antigo de propósito).
       r.dataUltimaTentativaBluesoft = bluesoftDataColetaMaisRecentePorBaseNF.get(r.nf.split('-')[0]) || null;
       r.viagem = info.viagem || '';
+      if (info.dataCriacao) r.dataCriacao = Utils.parseDate(info.dataCriacao);
+      if (info.dataEntregaNF) r.dataEntregaNF = Utils.parseDate(info.dataEntregaNF);
     }
 
     // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
@@ -818,6 +842,8 @@ const DataStore = (() => {
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
         dataUltimaTentativaBluesoft: bluesoftDataColetaMaisRecentePorBaseNF.get(baseNf) || null,
         viagem: info.viagem || '',
+        dataCriacao: Utils.parseDate(info.dataCriacao),
+        dataEntregaNF: Utils.parseDate(info.dataEntregaNF),
         tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
@@ -1202,6 +1228,101 @@ const DataStore = (() => {
   }
 
   /**
+   * Carrega o prazo esperado (dias úteis) por Transportadora + Cidade, aba "Lead Time
+   * Atualizado" — usado como comparativo no relatório de Lead Time (ver getLeadTimeStats).
+   * Cabeçalho real dessa aba fica na linha 2 da planilha original; o CSV gerado já sai com
+   * o cabeçalho simples "Transportadora;Cidade;LeadTimeDiasUteis" (ver script de extração).
+   */
+  function leadTimeChave(transportadora, cidade) {
+    return `${normalizeHeaderKey(transportadora || '')}|${normalizeHeaderKey(cidade || '')}`;
+  }
+
+  function indexLeadTimeRows(rawRows) {
+    const map = new Map();
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const transportadora = row[headerIndex['transportadora']] || '';
+      const cidade = row[headerIndex['cidade']] || '';
+      const leadTimeRaw = row[headerIndex['leadtimediasuteis']];
+      const leadTime = Number(String(leadTimeRaw || '').replace(',', '.'));
+      if (!transportadora && !cidade) continue;
+      if (!Number.isFinite(leadTime)) continue;
+      map.set(leadTimeChave(transportadora, cidade), leadTime);
+    }
+    leadTimeBenchmarkByKey = map;
+  }
+
+  async function loadLeadTimeFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexLeadTimeRows(rawRows);
+    notify();
+  }
+
+  async function loadLeadTimeFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexLeadTimeRows(rawRows);
+    notify();
+  }
+
+  /** Diferença em dias corridos entre duas datas (null se qualquer uma faltar). */
+  function diasEntre(d1, d2) {
+    if (!d1 || !d2) return null;
+    return (Utils.startOfDay(d2).getTime() - Utils.startOfDay(d1).getTime()) / 86400000;
+  }
+
+  /**
+   * Relatório de Lead Time (tela "Análise por Região", 2026-08-22): tempo médio, sobre os
+   * registros já filtrados, entre:
+   *  - Etapa 1: Data de Criação do pedido -> Data de Faturamento
+   *  - Etapa 2: Data de Entrega/Coleta -> Data de Entrega da NF
+   *  - Total: Data de Criação -> Data de Entrega da NF
+   * "benchmark" é o prazo esperado (dias ÚTEIS, aba Lead Time Atualizado) das notas que têm
+   * Transportadora+Cidade reconhecidas nessa tabela — comparação apenas informativa, não é a
+   * mesma unidade da média real (que é em dias corridos).
+   * Diferenças negativas (data final antes da inicial, inconsistência de origem) são
+   * descartadas da média em vez de distorcer o resultado pra baixo.
+   */
+  function getLeadTimeStats() {
+    const records = getFilteredRecords();
+    let etapa1Soma = 0, etapa1N = 0;
+    let etapa2Soma = 0, etapa2N = 0;
+    let totalSoma = 0, totalN = 0;
+    let benchmarkSoma = 0, benchmarkN = 0;
+
+    for (const r of records) {
+      const etapa1 = diasEntre(r.dataCriacao, r.dataFaturamento);
+      if (etapa1 !== null && etapa1 >= 0) { etapa1Soma += etapa1; etapa1N++; }
+
+      const etapa2 = diasEntre(r.dataEntrega, r.dataEntregaNF);
+      if (etapa2 !== null && etapa2 >= 0) { etapa2Soma += etapa2; etapa2N++; }
+
+      const total = diasEntre(r.dataCriacao, r.dataEntregaNF);
+      if (total !== null && total >= 0) {
+        totalSoma += total; totalN++;
+        // Transportadora vazia (pendente na Base Bluesoft, ver aviso) vem como "Não informado"
+        // (valor padrão do registro, não vazio de verdade) — sem excluir esse texto aqui
+        // também, ele "casaria" com uma linha do benchmark sem Transportadora e daria falso
+        // positivo.
+        if (r.transportadora && r.transportadora !== 'Não informado') {
+          const benchmark = leadTimeBenchmarkByKey.get(leadTimeChave(r.transportadora, r.cidade));
+          if (benchmark !== undefined) { benchmarkSoma += benchmark; benchmarkN++; }
+        }
+      }
+    }
+
+    return {
+      etapa1: { mediaDias: etapa1N ? etapa1Soma / etapa1N : null, amostras: etapa1N },
+      etapa2: { mediaDias: etapa2N ? etapa2Soma / etapa2N : null, amostras: etapa2N },
+      total: { mediaDias: totalN ? totalSoma / totalN : null, amostras: totalN },
+      benchmark: { mediaDiasUteis: benchmarkN ? benchmarkSoma / benchmarkN : null, amostras: benchmarkN },
+      totalRegistrosFiltrados: records.length
+    };
+  }
+
+  /**
    * Carrega a Data de Faturamento por NF (aba "Base BI", coluna "Data faturamento" — ver
    * scripts/atualizar-dados-dashboard.ps1/Extrair-Faturamento). Cobertura completa (toda linha
    * com NF preenchido, não só as com motivo registrado como em loadMotivosFromUrl abaixo).
@@ -1479,10 +1600,11 @@ const DataStore = (() => {
     loadRetornoFromUrl, loadRetornoFromFile,
     loadFaturamentoFromUrl, loadFaturamentoFromFile,
     loadRegioesFromUrl, loadRegioesFromFile,
+    loadLeadTimeFromUrl, loadLeadTimeFromFile,
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
-    getDistinctValues, getAvailableYears,
+    getDistinctValues, getAvailableYears, getLeadTimeStats,
     getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
     onChange
   };
