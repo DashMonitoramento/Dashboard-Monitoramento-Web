@@ -417,11 +417,6 @@
       <!-- TABELA -->
       <section class="table-card" id="registros-detalhados" aria-label="Tabela de registros">
         <div class="table-card__header">
-          <div class="tabs-registros-mapa" id="tabs-registros-mapa">
-            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" id="btn-ver-registros" data-view="registros">📋 Registros detalhados</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" id="btn-ver-mapa-regioes" data-view="mapa">🗺️ Análise por Região</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" id="btn-ver-registro-dinamico" data-view="dinamico">📊 Registro Dinâmico</button>
-          </div>
           <div class="table-search">
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
           </div>
@@ -488,14 +483,6 @@
 
       <!-- ===================== ANÁLISE POR REGIÃO (embutido via iframe) ===================== -->
       <section id="mapa-regioes-embed" class="table-card" aria-label="Análise por Região" hidden>
-        <div class="table-card__header">
-          <div class="tabs-registros-mapa">
-            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="registros">📋 Registros detalhados</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="mapa">🗺️ Análise por Região</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
-          </div>
-        </div>
-
         <section id="lead-time-panel" class="table-card" aria-label="Lead Time" style="margin-bottom:16px;">
           <div class="chart-card__header">
             <h2 class="chart-card__title">⏱️ Lead Time — tempo médio do pedido até a entrega</h2>
@@ -532,13 +519,6 @@
 
       <!-- ===================== REGISTRO DINÂMICO (consolidado por Data de Faturamento) ===================== -->
       <section id="registro-dinamico-view" class="table-card" aria-label="Registro Dinâmico" hidden>
-        <div class="table-card__header">
-          <div class="tabs-registros-mapa">
-            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="registros">📋 Registros detalhados</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="mapa">🗺️ Análise por Região</button>
-            <button type="button" class="toggle-view-btn toggle-view-btn--ativo" data-view="dinamico">📊 Registro Dinâmico</button>
-          </div>
-        </div>
         <div class="registro-dinamico__topo">
           <div class="registro-dinamico__tabela-col">
             <p class="registro-dinamico__coverage" id="registro-dinamico-coverage"></p>
