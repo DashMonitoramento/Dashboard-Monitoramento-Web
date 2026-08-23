@@ -169,6 +169,10 @@ const FIELD_ALIASES = {
   telefone: ['telefone'],
   numeroPedidoEcommerce: ['numero pedido ecommerce', 'n pedido ecommerce'],
   numeroFatura: ['numero fatura', 'numero da fatura'],
+  // Rota — adicionada na Base Bluesoft em 2026-08-23, só para o filtro do painel "Lead Time de
+  // Pedidos e Entregas" (a aba "Lead Time Atualizado" ainda não tem Rota, então isso NÃO entra
+  // no cruzamento de prazo previsto — só Transportadora+Cidade, ver leadTimeChave).
+  rota: ['rota'],
   // Coluna M da aba "NF ABERTA (BI STATUS ENTREGAS)" — ocorrência/status detalhado da nota.
   situacao: ['ocorrencias consolidada2', 'situacao', 'situação', 'status detalhado'],
   // Coluna "AGENDAMENTOS" (ou "Agendado" na planilha de agendamentos) — indica se a nota
@@ -414,6 +418,7 @@ function normalizeRecord(rawRow) {
     telefone: '',
     numeroPedidoEcommerce: '',
     numeroFatura: '',
+    rota: '',
     // Preenchidos pela planilha de Motivos (Base BI), só para as notas que ela cobre —
     // ver applyMotivoEnrichment. Cobertura parcial (~dez/2025 a abr/2026), por isso não dá
     // pra contar com esses campos pra todo o histórico.
@@ -690,6 +695,7 @@ const DataStore = (() => {
       const telefoneRaw = pickField(row, headerIndex, 'telefone') || '';
       const numeroPedidoEcommerceRaw = pickField(row, headerIndex, 'numeroPedidoEcommerce') || '';
       const numeroFaturaRaw = pickField(row, headerIndex, 'numeroFatura') || '';
+      const rotaRaw = pickField(row, headerIndex, 'rota') || '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -709,7 +715,8 @@ const DataStore = (() => {
         codigoCliente: codigoClienteRaw,
         telefone: telefoneRaw,
         numeroPedidoEcommerce: numeroPedidoEcommerceRaw,
-        numeroFatura: numeroFaturaRaw
+        numeroFatura: numeroFaturaRaw,
+        rota: rotaRaw
       };
 
       // Data de coleta mais antiga por NF BASE — calculada aqui, sobre TODAS as linhas brutas,
@@ -836,6 +843,7 @@ const DataStore = (() => {
       if (info.telefone) r.telefone = info.telefone;
       if (info.numeroPedidoEcommerce) r.numeroPedidoEcommerce = info.numeroPedidoEcommerce;
       if (info.numeroFatura) r.numeroFatura = info.numeroFatura;
+      if (info.rota) r.rota = info.rota;
     }
 
     // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
@@ -876,6 +884,7 @@ const DataStore = (() => {
         telefone: info.telefone || '',
         numeroPedidoEcommerce: info.numeroPedidoEcommerce || '',
         numeroFatura: info.numeroFatura || '',
+        rota: info.rota || '',
         tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
@@ -1502,6 +1511,7 @@ const DataStore = (() => {
       if (f.cidade && f.cidade.length && !f.cidade.includes(r.cidade)) return false;
       if (f.uf && f.uf.length && !f.uf.includes(r.uf)) return false;
       if (f.regiao && f.regiao.length && !f.regiao.includes(r.regiaoComercial)) return false;
+      if (f.rota && f.rota.length && !f.rota.includes(r.rota)) return false;
       if (f.situacao && f.situacao.length && !f.situacao.includes(calc.situacao)) return false;
       if (f.prazo === 'no_prazo' && !calc.situacao.includes('no prazo')) return false;
       if (f.prazo === 'atrasado' && !calc.situacao.includes('atrasado')) return false;
