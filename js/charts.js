@@ -241,6 +241,12 @@ class DashChart {
 
   _draw(alpha) {
     const ctx = this.ctx;
+    // Construído (ou reconstruído, ex.: Registro Dinâmico) enquanto o container ainda estava
+    // escondido/sem layout — this.width/height nunca chegaram a ser definidos por _resize()
+    // (mesma guarda de offsetParent === null, ver _resize()), e desenhar com undefined/NaN
+    // aqui é o que gerava "createLinearGradient ... non-finite" ao trocar de view e voltar.
+    // O ResizeObserver chama _resize() -> _draw() de novo assim que o container ganhar tamanho real.
+    if (!this.width || !this.height) return;
     ctx.clearRect(0, 0, this.width, this.height);
     if (!this._currentSeries || this._currentSeries.length === 0) return;
 
