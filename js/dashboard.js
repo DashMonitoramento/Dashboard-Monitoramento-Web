@@ -1764,6 +1764,33 @@ const Dashboard = (() => {
     renderLeadTimePedidos(); // no-op se a tela "Lead Time de Pedidos e Entregas" não estiver visível
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
+    atualizarBotaoLimparFiltros();
+  }
+
+  /** "Limpar filtros" fica cinza neutro em repouso e só acende vermelho/piscante (mesmo efeito
+   * do "Atualizar dados") quando existe pelo menos um filtro ativo pra limpar — decisão do
+   * usuário (2026-08-23). Reexecuta em toda mudança de filtro (render() é o callback de
+   * DataStore.onChange). Não conta "busca" isoladamente? Conta sim — é um filtro como qualquer
+   * outro (Busca Rápida e "Pesquisar na tabela" usam o mesmo DataStore.setFilters({busca})). */
+  function algumFiltroAtivo() {
+    const f = DataStore.getFilters();
+    return Boolean(
+      f.dataInicio || f.dataFim || f.mes || f.ano || (f.busca && f.busca.trim()) ||
+      (f.situacaoFiltro && f.situacaoFiltro.length) ||
+      (f.transportadora && f.transportadora.length) ||
+      (f.tipoTransporte && f.tipoTransporte.length) ||
+      (f.motorista && f.motorista.length) ||
+      (f.vendedor && f.vendedor.length) ||
+      (f.cliente && f.cliente.length) ||
+      (f.cidade && f.cidade.length) ||
+      (f.regiaoComercial && f.regiaoComercial.length)
+    );
+  }
+
+  function atualizarBotaoLimparFiltros() {
+    const botao = document.getElementById('btn-reset-filters');
+    if (!botao) return;
+    botao.classList.toggle('btn--pill-red--ativo', algumFiltroAtivo());
   }
 
   function renderAll() {
