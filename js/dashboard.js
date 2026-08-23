@@ -14,7 +14,8 @@ const Dashboard = (() => {
   let table = createTableState();
   const MAIN_TABLE_IDS = {
     tbody: 'table-body', info: 'table-info', pageLabel: 'table-page-label',
-    prev: 'table-prev', next: 'table-next', theadSelector: '#data-table thead th[data-field]'
+    prev: 'table-prev', next: 'table-next', theadSelector: '#data-table thead th[data-field]',
+    colspan: 22 // 14 colunas originais + 8 novas (2026-08-22, ver colunasTabelaPrincipal)
   };
 
   // Tela de detalhe (drill-down ao clicar num card de KPI) — reaproveita o mesmo
@@ -167,9 +168,17 @@ const Dashboard = (() => {
   // assets/data/canhotos-index.json (gerado por scripts/gerar-indice-canhotos.ps1).
   let canhotosIndex = new Map();
 
+  // Colunas que começam OCULTAS por padrão na tabela "Registros detalhados" — decisão do
+  // usuário (2026-08-22): campos novos, úteis pra consulta pontual, mas que não deveriam
+  // poluir a tabela por padrão (ainda buscáveis mesmo ocultos, ver haystack em data.js).
+  const CAMPOS_OCULTOS_POR_PADRAO = [
+    'filial', 'codigoCliente', 'telefone', 'dataCriacao', 'dataEntregaNF',
+    'numeroPedidoEcommerce', 'dataFaturamento', 'numeroFatura'
+  ];
+
   // Campos das colunas atualmente ocultas na tabela "Registros detalhados" (botões redondos
-  // acima da tabela) — nomes batem com data-field do <thead> e com COLUNAS_TABELA_PRINCIPAL.
-  let colunasOcultas = new Set();
+  // acima da tabela) — nomes batem com data-field do <thead> e com colunasTabelaPrincipal().
+  let colunasOcultas = new Set(CAMPOS_OCULTOS_POR_PADRAO);
 
   /* ============================================================
    * INICIALIZAÇÃO
@@ -185,6 +194,10 @@ const Dashboard = (() => {
     bindObservacaoEdicao();
     renderColumnToggles();
     bindColumnToggles();
+    // Aplica o estado inicial de colunasOcultas (CAMPOS_OCULTOS_POR_PADRAO) na tabela — sem
+    // isso, o <table data-hide> começa sem esse atributo e as colunas novas apareceriam
+    // visíveis no primeiro carregamento, só escondendo depois do 1º clique num toggle.
+    aplicarColunasOcultas();
     bindScrollTabela();
     bindAlternarViewMapaRegioes();
     bindRegistroDinamico();
@@ -433,7 +446,7 @@ const Dashboard = (() => {
       renderTable(DataStore.getFilteredRecords());
     });
 
-    bindTableControlsFor(detailTable, DETAIL_TABLE_IDS, () => detailRecords);
+    bindTableControlsFor(detailTable, DETAIL_TABLE_IDS, () => detailRecords, (r) => rowHtml(r, false));
 
     const detailSearchHandler = Utils.debounce((value) => {
       detailBusca = value;
@@ -522,7 +535,7 @@ const Dashboard = (() => {
     }
     detailRecords = registros;
     document.getElementById('detail-view-title').textContent = `${def.title} (${Utils.formatNumber(detailRecords.length)})`;
-    renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS);
+    renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS, (r) => rowHtml(r, false));
     renderMotivosBreakdown(detailRecords);
     renderAgendamentoEdicao(detailRecords);
     renderObservacaoEdicao(detailRecords);
@@ -789,7 +802,18 @@ const Dashboard = (() => {
       { field: 'valorNF', label: 'Valor NF', value: r => r.valorNF.toFixed(2).replace('.', ',') },
       { field: 'dataEntrega', label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
       { field: 'dataAgendamento', label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) },
-      { field: 'observacaoAgendamento', label: 'Observação', value: r => r.observacaoAgendamento || '—' }
+      { field: 'observacaoAgendamento', label: 'Observação', value: r => r.observacaoAgendamento || '—' },
+      // Colunas novas 2026-08-22 (Base Bluesoft) — ocultas por padrão (ver colunasOcultasPadrao
+      // abaixo), só aparecem se o usuário ligar o botão ou usar a busca (que já cobre esses
+      // campos mesmo ocultos, ver getFilteredRecords em data.js).
+      { field: 'filial', label: 'Filial', value: r => r.filial || '—' },
+      { field: 'codigoCliente', label: 'Código Cliente', value: r => r.codigoCliente || '—' },
+      { field: 'telefone', label: 'Telefone', value: r => r.telefone || '—' },
+      { field: 'dataCriacao', label: 'Data Criação', value: r => Utils.formatDate(r.dataCriacao) },
+      { field: 'dataEntregaNF', label: 'Data Entrega NF', value: r => Utils.formatDate(r.dataEntregaNF) },
+      { field: 'numeroPedidoEcommerce', label: 'Número Pedido Ecommerce', value: r => r.numeroPedidoEcommerce || '—' },
+      { field: 'dataFaturamento', label: 'Data Faturamento', value: r => Utils.formatDate(r.dataFaturamento) },
+      { field: 'numeroFatura', label: 'Número Fatura', value: r => r.numeroFatura || '—' }
     ];
   }
 
@@ -1538,10 +1562,23 @@ const Dashboard = (() => {
    * TABELA
    * ============================================================ */
 
-  function rowHtml(r) {
+  /** `incluirColunasNovas` fica false só pra tabela de detalhe (drill-down de KPI,
+   * #detail-data-table via DETAIL_TABLE_IDS) — ela compartilha esse mesmo renderizador mas não
+   * tem o mecanismo de mostrar/ocultar coluna (nem cabeçalho pras 8 colunas novas), então
+   * incluir essas células ali sairia sem rótulo e desalinhado. */
+  function rowHtml(r, incluirColunasNovas = true) {
     // Verde quando a NF já tem canhoto indexado (pasta do SharePoint), laranja quando não tem
     // — só uma consulta O(1) no Map já carregado em memória, sem custo perceptível por linha.
     const temCanhoto = canhotosIndex.has(r.nf.split('-')[0]);
+    const colunasNovasHtml = !incluirColunasNovas ? '' : `
+        <td class="truncate" title="${escapeAttr(r.filial)}">${escapeAttr(r.filial || '—')}</td>
+        <td>${escapeAttr(r.codigoCliente || '—')}</td>
+        <td>${escapeAttr(r.telefone || '—')}</td>
+        <td>${Utils.formatDate(r.dataCriacao)}</td>
+        <td>${Utils.formatDate(r.dataEntregaNF)}</td>
+        <td>${escapeAttr(r.numeroPedidoEcommerce || '—')}</td>
+        <td>${Utils.formatDate(r.dataFaturamento)}</td>
+        <td>${escapeAttr(r.numeroFatura || '—')}</td>`;
     return `
       <tr>
         <td><button type="button" class="nf-link${temCanhoto ? ' nf-link--tem-canhoto' : ''}" data-nf="${escapeAttr(r.nf)}" title="Buscar canhoto de entrega">${escapeAttr(r.nf)}</button></td>
@@ -1557,7 +1594,7 @@ const Dashboard = (() => {
         <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
         <td>${Utils.formatDate(r.dataEntrega)}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
-        <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${escapeAttr(r.observacaoAgendamento || '—')}</td>
+        <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${escapeAttr(r.observacaoAgendamento || '—')}</td>${colunasNovasHtml}
       </tr>
     `;
   }
