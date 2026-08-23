@@ -1,0 +1,11 @@
+{
+  "_comentario": "Feriados nacionais fixos e móveis (Carnaval, Sexta-feira Santa, Corpus Christi calculados a partir da Páscoa). Usado pelo painel 'Lead Time de Pedidos e Entregas' para não contar esses dias como dia útil. Pra adicionar um feriado estadual/municipal ou de um ano novo, só incluir a data no formato AAAA-MM-DD na lista abaixo — não precisa mudar nenhum código.",
+  "datas": [
+    "2025-01-01", "2025-03-03", "2025-03-04", "2025-04-18", "2025-04-21",
+    "2025-05-01", "2025-06-19", "2025-09-07", "2025-10-12", "2025-11-02",
+    "2025-11-15", "2025-11-20", "2025-12-25",
+    "2026-01-01", "2026-02-16", "2026-02-17", "2026-04-03", "2026-04-21",
+    "2026-05-01", "2026-06-04", "2026-09-07", "2026-10-12", "2026-11-02",
+    "2026-11-15", "2026-11-20", "2026-12-25"
+  ]
+}
