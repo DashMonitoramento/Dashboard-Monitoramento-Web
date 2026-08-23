@@ -214,6 +214,8 @@ const Dashboard = (() => {
     aplicarColunasOcultas();
     bindScrollTabela();
     bindAlternarViewMapaRegioes();
+    bindBotaoIrInicio();
+    atualizarBotaoIrInicio();
     bindRegistroDinamico();
     bindMapaRegioesMensagens();
     bindLeadTimePedidos();
@@ -234,6 +236,29 @@ const Dashboard = (() => {
     });
   }
 
+  /** Botão "casinha" no cabeçalho (2026-08-23, pedido do usuário) — visível em toda tela que
+   * não seja a inicial ("Registros detalhados" sem nenhum drill-down de KPI aberto), pra
+   * sempre ter como voltar num clique só. Chamada nos 3 pontos que trocam de tela: troca de
+   * view (mostrarViewMapaRegioes) e abrir/fechar o drill-down de KPI (openStatusDetail/
+   * closeStatusDetail), que existe só dentro da tela inicial mas cobre o #main-view por cima. */
+  function atualizarBotaoIrInicio() {
+    const botao = document.getElementById('btn-ir-inicio');
+    if (!botao) return;
+    const main = document.getElementById('main-view');
+    const detalhe = document.getElementById('status-detail-view');
+    const naTelaInicial = !main.hidden && detalhe.hidden;
+    botao.hidden = naTelaInicial;
+  }
+
+  function bindBotaoIrInicio() {
+    const botao = document.getElementById('btn-ir-inicio');
+    if (!botao) return;
+    botao.addEventListener('click', () => {
+      closeStatusDetail();
+      mostrarViewMapaRegioes('registros');
+    });
+  }
+
   function mostrarViewMapaRegioes(view) {
     const main = document.getElementById('main-view');
     const embed = document.getElementById('mapa-regioes-embed');
@@ -246,6 +271,7 @@ const Dashboard = (() => {
     embed.hidden = view !== 'mapa';
     dinamico.hidden = view !== 'dinamico';
     if (leadtimePedidos) leadtimePedidos.hidden = view !== 'leadtime-pedidos';
+    atualizarBotaoIrInicio();
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
       const ativo = botao.dataset.view === view;
@@ -551,12 +577,14 @@ const Dashboard = (() => {
     renderStatusDetail();
     document.getElementById('main-view').hidden = true;
     document.getElementById('status-detail-view').hidden = false;
+    atualizarBotaoIrInicio();
   }
 
   function closeStatusDetail() {
     detailKey = null;
     document.getElementById('status-detail-view').hidden = true;
     document.getElementById('main-view').hidden = false;
+    atualizarBotaoIrInicio();
   }
 
   /** Recalcula a lista da tela de detalhe a partir dos filtros atuais — chamado ao abrir e
