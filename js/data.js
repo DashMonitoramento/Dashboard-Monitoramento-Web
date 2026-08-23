@@ -1552,13 +1552,16 @@ const DataStore = (() => {
     };
   }
 
-  /** Ponto de entrada único do painel "Lead Time de Pedidos e Entregas" — calcula por cima de
-   * TODOS os registros (não só os filtrados globalmente, ver comentário no topo desta seção),
-   * aplica os filtros próprios do painel, e devolve tanto a lista enriquecida (pra tabela/
-   * gráficos) quanto os KPIs já agregados. */
+  /** Ponto de entrada único do painel "Lead Time de Pedidos e Entregas". Decisão do usuário
+   * (2026-08-23, revendo a decisão anterior): agora parte de getFilteredRecords() (respeita os
+   * filtros GLOBAIS da barra lateral — Período, Status, Transporte, Cliente, Vendedor, Região,
+   * Busca — pra mudar o período ali refletir em todas as telas, incluindo esse painel), e por
+   * cima disso ainda aplica os filtros PRÓPRIOS do painel (Situação/Prazo/Lead Time/Rota/CNPJ/
+   * Número, que não existem na barra lateral). Os dois conjuntos de filtro se somam.
+   */
   function calcularLeadTimePedidos(filtros) {
     const hoje = new Date();
-    const enriquecido = rawRecords.map(r => ({ r, calc: calcularLeadTimePedido(r, hoje) }));
+    const enriquecido = getFilteredRecords().map(r => ({ r, calc: calcularLeadTimePedido(r, hoje) }));
     const itens = aplicarFiltrosLeadTimePedidos(enriquecido, filtros);
     return { itens, kpis: calcularKpisLeadTimePedidos(itens) };
   }
