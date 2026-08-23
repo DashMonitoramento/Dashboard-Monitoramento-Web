@@ -271,6 +271,16 @@ html, body {
 .mapa-tooltip strong { font-size: 13.5px; }
 .mapa-tooltip .linha { display: flex; justify-content: space-between; gap: 14px; }
 
+/* "Chamada": caixa deslocada pra um espaço livre + linha guia (ver desenharChamada em
+   dashboard.js) no lugar do tooltip padrão em cima da região — some a setinha nativa do
+   Leaflet (a linha guia já faz esse papel) e reforça a borda pra ficar claro que é uma
+   caixa "puxada" pra fora, não algo colado na região. */
+.leaflet-tooltip.mapa-tooltip-chamada {
+  border: 1px solid #f5a623;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+}
+.leaflet-tooltip.mapa-tooltip-chamada:before { display: none; }
+
 .mapa-mensagem-erro {
   flex: 1;
   display: flex;
