@@ -281,19 +281,24 @@ const Dashboard = (() => {
    * o iframe nunca foi aberto (src vazio) ou ainda não anunciou que carregou, o postMessage é
    * simplesmente descartado (sem handler do outro lado) — nenhum erro, nenhuma trava.
    *
-   * "prazo_medio_dias" fica sempre null aqui: não existe, nos dados ao vivo, um campo de data
-   * de entrega efetiva equivalente ao que a planilha original usava pra esse cálculo (decisão
-   * do usuário, 2026-08-16: preferiu "Sem dados" a um número aproximado/errado).
+   * "prazo_medio_dias": até 2026-08-23 ficava sempre null aqui (decisão do usuário, 2026-08-16:
+   * preferiu "Sem dados" a um número aproximado/errado, já que não existia então um cálculo de
+   * dias de entrega efetiva confiável). Agora usa o mesmo motor de dias ÚTEIS do painel "Lead
+   * Time de Pedidos e Entregas" (DataStore.calcularLeadTimePedido, coleta -> entrega) — média
+   * simples entre as notas ENTREGUES de cada região que têm esse cálculo disponível (não exige
+   * que a Transportadora+Cidade tenha um prazo cadastrado na aba "Lead Time Atualizado"; aqui é
+   * só o tempo REALIZADO de trânsito, não uma comparação contra prazo previsto).
    */
   const VALOR_REGIAO_NAO_INFORMADO = new Set(['', 'Não informado']);
 
   function computarDadosRegioesAoVivo(records) {
+    const hoje = new Date();
     const porCodigo = new Map();
     DataStore.getRegioesComerciaisComCodigo().forEach(({ codigo, nome }) => {
       porCodigo.set(codigo, {
         codigo, regiao: nome,
         total_notas: 0, entregues: 0, reentregas: 0, devolucoes: 0, cancelados: 0, em_aberto: 0,
-        valor_nf: 0,
+        valor_nf: 0, somaPrazoDias: 0, quantidadeComPrazo: 0,
         cidades: new Set(), supervisores: new Set(), vendedores: new Set(),
       });
     });
@@ -309,6 +314,11 @@ const Dashboard = (() => {
       if (r.situacao === 'Cancelado') bucket.cancelados++;
       if (r.situacao === 'Em aberto') bucket.em_aberto++;
       bucket.valor_nf += r.valorNF || 0;
+      const calc = DataStore.calcularLeadTimePedido(r, hoje);
+      if (calc.diasEntregaEfetiva !== null) {
+        bucket.somaPrazoDias += calc.diasEntregaEfetiva;
+        bucket.quantidadeComPrazo++;
+      }
       if (r.cidade) bucket.cidades.add(r.cidade);
       if (r.supervisor && !VALOR_REGIAO_NAO_INFORMADO.has(r.supervisor)) bucket.supervisores.add(r.supervisor);
       if (r.vendedor && !VALOR_REGIAO_NAO_INFORMADO.has(r.vendedor)) bucket.vendedores.add(r.vendedor);
@@ -325,7 +335,9 @@ const Dashboard = (() => {
       em_aberto: b.em_aberto,
       percentual_entregue: b.total_notas ? (b.entregues / b.total_notas) * 100 : null,
       valor_nf: b.valor_nf,
-      prazo_medio_dias: null,
+      prazo_medio_dias: b.quantidadeComPrazo ? b.somaPrazoDias / b.quantidadeComPrazo : null,
+      soma_prazo_dias: b.somaPrazoDias,
+      quantidade_com_prazo: b.quantidadeComPrazo,
       quantidade_cidades: b.cidades.size,
       quantidade_supervisores: b.supervisores.size,
       quantidade_vendedores: b.vendedores.size,
