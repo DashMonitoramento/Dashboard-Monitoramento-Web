@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260823b">
+<link rel="stylesheet" href="css/style.css?v=20260823c">
 </head>
 <body>
 
@@ -166,8 +166,9 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section__title">Filtros</div>
-      <div class="filters-panel">
+      <details class="sidebar-accordion">
+        <summary>Filtros</summary>
+        <div class="filters-panel">
         <details class="sidebar-accordion">
           <summary>Período</summary>
           <div class="filter-field">
@@ -267,12 +268,8 @@
           </div>
         </details>
 
-        <div class="filter-field">
-          <label for="filter-busca">Busca rápida</label>
-          <input type="search" id="filter-busca" placeholder="NF, cliente, motorista...">
         </div>
-        <button id="btn-reset-filters" class="btn btn--pill-red btn--block">Limpar filtros</button>
-      </div>
+      </details>
     </div>
 
     <div class="sidebar-section">
@@ -285,6 +282,14 @@
           <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="leadtime-pedidos">📈 Lead Time de Pedidos e Entregas</button>
         </div>
       </details>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="filter-field">
+        <label for="filter-busca">Busca rápida</label>
+        <input type="search" id="filter-busca" placeholder="NF, cliente, motorista...">
+      </div>
+      <button id="btn-reset-filters" class="btn btn--pill-red btn--block">Limpar filtros</button>
     </div>
 
     <div class="sidebar-section">
@@ -861,11 +866,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260823b"></script>
-<script src="js/utils.js?v=20260823b"></script>
-<script src="js/data.js?v=20260823b"></script>
-<script src="js/charts.js?v=20260823b"></script>
-<script src="js/dashboard.js?v=20260823b"></script>
-<script src="js/script.js?v=20260823b"></script>
+<script type="module" src="js/firebase-init.js?v=20260823c"></script>
+<script src="js/utils.js?v=20260823c"></script>
+<script src="js/data.js?v=20260823c"></script>
+<script src="js/charts.js?v=20260823c"></script>
+<script src="js/dashboard.js?v=20260823c"></script>
+<script src="js/script.js?v=20260823c"></script>
 </body>
 </html>
