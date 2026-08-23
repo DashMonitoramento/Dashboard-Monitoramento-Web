@@ -162,6 +162,13 @@ const FIELD_ALIASES = {
   // colidir com o campo "coleta" já estabelecido.
   dataCriacao: ['data criacao'],
   dataEntregaNF: ['data entrega nf'],
+  // Colunas novas 2026-08-22, exibidas na tabela "Registros detalhados" (ocultas por padrão,
+  // ver colunasTabelaPrincipal em dashboard.js).
+  filial: ['filial'],
+  codigoCliente: ['codigo cliente', 'cod. cliente', 'cod cliente'],
+  telefone: ['telefone'],
+  numeroPedidoEcommerce: ['numero pedido ecommerce', 'n pedido ecommerce'],
+  numeroFatura: ['numero fatura', 'numero da fatura'],
   // Coluna M da aba "NF ABERTA (BI STATUS ENTREGAS)" — ocorrência/status detalhado da nota.
   situacao: ['ocorrencias consolidada2', 'situacao', 'situação', 'status detalhado'],
   // Coluna "AGENDAMENTOS" (ou "Agendado" na planilha de agendamentos) — indica se a nota
@@ -402,6 +409,11 @@ function normalizeRecord(rawRow) {
     // pelo relatório de Lead Time em "Análise por Região".
     dataCriacao: null,
     dataEntregaNF: null,
+    filial: '',
+    codigoCliente: '',
+    telefone: '',
+    numeroPedidoEcommerce: '',
+    numeroFatura: '',
     // Preenchidos pela planilha de Motivos (Base BI), só para as notas que ela cobre —
     // ver applyMotivoEnrichment. Cobertura parcial (~dez/2025 a abr/2026), por isso não dá
     // pra contar com esses campos pra todo o histórico.
@@ -673,6 +685,11 @@ const DataStore = (() => {
       // colunas ficam com '' (Utils.parseDate('') retorna null, não afeta nada).
       const dataCriacaoRaw = pickField(row, headerIndex, 'dataCriacao') || '';
       const dataEntregaNFRaw = pickField(row, headerIndex, 'dataEntregaNF') || '';
+      const filialRaw = pickField(row, headerIndex, 'filial') || '';
+      const codigoClienteRaw = pickField(row, headerIndex, 'codigoCliente') || '';
+      const telefoneRaw = pickField(row, headerIndex, 'telefone') || '';
+      const numeroPedidoEcommerceRaw = pickField(row, headerIndex, 'numeroPedidoEcommerce') || '';
+      const numeroFaturaRaw = pickField(row, headerIndex, 'numeroFatura') || '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -687,7 +704,12 @@ const DataStore = (() => {
         necessitaAgendamento: parseObrigaAgendamentoBluesoft(agendadoRaw),
         viagem: viagemRaw,
         dataCriacao: dataCriacaoRaw,
-        dataEntregaNF: dataEntregaNFRaw
+        dataEntregaNF: dataEntregaNFRaw,
+        filial: filialRaw,
+        codigoCliente: codigoClienteRaw,
+        telefone: telefoneRaw,
+        numeroPedidoEcommerce: numeroPedidoEcommerceRaw,
+        numeroFatura: numeroFaturaRaw
       };
 
       // Data de coleta mais antiga por NF BASE — calculada aqui, sobre TODAS as linhas brutas,
@@ -809,6 +831,11 @@ const DataStore = (() => {
       r.viagem = info.viagem || '';
       if (info.dataCriacao) r.dataCriacao = Utils.parseDate(info.dataCriacao);
       if (info.dataEntregaNF) r.dataEntregaNF = Utils.parseDate(info.dataEntregaNF);
+      if (info.filial) r.filial = info.filial;
+      if (info.codigoCliente) r.codigoCliente = info.codigoCliente;
+      if (info.telefone) r.telefone = info.telefone;
+      if (info.numeroPedidoEcommerce) r.numeroPedidoEcommerce = info.numeroPedidoEcommerce;
+      if (info.numeroFatura) r.numeroFatura = info.numeroFatura;
     }
 
     // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
@@ -844,6 +871,11 @@ const DataStore = (() => {
         viagem: info.viagem || '',
         dataCriacao: Utils.parseDate(info.dataCriacao),
         dataEntregaNF: Utils.parseDate(info.dataEntregaNF),
+        filial: info.filial || '',
+        codigoCliente: info.codigoCliente || '',
+        telefone: info.telefone || '',
+        numeroPedidoEcommerce: info.numeroPedidoEcommerce || '',
+        numeroFatura: info.numeroFatura || '',
         tipoTransporte: 'NÃO INFORMADO',
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
@@ -1548,7 +1580,11 @@ const DataStore = (() => {
 
       if (busca) {
         const needle = busca.toLowerCase();
-        const haystack = `${r.nf} ${r.cliente} ${r.transportadora} ${r.motorista} ${r.vendedor} ${r.cidade} ${r.situacao}`.toLowerCase();
+        // Inclui os campos das colunas ocultas por padrão (Filial, Código Cliente, Telefone,
+        // N° Pedido Ecommerce, N° Fatura) — decisão do usuário (2026-08-22): mesmo escondidas
+        // da tabela, a busca (rápida ou "Pesquisar na tabela", que usam o mesmo filtro) precisa
+        // achar uma nota por esses dados.
+        const haystack = `${r.nf} ${r.cliente} ${r.transportadora} ${r.motorista} ${r.vendedor} ${r.cidade} ${r.situacao} ${r.filial} ${r.codigoCliente} ${r.telefone} ${r.numeroPedidoEcommerce} ${r.numeroFatura}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
       }
       return true;
