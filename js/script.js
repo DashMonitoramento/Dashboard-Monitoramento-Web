@@ -18,6 +18,7 @@ const DEFAULT_RETORNO_URL = 'assets/data/sample-data-retorno.csv';
 const DEFAULT_FATURAMENTO_URL = 'assets/data/sample-data-faturamento.csv';
 const DEFAULT_REGIOES_URL = 'assets/data/sample-data-regioes.csv';
 const DEFAULT_LEADTIME_URL = 'assets/data/sample-data-leadtime.csv';
+const DEFAULT_FERIADOS_URL = 'assets/data/feriados.json';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 
 /* ============================================================
@@ -282,6 +283,17 @@ async function loadLeadTimeDataSilently(cacheBust) {
   }
 }
 
+/** Feriados (painel "Lead Time de Pedidos e Entregas") — opcional; sem ele, os cálculos de
+ * dias úteis continuam funcionando, só sem excluir feriados (pulam só sábado/domingo). */
+async function loadFeriadosDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_FERIADOS_URL}?t=${Date.now()}` : DEFAULT_FERIADOS_URL;
+    await DataStore.loadFeriadosFromUrl(url);
+  } catch (err) {
+    console.warn('Tabela de feriados não carregada automaticamente:', err.message);
+  }
+}
+
 /** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
  * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
 async function loadCanhotosIndexSilently(cacheBust) {
@@ -336,6 +348,7 @@ async function loadInitialData() {
     await loadFaturamentoDataSilently(false);
     await loadRegioesDataSilently(false);
     await loadLeadTimeDataSilently(false);
+    await loadFeriadosDataSilently(false);
     await loadCanhotosIndexSilently(false);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
@@ -365,6 +378,7 @@ async function refreshData() {
     await loadFaturamentoDataSilently(true);
     await loadRegioesDataSilently(true);
     await loadLeadTimeDataSilently(true);
+    await loadFeriadosDataSilently(true);
     await loadCanhotosIndexSilently(true);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
