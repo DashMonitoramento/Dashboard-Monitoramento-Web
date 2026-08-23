@@ -1255,13 +1255,66 @@ const Dashboard = (() => {
     set('ltp-kpi-sem-leadtime', Utils.formatNumber(kpis.semLeadTimeCadastrado));
   }
 
+  const ROTULO_INCONSISTENCIA_LEADTIME = {
+    faturamento_antes_da_criacao: 'Faturamento antes da criação',
+    coleta_antes_do_faturamento: 'Coleta antes do faturamento',
+    entrega_antes_da_coleta: 'Entrega antes da coleta'
+  };
+
+  /** Combinações Transportadora+Cidade que caíram em "Sem Lead Time cadastrado" — pedido do
+   * usuário (2026-08-23): deixar visível pra ela saber o que priorizar cadastrar na aba
+   * "Lead Time Atualizado", em vez de só saber que existe um problema sem saber onde agir. */
+  function listarTransportadoraCidadeSemLeadTime(itens) {
+    const porCombo = new Map();
+    for (const it of itens) {
+      if (it.calc.situacao !== 'Sem Lead Time cadastrado') continue;
+      const chave = `${it.r.transportadora}|${it.r.cidade}`;
+      if (!porCombo.has(chave)) porCombo.set(chave, { transportadora: it.r.transportadora, cidade: it.r.cidade, uf: it.r.uf, pedidos: 0 });
+      porCombo.get(chave).pedidos++;
+    }
+    return [...porCombo.values()].sort((a, b) => b.pedidos - a.pedidos);
+  }
+
   function renderLeadTimePedidosQualidade(itens) {
     const inconsistentes = itens.filter(it => it.calc.inconsistencias.length > 0);
     const tbodyInc = document.querySelector('#ltp-table-inconsistencias tbody');
     if (tbodyInc) {
       tbodyInc.innerHTML = inconsistentes.length
-        ? inconsistentes.map(it => `<tr><td>${escapeAttr(it.r.nf)}</td><td class="truncate">${escapeAttr(it.r.cliente)}</td><td>${it.calc.inconsistencias.join(', ')}</td></tr>`).join('')
-        : '<tr><td colspan="3" class="table-empty">Nenhuma encontrada</td></tr>';
+        ? inconsistentes.map(it => `
+            <tr>
+              <td>${escapeAttr(it.r.nf)}</td>
+              <td class="truncate">${escapeAttr(it.r.cliente)}</td>
+              <td>${it.calc.inconsistencias.map(c => ROTULO_INCONSISTENCIA_LEADTIME[c] || c).join(', ')}</td>
+              <td>${Utils.formatDate(it.r.dataCriacao)}</td>
+              <td>${Utils.formatDate(it.r.dataFaturamento)}</td>
+              <td>${Utils.formatDate(it.r.dataEntrega)}</td>
+              <td>${Utils.formatDate(it.r.dataEntregaNF)}</td>
+            </tr>`).join('')
+        : '<tr><td colspan="7" class="table-empty">Nenhuma encontrada</td></tr>';
+    }
+
+    const semLeadTime = listarTransportadoraCidadeSemLeadTime(itens);
+    const tbodySemLT = document.querySelector('#ltp-table-sem-leadtime tbody');
+    const LIMITE_EXIBICAO = 50;
+    if (tbodySemLT) {
+      tbodySemLT.innerHTML = semLeadTime.length
+        ? semLeadTime.slice(0, LIMITE_EXIBICAO).map(c => `
+            <tr>
+              <td class="truncate">${escapeAttr(c.transportadora)}</td>
+              <td>${escapeAttr(c.cidade)}</td>
+              <td>${escapeAttr(c.uf)}</td>
+              <td class="text-right">${Utils.formatNumber(c.pedidos)}</td>
+            </tr>`).join('')
+        : '<tr><td colspan="4" class="table-empty">Nenhuma — todos os pedidos com Transportadora/Cidade têm Lead Time cadastrado</td></tr>';
+    }
+    const avisoTruncado = document.getElementById('ltp-sem-leadtime-truncado');
+    if (avisoTruncado) {
+      if (semLeadTime.length > LIMITE_EXIBICAO) {
+        avisoTruncado.hidden = false;
+        avisoTruncado.textContent = `Mostrando as ${LIMITE_EXIBICAO} combinações de maior volume, de ${semLeadTime.length} no total.`;
+      } else {
+        avisoTruncado.hidden = true;
+      }
     }
 
     const duplicados = DataStore.listarPedidosDuplicadosLeadTime();
