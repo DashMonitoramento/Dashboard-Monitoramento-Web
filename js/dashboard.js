@@ -51,6 +51,20 @@ const Dashboard = (() => {
     next: 'registro-dinamico-detalhe-table-next', theadSelector: '#registro-dinamico-detalhe-table thead th[data-field]',
     colspan: 10
   };
+  // "Lead Time de Pedidos e Entregas" (2026-08-23) — painel próprio, com filtros e busca de
+  // tabela independentes dos filtros globais da barra lateral (ver comentário em
+  // calcularLeadTimePedidos, data.js).
+  let leadTimePedidosTable = Object.assign(createTableState(), { sortField: 'situacao', sortDir: 'asc' });
+  const LEADTIME_PEDIDOS_TABLE_IDS = {
+    tbody: 'ltp-table-body', info: 'ltp-table-info', pageLabel: 'ltp-table-page-label',
+    prev: 'ltp-table-prev', next: 'ltp-table-next', theadSelector: '#ltp-table thead th[data-field]',
+    colspan: 17, emptyMessage: 'Nenhum pedido encontrado para os filtros atuais.'
+  };
+  let leadTimePedidosSelectsPopulados = false;
+  let leadTimePedidosBusca = '';
+  let leadTimePedidosItensFiltrados = []; // pós-filtros do painel, PRÉ busca da tabela
+  let leadTimePedidosLinhasTabela = [];   // pós busca da tabela — o que a tabela de fato usa
+
   // Data (meia-noite) atualmente expandida na tabela de dias, ou null se nenhuma — controla
   // a visibilidade/conteúdo da tabela de detalhe por nota e o destaque visual da linha clicada.
   let registroDinamicoDataSelecionada = null;
@@ -202,6 +216,7 @@ const Dashboard = (() => {
     bindAlternarViewMapaRegioes();
     bindRegistroDinamico();
     bindMapaRegioesMensagens();
+    bindLeadTimePedidos();
     createCharts();
     DataStore.onChange(render);
   }
@@ -223,10 +238,14 @@ const Dashboard = (() => {
     const main = document.getElementById('main-view');
     const embed = document.getElementById('mapa-regioes-embed');
     const dinamico = document.getElementById('registro-dinamico-view');
+    // 2026-08-23: 4ª tela ("Lead Time de Pedidos e Entregas") — puramente adicional, não muda
+    // nenhuma das 3 ramificações originais abaixo.
+    const leadtimePedidos = document.getElementById('leadtime-pedidos-view');
 
     main.hidden = view !== 'registros';
     embed.hidden = view !== 'mapa';
     dinamico.hidden = view !== 'dinamico';
+    if (leadtimePedidos) leadtimePedidos.hidden = view !== 'leadtime-pedidos';
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
       const ativo = botao.dataset.view === view;
@@ -243,6 +262,9 @@ const Dashboard = (() => {
     } else if (view === 'dinamico') {
       renderRegistroDinamico();
       dinamico.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (view === 'leadtime-pedidos') {
+      renderLeadTimePedidos();
+      if (leadtimePedidos) leadtimePedidos.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       document.getElementById('registros-detalhados').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -1067,6 +1089,414 @@ const Dashboard = (() => {
     }
   }
 
+  /* ============================================================
+   * LEAD TIME DE PEDIDOS E ENTREGAS (painel completo, 2026-08-23)
+   * ============================================================ */
+
+  const SITUACAO_LEADTIME_ORDEM = [
+    'Aguardando faturamento', 'Aguardando coleta', 'Em trânsito no prazo', 'Em trânsito atrasado',
+    'Entregue no prazo', 'Entregue atrasado', 'Sem Lead Time cadastrado', 'Dados incompletos'
+  ];
+  const SITUACAO_LEADTIME_BADGE = {
+    'Entregue no prazo': 'badge--success', 'Entregue atrasado': 'badge--danger',
+    'Em trânsito no prazo': 'badge--info', 'Em trânsito atrasado': 'badge--danger',
+    'Aguardando faturamento': 'badge--neutral', 'Aguardando coleta': 'badge--neutral',
+    'Sem Lead Time cadastrado': 'badge--neutral', 'Dados incompletos': 'badge--neutral'
+  };
+  const SITUACAO_LEADTIME_ROW_CLASSE = {
+    'Entregue no prazo': 'ltp-row--no-prazo', 'Entregue atrasado': 'ltp-row--atrasado',
+    'Em trânsito no prazo': 'ltp-row--transito', 'Em trânsito atrasado': 'ltp-row--atrasado',
+    'Aguardando faturamento': 'ltp-row--pendente', 'Aguardando coleta': 'ltp-row--pendente',
+    'Sem Lead Time cadastrado': 'ltp-row--pendente', 'Dados incompletos': 'ltp-row--pendente'
+  };
+
+  /** "Amarelo: próximo do vencimento" (pedido do usuário) — só se aplica a pedidos "Em
+   * trânsito no prazo" a 1 dia útil ou menos de virar atrasado; não é uma 5ª categoria de
+   * negócio nova, só um alerta visual sobre a categoria "Em trânsito no prazo" já existente. */
+  function situacaoVisualLeadTime(calc) {
+    if (calc.situacao === 'Em trânsito no prazo' && calc.leadTimePrevisto !== null && calc.diasDecorridosTransito !== null) {
+      if (calc.leadTimePrevisto - calc.diasDecorridosTransito <= 1) {
+        return { badge: 'badge--warning', row: 'ltp-row--alerta', rotulo: 'Em trânsito (perto do vencimento)' };
+      }
+    }
+    return {
+      badge: SITUACAO_LEADTIME_BADGE[calc.situacao] || 'badge--neutral',
+      row: SITUACAO_LEADTIME_ROW_CLASSE[calc.situacao] || 'ltp-row--pendente',
+      rotulo: calc.situacao
+    };
+  }
+
+  function mesLabelLeadTime(date) { return `${Utils.MONTH_NAMES[date.getMonth()]}/${String(date.getFullYear()).slice(2)}`; }
+
+  function agruparMediaPorMes(itens, campoRegistro, campoCalc) {
+    const porMes = new Map();
+    for (const it of itens) {
+      const data = it.r[campoRegistro];
+      const valor = it.calc[campoCalc];
+      if (!data || valor === null || valor < 0) continue;
+      const chave = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+      if (!porMes.has(chave)) porMes.set(chave, { soma: 0, n: 0, label: mesLabelLeadTime(data), ts: new Date(data.getFullYear(), data.getMonth(), 1).getTime() });
+      const agg = porMes.get(chave);
+      agg.soma += valor; agg.n++;
+    }
+    const ordenado = [...porMes.values()].sort((a, b) => a.ts - b.ts);
+    return { labels: ordenado.map(a => a.label), data: ordenado.map(a => a.n ? +(a.soma / a.n).toFixed(1) : 0) };
+  }
+
+  function agruparPercentualPrazoPorMes(itens) {
+    const porMes = new Map();
+    for (const it of itens) {
+      if (!it.r.dataEntregaNF || it.calc.leadTimePrevisto === null) continue;
+      const data = it.r.dataEntregaNF;
+      const chave = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+      if (!porMes.has(chave)) porMes.set(chave, { noPrazo: 0, total: 0, label: mesLabelLeadTime(data), ts: new Date(data.getFullYear(), data.getMonth(), 1).getTime() });
+      const agg = porMes.get(chave);
+      agg.total++;
+      if (it.calc.situacao === 'Entregue no prazo') agg.noPrazo++;
+    }
+    const ordenado = [...porMes.values()].sort((a, b) => a.ts - b.ts);
+    return { labels: ordenado.map(a => a.label), data: ordenado.map(a => a.total ? +(a.noPrazo / a.total * 100).toFixed(1) : 0) };
+  }
+
+  /** Top N por dimensão (cliente/motorista/cidade), % dentro do prazo — só entre entregues com
+   * Lead Time cadastrado, e só dimensões com pelo menos 3 entregas (evita ranking de 1 nota só
+   * mostrar 0% ou 100% no topo/fundo da lista sem significado estatístico nenhum). */
+  function topNPorDimensaoPercentualPrazo(itens, campoRegistro, n = 10) {
+    const porDim = new Map();
+    for (const it of itens) {
+      if (!it.r.dataEntregaNF || it.calc.leadTimePrevisto === null) continue;
+      const chave = it.r[campoRegistro] || 'Não informado';
+      if (!porDim.has(chave)) porDim.set(chave, { noPrazo: 0, total: 0 });
+      const agg = porDim.get(chave);
+      agg.total++;
+      if (it.calc.situacao === 'Entregue no prazo') agg.noPrazo++;
+    }
+    const lista = [...porDim.entries()]
+      .filter(([, a]) => a.total >= 3)
+      .map(([nome, a]) => ({ nome, pct: a.noPrazo / a.total * 100, total: a.total }))
+      .sort((a, b) => b.total - a.total).slice(0, n)
+      .sort((a, b) => b.pct - a.pct);
+    return { labels: lista.map(l => l.nome), data: lista.map(l => +l.pct.toFixed(1)) };
+  }
+
+  function previstoVsRealizadoPorTransportadora(itens, n = 10) {
+    const porTransp = new Map();
+    for (const it of itens) {
+      if (!it.r.dataEntregaNF || it.calc.leadTimePrevisto === null || it.calc.diasEntregaEfetiva === null) continue;
+      const t = it.r.transportadora;
+      if (!porTransp.has(t)) porTransp.set(t, { somaPrevisto: 0, somaReal: 0, n: 0 });
+      const agg = porTransp.get(t);
+      agg.somaPrevisto += it.calc.leadTimePrevisto; agg.somaReal += it.calc.diasEntregaEfetiva; agg.n++;
+    }
+    const lista = [...porTransp.entries()]
+      .map(([nome, a]) => ({ nome, previsto: a.somaPrevisto / a.n, real: a.somaReal / a.n, n: a.n }))
+      .sort((a, b) => b.n - a.n).slice(0, n);
+    return { labels: lista.map(l => l.nome), previsto: lista.map(l => +l.previsto.toFixed(1)), real: lista.map(l => +l.real.toFixed(1)) };
+  }
+
+  function contarPorSituacaoLeadTime(itens) {
+    const contagem = new Map(SITUACAO_LEADTIME_ORDEM.map(s => [s, 0]));
+    for (const it of itens) contagem.set(it.calc.situacao, (contagem.get(it.calc.situacao) || 0) + 1);
+    return { labels: SITUACAO_LEADTIME_ORDEM, data: SITUACAO_LEADTIME_ORDEM.map(s => contagem.get(s)) };
+  }
+
+  function renderLeadTimePedidosCharts(itens) {
+    const fat = agruparMediaPorMes(itens, 'dataCriacao', 'diasFaturar');
+    charts.ltpFaturamentoMensal.update({ labels: fat.labels, series: [{ name: 'Dias úteis', data: fat.data, color: ChartPalette[0] }] });
+
+    const col = agruparMediaPorMes(itens, 'dataFaturamento', 'diasColeta');
+    charts.ltpColetaMensal.update({ labels: col.labels, series: [{ name: 'Dias úteis', data: col.data, color: ChartPalette[1] }] });
+
+    const pvr = previstoVsRealizadoPorTransportadora(itens);
+    charts.ltpPrevistoVsRealizado.update({
+      labels: pvr.labels,
+      series: [{ name: 'Previsto', data: pvr.previsto, color: ChartPalette[7] }, { name: 'Realizado', data: pvr.real, color: ChartPalette[0] }]
+    });
+
+    const entreguesComLT = itens.filter(it => it.r.dataEntregaNF && it.calc.leadTimePrevisto !== null);
+    const noPrazo = entreguesComLT.filter(it => it.calc.situacao === 'Entregue no prazo').length;
+    charts.ltpPercentualPrazo.update({ labels: ['Dentro do prazo', 'Fora do prazo'], series: [{ data: [noPrazo, entreguesComLT.length - noPrazo] }] });
+
+    const etapas = contarPorSituacaoLeadTime(itens);
+    charts.ltpQtdPorEtapa.update({ labels: etapas.labels, series: [{ name: 'Pedidos', data: etapas.data, color: ChartPalette[4] }] });
+
+    const porCliente = topNPorDimensaoPercentualPrazo(itens, 'cliente');
+    charts.ltpPorCliente.update({ labels: porCliente.labels, series: [{ name: '% dentro do prazo', data: porCliente.data, color: ChartPalette[2] }] });
+
+    const porMotorista = topNPorDimensaoPercentualPrazo(itens, 'motorista');
+    charts.ltpPorMotorista.update({ labels: porMotorista.labels, series: [{ name: '% dentro do prazo', data: porMotorista.data, color: ChartPalette[2] }] });
+
+    const porCidade = topNPorDimensaoPercentualPrazo(itens, 'cidade');
+    charts.ltpPorCidade.update({ labels: porCidade.labels, series: [{ name: '% dentro do prazo', data: porCidade.data, color: ChartPalette[2] }] });
+
+    const evolucao = agruparPercentualPrazoPorMes(itens);
+    charts.ltpEvolucaoCumprimento.update({ labels: evolucao.labels, series: [{ name: '% dentro do Lead Time', data: evolucao.data, color: ChartPalette[2] }] });
+  }
+
+  function fmtDiasKpi(media, mediana) {
+    if (media === null) return '—';
+    return `${Utils.formatNumber(media, 1)} / ${mediana === null ? '—' : Utils.formatNumber(mediana, 1)}`;
+  }
+
+  function renderLeadTimePedidosKpis(kpis) {
+    const set = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
+    set('ltp-kpi-total', Utils.formatNumber(kpis.totalPedidos));
+    set('ltp-kpi-faturados', Utils.formatNumber(kpis.faturados));
+    set('ltp-kpi-coletados', Utils.formatNumber(kpis.coletados));
+    set('ltp-kpi-entregues', Utils.formatNumber(kpis.entregues));
+    set('ltp-kpi-transito', Utils.formatNumber(kpis.emTransito));
+    set('ltp-kpi-atrasados', Utils.formatNumber(kpis.atrasados));
+    set('ltp-kpi-faturar', fmtDiasKpi(kpis.mediaDiasFaturar, kpis.medianaDiasFaturar));
+    set('ltp-kpi-coleta', fmtDiasKpi(kpis.mediaDiasColeta, kpis.medianaDiasColeta));
+    set('ltp-kpi-entrega', fmtDiasKpi(kpis.mediaDiasEntrega, kpis.medianaDiasEntrega));
+    set('ltp-kpi-total-medio', kpis.mediaDiasTotal === null ? '—' : `${Utils.formatNumber(kpis.mediaDiasTotal, 1)} dias`);
+    set('ltp-kpi-percentual', kpis.percentualNoPrazo === null ? '—' : `${Utils.formatNumber(kpis.percentualNoPrazo, 1)}%`);
+    set('ltp-kpi-media-atraso', kpis.mediaDiasAtraso === null ? '—' : `${Utils.formatNumber(kpis.mediaDiasAtraso, 1)} dias`);
+    set('ltp-kpi-sem-leadtime', Utils.formatNumber(kpis.semLeadTimeCadastrado));
+  }
+
+  function renderLeadTimePedidosQualidade(itens) {
+    const inconsistentes = itens.filter(it => it.calc.inconsistencias.length > 0);
+    const tbodyInc = document.querySelector('#ltp-table-inconsistencias tbody');
+    if (tbodyInc) {
+      tbodyInc.innerHTML = inconsistentes.length
+        ? inconsistentes.map(it => `<tr><td>${escapeAttr(it.r.nf)}</td><td class="truncate">${escapeAttr(it.r.cliente)}</td><td>${it.calc.inconsistencias.join(', ')}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="table-empty">Nenhuma encontrada</td></tr>';
+    }
+
+    const duplicados = DataStore.listarPedidosDuplicadosLeadTime();
+    const tbodyDup = document.querySelector('#ltp-table-duplicados tbody');
+    if (tbodyDup) {
+      tbodyDup.innerHTML = duplicados.length
+        ? duplicados.map(d => `<tr><td>${escapeAttr(d.nf)}</td><td>${d.ocorrencias}</td></tr>`).join('')
+        : '<tr><td colspan="2" class="table-empty">Nenhum encontrado</td></tr>';
+    }
+
+    const invalidos = DataStore.listarLeadTimesInvalidos();
+    const tbodyInv = document.querySelector('#ltp-table-leadtime-invalido tbody');
+    if (tbodyInv) {
+      tbodyInv.innerHTML = invalidos.length
+        ? invalidos.map(v => `<tr><td>${escapeAttr(v.transportadora)}</td><td>${escapeAttr(v.cidade)}</td><td>${escapeAttr(v.valorBruto)}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="table-empty">Nenhuma encontrada</td></tr>';
+    }
+
+    const contagemEl = document.getElementById('ltp-qualidade-contagem');
+    if (contagemEl) {
+      const total = inconsistentes.length + duplicados.length + invalidos.length;
+      contagemEl.textContent = total ? `${total} ponto(s) de atenção` : 'Tudo certo';
+      contagemEl.className = 'badge ' + (total ? 'badge--warning' : 'badge--success');
+    }
+  }
+
+  function itemParaLinhaLeadTime(item) {
+    const { r, calc } = item;
+    return {
+      nf: r.nf, cliente: r.cliente, cnpj: r.cnpj, cidade: r.cidade, uf: r.uf, motorista: r.motorista,
+      dataCriacao: r.dataCriacao, dataFaturamento: r.dataFaturamento, diasFaturar: calc.diasFaturar,
+      dataEntrega: r.dataEntrega, diasColeta: calc.diasColeta,
+      dataEntregaNF: r.dataEntregaNF, diasEntregaEfetiva: calc.diasEntregaEfetiva,
+      diasTotal: calc.diasTotal, leadTimePrevisto: calc.leadTimePrevisto, desvio: calc.desvio,
+      situacao: calc.situacao, diasAtraso: calc.diasAtraso, _calc: calc
+    };
+  }
+
+  function fmtDiasCell(v) { return v === null ? '—' : Utils.formatNumber(v); }
+
+  function rowHtmlLeadTimePedidos(linha) {
+    const visual = situacaoVisualLeadTime(linha._calc);
+    return `
+      <tr class="${visual.row}">
+        <td>${escapeAttr(linha.nf)}</td>
+        <td class="truncate" title="${escapeAttr(linha.cliente)}">${escapeAttr(linha.cliente)}</td>
+        <td>${escapeAttr(linha.cnpj || '—')}</td>
+        <td>${escapeAttr(linha.cidade)}${linha.uf ? '/' + escapeAttr(linha.uf) : ''}</td>
+        <td class="truncate" title="${escapeAttr(linha.motorista)}">${escapeAttr(linha.motorista)}</td>
+        <td>${Utils.formatDate(linha.dataCriacao)}</td>
+        <td>${Utils.formatDate(linha.dataFaturamento)}</td>
+        <td class="text-right">${fmtDiasCell(linha.diasFaturar)}</td>
+        <td>${Utils.formatDate(linha.dataEntrega)}</td>
+        <td class="text-right">${fmtDiasCell(linha.diasColeta)}</td>
+        <td>${Utils.formatDate(linha.dataEntregaNF)}</td>
+        <td class="text-right">${fmtDiasCell(linha.diasEntregaEfetiva)}</td>
+        <td class="text-right">${fmtDiasCell(linha.diasTotal)}</td>
+        <td class="text-right">${linha.leadTimePrevisto === null ? '—' : Utils.formatNumber(linha.leadTimePrevisto)}</td>
+        <td class="text-right">${linha.desvio === null ? '—' : (linha.desvio > 0 ? '+' : '') + Utils.formatNumber(linha.desvio)}</td>
+        <td><span class="badge ${visual.badge}">${escapeAttr(visual.rotulo)}</span></td>
+        <td class="text-right">${linha.diasAtraso === null ? '—' : Utils.formatNumber(linha.diasAtraso)}</td>
+      </tr>
+    `;
+  }
+
+  function atualizarLinhasTabelaLeadTime() {
+    let linhas = leadTimePedidosItensFiltrados.map(itemParaLinhaLeadTime);
+    if (leadTimePedidosBusca) {
+      const needle = leadTimePedidosBusca.toLowerCase();
+      linhas = linhas.filter(l => `${l.nf} ${l.cliente} ${l.cnpj} ${l.motorista} ${l.cidade}`.toLowerCase().includes(needle));
+    }
+    leadTimePedidosLinhasTabela = linhas;
+  }
+
+  function popularSelectLeadTime(id, valores) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    const atual = select.value;
+    const primeiraOpcao = select.options[0];
+    select.innerHTML = '';
+    select.appendChild(primeiraOpcao);
+    valores.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      select.appendChild(opt);
+    });
+    if (valores.includes(atual)) select.value = atual;
+  }
+
+  function popularSelectsLeadTimePedidos() {
+    popularSelectLeadTime('ltp-filtro-cliente', DataStore.getDistinctValues('cliente'));
+    popularSelectLeadTime('ltp-filtro-motorista', DataStore.getDistinctValues('motorista'));
+    popularSelectLeadTime('ltp-filtro-transportadora', DataStore.getDistinctValues('transportadora'));
+    popularSelectLeadTime('ltp-filtro-cidade', DataStore.getDistinctValues('cidade'));
+    popularSelectLeadTime('ltp-filtro-uf', DataStore.getDistinctValues('uf'));
+    popularSelectLeadTime('ltp-filtro-regiao', DataStore.getDistinctValues('regiaoComercial'));
+  }
+
+  function lerFiltrosLeadTimePedidos() {
+    const val = (id) => document.getElementById(id)?.value || '';
+    const dataOuNull = (id) => { const v = val(id); return v ? new Date(v + 'T00:00:00') : null; };
+    const soUm = (id) => { const v = val(id); return v ? [v] : null; };
+    return {
+      campoData: val('ltp-filtro-campo-data') || 'criacao',
+      dataInicio: dataOuNull('ltp-filtro-data-inicio'),
+      dataFim: dataOuNull('ltp-filtro-data-fim'),
+      cliente: soUm('ltp-filtro-cliente'),
+      cnpj: val('ltp-filtro-cnpj'),
+      numeroPedido: val('ltp-filtro-pedido'),
+      motorista: soUm('ltp-filtro-motorista'),
+      transportadora: soUm('ltp-filtro-transportadora'),
+      cidade: soUm('ltp-filtro-cidade'),
+      uf: soUm('ltp-filtro-uf'),
+      regiao: soUm('ltp-filtro-regiao'),
+      situacao: soUm('ltp-filtro-situacao'),
+      prazo: val('ltp-filtro-prazo'),
+      leadTime: val('ltp-filtro-leadtime')
+    };
+  }
+
+  /** Ponto de entrada do painel — recalcula tudo (KPIs, gráficos, qualidade, tabela) a partir
+   * dos filtros próprios atuais. No-op se a seção não estiver no DOM ou não estiver visível
+   * (mesmo padrão de renderLeadTime/renderRegistroDinamico). */
+  function renderLeadTimePedidos() {
+    const secao = document.getElementById('leadtime-pedidos-view');
+    if (!secao || secao.hidden) return;
+    const erroEl = document.getElementById('ltp-erro');
+    try {
+      if (!leadTimePedidosSelectsPopulados) { popularSelectsLeadTimePedidos(); leadTimePedidosSelectsPopulados = true; }
+      const filtros = lerFiltrosLeadTimePedidos();
+      const { itens, kpis } = DataStore.calcularLeadTimePedidos(filtros);
+      leadTimePedidosItensFiltrados = itens;
+
+      renderLeadTimePedidosKpis(kpis);
+      renderLeadTimePedidosCharts(itens);
+      renderLeadTimePedidosQualidade(itens);
+
+      atualizarLinhasTabelaLeadTime();
+      leadTimePedidosTable.page = 1;
+      renderTableGeneric(leadTimePedidosLinhasTabela, leadTimePedidosTable, LEADTIME_PEDIDOS_TABLE_IDS, rowHtmlLeadTimePedidos);
+
+      const dt = DataStore.getLastUpdated();
+      const elAtualizado = document.getElementById('ltp-last-updated');
+      if (elAtualizado) elAtualizado.textContent = 'Última atualização: ' + (dt ? Utils.formatDateTime(dt) : '—');
+      if (erroEl) erroEl.hidden = true;
+    } catch (err) {
+      console.error('Erro ao calcular o painel Lead Time de Pedidos e Entregas:', err);
+      if (erroEl) { erroEl.textContent = 'Não foi possível calcular o painel: ' + err.message; erroEl.hidden = false; }
+    }
+  }
+
+  function colunasLeadTimePedidosExport() {
+    return [
+      { label: 'NF/Pedido', value: l => l.nf },
+      { label: 'Cliente', value: l => l.cliente },
+      { label: 'CNPJ', value: l => l.cnpj || '' },
+      { label: 'Cidade/UF', value: l => `${l.cidade}${l.uf ? '/' + l.uf : ''}` },
+      { label: 'Motorista', value: l => l.motorista },
+      { label: 'Data Criação', value: l => Utils.formatDate(l.dataCriacao) },
+      { label: 'Data Faturamento', value: l => Utils.formatDate(l.dataFaturamento) },
+      { label: 'Dias p/ faturar', value: l => fmtDiasCell(l.diasFaturar) },
+      { label: 'Data Coleta', value: l => Utils.formatDate(l.dataEntrega) },
+      { label: 'Dias fat.->coleta', value: l => fmtDiasCell(l.diasColeta) },
+      { label: 'Data Entrega', value: l => Utils.formatDate(l.dataEntregaNF) },
+      { label: 'Dias coleta->entrega', value: l => fmtDiasCell(l.diasEntregaEfetiva) },
+      { label: 'Dias total', value: l => fmtDiasCell(l.diasTotal) },
+      { label: 'Lead Time previsto', value: l => l.leadTimePrevisto === null ? '' : l.leadTimePrevisto },
+      { label: 'Desvio', value: l => l.desvio === null ? '' : l.desvio },
+      { label: 'Situação', value: l => l.situacao },
+      { label: 'Dias de atraso', value: l => l.diasAtraso === null ? '' : l.diasAtraso }
+    ];
+  }
+
+  function colorirSituacaoLeadTimeExportacao(rotuloColuna, valorFormatado) {
+    if (rotuloColuna !== 'Situação') return null;
+    const fundo = {
+      'Entregue no prazo': 'FF16A34A', 'Entregue atrasado': 'FFDC2626',
+      'Em trânsito no prazo': 'FF2563EB', 'Em trânsito atrasado': 'FFDC2626',
+      'Aguardando faturamento': 'FF64748B', 'Aguardando coleta': 'FF64748B',
+      'Sem Lead Time cadastrado': 'FF64748B', 'Dados incompletos': 'FF64748B'
+    }[valorFormatado];
+    return fundo ? { fundo } : null;
+  }
+
+  async function exportarLeadTimePedidosExcel() {
+    if (!leadTimePedidosLinhasTabela.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+    await Utils.exportToStyledExcel('lead-time-pedidos-entregas.xlsx', 'Lead Time', colunasLeadTimePedidosExport(), leadTimePedidosLinhasTabela, colorirSituacaoLeadTimeExportacao);
+    Utils.showToast(`${leadTimePedidosLinhasTabela.length} pedidos exportados para Excel.`, 'success');
+  }
+
+  function bindLeadTimePedidos() {
+    const secao = document.getElementById('leadtime-pedidos-view');
+    if (!secao) return;
+
+    [
+      'ltp-filtro-campo-data', 'ltp-filtro-data-inicio', 'ltp-filtro-data-fim', 'ltp-filtro-cliente',
+      'ltp-filtro-motorista', 'ltp-filtro-transportadora', 'ltp-filtro-cidade', 'ltp-filtro-uf',
+      'ltp-filtro-regiao', 'ltp-filtro-situacao', 'ltp-filtro-prazo', 'ltp-filtro-leadtime'
+    ].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', renderLeadTimePedidos);
+    });
+
+    const debouncedFiltro = Utils.debounce(renderLeadTimePedidos, 300);
+    ['ltp-filtro-cnpj', 'ltp-filtro-pedido'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', debouncedFiltro);
+    });
+
+    document.getElementById('ltp-btn-limpar-filtros').addEventListener('click', () => {
+      ['ltp-filtro-data-inicio', 'ltp-filtro-data-fim', 'ltp-filtro-cnpj', 'ltp-filtro-pedido',
+        'ltp-filtro-cliente', 'ltp-filtro-motorista', 'ltp-filtro-transportadora', 'ltp-filtro-cidade',
+        'ltp-filtro-uf', 'ltp-filtro-regiao', 'ltp-filtro-situacao', 'ltp-filtro-prazo', 'ltp-filtro-leadtime'
+      ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      document.getElementById('ltp-filtro-campo-data').value = 'criacao';
+      renderLeadTimePedidos();
+    });
+
+    const buscaTabelaDebounced = Utils.debounce((valor) => {
+      leadTimePedidosBusca = valor;
+      atualizarLinhasTabelaLeadTime();
+      leadTimePedidosTable.page = 1;
+      renderTableGeneric(leadTimePedidosLinhasTabela, leadTimePedidosTable, LEADTIME_PEDIDOS_TABLE_IDS, rowHtmlLeadTimePedidos);
+    }, 250);
+    document.getElementById('ltp-table-search').addEventListener('input', (e) => buscaTabelaDebounced(e.target.value));
+
+    bindTableControlsFor(leadTimePedidosTable, LEADTIME_PEDIDOS_TABLE_IDS, () => leadTimePedidosLinhasTabela, rowHtmlLeadTimePedidos);
+
+    document.getElementById('ltp-btn-export-excel').addEventListener('click', exportarLeadTimePedidosExcel);
+    document.getElementById('ltp-btn-export-pdf').addEventListener('click', () => {
+      Utils.showToast('Escolha "Salvar como PDF" na janela de impressão.', 'info', 5000);
+      window.print();
+    });
+  }
+
   function renderRegistroDinamicoDetalhe() {
     const secao = document.getElementById('registro-dinamico-detalhe');
     if (!registroDinamicoDataSelecionada) { secao.hidden = true; return; }
@@ -1199,6 +1629,7 @@ const Dashboard = (() => {
     renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
     renderRegistroDinamico(); // no-op se a tela "Registro Dinâmico" não estiver visível
     renderLeadTime(); // no-op se o painel de Lead Time não estiver no DOM
+    renderLeadTimePedidos(); // no-op se a tela "Lead Time de Pedidos e Entregas" não estiver visível
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
   }
@@ -1350,6 +1781,40 @@ const Dashboard = (() => {
     });
 
     document.getElementById('ranking-dimension').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
+
+    // ---------- Lead Time de Pedidos e Entregas (2026-08-23) ----------
+    charts.ltpFaturamentoMensal = new DashChart(document.getElementById('chart-ltp-faturamento-mensal'), {
+      type: 'line', labels: [], series: [{ name: 'Dias úteis', data: [], color: ChartPalette[0] }]
+    });
+    charts.ltpColetaMensal = new DashChart(document.getElementById('chart-ltp-coleta-mensal'), {
+      type: 'line', labels: [], series: [{ name: 'Dias úteis', data: [], color: ChartPalette[1] }]
+    });
+    charts.ltpPrevistoVsRealizado = new DashChart(document.getElementById('chart-ltp-previsto-vs-realizado'), {
+      type: 'hbar', labels: [],
+      series: [
+        { name: 'Previsto', data: [], color: ChartPalette[7] },
+        { name: 'Realizado', data: [], color: ChartPalette[0] }
+      ],
+      options: { fullLabels: true }
+    });
+    charts.ltpPercentualPrazo = new DashChart(document.getElementById('chart-ltp-percentual-prazo'), {
+      type: 'donut', labels: [], series: [{ data: [] }], options: { colors: ['#16A34A', '#DC2626'] } // dentro do prazo, fora do prazo
+    });
+    charts.ltpQtdPorEtapa = new DashChart(document.getElementById('chart-ltp-qtd-por-etapa'), {
+      type: 'hbar', labels: [], series: [{ name: 'Pedidos', data: [], color: ChartPalette[4] }], options: { fullLabels: true }
+    });
+    charts.ltpPorCliente = new DashChart(document.getElementById('chart-ltp-por-cliente'), {
+      type: 'hbar', labels: [], series: [{ name: '% dentro do prazo', data: [], color: ChartPalette[2] }], options: { fullLabels: true }
+    });
+    charts.ltpPorMotorista = new DashChart(document.getElementById('chart-ltp-por-motorista'), {
+      type: 'hbar', labels: [], series: [{ name: '% dentro do prazo', data: [], color: ChartPalette[2] }], options: { fullLabels: true }
+    });
+    charts.ltpPorCidade = new DashChart(document.getElementById('chart-ltp-por-cidade'), {
+      type: 'hbar', labels: [], series: [{ name: '% dentro do prazo', data: [], color: ChartPalette[2] }], options: { fullLabels: true }
+    });
+    charts.ltpEvolucaoCumprimento = new DashChart(document.getElementById('chart-ltp-evolucao-cumprimento'), {
+      type: 'line', labels: [], series: [{ name: '% dentro do Lead Time', data: [], color: ChartPalette[2] }]
+    });
   }
 
   function renderCharts(records) {
