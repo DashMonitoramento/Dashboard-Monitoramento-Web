@@ -1411,6 +1411,7 @@ const Dashboard = (() => {
     popularSelectLeadTime('ltp-filtro-cidade', DataStore.getDistinctValues('cidade'));
     popularSelectLeadTime('ltp-filtro-uf', DataStore.getDistinctValues('uf'));
     popularSelectLeadTime('ltp-filtro-regiao', DataStore.getDistinctValues('regiaoComercial'));
+    popularSelectLeadTime('ltp-filtro-rota', DataStore.getDistinctValues('rota'));
   }
 
   function lerFiltrosLeadTimePedidos() {
@@ -1429,6 +1430,7 @@ const Dashboard = (() => {
       cidade: soUm('ltp-filtro-cidade'),
       uf: soUm('ltp-filtro-uf'),
       regiao: soUm('ltp-filtro-regiao'),
+      rota: soUm('ltp-filtro-rota'),
       situacao: soUm('ltp-filtro-situacao'),
       prazo: val('ltp-filtro-prazo'),
       leadTime: val('ltp-filtro-leadtime')
@@ -1512,7 +1514,7 @@ const Dashboard = (() => {
     [
       'ltp-filtro-campo-data', 'ltp-filtro-data-inicio', 'ltp-filtro-data-fim', 'ltp-filtro-cliente',
       'ltp-filtro-motorista', 'ltp-filtro-transportadora', 'ltp-filtro-cidade', 'ltp-filtro-uf',
-      'ltp-filtro-regiao', 'ltp-filtro-situacao', 'ltp-filtro-prazo', 'ltp-filtro-leadtime'
+      'ltp-filtro-regiao', 'ltp-filtro-rota', 'ltp-filtro-situacao', 'ltp-filtro-prazo', 'ltp-filtro-leadtime'
     ].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('change', renderLeadTimePedidos);
@@ -1527,7 +1529,7 @@ const Dashboard = (() => {
     document.getElementById('ltp-btn-limpar-filtros').addEventListener('click', () => {
       ['ltp-filtro-data-inicio', 'ltp-filtro-data-fim', 'ltp-filtro-cnpj', 'ltp-filtro-pedido',
         'ltp-filtro-cliente', 'ltp-filtro-motorista', 'ltp-filtro-transportadora', 'ltp-filtro-cidade',
-        'ltp-filtro-uf', 'ltp-filtro-regiao', 'ltp-filtro-situacao', 'ltp-filtro-prazo', 'ltp-filtro-leadtime'
+        'ltp-filtro-uf', 'ltp-filtro-regiao', 'ltp-filtro-rota', 'ltp-filtro-situacao', 'ltp-filtro-prazo', 'ltp-filtro-leadtime'
       ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
       document.getElementById('ltp-filtro-campo-data').value = 'criacao';
       renderLeadTimePedidos();
