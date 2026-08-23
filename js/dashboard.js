@@ -1165,11 +1165,12 @@ const Dashboard = (() => {
   /** Top N por dimensão (cliente/motorista/cidade), % dentro do prazo — só entre entregues com
    * Lead Time cadastrado, e só dimensões com pelo menos 3 entregas (evita ranking de 1 nota só
    * mostrar 0% ou 100% no topo/fundo da lista sem significado estatístico nenhum). */
-  function topNPorDimensaoPercentualPrazo(itens, campoRegistro, n = 10) {
+  function topNPorDimensaoPercentualPrazo(itens, campoRegistro, n = 10, excluirValor = null) {
     const porDim = new Map();
     for (const it of itens) {
       if (!it.r.dataEntregaNF || it.calc.leadTimePrevisto === null) continue;
       const chave = it.r[campoRegistro] || 'Não informado';
+      if (excluirValor && excluirValor(chave)) continue;
       if (!porDim.has(chave)) porDim.set(chave, { noPrazo: 0, total: 0 });
       const agg = porDim.get(chave);
       agg.total++;
@@ -1227,7 +1228,10 @@ const Dashboard = (() => {
     const porCliente = topNPorDimensaoPercentualPrazo(itens, 'cliente');
     charts.ltpPorCliente.update({ labels: porCliente.labels, series: [{ name: '% dentro do prazo', data: porCliente.data, color: ChartPalette[2] }] });
 
-    const porMotorista = topNPorDimensaoPercentualPrazo(itens, 'motorista');
+    // "ROTEIRO..." (ROTEIRO-CARRETA, ROTEIRO-TOCO etc.) não é motorista de verdade, é um código
+    // interno de veículo/rota usado em transferências — usuária pediu pra tirar desse ranking
+    // (2026-08-23).
+    const porMotorista = topNPorDimensaoPercentualPrazo(itens, 'motorista', 10, (nome) => String(nome).toUpperCase().startsWith('ROTEIRO'));
     charts.ltpPorMotorista.update({ labels: porMotorista.labels, series: [{ name: '% dentro do prazo', data: porMotorista.data, color: ChartPalette[2] }] });
 
     const porCidade = topNPorDimensaoPercentualPrazo(itens, 'cidade');
