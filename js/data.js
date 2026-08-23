@@ -1462,12 +1462,16 @@ const DataStore = (() => {
    * Classifica e calcula os prazos de UM pedido. `hoje` é injetado (não lê `new Date()` aqui
    * dentro) pra garantir que todas as linhas de uma mesma chamada usem o mesmo "agora".
    * Ordem de checagem (a primeira que bater decide a situação): sequência de datas
-   * inconsistente ou sem Data de Criação -> "Dados incompletos"; sem faturamento -> "Aguardando
-   * faturamento"; sem coleta -> "Aguardando coleta"; sem entrega -> "Em trânsito" (no prazo ou
-   * atrasado, comparando os dias ÚTEIS já decorridos desde a coleta contra o Lead Time
-   * previsto) ou "Sem Lead Time cadastrado" se a Transportadora+Cidade não bater em nenhuma
-   * linha da aba "Lead Time Atualizado"; com entrega -> "Entregue no prazo/atrasado" pela
-   * mesma comparação, usando os dias efetivos de entrega.
+   * inconsistente ou sem Data de Criação -> "Dados incompletos"; COM entrega -> "Entregue no
+   * prazo/atrasado" (ou "Sem Lead Time cadastrado"); senão COM coleta -> "Em trânsito" (no
+   * prazo/atrasado, dias ÚTEIS decorridos desde a coleta x Lead Time previsto) ou "Sem Lead
+   * Time cadastrado"; senão sem faturamento -> "Aguardando faturamento"; senão -> "Aguardando
+   * coleta". Decisão 2026-08-23: checa pela evidência mais avançada (entrega, depois coleta)
+   * ANTES de faturamento — uma nota pode ter coleta/entrega registradas com o campo "Data de
+   * Faturamento" em branco na planilha (falha de preenchimento na origem, não significa que a
+   * nota realmente não foi faturada), e a ordem antiga (faturamento checado antes de
+   * coleta/entrega) fazia essas notas ficarem presas em "Aguardando faturamento" mesmo já
+   * entregues — usuária reportou (print da tabela "Detalhamento por pedido").
    */
   function calcularLeadTimePedido(r, hoje) {
     const criacao = r.dataCriacao, faturamento = r.dataFaturamento, coleta = r.dataEntrega, entrega = r.dataEntregaNF;
@@ -1486,21 +1490,21 @@ const DataStore = (() => {
     let diasDecorridosTransito = null;
     if (!criacao || inconsistencias.length > 0) {
       situacao = 'Dados incompletos';
-    } else if (!faturamento) {
-      situacao = 'Aguardando faturamento';
-    } else if (!coleta) {
-      situacao = 'Aguardando coleta';
-    } else if (!entrega) {
+    } else if (entrega) {
+      situacao = leadTimePrevisto === null
+        ? 'Sem Lead Time cadastrado'
+        : ((diasEntregaEfetiva !== null && diasEntregaEfetiva <= leadTimePrevisto) ? 'Entregue no prazo' : 'Entregue atrasado');
+    } else if (coleta) {
       if (leadTimePrevisto === null) {
         situacao = 'Sem Lead Time cadastrado';
       } else {
         diasDecorridosTransito = diasUteisEntre(coleta, hoje);
         situacao = (diasDecorridosTransito !== null && diasDecorridosTransito <= leadTimePrevisto) ? 'Em trânsito no prazo' : 'Em trânsito atrasado';
       }
-    } else if (leadTimePrevisto === null) {
-      situacao = 'Sem Lead Time cadastrado';
+    } else if (!faturamento) {
+      situacao = 'Aguardando faturamento';
     } else {
-      situacao = (diasEntregaEfetiva !== null && diasEntregaEfetiva <= leadTimePrevisto) ? 'Entregue no prazo' : 'Entregue atrasado';
+      situacao = 'Aguardando coleta';
     }
 
     const desvio = (leadTimePrevisto !== null && diasEntregaEfetiva !== null) ? diasEntregaEfetiva - leadTimePrevisto : null;
