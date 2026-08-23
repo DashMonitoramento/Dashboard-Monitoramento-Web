@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260822b">
+<link rel="stylesheet" href="css/style.css?v=20260822c">
 </head>
 <body>
 
@@ -282,6 +282,7 @@
           <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--ativo" data-view="registros">📋 Registros detalhados</button>
           <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="mapa">🗺️ Análise por Região</button>
           <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
+          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="leadtime-pedidos">📈 Lead Time de Pedidos e Entregas</button>
         </div>
       </details>
     </div>
@@ -604,6 +605,156 @@
         </div>
       </section>
 
+      <!-- ===================== LEAD TIME DE PEDIDOS E ENTREGAS (2026-08-23) ===================== -->
+      <section id="leadtime-pedidos-view" class="table-card" aria-label="Lead Time de Pedidos e Entregas" hidden>
+        <div class="table-card__header">
+          <h2 class="chart-card__title">📈 Lead Time de Pedidos e Entregas</h2>
+          <div class="table-actions">
+            <button id="ltp-btn-export-excel" class="btn">⬇️ Exportar Excel</button>
+            <button id="ltp-btn-export-pdf" class="btn">📄 PDF</button>
+          </div>
+        </div>
+
+        <p class="chart-card__hint" id="ltp-erro" hidden></p>
+
+        <div id="ltp-conteudo">
+          <!-- FILTROS -->
+          <details class="sidebar-accordion" style="margin-bottom:16px;">
+            <summary>Filtros</summary>
+            <div class="filter-row" style="padding:12px; flex-wrap:wrap; gap:12px 16px;">
+              <div class="filter-field">
+                <label for="ltp-filtro-campo-data">Filtrar período por</label>
+                <select id="ltp-filtro-campo-data">
+                  <option value="criacao">Data de criação</option>
+                  <option value="faturamento">Data de faturamento</option>
+                  <option value="coleta">Data de coleta</option>
+                  <option value="entrega">Data de entrega</option>
+                </select>
+              </div>
+              <div class="filter-field"><label for="ltp-filtro-data-inicio">De</label><input type="date" id="ltp-filtro-data-inicio"></div>
+              <div class="filter-field"><label for="ltp-filtro-data-fim">Até</label><input type="date" id="ltp-filtro-data-fim"></div>
+              <div class="filter-field"><label for="ltp-filtro-cliente">Cliente</label><select id="ltp-filtro-cliente"><option value="">Todos</option></select></div>
+              <div class="filter-field"><label for="ltp-filtro-cnpj">CNPJ</label><input type="search" id="ltp-filtro-cnpj" placeholder="Só números"></div>
+              <div class="filter-field"><label for="ltp-filtro-pedido">Nº do pedido / NF</label><input type="search" id="ltp-filtro-pedido" placeholder="Ex.: 138539" title="Nesta base, número do pedido e número da nota fiscal são o mesmo campo (NF)"></div>
+              <div class="filter-field"><label for="ltp-filtro-motorista">Motorista</label><select id="ltp-filtro-motorista"><option value="">Todos</option></select></div>
+              <div class="filter-field"><label for="ltp-filtro-transportadora">Transportadora</label><select id="ltp-filtro-transportadora"><option value="">Todas</option></select></div>
+              <div class="filter-field"><label for="ltp-filtro-cidade">Cidade</label><select id="ltp-filtro-cidade"><option value="">Todas</option></select></div>
+              <div class="filter-field"><label for="ltp-filtro-uf">UF</label><select id="ltp-filtro-uf"><option value="">Todas</option></select></div>
+              <div class="filter-field"><label for="ltp-filtro-regiao">Região comercial</label><select id="ltp-filtro-regiao"><option value="">Todas</option></select></div>
+              <div class="filter-field">
+                <label for="ltp-filtro-situacao">Status do pedido</label>
+                <select id="ltp-filtro-situacao">
+                  <option value="">Todos</option>
+                  <option>Aguardando faturamento</option>
+                  <option>Aguardando coleta</option>
+                  <option>Em trânsito no prazo</option>
+                  <option>Em trânsito atrasado</option>
+                  <option>Entregue no prazo</option>
+                  <option>Entregue atrasado</option>
+                  <option>Sem Lead Time cadastrado</option>
+                  <option>Dados incompletos</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="ltp-filtro-prazo">Prazo</label>
+                <select id="ltp-filtro-prazo"><option value="">Todos</option><option value="no_prazo">No prazo</option><option value="atrasado">Atrasado</option></select>
+              </div>
+              <div class="filter-field">
+                <label for="ltp-filtro-leadtime">Lead Time cadastrado</label>
+                <select id="ltp-filtro-leadtime"><option value="">Todos</option><option value="com">Com Lead Time</option><option value="sem">Sem Lead Time</option></select>
+              </div>
+              <div class="filter-field" style="align-self:flex-end;"><button id="ltp-btn-limpar-filtros" class="btn btn--pill-red" type="button">Limpar filtros</button></div>
+            </div>
+            <p class="chart-card__hint" style="padding:0 12px 12px;">Não há campo de "Rota" cadastrado na base atual — esse filtro não pôde ser incluído (ver validação no chat).</p>
+          </details>
+
+          <!-- KPIs -->
+          <section class="kpi-grid" id="ltp-kpis" aria-label="Indicadores de Lead Time">
+            <article class="kpi-card kpi-card--primary" title="Quantidade total de pedidos no filtro atual"><span class="kpi-card__label">Total de pedidos</span><span class="kpi-card__value" id="ltp-kpi-total">0</span></article>
+            <article class="kpi-card kpi-card--secondary" title="Pedidos que já têm Data de Faturamento"><span class="kpi-card__label">Faturados</span><span class="kpi-card__value" id="ltp-kpi-faturados">0</span></article>
+            <article class="kpi-card kpi-card--secondary" title="Pedidos que já têm Data de Coleta"><span class="kpi-card__label">Coletados</span><span class="kpi-card__value" id="ltp-kpi-coletados">0</span></article>
+            <article class="kpi-card kpi-card--success" title="Pedidos que já têm Data de Entrega da NF"><span class="kpi-card__label">Entregues</span><span class="kpi-card__value" id="ltp-kpi-entregues">0</span></article>
+            <article class="kpi-card kpi-card--warning" title="Coletados, ainda sem entrega registrada"><span class="kpi-card__label">Em trânsito</span><span class="kpi-card__value" id="ltp-kpi-transito">0</span></article>
+            <article class="kpi-card kpi-card--danger" title="Em trânsito atrasado + Entregue atrasado"><span class="kpi-card__label">Atrasados</span><span class="kpi-card__value" id="ltp-kpi-atrasados">0</span></article>
+            <article class="kpi-card kpi-card--neutral" title="Dias úteis entre criação e faturamento — média e mediana"><span class="kpi-card__label">Dias p/ faturar (méd. / med.)</span><span class="kpi-card__value" id="ltp-kpi-faturar">—</span></article>
+            <article class="kpi-card kpi-card--neutral" title="Dias úteis entre faturamento e coleta — média e mediana"><span class="kpi-card__label">Dias fat.→coleta (méd. / med.)</span><span class="kpi-card__value" id="ltp-kpi-coleta">—</span></article>
+            <article class="kpi-card kpi-card--neutral" title="Dias úteis entre coleta e entrega — média e mediana"><span class="kpi-card__label">Dias coleta→entrega (méd. / med.)</span><span class="kpi-card__value" id="ltp-kpi-entrega">—</span></article>
+            <article class="kpi-card kpi-card--neutral" title="Dias úteis entre criação e entrega — média"><span class="kpi-card__label">Tempo total médio</span><span class="kpi-card__value" id="ltp-kpi-total-medio">—</span></article>
+            <article class="kpi-card kpi-card--success" title="% de entregas concluídas dentro do Lead Time, entre as que têm Lead Time cadastrado"><span class="kpi-card__label">% dentro do Lead Time</span><span class="kpi-card__value" id="ltp-kpi-percentual">—</span></article>
+            <article class="kpi-card kpi-card--danger" title="Média de dias de atraso, só entre os pedidos atrasados"><span class="kpi-card__label">Média de atraso</span><span class="kpi-card__value" id="ltp-kpi-media-atraso">—</span></article>
+            <article class="kpi-card kpi-card--neutral" title="Pedidos coletados/entregues sem Transportadora+Cidade encontrada na aba Lead Time Atualizado"><span class="kpi-card__label">Sem Lead Time cadastrado</span><span class="kpi-card__value" id="ltp-kpi-sem-leadtime">0</span></article>
+          </section>
+
+          <!-- GRÁFICOS -->
+          <section class="charts-grid">
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Média de dias p/ faturar, por mês</h2></div><div class="chart-root" id="chart-ltp-faturamento-mensal"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Média de dias fat.→coleta, por mês</h2></div><div class="chart-root" id="chart-ltp-coleta-mensal"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Lead Time previsto x realizado (por transportadora)</h2></div><div class="chart-root" id="chart-ltp-previsto-vs-realizado"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">% de entregas dentro x fora do prazo</h2></div><div class="chart-root chart-root--donut" id="chart-ltp-percentual-prazo"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Pedidos por etapa</h2></div><div class="chart-root" id="chart-ltp-qtd-por-etapa"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Desempenho por cliente (top 10)</h2></div><div class="chart-root" id="chart-ltp-por-cliente"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Desempenho por motorista (top 10)</h2></div><div class="chart-root" id="chart-ltp-por-motorista"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Desempenho por cidade (top 10)</h2></div><div class="chart-root" id="chart-ltp-por-cidade"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Evolução mensal do % de cumprimento do Lead Time</h2></div><div class="chart-root" id="chart-ltp-evolucao-cumprimento"></div></div>
+          </section>
+
+          <!-- QUALIDADE DE DADOS -->
+          <details class="sidebar-accordion" style="margin-bottom:16px;">
+            <summary>Qualidade dos dados <span id="ltp-qualidade-contagem" class="badge badge--neutral"></span></summary>
+            <div style="padding:12px;">
+              <p class="chart-card__hint">Pedidos com sequência de datas inconsistente (excluídos das médias, listados aqui):</p>
+              <div class="table-scroll"><table class="data-table" id="ltp-table-inconsistencias"><thead><tr><th>NF</th><th>Cliente</th><th>Inconsistência</th></tr></thead><tbody></tbody></table></div>
+              <p class="chart-card__hint" style="margin-top:12px;">Pedidos duplicados (mesma NF aparecendo mais de uma vez na base):</p>
+              <div class="table-scroll"><table class="data-table" id="ltp-table-duplicados"><thead><tr><th>NF</th><th>Ocorrências</th></tr></thead><tbody></tbody></table></div>
+              <p class="chart-card__hint" style="margin-top:12px;">Linhas da aba "Lead Time Atualizado" com prazo vazio, zero ou inválido (ignoradas no cálculo):</p>
+              <div class="table-scroll"><table class="data-table" id="ltp-table-leadtime-invalido"><thead><tr><th>Transportadora</th><th>Cidade</th><th>Valor bruto</th></tr></thead><tbody></tbody></table></div>
+            </div>
+          </details>
+
+          <!-- TABELA DETALHADA -->
+          <div class="table-card__header">
+            <h3 class="chart-card__title">Detalhamento por pedido</h3>
+            <div class="table-search">🔎 <input type="search" id="ltp-table-search" placeholder="Pesquisar na tabela..."></div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="ltp-table">
+              <thead>
+                <tr>
+                  <th data-field="nf">NF / Pedido</th>
+                  <th data-field="cliente">Cliente</th>
+                  <th data-field="cnpj">CNPJ</th>
+                  <th data-field="cidade">Cidade/UF</th>
+                  <th data-field="motorista">Motorista</th>
+                  <th data-field="dataCriacao">Data Criação</th>
+                  <th data-field="dataFaturamento">Data Faturamento</th>
+                  <th data-field="diasFaturar" class="text-right">Dias p/ faturar</th>
+                  <th data-field="dataEntrega">Data Coleta</th>
+                  <th data-field="diasColeta" class="text-right">Dias fat.→coleta</th>
+                  <th data-field="dataEntregaNF">Data Entrega</th>
+                  <th data-field="diasEntregaEfetiva" class="text-right">Dias coleta→entrega</th>
+                  <th data-field="diasTotal" class="text-right">Dias total</th>
+                  <th data-field="leadTimePrevisto" class="text-right">Lead Time previsto</th>
+                  <th data-field="desvio" class="text-right">Desvio</th>
+                  <th data-field="situacao">Situação</th>
+                  <th data-field="diasAtraso" class="text-right">Dias de atraso</th>
+                </tr>
+              </thead>
+              <tbody id="ltp-table-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span id="ltp-table-info">Nenhum registro</span>
+            <div class="pagination">
+              <button id="ltp-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+              <span id="ltp-table-page-label">Página 1 de 1</span>
+              <button id="ltp-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="chart-card__hint" id="ltp-last-updated">Última atualização: —</p>
+      </section>
+
       <!-- ===================== TELA DE DETALHE (drill-down ao clicar num KPI) ===================== -->
       <section id="status-detail-view" class="table-card" aria-label="Detalhe da categoria selecionada" hidden>
         <div class="status-detail-view__header">
@@ -705,11 +856,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260822b"></script>
-<script src="js/utils.js?v=20260822b"></script>
-<script src="js/data.js?v=20260822b"></script>
-<script src="js/charts.js?v=20260822b"></script>
-<script src="js/dashboard.js?v=20260822b"></script>
-<script src="js/script.js?v=20260822b"></script>
+<script type="module" src="js/firebase-init.js?v=20260822c"></script>
+<script src="js/utils.js?v=20260822c"></script>
+<script src="js/data.js?v=20260822c"></script>
+<script src="js/charts.js?v=20260822c"></script>
+<script src="js/dashboard.js?v=20260822c"></script>
+<script src="js/script.js?v=20260822c"></script>
 </body>
 </html>
