@@ -959,9 +959,27 @@ const DataStore = (() => {
         // Data de Agendamento já definida (necessitaAgendamento), decisão do usuário
         // (2026-08-16): compara a própria data agendada contra hoje, em vez de ficar presa em
         // "Sem informação" só por faltar o prazo em dias (a data agendada já é, nesse caso, o
-        // compromisso que interessa observar). Pras que usam Data de Início de Viagem, mantém
-        // "Sem informação" como sempre — não é o cenário que motivou essa mudança.
-        r.prazoStatus = r.necessitaAgendamento ? (dataRef < hoje ? 'VENCIDO' : 'DENTRO_PRAZO') : 'SEM_INFO';
+        // compromisso que interessa observar).
+        if (r.necessitaAgendamento) {
+          r.prazoStatus = dataRef < hoje ? 'VENCIDO' : 'DENTRO_PRAZO';
+          continue;
+        }
+        // Pras que usam Data de Início de Viagem (coleta): decisão do usuário (2026-08-23) —
+        // a aba RETORNO só cobre uma fração das notas, mas a aba "Lead Time Atualizado"
+        // (Transportadora+Cidade, mesmo benchmark do painel "Lead Time de Pedidos e
+        // Entregas") agora cobre 85%+ depois do cadastro dela — usa como reserva antes de
+        // desistir em "Sem informação". Compara em dias ÚTEIS, mesma unidade do benchmark.
+        // Mesma exclusão do painel (Proprio Retira/Exportação/etc. — sem prazo de transporte
+        // real a medir), mesmo que a aba tenha alguma linha cadastrada pra essas.
+        const semLeadTimeAMedir = TRANSPORTADORAS_EXCLUIDAS_LEADTIME.has(normalizeHeaderKey(r.transportadora))
+          || CLIENTES_EXCLUIDOS_LEADTIME.has(normalizeHeaderKey(r.cliente));
+        const previsto = semLeadTimeAMedir ? null : leadTimePrevistoPedido(r);
+        if (previsto === null) {
+          r.prazoStatus = 'SEM_INFO';
+        } else {
+          const diasUteisDecorridos = diasUteisEntre(dataRef, hoje);
+          r.prazoStatus = (diasUteisDecorridos !== null && diasUteisDecorridos > previsto) ? 'VENCIDO' : 'DENTRO_PRAZO';
+        }
         continue;
       }
 
@@ -1307,6 +1325,10 @@ const DataStore = (() => {
     const adapter = DataAdapters[format];
     const rawRows = await adapter.loadFromUrl(url);
     indexLeadTimeRows(rawRows);
+    // Carrega depois da Base Bluesoft/RETORNO (ver script.js) — precisa recomputar o Prazo da
+    // tabela principal aqui pra aplicar o fallback do benchmark Transportadora+Cidade (ver
+    // recomputarPrazoStatus), já que na primeira vez que rodou esse benchmark ainda não existia.
+    recomputarPrazoStatus();
     notify();
   }
 
@@ -1315,6 +1337,7 @@ const DataStore = (() => {
     const format = ext === 'json' ? 'json' : 'csv';
     const rawRows = await DataAdapters[format].loadFromFile(file);
     indexLeadTimeRows(rawRows);
+    recomputarPrazoStatus();
     notify();
   }
 
