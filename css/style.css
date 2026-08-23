@@ -808,6 +808,15 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .badge--warning { background: rgba(234,179,8,.16); color: #A16207; }
 .badge--danger { background: rgba(220,38,38,.14); color: var(--color-danger); }
 .badge--neutral { background: rgba(100,116,139,.14); color: var(--color-neutral); }
+/* Azul — "Em trânsito no prazo" no painel Lead Time de Pedidos e Entregas (2026-08-23) */
+.badge--info { background: rgba(37,99,235,.14); color: var(--color-blue); }
+/* Linha inteira da tabela ganha um fundo bem sutil da cor da situação — reforça a leitura
+   rápida pedida pelo usuário (verde/vermelho/amarelo/azul/cinza) sem depender só do badge. */
+.ltp-row--no-prazo { background: rgba(22,163,74,.05); }
+.ltp-row--atrasado { background: rgba(220,38,38,.05); }
+.ltp-row--alerta { background: rgba(234,179,8,.07); }
+.ltp-row--transito { background: rgba(37,99,235,.05); }
+.ltp-row--pendente { background: rgba(100,116,139,.05); }
 
 .table-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; gap: 10px; }
 .table-footer select { padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary); }
