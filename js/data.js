@@ -1561,12 +1561,15 @@ const DataStore = (() => {
    */
   // Pedidos dessas Transportadoras não têm prazo de transporte a medir (retirada pelo próprio
   // cliente / exportação) — usuária pediu para excluir do painel de Lead Time (2026-08-23).
-  const TRANSPORTADORAS_EXCLUIDAS_LEADTIME = new Set(['proprio retira', 'exportacao']);
+  const TRANSPORTADORAS_EXCLUIDAS_LEADTIME = new Set(['proprio retira', 'exportacao', 'fabio transporte']);
+  // Pedidos desses Clientes também excluídos a pedido da usuária (2026-08-23), mesmo critério.
+  const CLIENTES_EXCLUIDOS_LEADTIME = new Set(['sabores da terrinha comercio de alimentos ltda', '2jm amidos ltda']);
 
   function calcularLeadTimePedidos(filtros) {
     const hoje = new Date();
     const enriquecido = getFilteredRecords()
-      .filter(r => !TRANSPORTADORAS_EXCLUIDAS_LEADTIME.has(normalizeHeaderKey(r.transportadora)))
+      .filter(r => !TRANSPORTADORAS_EXCLUIDAS_LEADTIME.has(normalizeHeaderKey(r.transportadora))
+        && !CLIENTES_EXCLUIDOS_LEADTIME.has(normalizeHeaderKey(r.cliente)))
       .map(r => ({ r, calc: calcularLeadTimePedido(r, hoje) }));
     const itens = aplicarFiltrosLeadTimePedidos(enriquecido, filtros);
     return { itens, kpis: calcularKpisLeadTimePedidos(itens) };
