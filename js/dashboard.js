@@ -1163,8 +1163,10 @@ const Dashboard = (() => {
   }
 
   /** Top N por dimensão (cliente/motorista/cidade), % dentro do prazo — só entre entregues com
-   * Lead Time cadastrado, e só dimensões com pelo menos 3 entregas (evita ranking de 1 nota só
-   * mostrar 0% ou 100% no topo/fundo da lista sem significado estatístico nenhum). */
+   * Lead Time cadastrado. Sem mínimo de amostra por dimensão (removido 2026-08-23): com filtro
+   * de período estreito, um mínimo de 3 entregas deixava a lista bem menor que 10 mesmo tendo
+   * mais motoristas/clientes/cidades disponíveis — usuária pediu pra sempre completar até 10
+   * pela ordem de volume, mesmo que a % de 1-2 notas não seja super significativa. */
   function topNPorDimensaoPercentualPrazo(itens, campoRegistro, n = 10, excluirValor = null) {
     const porDim = new Map();
     for (const it of itens) {
@@ -1177,7 +1179,6 @@ const Dashboard = (() => {
       if (it.calc.situacao === 'Entregue no prazo') agg.noPrazo++;
     }
     const lista = [...porDim.entries()]
-      .filter(([, a]) => a.total >= 3)
       .map(([nome, a]) => ({ nome, pct: a.noPrazo / a.total * 100, total: a.total }))
       .sort((a, b) => b.total - a.total).slice(0, n)
       .sort((a, b) => b.pct - a.pct);
