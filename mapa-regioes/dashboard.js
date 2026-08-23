@@ -90,7 +90,7 @@
       total_notas: 0, entregues: 0, reentregas: 0, devolucoes: 0, cancelados: 0, em_aberto: 0,
       valor_nf: 0, quantidade_cidades: 0, quantidade_supervisores: 0, quantidade_vendedores: 0,
     };
-    let somaPrazoPonderada = 0;
+    let somaPrazoDias = 0, quantidadeComPrazo = 0;
     for (const r of regioes) {
       base.total_notas += r.total_notas || 0;
       base.entregues += r.entregues || 0;
@@ -102,10 +102,17 @@
       base.quantidade_cidades += r.quantidade_cidades || 0;
       base.quantidade_supervisores += r.quantidade_supervisores || 0;
       base.quantidade_vendedores += r.quantidade_vendedores || 0;
-      somaPrazoPonderada += (r.prazo_medio_dias || 0) * (r.total_notas || 0);
+      // Pondera pela quantidade de notas que de fato entraram no cálculo de prazo de cada
+      // região (quantidade_com_prazo), não pelo total_notas — a maioria das notas de uma região
+      // não tem prazo computável (ainda não entregue, ou faltam as datas), então ponderar pelo
+      // total_notas sub-estimaria a média nas regiões com mais notas ainda em aberto.
+      somaPrazoDias += r.soma_prazo_dias || 0;
+      quantidadeComPrazo += r.quantidade_com_prazo || 0;
     }
     base.percentual_entregue = base.total_notas ? (base.entregues / base.total_notas) * 100 : null;
-    base.prazo_medio_dias = base.total_notas ? somaPrazoPonderada / base.total_notas : null;
+    base.prazo_medio_dias = quantidadeComPrazo ? somaPrazoDias / quantidadeComPrazo : null;
+    base.soma_prazo_dias = somaPrazoDias;
+    base.quantidade_com_prazo = quantidadeComPrazo;
     return base;
   }
 
@@ -118,6 +125,11 @@
     let rotulosRegiao = []; // marcadores com o código curto de cada região (ver ROTULO_CURTO)
     let visualizacaoPrincipal = 'brasil'; // 'brasil' (todo o país) | 'sp' (zoom nas 4 regiões de SP)
     let mapaDetalheSp = null;
+    // "Chamada" (linha guia + caixa deslocada) no lugar do tooltip em cima da região — decisão
+    // do usuário (2026-08-23, com esboço anexado): a caixa cobria a própria região que se
+    // queria examinar. `linhaChamada` é a única linha guia visível por vez (some ao trocar de
+    // região ou ao tirar o mouse).
+    let linhaChamada = null;
     let camadaDetalheSp = null;
     let rotulosDetalheSp = [];
     let chartEntregas = null;
@@ -211,9 +223,13 @@
       if (camadaGeojson) {
         camadaGeojson.remove();
       }
+      // Bounds do país inteiro, só pra decidir de que lado (esquerda/direita) desenhar a
+      // "chamada" de cada região — uma região do lado direito do mapa (ex.: Nordeste) chama pra
+      // esquerda, e vice-versa, pra caixa não estourar pra fora da área visível.
+      const boundsPais = L.geoJSON(geojson).getBounds();
       camadaGeojson = L.geoJSON(geojson, {
         style: estiloRegiao,
-        onEachFeature: configurarInteracaoRegiao,
+        onEachFeature: (feature, layer) => configurarInteracaoRegiao(feature, layer, boundsPais),
       }).addTo(mapaLeaflet);
 
       ajustarEnquadramentoMapaPrincipal();
@@ -309,11 +325,12 @@
         });
       }
       if (camadaDetalheSp) camadaDetalheSp.remove();
+      const boundsSp = L.geoJSON({ type: 'FeatureCollection', features: featuresSp }).getBounds();
       camadaDetalheSp = L.geoJSON({ type: 'FeatureCollection', features: featuresSp }, {
         // Borda um pouco mais grossa que o mapa principal — linhas divisórias bem visíveis
         // entre as 4 regiões, que aqui ficam bem próximas umas das outras.
         style: (feature) => ({ ...estiloRegiao(feature), weight: (estiloRegiao(feature).weight || 1) + 1 }),
-        onEachFeature: configurarInteracaoRegiao,
+        onEachFeature: (feature, layer) => configurarInteracaoRegiao(feature, layer, boundsSp),
       }).addTo(mapaDetalheSp);
 
       ajustarEnquadramentoDetalheSp();
@@ -381,8 +398,75 @@
         </div>`;
     }
 
-    function configurarInteracaoRegiao(feature, layer) {
-      layer.bindTooltip(() => montarTooltipHtml(feature), { sticky: true });
+    /** Desenha a linha guia (dashed) do centro da região até a caixa de informações, já
+     * reposicionada por desenharChamada — chamada de novo a cada abertura, sempre substitui a
+     * anterior (só uma chamada visível por vez). */
+    function removerChamada() {
+      if (linhaChamada) {
+        const mapaAtual = linhaChamada._map;
+        if (mapaAtual) mapaAtual.removeLayer(linhaChamada);
+        linhaChamada = null;
+      }
+    }
+
+    /** Reposiciona a caixa do tooltip (que o Leaflet por padrão coloca em cima/perto do centro
+     * da região, tampando ela) pra um espaço livre ao lado, e desenha uma linha guia entre a
+     * região e a caixa — modelo "chamada" pedido pelo usuário (2026-08-23, com esboço). Decide
+     * esquerda/direita comparando a longitude do centro da região com a do centro de
+     * `boundsReferencia` (país inteiro, ou só as 4 regiões de SP no mapa de detalhe) — região à
+     * direita da referência chama pra esquerda, e vice-versa, pra não estourar o mapa. */
+    function desenharChamada(layer, boundsReferencia) {
+      removerChamada();
+      const mapaAtual = layer._map;
+      const tooltip = layer.getTooltip && layer.getTooltip();
+      if (!mapaAtual || !tooltip) return;
+      const el = tooltip.getElement();
+      if (!el) return;
+
+      const anchorLatLng = tooltip.getLatLng();
+      if (!anchorLatLng) return;
+      const anchorPoint = mapaAtual.latLngToContainerPoint(anchorLatLng);
+
+      const referenciaLng = (boundsReferencia && boundsReferencia.isValid()) ? boundsReferencia.getCenter().lng : anchorLatLng.lng;
+      const lado = anchorLatLng.lng >= referenciaLng ? 'left' : 'right';
+      const largura = el.offsetWidth || 230;
+      const altura = el.offsetHeight || 150;
+      let boxPoint = lado === 'left'
+        ? L.point(anchorPoint.x - largura - 55, anchorPoint.y - altura / 2)
+        : L.point(anchorPoint.x + 55, anchorPoint.y - altura / 2);
+
+      // O mapa tem overflow:hidden (padrão do Leaflet) — uma caixa alta (a de região tem ~11
+      // linhas) facilmente estoura por cima/baixo do container e fica invisível, cortada, sem
+      // erro nenhum no console. Trava dentro da área visível do mapa, com uma margem de 6px.
+      const tamanhoMapa = mapaAtual.getSize();
+      const margem = 6;
+      boxPoint = L.point(
+        Math.min(Math.max(boxPoint.x, margem), Math.max(margem, tamanhoMapa.x - largura - margem)),
+        Math.min(Math.max(boxPoint.y, margem), Math.max(margem, tamanhoMapa.y - altura - margem))
+      );
+
+      L.DomUtil.setPosition(el, boxPoint);
+
+      // Mede a posição REAL da caixa depois de reposicionada (cobre a margem que as classes
+      // leaflet-tooltip-left/right ainda aplicam) pra linha guia encostar bem na borda dela,
+      // não num ponto calculado às cegas.
+      const containerRect = mapaAtual.getContainer().getBoundingClientRect();
+      const boxRect = el.getBoundingClientRect();
+      const pontoCaixaX = lado === 'left' ? (boxRect.right - containerRect.left) : (boxRect.left - containerRect.left);
+      const pontoCaixaY = (boxRect.top + boxRect.height / 2) - containerRect.top;
+
+      linhaChamada = L.polyline(
+        [anchorLatLng, mapaAtual.containerPointToLatLng(L.point(pontoCaixaX, pontoCaixaY))],
+        { color: '#f5a623', weight: 2, dashArray: '5,4', interactive: false }
+      ).addTo(mapaAtual);
+    }
+
+    function configurarInteracaoRegiao(feature, layer, boundsReferencia) {
+      layer.bindTooltip(() => montarTooltipHtml(feature), {
+        sticky: false, opacity: 0.98, className: 'mapa-tooltip-chamada',
+      });
+      layer.on('tooltipopen', () => desenharChamada(layer, boundsReferencia));
+      layer.on('tooltipclose', removerChamada);
       layer.on('mouseover', () => layer.setStyle({ weight: 2.5 }));
       layer.on('mouseout', () => layer.setStyle(estiloRegiao(feature)));
       layer.on('click', () => {
