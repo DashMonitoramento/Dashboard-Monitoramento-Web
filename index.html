@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260823h">
+<link rel="stylesheet" href="css/style.css?v=20260823i">
 </head>
 <body>
 
@@ -573,6 +573,10 @@
             <div class="chart-card__header"><h2 class="chart-card__title">Evolução mensal (valor faturado)</h2></div>
             <div class="chart-root" id="chart-registro-dinamico"></div>
             <div class="registro-dinamico__cards-mes" id="registro-dinamico-cards-mes"></div>
+            <article class="kpi-card kpi-card--primary" style="margin-top:16px; max-width:280px;" title="Soma do Valor da NF do mês selecionado acima, ou do total geral se nenhum mês estiver selecionado">
+              <span class="kpi-card__label">Valor Total</span>
+              <span class="kpi-card__value" id="registro-dinamico-card-valor-total">R$ 0,00</span>
+            </article>
           </div>
         </div>
 
@@ -868,11 +872,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260823h"></script>
-<script src="js/utils.js?v=20260823h"></script>
-<script src="js/data.js?v=20260823h"></script>
-<script src="js/charts.js?v=20260823h"></script>
-<script src="js/dashboard.js?v=20260823h"></script>
-<script src="js/script.js?v=20260823h"></script>
+<script type="module" src="js/firebase-init.js?v=20260823i"></script>
+<script src="js/utils.js?v=20260823i"></script>
+<script src="js/data.js?v=20260823i"></script>
+<script src="js/charts.js?v=20260823i"></script>
+<script src="js/dashboard.js?v=20260823i"></script>
+<script src="js/script.js?v=20260823i"></script>
 </body>
 </html>
