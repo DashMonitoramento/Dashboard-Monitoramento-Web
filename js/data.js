@@ -1903,7 +1903,7 @@ const DataStore = (() => {
     loadRegioesFromUrl, loadRegioesFromFile,
     loadLeadTimeFromUrl, loadLeadTimeFromFile,
     loadFeriadosFromUrl,
-    calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
+    calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
