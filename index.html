@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260819f">
+<link rel="stylesheet" href="css/style.css?v=20260822a">
 </head>
 <body>
 
@@ -276,6 +276,17 @@
     </div>
 
     <div class="sidebar-section">
+      <details class="sidebar-accordion">
+        <summary>Central de Dados</summary>
+        <div style="display:flex; flex-direction:column; gap:8px; padding:10px;">
+          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--ativo" data-view="registros">📋 Registros detalhados</button>
+          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="mapa">🗺️ Análise por Região</button>
+          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="sidebar-section">
       <div class="sidebar-section__title">Legenda de status</div>
       <ul class="legend-status">
         <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-success)"></span>Entregue</li>
@@ -484,6 +495,38 @@
             <button type="button" class="toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
           </div>
         </div>
+
+        <section id="lead-time-panel" class="table-card" aria-label="Lead Time" style="margin-bottom:16px;">
+          <div class="chart-card__header">
+            <h2 class="chart-card__title">⏱️ Lead Time — tempo médio do pedido até a entrega</h2>
+          </div>
+          <div class="kpi-grid">
+            <article class="kpi-card kpi-card--primary" title="Média entre a Data de Criação do pedido e a Data de Faturamento">
+              <span class="kpi-card__label">Criação → Faturamento</span>
+              <span class="kpi-card__value" id="leadtime-etapa1-dias">—</span>
+              <span class="kpi-card__subvalue" id="leadtime-etapa1-amostras"></span>
+            </article>
+            <article class="kpi-card kpi-card--secondary" title="Média entre a Data de Coleta e a Data de Entrega da NF">
+              <span class="kpi-card__label">Coleta → Entrega da NF</span>
+              <span class="kpi-card__value" id="leadtime-etapa2-dias">—</span>
+              <span class="kpi-card__subvalue" id="leadtime-etapa2-amostras"></span>
+            </article>
+            <article class="kpi-card kpi-card--warning" title="Média entre a Data de Criação do pedido e a Data de Entrega da NF">
+              <span class="kpi-card__label">Total: Criação → Entrega da NF</span>
+              <span class="kpi-card__value" id="leadtime-total-dias">—</span>
+              <span class="kpi-card__subvalue" id="leadtime-total-amostras"></span>
+            </article>
+            <article class="kpi-card kpi-card--neutral" title="Prazo esperado em dias úteis, aba Lead Time Atualizado, por Transportadora + Cidade">
+              <span class="kpi-card__label">Prazo esperado (referência)</span>
+              <span class="kpi-card__value" id="leadtime-benchmark-dias">—</span>
+              <span class="kpi-card__subvalue" id="leadtime-benchmark-amostras"></span>
+            </article>
+          </div>
+          <p class="chart-card__hint" id="leadtime-aviso-transportadora" hidden>
+            ⚠️ Comparação com o prazo esperado indisponível: a coluna Transportadora ainda não está disponível nos dados atuais da Base Bluesoft.
+          </p>
+        </section>
+
         <iframe id="iframe-mapa-regioes" title="Análise por Região" style="width:100%; height:calc(100vh - 160px); min-height:640px; border:none; border-radius:8px; background:#333;"></iframe>
       </section>
 
@@ -674,11 +717,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260819f"></script>
-<script src="js/utils.js?v=20260819f"></script>
-<script src="js/data.js?v=20260819f"></script>
-<script src="js/charts.js?v=20260819f"></script>
-<script src="js/dashboard.js?v=20260819f"></script>
-<script src="js/script.js?v=20260819f"></script>
+<script type="module" src="js/firebase-init.js?v=20260822a"></script>
+<script src="js/utils.js?v=20260822a"></script>
+<script src="js/data.js?v=20260822a"></script>
+<script src="js/charts.js?v=20260822a"></script>
+<script src="js/dashboard.js?v=20260822a"></script>
+<script src="js/script.js?v=20260822a"></script>
 </body>
 </html>
