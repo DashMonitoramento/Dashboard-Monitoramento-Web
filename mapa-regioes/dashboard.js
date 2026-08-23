@@ -426,31 +426,63 @@
       const anchorLatLng = tooltip.getLatLng();
       if (!anchorLatLng) return;
       const anchorPoint = mapaAtual.latLngToContainerPoint(anchorLatLng);
+      const containerRect = mapaAtual.getContainer().getBoundingClientRect();
 
       const referenciaLng = (boundsReferencia && boundsReferencia.isValid()) ? boundsReferencia.getCenter().lng : anchorLatLng.lng;
       const lado = anchorLatLng.lng >= referenciaLng ? 'left' : 'right';
       const largura = el.offsetWidth || 230;
       const altura = el.offsetHeight || 150;
-      let boxPoint = lado === 'left'
-        ? L.point(anchorPoint.x - largura - 55, anchorPoint.y - altura / 2)
-        : L.point(anchorPoint.x + 55, anchorPoint.y - altura / 2);
-
-      // O mapa tem overflow:hidden (padrão do Leaflet) — uma caixa alta (a de região tem ~11
-      // linhas) facilmente estoura por cima/baixo do container e fica invisível, cortada, sem
-      // erro nenhum no console. Trava dentro da área visível do mapa, com uma margem de 6px.
       const tamanhoMapa = mapaAtual.getSize();
-      const margem = 6;
-      boxPoint = L.point(
-        Math.min(Math.max(boxPoint.x, margem), Math.max(margem, tamanhoMapa.x - largura - margem)),
-        Math.min(Math.max(boxPoint.y, margem), Math.max(margem, tamanhoMapa.y - altura - margem))
-      );
 
-      L.DomUtil.setPosition(el, boxPoint);
+      // O mini-mapa "Detalhe de São Paulo" é MENOR que a própria caixa de informações (218x163
+      // vs ~190x259) — travar dentro do container (como abaixo) não resolve, ela sempre vai
+      // ficar cortada pelo overflow:hidden do Leaflet. Nesse caso a caixa "escapa" do container
+      // pro <body> do documento, com position:absolute em coordenadas do DOCUMENTO (não da
+      // janela — o mapa fica dentro de um iframe embutido na página principal, então
+      // position:fixed aqui seria relativo ao viewport do iframe, não da janela real do
+      // usuário, e podia acabar fora da área visível se o iframe for maior que a tela).
+      const precisaEscapar = altura > tamanhoMapa.y || largura > tamanhoMapa.x;
+
+      if (precisaEscapar) {
+        if (el.parentNode !== document.body) document.body.appendChild(el);
+        el.style.position = 'absolute';
+        el.style.transform = 'none';
+        el.style.margin = '0';
+        // Reparentado pro <body>, perde o z-index da leaflet-tooltip-pane (~650) — sem isso
+        // ficava por baixo do ".painel-detalhe-sp" (z-index:1000, a moldura "DETALHE DE SÃO
+        // PAULO" em volta desse mini-mapa).
+        el.style.zIndex = '999999';
+        const scrollX = window.scrollX || document.documentElement.scrollLeft || 0;
+        const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+        let pontoX = lado === 'left'
+          ? containerRect.left + scrollX + anchorPoint.x - largura - 20
+          : containerRect.left + scrollX + anchorPoint.x + 20;
+        let pontoY = containerRect.top + scrollY + anchorPoint.y - altura / 2;
+        const docLargura = document.documentElement.scrollWidth;
+        const docAltura = document.documentElement.scrollHeight;
+        pontoX = Math.min(Math.max(pontoX, 8), docLargura - largura - 8);
+        pontoY = Math.min(Math.max(pontoY, 8), docAltura - altura - 8);
+        el.style.left = pontoX + 'px';
+        el.style.top = pontoY + 'px';
+      } else {
+        let boxPoint = lado === 'left'
+          ? L.point(anchorPoint.x - largura - 55, anchorPoint.y - altura / 2)
+          : L.point(anchorPoint.x + 55, anchorPoint.y - altura / 2);
+
+        // O mapa tem overflow:hidden (padrão do Leaflet) — uma caixa alta (a de região tem
+        // ~11 linhas) facilmente estoura por cima/baixo do container e fica invisível, cortada,
+        // sem erro nenhum no console. Trava dentro da área visível do mapa, margem de 6px.
+        const margem = 6;
+        boxPoint = L.point(
+          Math.min(Math.max(boxPoint.x, margem), Math.max(margem, tamanhoMapa.x - largura - margem)),
+          Math.min(Math.max(boxPoint.y, margem), Math.max(margem, tamanhoMapa.y - altura - margem))
+        );
+        L.DomUtil.setPosition(el, boxPoint);
+      }
 
       // Mede a posição REAL da caixa depois de reposicionada (cobre a margem que as classes
-      // leaflet-tooltip-left/right ainda aplicam) pra linha guia encostar bem na borda dela,
-      // não num ponto calculado às cegas.
-      const containerRect = mapaAtual.getContainer().getBoundingClientRect();
+      // leaflet-tooltip-left/right ainda aplicam, e o caso "escapou pro body" acima) pra linha
+      // guia encostar bem na borda dela, não num ponto calculado às cegas.
       const boxRect = el.getBoundingClientRect();
       const pontoCaixaX = lado === 'left' ? (boxRect.right - containerRect.left) : (boxRect.left - containerRect.left);
       const pontoCaixaY = (boxRect.top + boxRect.height / 2) - containerRect.top;
@@ -611,12 +643,27 @@
      * RANKING LATERAL — Desempenho das regiões
      * ============================================================ */
 
-    const COR_RANKING = '#2563EB';        // mesma cor pra todas as barras (decisão do usuário)
-    const COR_RANKING_BRILHO = 'rgba(37,99,235,.95)';
+    /** Faixas de desempenho do ranking (cor + rótulo) — decisão do usuário (2026-08-23),
+     * substitui a cor única de antes. Checagem em ordem decrescente, cada faixa é >= seu
+     * limite inferior (sem furo entre as faixas: 94,99% cai em "Regular", 95% já é "Bom"). */
+    const FAIXAS_DESEMPENHO = [
+      { minimo: 98, cor: '#16A34A', corBrilho: 'rgba(22,163,74,.95)', corTexto: '#ffffff', rotulo: 'Ótimo' },
+      { minimo: 95, cor: '#86EFAC', corBrilho: 'rgba(134,239,172,.95)', corTexto: '#1a1a1a', rotulo: 'Bom' },
+      { minimo: 90, cor: '#EAB308', corBrilho: 'rgba(234,179,8,.95)', corTexto: '#1a1a1a', rotulo: 'Regular' },
+      { minimo: 80, cor: '#F97316', corBrilho: 'rgba(249,115,22,.95)', corTexto: '#ffffff', rotulo: 'Atenção' },
+      { minimo: -Infinity, cor: '#DC2626', corBrilho: 'rgba(220,38,38,.95)', corTexto: '#ffffff', rotulo: 'Péssimo' },
+    ];
+    function faixaDesempenho(percentual) {
+      if (percentual === null || percentual === undefined || isNaN(percentual)) {
+        return { cor: '#7f8c8d', corBrilho: 'rgba(127,140,141,.95)', corTexto: '#ffffff', rotulo: 'Sem dados' };
+      }
+      return FAIXAS_DESEMPENHO.find((f) => percentual >= f.minimo);
+    }
 
-    /** Escreve o "% Entregue" DENTRO da barra, encostado na ponta direita — em vez de deixar
+    /** Escreve "X% · Rótulo" DENTRO da barra, encostado na ponta direita — em vez de deixar
      * o eixo X mostrar uma escala de porcentagem embaixo (removida, ver "scales.x.display"
-     * abaixo) e em vez de uma legenda separada (decisão do usuário, 2026-08-16). */
+     * abaixo) e em vez de uma legenda separada (decisão do usuário, 2026-08-16; rótulo da
+     * faixa adicionado 2026-08-23). */
     const pluginPercentualNaBarra = {
       id: 'percentualNaBarra',
       afterDatasetsDraw(chart) {
@@ -626,10 +673,10 @@
         ctx.font = 'bold 11px Segoe UI, Arial, sans-serif';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#ffffff';
         meta.data.forEach((elemento, i) => {
           const valor = chart.data.datasets[0].data[i];
-          ctx.fillText(`${valor}%`, elemento.x - 8, elemento.y);
+          ctx.fillStyle = faixaDesempenho(valor).corTexto;
+          ctx.fillText(`${valor}% · ${faixaDesempenho(valor).rotulo}`, elemento.x - 8, elemento.y);
         });
         ctx.restore();
       },
@@ -637,7 +684,8 @@
 
     /** Brilho (glow) que intensifica na barra sob o mouse — Chart.js já troca a cor pra
      * "hoverBackgroundColor" sozinho; esse plugin só desenha uma sombra difusa atrás da barra
-     * ativa ANTES dela ser redesenhada, then Chart.js finishes drawing on top of it. */
+     * ativa ANTES dela ser redesenhada, then Chart.js finishes drawing on top of it. Cor do
+     * brilho segue a faixa de CADA barra (2026-08-23), não é mais uma cor única fixa. */
     const pluginBrilhoNoHover = {
       id: 'brilhoNoHover',
       beforeDatasetsDraw(chart) {
@@ -645,10 +693,12 @@
         if (!ativos.length) return;
         const { ctx } = chart;
         ctx.save();
-        ctx.shadowColor = COR_RANKING_BRILHO;
-        ctx.shadowBlur = 18;
-        ativos.forEach(({ element }) => {
-          ctx.fillStyle = COR_RANKING_BRILHO;
+        ativos.forEach(({ element, index }) => {
+          const valor = chart.data.datasets[0].data[index];
+          const corBrilho = faixaDesempenho(valor).corBrilho;
+          ctx.shadowColor = corBrilho;
+          ctx.shadowBlur = 18;
+          ctx.fillStyle = corBrilho;
           ctx.fillRect(element.base, element.y - element.height / 2, element.x - element.base, element.height);
         });
         ctx.restore();
@@ -661,6 +711,9 @@
 
       const ordenado = regioes
         .filter((r) => r.percentual_entregue !== null && r.percentual_entregue !== undefined)
+        // "Exterior / Não mapeado" não tem geografia própria (nunca aparece no mapa) e a
+        // usuária pediu pra também sumir daqui, do ranking lateral (2026-08-23).
+        .filter((r) => r.regiao !== 'Exterior / Não mapeado')
         .slice()
         .sort((a, b) => b.percentual_entregue - a.percentual_entregue);
 
@@ -672,8 +725,8 @@
           datasets: [{
             label: '% Entregue',
             data: ordenado.map((r) => Number(r.percentual_entregue.toFixed(1))),
-            backgroundColor: COR_RANKING,
-            hoverBackgroundColor: COR_RANKING_BRILHO,
+            backgroundColor: ordenado.map((r) => faixaDesempenho(r.percentual_entregue).cor),
+            hoverBackgroundColor: ordenado.map((r) => faixaDesempenho(r.percentual_entregue).corBrilho),
           }],
         },
         options: {
