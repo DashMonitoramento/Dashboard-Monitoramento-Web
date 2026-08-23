@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260823k">
+<link rel="stylesheet" href="css/style.css?v=20260823l">
 </head>
 <body>
 
@@ -139,6 +139,12 @@
         <strong id="clock">—</strong>
         <span>Última atualização: <span id="last-updated">—</span></span>
       </div>
+      <button id="btn-ir-inicio" class="icon-btn icon-btn--home" title="Voltar para a tela inicial" aria-label="Voltar para a tela inicial" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 10.5 12 3l9 7.5"></path>
+          <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"></path>
+        </svg>
+      </button>
       <button id="btn-theme-toggle" class="icon-btn" aria-label="Alternar tema claro/escuro" aria-pressed="false" title="Alternar tema">🌗</button>
       <button id="btn-gerenciar-usuarios" class="icon-btn" title="Gerenciar usuários" aria-label="Gerenciar usuários" hidden>👥</button>
       <div class="user-chip">
@@ -873,11 +879,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260823k"></script>
-<script src="js/utils.js?v=20260823k"></script>
-<script src="js/data.js?v=20260823k"></script>
-<script src="js/charts.js?v=20260823k"></script>
-<script src="js/dashboard.js?v=20260823k"></script>
-<script src="js/script.js?v=20260823k"></script>
+<script type="module" src="js/firebase-init.js?v=20260823l"></script>
+<script src="js/utils.js?v=20260823l"></script>
+<script src="js/data.js?v=20260823l"></script>
+<script src="js/charts.js?v=20260823l"></script>
+<script src="js/dashboard.js?v=20260823l"></script>
+<script src="js/script.js?v=20260823l"></script>
 </body>
 </html>
