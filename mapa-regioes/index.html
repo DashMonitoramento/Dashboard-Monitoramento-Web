@@ -7,12 +7,15 @@
 <meta name="description" content="Indicadores de entregas por região comercial — Da Terrinha Alimentos">
 <link rel="icon" href="../assets/img/favicon-round.png">
 
-<!-- Leaflet (mapa) -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet (mapa) — hospedado localmente (vendor/), não mais via CDN externo: dependência de
+     unpkg.com/jsdelivr.net às vezes falhava/atrasava (rede da usuária, bloqueio de proxy, etc.),
+     fazendo o mapa e os gráficos ficarem em branco mesmo com os dados chegando certos via
+     postMessage (2026-08-22, ver "sumir da tela"). -->
+<link rel="stylesheet" href="vendor/leaflet.css">
+<script src="vendor/leaflet.js"></script>
 
-<!-- Chart.js (gráficos) -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- Chart.js (gráficos) — mesmo motivo, hospedado localmente -->
+<script src="vendor/chart.umd.min.js"></script>
 
 <link rel="stylesheet" href="dashboard.css?v=3">
 </head>
