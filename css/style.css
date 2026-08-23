@@ -154,6 +154,13 @@ ul { list-style: none; margin: 0; padding: 0; }
   background: rgba(220,38,38,.16); color: #fff;
   border-color: var(--color-danger); box-shadow: 0 0 26px -4px var(--color-danger);
 }
+.icon-btn--home {
+  color: var(--color-success); border-color: rgba(22,163,74,.6); box-shadow: 0 0 8px rgba(22,163,74,.5);
+}
+.icon-btn--home:hover {
+  background: rgba(22,163,74,.16); color: #fff;
+  border-color: var(--color-success); box-shadow: 0 0 26px -4px var(--color-success);
+}
 #btn-mobile-menu { display: none; }
 
 /* ---------- 5. Sidebar ---------- */
