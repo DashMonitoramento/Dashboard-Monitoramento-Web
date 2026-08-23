@@ -261,18 +261,34 @@ ul { list-style: none; margin: 0; padding: 0; }
   transition: box-shadow var(--transition), transform var(--transition);
 }
 .btn--pill-orange:hover { box-shadow: 0 0 18px rgba(255,122,26,.6); transform: translateY(-1px); }
-/* Mesmo formato arredondado do "Atualizar dados", contorno vermelho e o mesmo brilho
-   vermelho do card "Notas em aberto" ao passar o mouse. */
+/* Mesmo formato arredondado do "Atualizar dados". Cinza neutro em repouso (decisão do
+   usuário, 2026-08-23: só chama atenção em vermelho quando existe algum filtro ativo pra
+   limpar — ver .btn--pill-red--ativo, alternada por atualizarBotaoLimparFiltros() em
+   dashboard.js sempre que os filtros mudam). */
 .btn--pill-red {
-  background: var(--surface); color: var(--color-danger);
-  border: 2px solid var(--color-danger); border-radius: 999px; font-size: 14px; padding: 10px 14px;
-  transition: box-shadow var(--transition), transform var(--transition), background var(--transition);
+  background: var(--surface); color: var(--color-neutral);
+  border: 2px solid var(--color-neutral); border-radius: 999px; font-size: 14px; padding: 10px 14px;
+  transition: box-shadow var(--transition), transform var(--transition), background var(--transition), border-color var(--transition), color var(--transition);
 }
 .btn--pill-red:hover {
-  background: rgba(220,38,38,.08);
-  box-shadow: 0 0 26px -6px var(--color-danger);
+  background: rgba(100,116,139,.1);
+  box-shadow: 0 0 16px -4px var(--color-neutral);
   transform: translateY(-1px);
 }
+/* Vermelho brilhante e piscante — mesmo efeito do "Atualizar dados" (statusDiversosGlow),
+   só que vermelho, pra indicar que tem filtro ativo pra limpar. */
+.btn--pill-red--ativo {
+  color: var(--color-danger); border-color: var(--color-danger);
+  background: rgba(220,38,38,.08);
+  box-shadow: 0 0 8px 1px rgba(220,38,38,.5), 0 0 3px rgba(220,38,38,.8);
+  animation: filtroAtivoGlow 2.4s ease-in-out infinite;
+}
+.btn--pill-red--ativo:hover { box-shadow: 0 0 16px 3px rgba(220,38,38,.85); }
+@keyframes filtroAtivoGlow {
+  0%, 100% { box-shadow: 0 0 8px 1px rgba(220,38,38,.5), 0 0 3px rgba(220,38,38,.8); }
+  50%      { box-shadow: 0 0 16px 4px rgba(220,38,38,.9), 0 0 5px rgba(220,38,38,1); }
+}
+@media (prefers-reduced-motion: reduce) { .btn--pill-red--ativo { animation: none; } }
 .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
 #btn-toggle-vendedor-sem-cliente {
   margin-top: 10px; margin-bottom: 8px; font-size: 12px; padding: 7px 12px;
@@ -346,8 +362,16 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 .btn-scroll-tabela[hidden] { display: none; }
 
+/* Cinza neutro em repouso (decisão do usuário, 2026-08-23; era laranja) + ícone de lupa
+   embutido (mesmo símbolo 🔎 já usado em ".table-search", só que via SVG em background porque
+   esse campo não tem um wrapper próprio pro emoji). ".is-filled" (JS, quando tem texto
+   digitado) continua verde — não foi pedido pra mudar isso. */
 #filter-busca {
-  border-width: 2px; border-color: var(--color-orange); box-shadow: 0 0 6px rgba(255,122,26,.45);
+  border-width: 2px; border-color: var(--color-neutral); box-shadow: 0 0 6px rgba(100,116,139,.35);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  padding-left: 34px;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
