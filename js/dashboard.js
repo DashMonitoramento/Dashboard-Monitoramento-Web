@@ -226,6 +226,7 @@ const Dashboard = (() => {
       // Leaflet/Chart.js/dados_regioes.json sem necessidade em quem nunca clicar nele).
       const iframe = document.getElementById('iframe-mapa-regioes');
       if (!iframe.src) iframe.src = 'mapa-regioes/index.html';
+      renderLeadTime(); // painel ficava "—" até o próximo filtro, já que render() roda com embed.hidden ainda true
     } else if (view === 'dinamico') {
       renderRegistroDinamico();
       dinamico.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1002,6 +1003,46 @@ const Dashboard = (() => {
     renderRegistroDinamicoDetalhe();
   }
 
+  /** Redesenha o painel de Lead Time (tela "Análise por Região") com as médias já calculadas
+   * por DataStore.getLeadTimeStats() sobre os registros filtrados atuais. No-op se o painel não
+   * existir no DOM ainda, ou se a tela "Análise por Região" não estiver visível. */
+  function renderLeadTime() {
+    const secao = document.getElementById('lead-time-panel');
+    const view = document.getElementById('mapa-regioes-embed');
+    if (!secao || !view || view.hidden) return;
+
+    const stats = DataStore.getLeadTimeStats();
+
+    function preencher(prefixo, etapa) {
+      const elDias = document.getElementById(`leadtime-${prefixo}-dias`);
+      const elAmostras = document.getElementById(`leadtime-${prefixo}-amostras`);
+      if (etapa.mediaDias === null) {
+        elDias.textContent = '—';
+        elAmostras.textContent = 'Sem dados suficientes no período';
+        return;
+      }
+      elDias.textContent = `${Utils.formatNumber(etapa.mediaDias, 1)} dias`;
+      elAmostras.textContent = `${Utils.formatNumber(etapa.amostras)} nota(s) com data completa`;
+    }
+
+    preencher('etapa1', stats.etapa1);
+    preencher('etapa2', stats.etapa2);
+    preencher('total', stats.total);
+
+    const elBenchmarkDias = document.getElementById('leadtime-benchmark-dias');
+    const elBenchmarkAmostras = document.getElementById('leadtime-benchmark-amostras');
+    const avisoTransportadora = document.getElementById('leadtime-aviso-transportadora');
+    if (stats.benchmark.mediaDiasUteis === null) {
+      elBenchmarkDias.textContent = '—';
+      elBenchmarkAmostras.textContent = 'Sem referência disponível';
+      if (avisoTransportadora) avisoTransportadora.hidden = false;
+    } else {
+      elBenchmarkDias.textContent = `${Utils.formatNumber(stats.benchmark.mediaDiasUteis, 1)} dias úteis`;
+      elBenchmarkAmostras.textContent = `${Utils.formatNumber(stats.benchmark.amostras)} nota(s) com referência`;
+      if (avisoTransportadora) avisoTransportadora.hidden = true;
+    }
+  }
+
   function renderRegistroDinamicoDetalhe() {
     const secao = document.getElementById('registro-dinamico-detalhe');
     if (!registroDinamicoDataSelecionada) { secao.hidden = true; return; }
@@ -1133,6 +1174,7 @@ const Dashboard = (() => {
     renderTable(records);
     renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
     renderRegistroDinamico(); // no-op se a tela "Registro Dinâmico" não estiver visível
+    renderLeadTime(); // no-op se o painel de Lead Time não estiver no DOM
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
   }
