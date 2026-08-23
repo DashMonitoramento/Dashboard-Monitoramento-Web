@@ -912,19 +912,27 @@ const Dashboard = (() => {
    * REGISTRO DINÂMICO — consolida as notas filtradas por Data de Faturamento (2026-08-18)
    * ============================================================ */
 
-  /** Agrupa os registros (já filtrados) por dia de Data de Faturamento. Notas sem essa data
-   * (cobertura parcial, ver applyFaturamentoEnrichment em data.js) não entram em nenhum grupo —
-   * ficam de fora da tabela, mas contadas no aviso de cobertura acima dela.
-   * `mesSelecionado` (opcional, um Date no 1º dia do mês) restringe as linhas a só aquele mês
-   * — usado pela tabela de dias, que só mostra algo depois do usuário clicar num card de mês
-   * (decisão do usuário, 2026-08-18). totalComData/totalSemData continuam sendo do total GERAL
-   * (sem esse recorte), pra sempre refletir a cobertura de dados de todos os filtros ativos. */
+  /** Data usada pra agrupar o Registro Dinâmico: Data de Faturamento, com Data de Coleta como
+   * reserva quando a de Faturamento está em branco na planilha (decisão do usuário,
+   * 2026-08-23 — ela vai investigar por que essas notas não têm Faturamento preenchido, mas
+   * não quer que elas fiquem de fora desta tela enquanto isso). */
+  function dataEfetivaRegistroDinamico(r) {
+    return r.dataFaturamento || r.dataEntrega;
+  }
+
+  /** Agrupa os registros (já filtrados) por dia de dataEfetivaRegistroDinamico. Notas sem
+   * Faturamento NEM Coleta não entram em nenhum grupo — ficam de fora da tabela, mas contadas
+   * no aviso de cobertura acima dela. `mesSelecionado` (opcional, um Date no 1º dia do mês)
+   * restringe as linhas a só aquele mês — usado pela tabela de dias, que só mostra algo depois
+   * do usuário clicar num card de mês (decisão do usuário, 2026-08-18). totalComData/
+   * totalSemData continuam sendo do total GERAL (sem esse recorte), pra sempre refletir a
+   * cobertura de dados de todos os filtros ativos. */
   function calcularRegistroDinamico(records, mesSelecionado) {
-    const comData = records.filter(r => r.dataFaturamento);
+    const comData = records.filter(r => dataEfetivaRegistroDinamico(r));
     const doMes = mesSelecionado
-      ? comData.filter(r => r.dataFaturamento.getFullYear() === mesSelecionado.getFullYear() && r.dataFaturamento.getMonth() === mesSelecionado.getMonth())
+      ? comData.filter(r => { const d = dataEfetivaRegistroDinamico(r); return d.getFullYear() === mesSelecionado.getFullYear() && d.getMonth() === mesSelecionado.getMonth(); })
       : comData;
-    const grupos = Utils.groupBy(doMes, r => Utils.startOfDay(r.dataFaturamento).getTime());
+    const grupos = Utils.groupBy(doMes, r => Utils.startOfDay(dataEfetivaRegistroDinamico(r)).getTime());
     const linhas = Array.from(grupos.entries()).map(([timestamp, registros]) => ({
       dataFaturamento: new Date(Number(timestamp)),
       valorTotal: Utils.sum(registros, r => r.valorNF),
@@ -936,8 +944,8 @@ const Dashboard = (() => {
   /** Mesma base de calcularRegistroDinamico, só que agrupada por MÊS (não por dia) — usada
    * só pelo gráfico "Evolução mensal", que não teria espaço legível pra 196 pontos diários. */
   function calcularRegistroDinamicoPorMes(records) {
-    const comData = records.filter(r => r.dataFaturamento);
-    const grupos = Utils.groupBy(comData, r => `${r.dataFaturamento.getFullYear()}-${r.dataFaturamento.getMonth()}`);
+    const comData = records.filter(r => dataEfetivaRegistroDinamico(r));
+    const grupos = Utils.groupBy(comData, r => { const d = dataEfetivaRegistroDinamico(r); return `${d.getFullYear()}-${d.getMonth()}`; });
     return Array.from(grupos.entries())
       .map(([chave, registros]) => {
         const [ano, mes] = chave.split('-').map(Number);
@@ -992,7 +1000,10 @@ const Dashboard = (() => {
   function registrosDoDiaSelecionado() {
     if (!registroDinamicoDataSelecionada) return [];
     const alvo = registroDinamicoDataSelecionada.getTime();
-    return DataStore.getFilteredRecords().filter(r => r.dataFaturamento && Utils.startOfDay(r.dataFaturamento).getTime() === alvo);
+    return DataStore.getFilteredRecords().filter(r => {
+      const d = dataEfetivaRegistroDinamico(r);
+      return d && Utils.startOfDay(d).getTime() === alvo;
+    });
   }
 
   function rowHtmlRegistroDinamico(g) {
@@ -1041,13 +1052,19 @@ const Dashboard = (() => {
     const coverageEl = document.getElementById('registro-dinamico-coverage');
     coverageEl.textContent = registros.length === 0
       ? 'Nenhuma nota para os filtros atuais.'
-      : `${Utils.formatNumber(totalComData)} de ${Utils.formatNumber(registros.length)} notas têm Data de Faturamento registrada` +
-        (totalSemData > 0 ? ` — ${Utils.formatNumber(totalSemData)} sem essa informação não aparecem nesta tela.` : '.');
+      : `${Utils.formatNumber(totalComData)} de ${Utils.formatNumber(registros.length)} notas têm Data de Faturamento ou Data de Coleta registrada` +
+        (totalSemData > 0 ? ` — ${Utils.formatNumber(totalSemData)} sem nenhuma das duas não aparecem nesta tela.` : '.');
 
     renderTableGeneric(linhas, registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS, rowHtmlRegistroDinamico);
 
-    document.getElementById('registro-dinamico-total-valor').textContent = Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal));
+    const valorTotalFormatado = Utils.formatCurrency(Utils.sum(linhas, l => l.valorTotal));
+    document.getElementById('registro-dinamico-total-valor').textContent = valorTotalFormatado;
     document.getElementById('registro-dinamico-total-quantidade').textContent = Utils.formatNumber(linhas.reduce((acc, l) => acc + l.quantidade, 0));
+    // Mesmo valor do rodapé da tabela, só que num card visível ao lado do gráfico/cards de mês
+    // — reflete o mês clicado (registroDinamicoMesSelecionado) ou o total geral, sem mês nenhum
+    // selecionado. Decisão do usuário (2026-08-23).
+    const cardValorTotal = document.getElementById('registro-dinamico-card-valor-total');
+    if (cardValorTotal) cardValorTotal.textContent = valorTotalFormatado;
 
     renderRegistroDinamicoChart(registros);
     renderRegistroDinamicoDetalhe();
