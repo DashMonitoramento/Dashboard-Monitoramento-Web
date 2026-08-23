@@ -391,6 +391,10 @@ const Dashboard = (() => {
       DataStore.resetFilters();
       document.querySelectorAll('.filters-panel select, .filters-panel input').forEach(el => { el.value = ''; });
       document.querySelectorAll('.filters-panel .filter-checkbox-list input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+      // Busca rápida (2026-08-23) saiu de dentro de .filters-panel pra ter sua própria seção
+      // na barra lateral — precisa limpar o valor aqui direto, não fica mais coberta pelo
+      // querySelectorAll('.filters-panel input') acima.
+      buscaInput.value = '';
       buscaInput.classList.remove('is-filled');
       Utils.showToast('Filtros limpos.', 'info', 2000);
     });
