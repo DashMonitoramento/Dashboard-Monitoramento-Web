@@ -49,7 +49,7 @@ const Dashboard = (() => {
     tbody: 'registro-dinamico-detalhe-table-body', info: 'registro-dinamico-detalhe-table-info',
     pageLabel: 'registro-dinamico-detalhe-table-page-label', prev: 'registro-dinamico-detalhe-table-prev',
     next: 'registro-dinamico-detalhe-table-next', theadSelector: '#registro-dinamico-detalhe-table thead th[data-field]',
-    colspan: 10
+    colspan: 11
   };
   // "Lead Time de Pedidos e Entregas" (2026-08-23) — painel próprio, com filtros e busca de
   // tabela independentes dos filtros globais da barra lateral (ver comentário em
@@ -1028,6 +1028,7 @@ const Dashboard = (() => {
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
         <td>${escapeAttr(r.cidade)}${r.uf ? '/' + escapeAttr(r.uf) : ''}</td>
         <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
+        <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
         <td>${escapeAttr(r.statusAgendamento || '—')}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
         <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${escapeAttr(r.observacaoAgendamento || '—')}</td>
@@ -1703,6 +1704,16 @@ const Dashboard = (() => {
    * ============================================================ */
 
   function render(records) {
+    // render() é o callback de DataStore.onChange — só roda quando um filtro global de fato
+    // mudou (trocar de aba via mostrarViewMapaRegioes não passa por aqui). O recorte de mês/dia
+    // do Registro Dinâmico é de ANTES do filtro mudar e pode não ter mais nenhum registro em
+    // comum com o filtro novo (ex.: mês selecionado sem nenhuma nota "Em aberto" nesse mês) —
+    // a tabela ficava vazia sem nenhum aviso claro do porquê, lida como "o filtro zerou tudo".
+    // Decisão do usuário (2026-08-23): ao mudar um filtro, volta a mostrar todos os meses/dias
+    // daquele novo filtro, em vez de manter um recorte que já não faz sentido.
+    registroDinamicoMesSelecionado = null;
+    registroDinamicoDataSelecionada = null;
+
     renderKPIs(records);
     renderCharts(records);
     table.page = 1;
