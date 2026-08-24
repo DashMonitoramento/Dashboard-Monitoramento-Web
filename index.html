@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260823m">
+<link rel="stylesheet" href="css/style.css?v=20260823n">
 </head>
 <body>
 
@@ -233,14 +233,6 @@
             <label>Transportadora</label>
             <div class="filter-checkbox-list" id="filter-transportadora-list"></div>
           </div>
-          <div class="filter-field">
-            <label>Motorista</label>
-            <div class="filter-checkbox-list" id="filter-motorista-list"></div>
-          </div>
-          <div class="filter-field">
-            <label>Tipo de transporte</label>
-            <div class="filter-checkbox-list" id="filter-tipo-transporte-list"></div>
-          </div>
         </details>
 
         <details class="sidebar-accordion">
@@ -249,6 +241,10 @@
             <label>Cliente</label>
             <div class="filter-checkbox-list" id="filter-cliente-list"></div>
           </div>
+        </details>
+
+        <details class="sidebar-accordion">
+          <summary>Cidade</summary>
           <div class="filter-field">
             <label>Cidade</label>
             <div class="filter-checkbox-list" id="filter-cidade-list"></div>
@@ -279,15 +275,13 @@
     </div>
 
     <div class="sidebar-section">
-      <details class="sidebar-accordion">
-        <summary>Central de Dados</summary>
-        <div style="display:flex; flex-direction:column; gap:8px; padding:10px;">
-          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--ativo" data-view="registros">📋 Registros detalhados</button>
-          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="mapa">🗺️ Análise por Região</button>
-          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
-          <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="leadtime-pedidos">📈 Lead Time de Pedidos e Entregas</button>
-        </div>
-      </details>
+      <div class="sidebar-section__title">Central de Dados</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--ativo" data-view="registros">📋 Registros detalhados</button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="mapa">🗺️ Análise por Região</button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="leadtime-pedidos">📈 Lead Time de Pedidos e Entregas</button>
+      </div>
     </div>
 
     <div class="sidebar-section">
@@ -879,11 +873,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260823m"></script>
-<script src="js/utils.js?v=20260823m"></script>
-<script src="js/data.js?v=20260823m"></script>
-<script src="js/charts.js?v=20260823m"></script>
-<script src="js/dashboard.js?v=20260823m"></script>
-<script src="js/script.js?v=20260823m"></script>
+<script type="module" src="js/firebase-init.js?v=20260823n"></script>
+<script src="js/utils.js?v=20260823n"></script>
+<script src="js/data.js?v=20260823n"></script>
+<script src="js/charts.js?v=20260823n"></script>
+<script src="js/dashboard.js?v=20260823n"></script>
+<script src="js/script.js?v=20260823n"></script>
 </body>
 </html>
