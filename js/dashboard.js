@@ -410,8 +410,6 @@ const Dashboard = (() => {
 
     bindFilterCheckboxList('filter-status-list', 'situacaoFiltro');
     bindFilterCheckboxList('filter-transportadora-list', 'transportadora');
-    bindFilterCheckboxList('filter-motorista-list', 'motorista');
-    bindFilterCheckboxList('filter-tipo-transporte-list', 'tipoTransporte');
     bindFilterCheckboxList('filter-vendedor-list', 'vendedor');
     bindFilterCheckboxList('filter-cliente-list', 'cliente');
     bindFilterCheckboxList('filter-cidade-list', 'cidade');
@@ -1702,8 +1700,6 @@ const Dashboard = (() => {
 
   function populateFilterOptions() {
     fillCheckboxList('filter-transportadora-list', DataStore.getDistinctValues('transportadora'), 'transportadora');
-    fillCheckboxList('filter-motorista-list', DataStore.getDistinctValues('motorista'), 'motorista');
-    fillCheckboxList('filter-tipo-transporte-list', DataStore.getDistinctValues('tipoTransporte'), 'tipoTransporte');
     let vendedores = DataStore.getDistinctValues('vendedor');
     if (ocultarVendedorSemCliente) vendedores = vendedores.filter(v => v !== 'Não informado');
     fillCheckboxList('filter-vendedor-list', vendedores, 'vendedor');
