@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260824a">
+<link rel="stylesheet" href="css/style.css?v=20260824b">
 </head>
 <body>
 
@@ -249,6 +249,7 @@
           <summary>Cidade</summary>
           <div class="filter-field">
             <label>Cidade</label>
+            <input type="search" id="filter-cidade-busca" class="filter-checkbox-search" placeholder="Pesquisar cidade...">
             <div class="filter-checkbox-list" id="filter-cidade-list"></div>
           </div>
         </details>
@@ -257,6 +258,7 @@
           <summary>Vendedor</summary>
           <div class="filter-field">
             <label>Vendedor(a)</label>
+            <input type="search" id="filter-vendedor-busca" class="filter-checkbox-search" placeholder="Pesquisar vendedor...">
             <div class="filter-checkbox-list" id="filter-vendedor-list"></div>
           </div>
           <button id="btn-toggle-vendedor-sem-cliente" class="btn btn--ghost btn--block" type="button" aria-pressed="true">
@@ -875,11 +877,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260824a"></script>
-<script src="js/utils.js?v=20260824a"></script>
-<script src="js/data.js?v=20260824a"></script>
-<script src="js/charts.js?v=20260824a"></script>
-<script src="js/dashboard.js?v=20260824a"></script>
-<script src="js/script.js?v=20260824a"></script>
+<script type="module" src="js/firebase-init.js?v=20260824b"></script>
+<script src="js/utils.js?v=20260824b"></script>
+<script src="js/data.js?v=20260824b"></script>
+<script src="js/charts.js?v=20260824b"></script>
+<script src="js/dashboard.js?v=20260824b"></script>
+<script src="js/script.js?v=20260824b"></script>
 </body>
 </html>
