@@ -216,6 +216,7 @@ const Dashboard = (() => {
     bindAlternarViewMapaRegioes();
     bindBotaoIrInicio();
     atualizarBotaoIrInicio();
+    bindBuscaCheckboxList();
     bindRegistroDinamico();
     bindMapaRegioesMensagens();
     bindLeadTimePedidos();
@@ -1696,6 +1697,42 @@ const Dashboard = (() => {
     const todos = container.querySelector('.filter-checkbox__todos');
     const itens = container.querySelectorAll('.filter-checkbox__item');
     todos.checked = itens.length > 0 && Array.from(itens).every(cb => cb.checked);
+    // A lista é reconstruída (innerHTML) toda vez que os filtros mudam — sem isso, o que a
+    // usuária tivesse digitado no campo de busca (Transportadora/Cliente, ver
+    // BUSCA_POR_LISTA_CHECKBOX) parava de filtrar assim que ela marcasse um item.
+    aplicarBuscaCheckboxList(containerId);
+  }
+
+  /** Liga cada lista de checkbox longa (Transportadora/Cliente, pedido do usuário 2026-08-24)
+   * ao seu campo de busca — filtra os itens visíveis por texto, sem mexer no que já está
+   * marcado (só escondido/mostrado, "Selecionar todos" continua valendo pra lista inteira). */
+  const BUSCA_POR_LISTA_CHECKBOX = {
+    'filter-transportadora-list': 'filter-transportadora-busca',
+    'filter-cliente-list': 'filter-cliente-busca',
+  };
+
+  function aplicarBuscaCheckboxList(listaId) {
+    const buscaId = BUSCA_POR_LISTA_CHECKBOX[listaId];
+    if (!buscaId) return;
+    const busca = document.getElementById(buscaId);
+    const lista = document.getElementById(listaId);
+    if (!busca || !lista) return;
+    const termo = busca.value.trim().toLowerCase();
+    lista.querySelectorAll('.filter-checkbox:not(.filter-checkbox--todos)').forEach((label) => {
+      const texto = label.textContent.trim().toLowerCase();
+      // .filter-checkbox tem "display:flex" no CSS, que empataria em especificidade com a
+      // regra padrão do navegador pro atributo "hidden" (e o navegador perderia) — por isso
+      // esconde via style.display direto, não via .hidden.
+      label.style.display = (termo !== '' && !texto.includes(termo)) ? 'none' : '';
+    });
+  }
+
+  function bindBuscaCheckboxList() {
+    Object.entries(BUSCA_POR_LISTA_CHECKBOX).forEach(([listaId, buscaId]) => {
+      const busca = document.getElementById(buscaId);
+      if (!busca) return;
+      busca.addEventListener('input', () => aplicarBuscaCheckboxList(listaId));
+    });
   }
 
   function populateFilterOptions() {
