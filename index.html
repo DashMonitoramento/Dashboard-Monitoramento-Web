@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260823n">
+<link rel="stylesheet" href="css/style.css?v=20260824a">
 </head>
 <body>
 
@@ -231,6 +231,7 @@
           <summary>Transporte</summary>
           <div class="filter-field">
             <label>Transportadora</label>
+            <input type="search" id="filter-transportadora-busca" class="filter-checkbox-search" placeholder="Pesquisar transportadora...">
             <div class="filter-checkbox-list" id="filter-transportadora-list"></div>
           </div>
         </details>
@@ -239,6 +240,7 @@
           <summary>Cliente</summary>
           <div class="filter-field">
             <label>Cliente</label>
+            <input type="search" id="filter-cliente-busca" class="filter-checkbox-search" placeholder="Pesquisar cliente...">
             <div class="filter-checkbox-list" id="filter-cliente-list"></div>
           </div>
         </details>
@@ -873,11 +875,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260823n"></script>
-<script src="js/utils.js?v=20260823n"></script>
-<script src="js/data.js?v=20260823n"></script>
-<script src="js/charts.js?v=20260823n"></script>
-<script src="js/dashboard.js?v=20260823n"></script>
-<script src="js/script.js?v=20260823n"></script>
+<script type="module" src="js/firebase-init.js?v=20260824a"></script>
+<script src="js/utils.js?v=20260824a"></script>
+<script src="js/data.js?v=20260824a"></script>
+<script src="js/charts.js?v=20260824a"></script>
+<script src="js/dashboard.js?v=20260824a"></script>
+<script src="js/script.js?v=20260824a"></script>
 </body>
 </html>
