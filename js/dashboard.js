@@ -1709,6 +1709,8 @@ const Dashboard = (() => {
   const BUSCA_POR_LISTA_CHECKBOX = {
     'filter-transportadora-list': 'filter-transportadora-busca',
     'filter-cliente-list': 'filter-cliente-busca',
+    'filter-cidade-list': 'filter-cidade-busca',
+    'filter-vendedor-list': 'filter-vendedor-busca',
   };
 
   function aplicarBuscaCheckboxList(listaId) {
