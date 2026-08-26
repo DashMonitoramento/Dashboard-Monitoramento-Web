@@ -2124,17 +2124,19 @@ const Dashboard = (() => {
    * além do card, mas continua "Em aberto" aguardando a entrega de fato. */
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
+    // Valor NF somado por etapa — pedido do usuário (2026-08-26): os quadrados abaixo da pizza
+    // mostram esse total em R$ no lugar da porcentagem (a % continua só dentro da pizza).
+    const valores = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     records.forEach(r => {
       if (!r.necessitaAgendamento || !situacaoElegivelParaAgendamento(r.situacao)) return;
-      if (AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)) {
-        counts[r.statusAgendamento]++;
-      } else {
-        counts['Sem etapa definida']++;
-      }
+      const categoria = AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento) ? r.statusAgendamento : 'Sem etapa definida';
+      counts[categoria]++;
+      valores[categoria] += r.valorNF || 0;
     });
     charts.agendamento.update({
       labels: AGENDAMENTO_STATUS_CATEGORIAS,
-      series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }]
+      series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }],
+      options: { legendValores: AGENDAMENTO_STATUS_CATEGORIAS.map(c => valores[c]) }
     });
   }
 
