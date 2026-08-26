@@ -846,7 +846,7 @@ const Dashboard = (() => {
       { label: 'Vendedor', value: r => r.vendedor },
       { label: 'Cidade', value: r => r.cidade },
       { label: 'UF', value: r => r.uf },
-      { label: 'Status', value: r => statusLabel(r.status) },
+      { label: 'Status', value: r => statusExibicaoLabel(r) },
       { label: 'Prazo', value: r => prazoLabel(r.prazoStatus) },
       { label: 'Situação', value: r => r.situacao },
       { label: 'Situação Agendamento', value: r => r.statusAgendamento || '—' },
@@ -869,7 +869,7 @@ const Dashboard = (() => {
       { field: 'motorista', label: 'Motorista', value: r => r.motorista },
       { field: 'vendedor', label: 'Vendedor', value: r => r.vendedor },
       { field: 'cidade', label: 'Cidade/UF', value: r => `${r.cidade}${r.uf ? '/' + r.uf : ''}` },
-      { field: 'status', label: 'Status', value: r => statusLabel(r.status) },
+      { field: 'status', label: 'Status', value: r => statusExibicaoLabel(r) },
       { field: 'prazoStatus', label: 'Prazo', value: r => prazoLabel(r.prazoStatus) },
       { field: 'situacao', label: 'Situação', value: r => r.situacao },
       { field: 'statusAgendamento', label: 'Situação Agendamento', value: r => r.statusAgendamento || '—' },
@@ -1075,7 +1075,7 @@ const Dashboard = (() => {
         <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
         <td>${escapeAttr(r.cidade)}${r.uf ? '/' + escapeAttr(r.uf) : ''}</td>
-        <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
+        <td><span class="badge ${statusExibicaoBadgeClass(r)}">${statusExibicaoLabel(r)}</span></td>
         <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
         <td>${escapeAttr(r.statusAgendamento || '—')}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
@@ -1776,6 +1776,23 @@ const Dashboard = (() => {
   function statusBadgeClass(status) {
     return { ENTREGUE: 'badge--success', EM_ABERTO: 'badge--danger', AGUARDANDO_AGENDAMENTO: 'badge--neutral' }[status] || 'badge--neutral';
   }
+
+  /** "Status" mostrado de fato na tabela — igual a statusLabel/statusBadgeClass pra tudo,
+   * exceto notas Em Aberto que já estão dentro do prazo do Lead Time (r.prazoStatus ===
+   * 'DENTRO_PRAZO', mesmo cálculo usado no painel "Lead Time de Pedidos e Entregas" e na
+   * coluna "Prazo"): essas mostram "Em Trânsito" em vez de "Em aberto" — pedido do usuário
+   * (2026-08-26), pra distinguir quem só está a caminho (dentro do prazo) de quem realmente
+   * está parado/atrasado sem informação. Usada em todo lugar que hoje usa
+   * statusLabel(r.status)/statusBadgeClass(r.status) — tabela principal, drill-down de KPI,
+   * detalhe do Registro Dinâmico e exportações — pra não ficar inconsistente entre telas. */
+  function statusExibicaoLabel(r) {
+    if (r.status === 'EM_ABERTO' && r.prazoStatus === 'DENTRO_PRAZO') return 'Em Trânsito';
+    return statusLabel(r.status);
+  }
+  function statusExibicaoBadgeClass(r) {
+    if (r.status === 'EM_ABERTO' && r.prazoStatus === 'DENTRO_PRAZO') return 'badge--info';
+    return statusBadgeClass(r.status);
+  }
   function prazoLabel(prazo) {
     return { DENTRO_PRAZO: 'No Prazo', VENCIDO: 'ATRASADO', ENTREGUE: 'Entregue', SEM_INFO: 'Sem informação' }[prazo] || prazo;
   }
@@ -1861,6 +1878,10 @@ const Dashboard = (() => {
     const cancelado = records.filter(STATUS_DETAIL_DEFS['cancelado'].test);
     const reentrega = records.filter(STATUS_DETAIL_DEFS['reentrega'].test);
     const aguardando = records.filter(STATUS_DETAIL_DEFS['aguardando'].test);
+    // Recorte de "Notas em aberto" que já está em trânsito e dentro do prazo do Lead Time —
+    // mesmo campo r.prazoStatus usado na coluna "Prazo" e no badge "Em Trânsito" do Status
+    // (ver statusExibicaoLabel/statusExibicaoBadgeClass) — pedido do usuário (2026-08-26).
+    const emTransito = abertas.filter(r => r.prazoStatus === 'DENTRO_PRAZO');
 
     const total = records.length || 1;
     const percentual = (entregues.length / total) * 100;
@@ -1871,6 +1892,7 @@ const Dashboard = (() => {
     setKPI('kpi-cancelado-count', cancelado.length, Utils.formatNumber);
     setKPI('kpi-reentrega-count', reentrega.length, Utils.formatNumber);
     setKPI('kpi-aguardando-count', aguardando.length, Utils.formatNumber);
+    setKPI('kpi-em-transito-count', emTransito.length, Utils.formatNumber);
     setKPI('kpi-percentual', percentual, v => Utils.formatPercent(v, 1));
     setKPI('kpi-valor-entregues', Utils.sum(entregues, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-abertas', Utils.sum(abertas, r => r.valorNF), Utils.formatCurrency);
@@ -1878,6 +1900,7 @@ const Dashboard = (() => {
     setKPI('kpi-valor-cancelado', Utils.sum(cancelado, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-reentrega', Utils.sum(reentrega, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-aguardando', Utils.sum(aguardando, r => r.valorNF), Utils.formatCurrency);
+    setKPI('kpi-valor-em-transito', Utils.sum(emTransito, r => r.valorNF), Utils.formatCurrency);
 
     // Total geral — independente do status, conta tudo que passou pelos filtros atuais
     // (cada NF já é uma linha só, mesmo com reentregas — dedup acontece em data.js).
@@ -2255,7 +2278,7 @@ const Dashboard = (() => {
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
         <td>${escapeAttr(r.vendedor)}</td>
         <td>${escapeAttr(r.cidade)}${r.uf ? '/' + escapeAttr(r.uf) : ''}</td>
-        <td><span class="badge ${statusBadgeClass(r.status)}">${statusLabel(r.status)}</span></td>
+        <td><span class="badge ${statusExibicaoBadgeClass(r)}">${statusExibicaoLabel(r)}</span></td>
         <td><span class="badge ${prazoBadgeClass(r.prazoStatus)}">${prazoLabel(r.prazoStatus)}</span></td>
         <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
         <td>${escapeAttr(r.statusAgendamento || '—')}</td>
