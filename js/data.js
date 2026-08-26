@@ -586,6 +586,7 @@ const DataStore = (() => {
       cliente: [],
       cidade: [],
       regiaoComercial: [],
+      agendamento: [],
       busca: ''
     };
   }
@@ -1807,7 +1808,7 @@ const DataStore = (() => {
     const {
       dataInicio, dataFim, mes, ano,
       situacaoFiltro, transportadora, tipoTransporte, motorista, vendedor, cliente, cidade,
-      regiaoComercial, busca
+      regiaoComercial, busca, agendamento
     } = filters;
 
     return rawRecords.filter(r => {
@@ -1842,6 +1843,11 @@ const DataStore = (() => {
       if (cliente && cliente.length && !cliente.includes(r.cliente)) return false;
       if (cidade && cidade.length && !cidade.includes(r.cidade)) return false;
       if (regiaoComercial && regiaoComercial.length && !regiaoComercial.includes(r.regiaoComercial)) return false;
+      // Filtro "Agendamento" (Sim/Não) — pedido do usuário (2026-08-26), pra comparar separado
+      // o que exige agendamento (não depende só dela pra resolver) do que não exige (precisa
+      // sair dentro do Lead Time). r.necessitaAgendamento é booleano (ou null); null cai em
+      // "Não" aqui, mesmo critério truthy já usado em STATUS_DETAIL_DEFS/renderAgendamentoChart.
+      if (agendamento && agendamento.length && !agendamento.includes(r.necessitaAgendamento ? 'Sim' : 'Não')) return false;
 
       if (busca) {
         const needle = busca.toLowerCase();
