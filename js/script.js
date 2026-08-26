@@ -336,8 +336,26 @@ async function loadPermissaoEdicaoAgendamentoSilently() {
   }
 }
 
+/** Dispara todas as buscas de CSV/JSON em PARALELO, só pra esquentar o cache HTTP do
+ * navegador — a cadeia abaixo continua buscando e processando cada fonte na mesma ordem
+ * sequencial de sempre (não muda nenhuma lógica de enriquecimento/dependência entre elas),
+ * só que quando ela pedir uma URL que essa função já disparou, o navegador serve do cache
+ * (ou reaproveita a mesma requisição em andamento) em vez de esperar a rede de novo. Decisão
+ * do usuário (2026-08-26): login/carregamento inicial demorava muito porque essas ~9 fontes
+ * eram buscadas uma de cada vez — só a Base Bluesoft já tem ~20MB. Erros aqui são ignorados
+ * de propósito: se uma falhar, a cadeia sequencial abaixo tenta de novo do jeito normal (cada
+ * loadXDataSilently já tem seu próprio try/catch). */
+function prefetchTodasAsFontes() {
+  [
+    DEFAULT_BLUESOFT_URL, DEFAULT_CLIENTES_URL, DEFAULT_AGENDAMENTOS_URL, DEFAULT_MOTIVOS_URL,
+    DEFAULT_RETORNO_URL, DEFAULT_FATURAMENTO_URL, DEFAULT_REGIOES_URL, DEFAULT_LEADTIME_URL,
+    DEFAULT_FERIADOS_URL, DEFAULT_CANHOTOS_URL,
+  ].forEach(url => { fetch(url).catch(() => {}); });
+}
+
 async function loadInitialData() {
   Loading.show('Carregando dados da planilha...');
+  prefetchTodasAsFontes();
   try {
     await DataStore.loadFromUrl(DEFAULT_DATA_URL, DEFAULT_DATA_FORMAT);
     await loadBluesoftDataSilently(false);
