@@ -214,12 +214,18 @@ class DashChart {
       // (cursor, hover, data-label pro delegado em _bindEvents) — os demais gráficos de
       // pizza/rosca do dashboard não usam essa option e continuam com o tile só informativo.
       const clicavel = typeof this.options.onLegendClick === 'function';
+      // Rótulo/valor/quantidade cada um na sua própria linha — antes a quantidade ficava
+      // dentro da mesma linha do valor (só separada por "·"), então quebrava de forma
+      // inconsistente conforme o tamanho do valor (às vezes o número da quantidade ficava
+      // "grudado" no valor, às vezes sozinho numa linha) — pedido do usuário (2026-08-26)
+      // pra padronizar todos os quadrados no mesmo formato de 3 linhas.
       this.legend.innerHTML = tiles.map(t => `
         <div class="chart-stat-tile${clicavel ? ' chart-stat-tile--clickable' : ''}" style="border-color:${t.color}"${clicavel ? ` data-label="${this._escape(t.label)}"` : ''}>
           <span class="chart-stat-tile__dot" style="background:${t.color}"></span>
           <div class="chart-stat-tile__text">
             <span class="chart-stat-tile__label">${this._escape(t.label)}</span>
-            <span class="chart-stat-tile__value">${t.textoPrincipal} <span class="chart-stat-tile__count">· ${t.count} notas</span></span>
+            <span class="chart-stat-tile__value">${t.textoPrincipal}</span>
+            <span class="chart-stat-tile__count">${t.count} notas</span>
           </div>
         </div>
       `).join('');
