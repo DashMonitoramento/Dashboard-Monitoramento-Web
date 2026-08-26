@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260826c">
+<link rel="stylesheet" href="css/style.css?v=20260826d">
 </head>
 <body>
 
@@ -228,6 +228,17 @@
         </details>
 
         <details class="sidebar-accordion">
+          <summary>Agendamento</summary>
+          <div class="filter-field">
+            <div class="filter-checkbox-list" id="filter-agendamento-list">
+              <label class="filter-checkbox filter-checkbox--todos"><input type="checkbox" class="filter-checkbox__todos"> <strong>Selecionar todos</strong></label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Sim"> Sim</label>
+              <label class="filter-checkbox"><input type="checkbox" class="filter-checkbox__item" value="Não"> Não</label>
+            </div>
+          </div>
+        </details>
+
+        <details class="sidebar-accordion">
           <summary>Transporte</summary>
           <div class="filter-field">
             <label>Transportadora</label>
@@ -321,27 +332,34 @@
           <span class="kpi-card__value" id="kpi-entregues-count">0</span>
           <span class="kpi-card__subvalue" id="kpi-valor-entregues">R$ 0,00</span>
         </article>
-        <article class="kpi-card kpi-card--danger kpi-card--clickable kpi-card--com-extra" data-detail="em-aberto" title="Ver notas em aberto">
+        <article class="kpi-card kpi-card--danger kpi-card--clickable kpi-card--com-extra" data-detail="em-aberto-sem-agendamento" title="Ver notas em aberto sem agendamento">
           <div class="kpi-card__principal">
-            <span class="kpi-card__label">Notas em aberto</span>
+            <span class="kpi-card__label">Em aberto (sem agendamento)</span>
             <span class="kpi-card__value" id="kpi-abertas-count">0</span>
             <span class="kpi-card__subvalue" id="kpi-valor-abertas">R$ 0,00</span>
           </div>
-          <div class="kpi-card__extra" title="Notas em aberto já em trânsito e dentro do prazo do Lead Time">
+          <div class="kpi-card__extra" title="Dessas, já em trânsito e dentro do prazo do Lead Time">
             <span class="kpi-card__extra-label">🚚 Em Trânsito</span>
             <span class="kpi-card__extra-value" id="kpi-em-transito-count">0</span>
             <span class="kpi-card__extra-subvalue" id="kpi-valor-em-transito">R$ 0,00</span>
           </div>
         </article>
-        <article class="kpi-card kpi-card--warning kpi-card--clickable" data-detail="devolucao" title="Ver notas em devolução">
-          <span class="kpi-card__label">Devolução</span>
-          <span class="kpi-card__value" id="kpi-devolucao-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-devolucao">R$ 0,00</span>
+        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto-com-agendamento" title="Ver notas em aberto que exigem agendamento">
+          <span class="kpi-card__label">Em aberto (exige agendamento)</span>
+          <span class="kpi-card__value" id="kpi-abertas-agendamento-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-abertas-agendamento">R$ 0,00</span>
         </article>
-        <article class="kpi-card kpi-card--neutral kpi-card--clickable" data-detail="cancelado" title="Ver notas canceladas">
-          <span class="kpi-card__label">Cancelado</span>
-          <span class="kpi-card__value" id="kpi-cancelado-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-cancelado">R$ 0,00</span>
+        <article class="kpi-card kpi-card--warning kpi-card--clickable kpi-card--com-extra" data-detail="devolucao" title="Ver notas em devolução">
+          <div class="kpi-card__principal">
+            <span class="kpi-card__label">Devolução</span>
+            <span class="kpi-card__value" id="kpi-devolucao-count">0</span>
+            <span class="kpi-card__subvalue" id="kpi-valor-devolucao">R$ 0,00</span>
+          </div>
+          <div class="kpi-card__extra kpi-card__extra--neutral" title="Notas canceladas">
+            <span class="kpi-card__extra-label">Cancelado</span>
+            <span class="kpi-card__extra-value" id="kpi-cancelado-count">0</span>
+            <span class="kpi-card__extra-subvalue" id="kpi-valor-cancelado">R$ 0,00</span>
+          </div>
         </article>
         <article class="kpi-card kpi-card--secondary kpi-card--clickable" data-detail="reentrega" title="Ver notas em reentrega">
           <span class="kpi-card__label">Reentrega</span>
@@ -884,11 +902,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260826c"></script>
-<script src="js/utils.js?v=20260826c"></script>
-<script src="js/data.js?v=20260826c"></script>
-<script src="js/charts.js?v=20260826c"></script>
-<script src="js/dashboard.js?v=20260826c"></script>
-<script src="js/script.js?v=20260826c"></script>
+<script type="module" src="js/firebase-init.js?v=20260826d"></script>
+<script src="js/utils.js?v=20260826d"></script>
+<script src="js/data.js?v=20260826d"></script>
+<script src="js/charts.js?v=20260826d"></script>
+<script src="js/dashboard.js?v=20260826d"></script>
+<script src="js/script.js?v=20260826d"></script>
 </body>
 </html>
