@@ -94,6 +94,18 @@ const Dashboard = (() => {
   const STATUS_DETAIL_DEFS = {
     'entregue': { title: 'Notas entregues', test: r => r.status === 'ENTREGUE' },
     'em-aberto': { title: 'Notas em aberto', test: r => r.situacao === 'Em aberto' },
+    // Split do card acima em duas frentes (pedido do usuário, 2026-08-26): ela quer comparar
+    // quantidade/valor de quem exige agendamento (não depende 100% dela resolver) com quem
+    // não exige (tem que sair dentro do Lead Time). 'em-aberto' original continua existindo
+    // (usado por renderStatusChart e como base de renderKPIs) — estas são só recortes dele.
+    'em-aberto-sem-agendamento': {
+      title: 'Em aberto (sem agendamento)',
+      test: r => r.situacao === 'Em aberto' && !r.necessitaAgendamento
+    },
+    'em-aberto-com-agendamento': {
+      title: 'Em aberto (exige agendamento)',
+      test: r => r.situacao === 'Em aberto' && r.necessitaAgendamento
+    },
     'devolucao': { title: 'Devolução', test: r => r.situacao === 'Devolução' },
     'cancelado': { title: 'Cancelado', test: r => r.situacao === 'Cancelado' },
     'reentrega': { title: 'Reentrega', test: r => r.situacao === 'Reentrega' },
@@ -419,6 +431,7 @@ const Dashboard = (() => {
     $('filter-ano').addEventListener('change', (e) => DataStore.setFilters({ ano: e.target.value }));
 
     bindFilterCheckboxList('filter-status-list', 'situacaoFiltro');
+    bindFilterCheckboxList('filter-agendamento-list', 'agendamento');
     bindFilterCheckboxList('filter-transportadora-list', 'transportadora');
     bindFilterCheckboxList('filter-vendedor-list', 'vendedor');
     bindFilterCheckboxList('filter-cliente-list', 'cliente');
@@ -767,9 +780,13 @@ const Dashboard = (() => {
 
   const OBSERVACAO_EDICAO_LIMITE = 200;
 
+  // 'em-aberto' original + os dois recortes por agendamento (2026-08-26) — mesma nota,
+  // três telas diferentes de onde ela pode ser aberta.
+  const OBSERVACAO_EDICAO_DETAIL_KEYS = ['em-aberto', 'em-aberto-sem-agendamento', 'em-aberto-com-agendamento'];
+
   function renderObservacaoEdicao(records) {
     const section = document.getElementById('detail-observacao-section');
-    if (detailKey !== 'em-aberto') { section.hidden = true; return; }
+    if (!OBSERVACAO_EDICAO_DETAIL_KEYS.includes(detailKey)) { section.hidden = true; return; }
     section.hidden = false;
 
     const admin = isAdminAgendamento();
@@ -1844,7 +1861,8 @@ const Dashboard = (() => {
       (f.vendedor && f.vendedor.length) ||
       (f.cliente && f.cliente.length) ||
       (f.cidade && f.cidade.length) ||
-      (f.regiaoComercial && f.regiaoComercial.length)
+      (f.regiaoComercial && f.regiaoComercial.length) ||
+      (f.agendamento && f.agendamento.length)
     );
   }
 
@@ -1873,21 +1891,29 @@ const Dashboard = (() => {
     // Usa exatamente os mesmos critérios do drill-down (STATUS_DETAIL_DEFS) — assim o número
     // do card nunca diverge do que aparece ao clicar nele.
     const entregues = records.filter(STATUS_DETAIL_DEFS['entregue'].test);
-    const abertas = records.filter(STATUS_DETAIL_DEFS['em-aberto'].test);
+    // "Notas em aberto" (2026-08-26): dividido em duas frentes por pedido do usuário — ela
+    // quer comparar quantidade/valor de quem exige agendamento (não depende 100% dela) com
+    // quem não exige (tem que sair dentro do Lead Time). 'em-aberto' original some do KPI
+    // (a soma das duas frentes), mas continua existindo em STATUS_DETAIL_DEFS pro donut.
+    const abertasSemAgendamento = records.filter(STATUS_DETAIL_DEFS['em-aberto-sem-agendamento'].test);
+    const abertasComAgendamento = records.filter(STATUS_DETAIL_DEFS['em-aberto-com-agendamento'].test);
     const devolucao = records.filter(STATUS_DETAIL_DEFS['devolucao'].test);
     const cancelado = records.filter(STATUS_DETAIL_DEFS['cancelado'].test);
     const reentrega = records.filter(STATUS_DETAIL_DEFS['reentrega'].test);
     const aguardando = records.filter(STATUS_DETAIL_DEFS['aguardando'].test);
-    // Recorte de "Notas em aberto" que já está em trânsito e dentro do prazo do Lead Time —
-    // mesmo campo r.prazoStatus usado na coluna "Prazo" e no badge "Em Trânsito" do Status
-    // (ver statusExibicaoLabel/statusExibicaoBadgeClass) — pedido do usuário (2026-08-26).
-    const emTransito = abertas.filter(r => r.prazoStatus === 'DENTRO_PRAZO');
+    // Recorte de "Em aberto (sem agendamento)" que já está em trânsito e dentro do prazo do
+    // Lead Time — mesmo campo r.prazoStatus usado na coluna "Prazo" e no badge "Em Trânsito"
+    // do Status (ver statusExibicaoLabel/statusExibicaoBadgeClass) — pedido do usuário
+    // (2026-08-26). Só a frente "sem agendamento" entra aqui: quem exige agendamento tem seu
+    // próprio card separado, sem sub-estatística de trânsito.
+    const emTransito = abertasSemAgendamento.filter(r => r.prazoStatus === 'DENTRO_PRAZO');
 
     const total = records.length || 1;
     const percentual = (entregues.length / total) * 100;
 
     setKPI('kpi-entregues-count', entregues.length, Utils.formatNumber);
-    setKPI('kpi-abertas-count', abertas.length, Utils.formatNumber);
+    setKPI('kpi-abertas-count', abertasSemAgendamento.length, Utils.formatNumber);
+    setKPI('kpi-abertas-agendamento-count', abertasComAgendamento.length, Utils.formatNumber);
     setKPI('kpi-devolucao-count', devolucao.length, Utils.formatNumber);
     setKPI('kpi-cancelado-count', cancelado.length, Utils.formatNumber);
     setKPI('kpi-reentrega-count', reentrega.length, Utils.formatNumber);
@@ -1895,7 +1921,8 @@ const Dashboard = (() => {
     setKPI('kpi-em-transito-count', emTransito.length, Utils.formatNumber);
     setKPI('kpi-percentual', percentual, v => Utils.formatPercent(v, 1));
     setKPI('kpi-valor-entregues', Utils.sum(entregues, r => r.valorNF), Utils.formatCurrency);
-    setKPI('kpi-valor-abertas', Utils.sum(abertas, r => r.valorNF), Utils.formatCurrency);
+    setKPI('kpi-valor-abertas', Utils.sum(abertasSemAgendamento, r => r.valorNF), Utils.formatCurrency);
+    setKPI('kpi-valor-abertas-agendamento', Utils.sum(abertasComAgendamento, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-devolucao', Utils.sum(devolucao, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-cancelado', Utils.sum(cancelado, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-reentrega', Utils.sum(reentrega, r => r.valorNF), Utils.formatCurrency);
