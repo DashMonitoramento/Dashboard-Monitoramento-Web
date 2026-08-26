@@ -536,6 +536,20 @@ ul { list-style: none; margin: 0; padding: 0; }
 .kpi-actions { display: flex; gap: 8px; justify-content: flex-start; margin: 4px 0 24px; }
 .kpi-actions .btn { border: 1.5px solid var(--color-orange); }
 
+/* "Notas em aberto" ganha um recorte extra "Em Trânsito" (2026-08-26) — o card vira uma
+   linha (label/valor à esquerda, o extra à direita) só nesse caso; os demais cards
+   continuam empilhados verticalmente como sempre (.kpi-card__principal reaproveita o
+   display:flex column padrão do .kpi-card, sem precisar redeclarar nada). */
+.kpi-card--com-extra { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+.kpi-card__principal { display: flex; flex-direction: column; gap: 6px; }
+.kpi-card__extra {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-left: 14px; border-left: 1px solid var(--border);
+}
+.kpi-card__extra-label { font-size: 11px; font-weight: 700; color: var(--color-blue); text-transform: uppercase; letter-spacing: .04em; }
+.kpi-card__extra-value { font-size: 20px; font-weight: 800; color: var(--text-primary); letter-spacing: -.02em; }
+.kpi-card__extra-subvalue { font-size: 13px; font-weight: 700; color: var(--color-blue); }
+
 /* ---------- 8b. Tela de detalhe (drill-down ao clicar num KPI) ---------- */
 .status-detail-view__header {
   display: flex; align-items: center; gap: 16px; margin-bottom: 18px;
