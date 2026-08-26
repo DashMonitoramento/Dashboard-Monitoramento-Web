@@ -80,6 +80,15 @@ const Dashboard = (() => {
     'Em rota', 'Entregue', 'Reentrega', 'Recusa', 'Reagendar'
   ];
 
+  // Situação elegível pra entrar em qualquer card/gráfico de agendamento — "Em aberto" (o
+  // caso normal) OU "Aguardando agendamento" (um texto de Situação à parte, vindo direto da
+  // Base Bluesoft, que descreve a mesma coisa na prática). Antes só "Em aberto" contava:
+  // uma nota com Situação="Aguardando agendamento" não aparecia em NENHUM card de agendamento
+  // pra ser editada, mesmo precisando (pedido do usuário, 2026-08-26, caso real: NF 172151).
+  function situacaoElegivelParaAgendamento(situacao) {
+    return situacao === 'Em aberto' || situacao === 'Aguardando agendamento';
+  }
+
   // Cada entrada define o que um card de KPI representa, pra abrir a tela de detalhe com
   // exatamente os registros que compõem aquele número (mesmo critério usado em renderKPIs).
   const STATUS_DETAIL_DEFS = {
@@ -100,34 +109,34 @@ const Dashboard = (() => {
     // renderAgendamentoChart) — faz sentido: lá ele é literalmente "ainda sem etapa nenhuma".
     'aguardando': {
       title: 'Aguardando agendamento',
-      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' &&
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) &&
         !AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)
     },
     'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) },
     // Uma entrada por fatia do donut "Situação de agendamento" (pedido do usuário, 2026-08-19,
     // pra editar a data/status/observação de quem já tem etapa — igual já funcionava só pro
     // card "Aguardando agendamento"). Mesma população-base do gráfico (necessitaAgendamento +
-    // Em aberto — ver renderAgendamentoChart); "Sem etapa definida" não precisa de entrada
-    // própria, é literalmente o mesmo recorte de 'aguardando' acima.
+    // situacaoElegivelParaAgendamento — ver renderAgendamentoChart); "Sem etapa definida" não
+    // precisa de entrada própria, é literalmente o mesmo recorte de 'aguardando' acima.
     'agendamento-agendado': {
       title: 'Agendado',
-      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Agendado'
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Agendado'
     },
     'agendamento-aguardando-confirmacao': {
       title: 'Aguardando Confirmação',
-      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Aguardando Confirmação'
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Aguardando Confirmação'
     },
     'agendamento-reagendar': {
       title: 'Reagendar',
-      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Reagendar'
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Reagendar'
     },
     'agendamento-okker': {
       title: 'Okker',
-      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Okker'
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Okker'
     },
     'agendamento-devolucao-terrinha': {
       title: 'Devolução para Terrinha',
-      test: r => r.necessitaAgendamento && r.situacao === 'Em aberto' && r.statusAgendamento === 'Devolução para Terrinha'
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Devolução para Terrinha'
     }
   };
 
@@ -2066,7 +2075,7 @@ const Dashboard = (() => {
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     records.forEach(r => {
-      if (!r.necessitaAgendamento || r.situacao !== 'Em aberto') return;
+      if (!r.necessitaAgendamento || !situacaoElegivelParaAgendamento(r.situacao)) return;
       if (AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)) {
         counts[r.statusAgendamento]++;
       } else {
