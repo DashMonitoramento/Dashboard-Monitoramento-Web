@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260826a">
+<link rel="stylesheet" href="css/style.css?v=20260826b">
 </head>
 <body>
 
@@ -321,10 +321,17 @@
           <span class="kpi-card__value" id="kpi-entregues-count">0</span>
           <span class="kpi-card__subvalue" id="kpi-valor-entregues">R$ 0,00</span>
         </article>
-        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto" title="Ver notas em aberto">
-          <span class="kpi-card__label">Notas em aberto</span>
-          <span class="kpi-card__value" id="kpi-abertas-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-abertas">R$ 0,00</span>
+        <article class="kpi-card kpi-card--danger kpi-card--clickable kpi-card--com-extra" data-detail="em-aberto" title="Ver notas em aberto">
+          <div class="kpi-card__principal">
+            <span class="kpi-card__label">Notas em aberto</span>
+            <span class="kpi-card__value" id="kpi-abertas-count">0</span>
+            <span class="kpi-card__subvalue" id="kpi-valor-abertas">R$ 0,00</span>
+          </div>
+          <div class="kpi-card__extra" title="Notas em aberto já em trânsito e dentro do prazo do Lead Time">
+            <span class="kpi-card__extra-label">🚚 Em Trânsito</span>
+            <span class="kpi-card__extra-value" id="kpi-em-transito-count">0</span>
+            <span class="kpi-card__extra-subvalue" id="kpi-valor-em-transito">R$ 0,00</span>
+          </div>
         </article>
         <article class="kpi-card kpi-card--warning kpi-card--clickable" data-detail="devolucao" title="Ver notas em devolução">
           <span class="kpi-card__label">Devolução</span>
@@ -877,11 +884,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260826a"></script>
-<script src="js/utils.js?v=20260826a"></script>
-<script src="js/data.js?v=20260826a"></script>
-<script src="js/charts.js?v=20260826a"></script>
-<script src="js/dashboard.js?v=20260826a"></script>
-<script src="js/script.js?v=20260826a"></script>
+<script type="module" src="js/firebase-init.js?v=20260826b"></script>
+<script src="js/utils.js?v=20260826b"></script>
+<script src="js/data.js?v=20260826b"></script>
+<script src="js/charts.js?v=20260826b"></script>
+<script src="js/dashboard.js?v=20260826b"></script>
+<script src="js/script.js?v=20260826b"></script>
 </body>
 </html>
