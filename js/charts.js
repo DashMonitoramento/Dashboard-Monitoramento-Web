@@ -146,6 +146,9 @@ class DashChart {
   /** Atualiza os dados do gráfico, animando a transição do valor antigo para o novo. */
   update(data, animate = true) {
     this.labels = data.labels || this.labels;
+    // Permite ajustar opções junto de um update() normal (ex.: legendValores do gráfico de
+    // Situação de agendamento, que muda a cada filtro) sem precisar recriar o DashChart inteiro.
+    if (data.options) Object.assign(this.options, data.options);
     const newSeries = (data.series || []).map((s, i) => ({ color: ChartPalette[i % ChartPalette.length], ...s }));
 
     const hasData = newSeries.some(s => (s.data || []).some(v => v !== 0 && v !== null && v !== undefined))
@@ -195,10 +198,17 @@ class DashChart {
     if (this.type === 'pie' || this.type === 'donut') {
       const values = series[0] ? series[0].data : [];
       const total = values.reduce((a, b) => a + b, 0) || 1;
+      // legendValores (opcional, array paralelo a labels/data em R$): quando informado, o tile
+      // mostra o valor total da categoria em vez da porcentagem — pedido do usuário (2026-08-26)
+      // pro gráfico "Situação de agendamento", pra ver o R$ de cada etapa direto no quadrado.
+      // A % continua aparecendo normalmente dentro da própria pizza/rosca (ver _drawCircular);
+      // os demais gráficos de pizza/rosca não passam essa option e continuam mostrando %.
+      const legendValores = this.options.legendValores;
       const tiles = this.labels.map((l, i) => {
         const v = values[i] || 0;
         const pct = v / total * 100;
-        return { label: l, color: this._sliceColor(i), pct: pct.toFixed(pct < 10 ? 1 : 0), count: Utils.formatNumber(Math.round(v)) };
+        const textoPrincipal = legendValores ? Utils.formatCurrency(legendValores[i] || 0) : `${pct.toFixed(pct < 10 ? 1 : 0)}%`;
+        return { label: l, color: this._sliceColor(i), textoPrincipal, count: Utils.formatNumber(Math.round(v)) };
       });
       // onLegendClick (opcional): só quando informado nas options, os tiles ficam clicáveis
       // (cursor, hover, data-label pro delegado em _bindEvents) — os demais gráficos de
@@ -209,7 +219,7 @@ class DashChart {
           <span class="chart-stat-tile__dot" style="background:${t.color}"></span>
           <div class="chart-stat-tile__text">
             <span class="chart-stat-tile__label">${this._escape(t.label)}</span>
-            <span class="chart-stat-tile__value">${t.pct}% <span class="chart-stat-tile__count">· ${t.count} notas</span></span>
+            <span class="chart-stat-tile__value">${t.textoPrincipal} <span class="chart-stat-tile__count">· ${t.count} notas</span></span>
           </div>
         </div>
       `).join('');
