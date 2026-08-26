@@ -546,9 +546,13 @@ ul { list-style: none; margin: 0; padding: 0; }
   display: flex; flex-direction: column; gap: 2px;
   padding-left: 14px; border-left: 1px solid var(--border);
 }
-.kpi-card__extra-label { font-size: 11px; font-weight: 700; color: var(--color-blue); text-transform: uppercase; letter-spacing: .04em; }
+/* Cor do recorte extra é azul por padrão (Em Trânsito), mas cada instância pode sobrescrever
+   via --extra-accent inline (ex.: Cancelado dentro do card Devolução usa cinza neutro, sua
+   cor já estabelecida em outros lugares do site — ver .kpi-card__extra--neutral). */
+.kpi-card__extra-label { font-size: 11px; font-weight: 700; color: var(--extra-accent, var(--color-blue)); text-transform: uppercase; letter-spacing: .04em; }
 .kpi-card__extra-value { font-size: 20px; font-weight: 800; color: var(--text-primary); letter-spacing: -.02em; }
-.kpi-card__extra-subvalue { font-size: 13px; font-weight: 700; color: var(--color-blue); }
+.kpi-card__extra-subvalue { font-size: 13px; font-weight: 700; color: var(--extra-accent, var(--color-blue)); }
+.kpi-card__extra--neutral { --extra-accent: var(--color-neutral); }
 
 /* ---------- 8b. Tela de detalhe (drill-down ao clicar num KPI) ---------- */
 .status-detail-view__header {
