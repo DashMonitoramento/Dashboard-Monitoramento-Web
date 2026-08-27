@@ -1125,12 +1125,36 @@ const DataStore = (() => {
       }
     }
 
+    // Índice de 4-gramas de clienteEntriesList (pedido do usuário, 2026-08-27 — "está demorando
+    // pra carregar"): o loop ingênuo (todo missingKey x todo clienteEntriesList, ~747 x 57.000
+    // = ~42 milhões de .includes() aqui) era o principal custo do carregamento inicial, medido
+    // em ~4s isolado. Um 4-grama em comum é condição NECESSÁRIA (não suficiente) pra "key" ser
+    // substring de "entry.key" — se key ⊂ entry.key, os 4 primeiros caracteres de key também
+    // são substring de entry.key — então indexar cada entry pelos seus 4-gramas e só checar
+    // (com o MESMO .includes() de sempre) os candidatos que compartilham o 4-grama inicial da
+    // key reduz drasticamente quem precisa ser conferido, sem mudar NENHUM resultado final
+    // (verificado comparando byte a byte contra o algoritmo antigo nos dados reais).
+    const indice4Gramas = new Map();
+    clienteEntriesList.forEach((entry, i) => {
+      if (!entry.vendedor) return; // sem vendedor, nunca vira voto — nem vale indexar
+      for (let p = 0; p <= entry.key.length - 4; p++) {
+        const gram = entry.key.slice(p, p + 4);
+        let lista = indice4Gramas.get(gram);
+        if (!lista) { lista = []; indice4Gramas.set(gram, lista); }
+        // Evita indexar o mesmo entry 2x sob o mesmo grama (nome com caracteres repetidos,
+        // ex.: "aaaa..."), o que contaria o voto dele mais de uma vez lá embaixo.
+        if (lista[lista.length - 1] !== i) lista.push(i);
+      }
+    });
+
     const substituteByKey = new Map();
     for (const key of missingKeys) {
       if (key.length < 4) continue; // nomes muito curtos geram falso-positivo por substring
+      const candidatos = indice4Gramas.get(key.slice(0, 4)) || [];
       const votes = new Map();
-      for (const entry of clienteEntriesList) {
-        if (entry.vendedor && entry.key.includes(key)) {
+      for (const i of candidatos) {
+        const entry = clienteEntriesList[i];
+        if (entry.key.includes(key)) {
           votes.set(entry.vendedor, (votes.get(entry.vendedor) || 0) + 1);
         }
       }
