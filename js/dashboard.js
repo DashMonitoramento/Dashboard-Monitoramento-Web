@@ -44,6 +44,16 @@ const Dashboard = (() => {
     next: 'registro-dinamico-table-next', theadSelector: '#registro-dinamico-table thead th[data-field]',
     colspan: 3
   };
+  // Submenu por Transportadora dentro da data selecionada (pedido do usuário, 2026-08-27) — uma
+  // linha por transportadora daquele dia, com soma de Valor e contagem de notas. Clicar numa
+  // transportadora abre, embaixo, o detalhe por nota (3ª tabela/estado, registroDinamicoDetalheTable).
+  let registroDinamicoTransportadoraTable = Object.assign(createTableState(), { sortField: 'valorTotal', sortDir: 'desc' });
+  const REGISTRO_DINAMICO_TRANSPORTADORA_IDS = {
+    tbody: 'registro-dinamico-transportadoras-table-body', info: 'registro-dinamico-transportadoras-table-info',
+    pageLabel: 'registro-dinamico-transportadoras-table-page-label', prev: 'registro-dinamico-transportadoras-table-prev',
+    next: 'registro-dinamico-transportadoras-table-next', theadSelector: '#registro-dinamico-transportadoras-table thead th[data-field]',
+    colspan: 3
+  };
   let registroDinamicoDetalheTable = Object.assign(createTableState(), { sortField: 'nf', sortDir: 'asc' });
   const REGISTRO_DINAMICO_DETALHE_IDS = {
     tbody: 'registro-dinamico-detalhe-table-body', info: 'registro-dinamico-detalhe-table-info',
@@ -66,8 +76,13 @@ const Dashboard = (() => {
   let leadTimePedidosLinhasTabela = [];   // pós busca da tabela — o que a tabela de fato usa
 
   // Data (meia-noite) atualmente expandida na tabela de dias, ou null se nenhuma — controla
-  // a visibilidade/conteúdo da tabela de detalhe por nota e o destaque visual da linha clicada.
+  // a visibilidade/conteúdo do submenu de Transportadoras (e, por tabela, do detalhe por nota)
+  // e o destaque visual da linha clicada.
   let registroDinamicoDataSelecionada = null;
+  // Transportadora escolhida dentro do submenu da data aberta, ou null se nenhuma — o detalhe
+  // por nota só aparece depois de escolher também uma transportadora (pedido do usuário,
+  // 2026-08-27), mesmo padrão de drill-down em 2 níveis já usado por mês -> dia.
+  let registroDinamicoTransportadoraSelecionada = null;
   // Mês (1º dia, meia-noite) selecionado no card abaixo do gráfico, ou null se nenhum — null
   // mostra TODOS os dias normalmente na tabela de cima; selecionar um mês filtra só pra ele
   // (decisão do usuário, 2026-08-19: clicar de novo no card ativo desmarca e volta a mostrar tudo).
@@ -1112,11 +1127,42 @@ const Dashboard = (() => {
     });
   }
 
+  /** Agrupa as notas de UM dia (já filtradas por registrosDoDiaSelecionado) por Transportadora
+   * — o submenu que aparece ao clicar numa data (pedido do usuário, 2026-08-27), antes do
+   * detalhe por nota. Sem transportadora informada cai em "Não informado", mesmo texto usado
+   * em outras colunas/filtros do dashboard pra esse caso. */
+  function calcularRegistroDinamicoPorTransportadora(registrosDoDia) {
+    const grupos = Utils.groupBy(registrosDoDia, r => r.transportadora || 'Não informado');
+    return Array.from(grupos.entries()).map(([transportadora, registros]) => ({
+      transportadora,
+      valorTotal: Utils.sum(registros, r => r.valorNF),
+      quantidade: registros.length
+    }));
+  }
+
+  /** Notas do dia selecionado que também batem com a Transportadora escolhida no submenu — a
+   * fonte do detalhe por nota (registro-dinamico-detalhe), agora um recorte a mais além do dia. */
+  function registrosDoDiaETransportadoraSelecionados() {
+    if (!registroDinamicoTransportadoraSelecionada) return [];
+    return registrosDoDiaSelecionado().filter(r => (r.transportadora || 'Não informado') === registroDinamicoTransportadoraSelecionada);
+  }
+
   function rowHtmlRegistroDinamico(g) {
     const ativa = registroDinamicoDataSelecionada && g.dataFaturamento.getTime() === registroDinamicoDataSelecionada.getTime();
     return `
       <tr>
         <td><button type="button" class="nf-link${ativa ? ' nf-link--ativo' : ''}" data-data-fat="${g.dataFaturamento.getTime()}" title="Ver notas faturadas nessa data">${Utils.formatDate(g.dataFaturamento)}</button></td>
+        <td class="text-right">${Utils.formatCurrency(g.valorTotal)}</td>
+        <td class="text-right">${Utils.formatNumber(g.quantidade)}</td>
+      </tr>
+    `;
+  }
+
+  function rowHtmlRegistroDinamicoTransportadora(g) {
+    const ativa = registroDinamicoTransportadoraSelecionada === g.transportadora;
+    return `
+      <tr>
+        <td><button type="button" class="nf-link${ativa ? ' nf-link--ativo' : ''}" data-transportadora-fat="${escapeAttr(g.transportadora)}" title="Ver notas dessa transportadora nessa data">${escapeAttr(g.transportadora)}</button></td>
         <td class="text-right">${Utils.formatCurrency(g.valorTotal)}</td>
         <td class="text-right">${Utils.formatNumber(g.quantidade)}</td>
       </tr>
@@ -1174,6 +1220,7 @@ const Dashboard = (() => {
     if (cardValorTotal) cardValorTotal.textContent = valorTotalFormatado;
 
     renderRegistroDinamicoChart(registros);
+    renderRegistroDinamicoTransportadoras();
     renderRegistroDinamicoDetalhe();
   }
 
@@ -1685,23 +1732,48 @@ const Dashboard = (() => {
     });
   }
 
-  function renderRegistroDinamicoDetalhe() {
-    const secao = document.getElementById('registro-dinamico-detalhe');
+  /** Submenu de Transportadoras da data selecionada (pedido do usuário, 2026-08-27) — aparece
+   * só depois de clicar numa data na tabela de cima. */
+  function renderRegistroDinamicoTransportadoras() {
+    const secao = document.getElementById('registro-dinamico-transportadoras');
     if (!registroDinamicoDataSelecionada) { secao.hidden = true; return; }
     secao.hidden = false;
 
-    const registros = registrosDoDiaSelecionado();
+    const linhas = calcularRegistroDinamicoPorTransportadora(registrosDoDiaSelecionado());
+    document.getElementById('registro-dinamico-transportadoras-titulo').textContent =
+      `Transportadoras em ${Utils.formatDate(registroDinamicoDataSelecionada)}`;
+    renderTableGeneric(linhas, registroDinamicoTransportadoraTable, REGISTRO_DINAMICO_TRANSPORTADORA_IDS, rowHtmlRegistroDinamicoTransportadora);
+  }
+
+  function renderRegistroDinamicoDetalhe() {
+    const secao = document.getElementById('registro-dinamico-detalhe');
+    if (!registroDinamicoDataSelecionada || !registroDinamicoTransportadoraSelecionada) { secao.hidden = true; return; }
+    secao.hidden = false;
+
+    const registros = registrosDoDiaETransportadoraSelecionados();
     document.getElementById('registro-dinamico-detalhe-titulo').textContent =
-      `Notas faturadas em ${Utils.formatDate(registroDinamicoDataSelecionada)} (${Utils.formatNumber(registros.length)})`;
+      `Notas faturadas em ${Utils.formatDate(registroDinamicoDataSelecionada)} — ${registroDinamicoTransportadoraSelecionada} (${Utils.formatNumber(registros.length)})`;
     renderTableGeneric(registros, registroDinamicoDetalheTable, REGISTRO_DINAMICO_DETALHE_IDS, rowHtmlRegistroDinamicoDetalhe);
   }
 
-  /** Clicar numa data já expandida fecha o detalhe de novo (alterna); clicar noutra data troca
-   * o detalhe pra ela, sem precisar fechar antes. */
+  /** Clicar numa data já expandida fecha o submenu de novo (alterna); clicar noutra data troca
+   * pra ela, sem precisar fechar antes. Trocar/fechar a data invalida a transportadora
+   * escolhida antes dentro do submenu — ela pode nem existir no dia novo. */
   function abrirRegistroDinamicoDetalhe(timestamp) {
     const novaData = new Date(Number(timestamp));
     const jaEstaAberta = registroDinamicoDataSelecionada && registroDinamicoDataSelecionada.getTime() === novaData.getTime();
     registroDinamicoDataSelecionada = jaEstaAberta ? null : novaData;
+    registroDinamicoTransportadoraSelecionada = null;
+    registroDinamicoTransportadoraTable.page = 1;
+    registroDinamicoDetalheTable.page = 1;
+    renderRegistroDinamico();
+  }
+
+  /** Mesmo padrão de alternância acima, um nível abaixo: clicar na transportadora já escolhida
+   * fecha o detalhe por nota; clicar noutra troca direto. */
+  function abrirRegistroDinamicoTransportadora(nome) {
+    const jaEstaSelecionada = registroDinamicoTransportadoraSelecionada === nome;
+    registroDinamicoTransportadoraSelecionada = jaEstaSelecionada ? null : nome;
     registroDinamicoDetalheTable.page = 1;
     renderRegistroDinamico();
   }
@@ -1710,21 +1782,36 @@ const Dashboard = (() => {
     bindTableControlsFor(registroDinamicoTable, REGISTRO_DINAMICO_TABLE_IDS,
       () => calcularRegistroDinamico(DataStore.getFilteredRecords(), registroDinamicoMesSelecionado).linhas,
       rowHtmlRegistroDinamico);
+    bindTableControlsFor(registroDinamicoTransportadoraTable, REGISTRO_DINAMICO_TRANSPORTADORA_IDS,
+      () => calcularRegistroDinamicoPorTransportadora(registrosDoDiaSelecionado()),
+      rowHtmlRegistroDinamicoTransportadora);
     bindTableControlsFor(registroDinamicoDetalheTable, REGISTRO_DINAMICO_DETALHE_IDS,
-      registrosDoDiaSelecionado, rowHtmlRegistroDinamicoDetalhe);
+      registrosDoDiaETransportadoraSelecionados, rowHtmlRegistroDinamicoDetalhe);
 
     // Delegado no body (igual bindCanhotoLinks) porque a tabela/os cards são reconstruídos a
-    // cada render. Um só listener cobre os dois tipos de clique (card de mês e data do dia).
+    // cada render. Um só listener cobre os 3 tipos de clique (card de mês, data do dia,
+    // transportadora do submenu).
     document.body.addEventListener('click', (e) => {
       const btnMes = e.target.closest('[data-mes-fat]');
       if (btnMes) { abrirRegistroDinamicoMes(btnMes.dataset.mesFat); return; }
+      const btnTransportadora = e.target.closest('[data-transportadora-fat]');
+      if (btnTransportadora) { abrirRegistroDinamicoTransportadora(btnTransportadora.dataset.transportadoraFat); return; }
       const btnData = e.target.closest('[data-data-fat]');
       if (!btnData) return;
       abrirRegistroDinamicoDetalhe(btnData.dataset.dataFat);
     });
 
-    document.getElementById('registro-dinamico-detalhe-fechar').addEventListener('click', () => {
+    // Fechar o submenu de Transportadoras volta pra tabela de datas (fecha tudo abaixo também,
+    // já que o detalhe por nota depende de uma transportadora escolhida dentro dele).
+    document.getElementById('registro-dinamico-transportadoras-fechar').addEventListener('click', () => {
       registroDinamicoDataSelecionada = null;
+      registroDinamicoTransportadoraSelecionada = null;
+      renderRegistroDinamico();
+    });
+    // Fechar o detalhe por nota só desmarca a transportadora — volta pro submenu da mesma data,
+    // sem perder a data selecionada.
+    document.getElementById('registro-dinamico-detalhe-fechar').addEventListener('click', () => {
+      registroDinamicoTransportadoraSelecionada = null;
       renderRegistroDinamico();
     });
   }
@@ -1895,6 +1982,7 @@ const Dashboard = (() => {
     // daquele novo filtro, em vez de manter um recorte que já não faz sentido.
     registroDinamicoMesSelecionado = null;
     registroDinamicoDataSelecionada = null;
+    registroDinamicoTransportadoraSelecionada = null;
 
     renderKPIs(records);
     renderCharts(records);
@@ -2475,6 +2563,6 @@ const Dashboard = (() => {
   return {
     init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento,
     computarDadosRegioesAoVivo, enviarDadosRegioesParaIframe,
-    calcularRegistroDinamico, calcularRegistroDinamicoPorMes,
+    calcularRegistroDinamico, calcularRegistroDinamicoPorMes, calcularRegistroDinamicoPorTransportadora,
   };
 })();
