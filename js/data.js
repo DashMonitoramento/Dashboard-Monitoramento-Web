@@ -178,6 +178,11 @@ const FIELD_ALIASES = {
   // Coluna "AGENDAMENTOS" (ou "Agendado" na planilha de agendamentos) — indica se a nota
   // obriga ou não uma etapa de agendamento.
   necessitaAgendamento: ['agendamentos', 'agendado'],
+  // Coluna Z ("Categoria") da Base Bluesoft, criada pela usuária (2026-08-27) — classifica
+  // quem fez o transporte: Transportadora/Agregado/Próprio Retira/Exportação. Alimenta o
+  // mesmo campo tipoTransporte que antes só vinha da aba RETORNO (ver parseCategoriaTransporte
+  // e applyBluesoftEnrichment/applyRetornoEnrichment).
+  categoriaTransporte: ['categoria', 'categoria transporte'],
   cnpj: ['cnpj'],
   motivo: ['motivo']
 };
@@ -291,6 +296,26 @@ function parseObrigaAgendamentoBluesoft(rawValue) {
   return null;
 }
 
+// Coluna "Categoria" (Z) da Base Bluesoft, criada pela usuária (2026-08-27) pra classificar
+// quem fez o transporte de cada nota. Valores conhecidos, sempre em maiúsculas e sem acento na
+// planilha de origem — normaliza pro rótulo acentuado que aparece no filtro/tabela. Um valor
+// não mapeado (categoria nova que a usuária venha a criar) passa direto, capitalizado, em vez
+// de cair silenciosamente em "Não Encontrado" — assim nada some do filtro sem ela perceber.
+const CATEGORIA_TRANSPORTE_MAP = {
+  'AGREGADO': 'Agregado',
+  'TRANSPORTADORA': 'Transportadora',
+  'PROPRIO RETIRA': 'Próprio Retira',
+  'EXPORTACAO': 'Exportação',
+  'NAO ENCONTRADO': 'Não Encontrado'
+};
+function parseCategoriaTransporte(rawValue) {
+  const norm = normalizeHeaderKey(rawValue || '').toUpperCase();
+  if (!norm) return '';
+  if (CATEGORIA_TRANSPORTE_MAP[norm]) return CATEGORIA_TRANSPORTE_MAP[norm];
+  const original = String(rawValue).trim();
+  return original.charAt(0).toUpperCase() + original.slice(1).toLowerCase();
+}
+
 // Ocorrências raras (1-2 notas cada) que, por decisão do usuário, são tratadas como Devolução
 // mesmo sem a palavra "devolução" no texto — normalmente indicam um problema que resulta no
 // retorno da mercadoria (pedido divergente, duplicado, retido, problema fiscal etc.).
@@ -398,8 +423,11 @@ function normalizeRecord(rawRow) {
     // Status de Viagem ("Finalizado"/"Em trânsito"/etc.) — só existe pra registros vindos da
     // Base Bluesoft (ver applyBluesoftEnrichment/removerNotasComViagemFinalizadaMasEmAberto).
     viagem: '',
-    // Transportadora própria (frota agregada) x transportadora terceirizada — vem da aba
-    // RETORNO, coluna "Tipo de Transporte" (ver applyRetornoEnrichment).
+    // Transportadora/Agregado/Próprio Retira/Exportação — desde 2026-08-27 vem da própria
+    // coluna "Categoria" da Base Bluesoft (mais completa e atualizada, ver
+    // parseCategoriaTransporte/applyBluesoftEnrichment); a aba RETORNO (coluna "Tipo de
+    // Transporte") só entra como fallback quando a Bluesoft não tem essa coluna ainda
+    // (ver applyRetornoEnrichment).
     tipoTransporte: 'NÃO INFORMADO',
     situacao,
     // Preenchidos pela planilha de Agendamentos (cruzada por NF) — ficam nulos/vazios até
@@ -697,6 +725,9 @@ const DataStore = (() => {
       const numeroPedidoEcommerceRaw = pickField(row, headerIndex, 'numeroPedidoEcommerce') || '';
       const numeroFaturaRaw = pickField(row, headerIndex, 'numeroFatura') || '';
       const rotaRaw = pickField(row, headerIndex, 'rota') || '';
+      // Categoria (coluna Z, opcional — CSVs antigos sem essa coluna ficam com '', que não
+      // sobrescreve nada em applyBluesoftEnrichment).
+      const categoriaTransporteRaw = pickField(row, headerIndex, 'categoriaTransporte') || '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -717,7 +748,8 @@ const DataStore = (() => {
         telefone: telefoneRaw,
         numeroPedidoEcommerce: numeroPedidoEcommerceRaw,
         numeroFatura: numeroFaturaRaw,
-        rota: rotaRaw
+        rota: rotaRaw,
+        categoriaTransporte: categoriaTransporteRaw
       };
 
       // Data de coleta mais antiga por NF BASE — calculada aqui, sobre TODAS as linhas brutas,
@@ -845,6 +877,14 @@ const DataStore = (() => {
       if (info.numeroPedidoEcommerce) r.numeroPedidoEcommerce = info.numeroPedidoEcommerce;
       if (info.numeroFatura) r.numeroFatura = info.numeroFatura;
       if (info.rota) r.rota = info.rota;
+      // Categoria da Bluesoft sempre vence sobre a aba RETORNO (ver applyRetornoEnrichment) —
+      // mesmo critério "Bluesoft sempre vence quando tem a nota" já usado pros outros campos
+      // acima. A flag evita que o RETORNO (carregado depois, ver loadInitialData) sobrescreva
+      // de volta com um tipo desatualizado.
+      if (info.categoriaTransporte) {
+        r.tipoTransporte = parseCategoriaTransporte(info.categoriaTransporte);
+        r._tipoTransporteDaBluesoft = true;
+      }
     }
 
     // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
@@ -886,7 +926,8 @@ const DataStore = (() => {
         numeroPedidoEcommerce: info.numeroPedidoEcommerce || '',
         numeroFatura: info.numeroFatura || '',
         rota: info.rota || '',
-        tipoTransporte: 'NÃO INFORMADO',
+        tipoTransporte: info.categoriaTransporte ? parseCategoriaTransporte(info.categoriaTransporte) : 'NÃO INFORMADO',
+        _tipoTransporteDaBluesoft: !!info.categoriaTransporte,
         situacao: info.status,
         necessitaAgendamento: info.necessitaAgendamento || false,
         statusAgendamento: '',
@@ -1276,11 +1317,16 @@ const DataStore = (() => {
       // presa em "Não informado" à toa), assume o tipo mais frequente já visto pra essa
       // transportadora em outras notas (o tipo é uma característica fixa da transportadora,
       // não varia por nota).
-      if (info && info.tipoTransporte) {
-        r.tipoTransporte = info.tipoTransporte;
-      } else {
-        const tipoPorNome = retornoTipoPorTransportadora.get(normalizeHeaderKey(r.transportadora));
-        if (tipoPorNome) r.tipoTransporte = tipoPorNome;
+      // Só entra quando a Base Bluesoft não trouxe a coluna "Categoria" pra essa nota (ver
+      // applyBluesoftEnrichment/decisão 2026-08-27) — a Bluesoft, quando tem a informação,
+      // sempre vence por ser a fonte mais completa e atualizada.
+      if (!r._tipoTransporteDaBluesoft) {
+        if (info && info.tipoTransporte) {
+          r.tipoTransporte = info.tipoTransporte;
+        } else {
+          const tipoPorNome = retornoTipoPorTransportadora.get(normalizeHeaderKey(r.transportadora));
+          if (tipoPorNome) r.tipoTransporte = tipoPorNome;
+        }
       }
     }
     aplicarReagendarQuandoObrigaAgendamento();
@@ -1866,6 +1912,22 @@ const DataStore = (() => {
     return Utils.uniqueSorted(rawRecords.map(r => r[field]));
   }
 
+  /** Nome de Transportadora/Motorista -> array de Categorias (tipoTransporte) em que esse nome
+   * aparece (normalmente só uma) — usada pra estreitar a lista de nomes do filtro "Transporte"
+   * conforme a Categoria marcada (ver aplicarBuscaCheckboxList em dashboard.js, pedido do
+   * usuário 2026-08-27: clicar em "Agregado" só mostra os motoristas agregados, etc.). */
+  function getCategoriasPorTransportadora() {
+    const map = new Map();
+    for (const r of rawRecords) {
+      if (!r.transportadora || !r.tipoTransporte || r.tipoTransporte === 'NÃO INFORMADO') continue;
+      if (!map.has(r.transportadora)) map.set(r.transportadora, new Set());
+      map.get(r.transportadora).add(r.tipoTransporte);
+    }
+    const out = new Map();
+    for (const [nome, categorias] of map) out.set(nome, [...categorias]);
+    return out;
+  }
+
   function getAvailableYears() {
     const years = rawRecords
       .map(r => (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao))
@@ -1913,7 +1975,7 @@ const DataStore = (() => {
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
-    getDistinctValues, getAvailableYears, getLeadTimeStats,
+    getDistinctValues, getCategoriasPorTransportadora, getAvailableYears, getLeadTimeStats,
     getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
     onChange
   };
