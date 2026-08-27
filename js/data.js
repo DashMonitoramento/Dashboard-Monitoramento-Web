@@ -1912,19 +1912,23 @@ const DataStore = (() => {
     return Utils.uniqueSorted(rawRecords.map(r => r[field]));
   }
 
-  /** Nome de Transportadora/Motorista -> array de Categorias (tipoTransporte) em que esse nome
-   * aparece (normalmente só uma) — usada pra estreitar a lista de nomes do filtro "Transporte"
-   * conforme a Categoria marcada (ver aplicarBuscaCheckboxList em dashboard.js, pedido do
-   * usuário 2026-08-27: clicar em "Agregado" só mostra os motoristas agregados, etc.). */
-  function getCategoriasPorTransportadora() {
-    const map = new Map();
+  // As 4 categorias que a usuária efetivamente quer ver no filtro (decisão 2026-08-27) — de
+  // propósito NÃO inclui "Não Encontrado"/"NÃO INFORMADO" (residual/sem dado, ~0,1% das notas):
+  // ela pediu explicitamente pra deixar só essas 4, sem essa "5ª categoria" de ruído.
+  const CATEGORIAS_TRANSPORTE_FILTRAVEIS = ['Transportadora', 'Agregado', 'Próprio Retira', 'Exportação'];
+
+  /** Nomes de Transportadora/Motorista agrupados por Categoria — uma lista por categoria
+   * filtrável (ver CATEGORIAS_TRANSPORTE_FILTRAVEIS), cada uma alimentando seu próprio
+   * submenu no filtro "Transporte" (pedido do usuário 2026-08-27: clicar em "Agregado" abre
+   * só os motoristas agregados, com busca e "selecionar todos" próprios). */
+  function getNomesTransportadoraPorCategoria() {
+    const map = new Map(CATEGORIAS_TRANSPORTE_FILTRAVEIS.map(c => [c, new Set()]));
     for (const r of rawRecords) {
-      if (!r.transportadora || !r.tipoTransporte || r.tipoTransporte === 'NÃO INFORMADO') continue;
-      if (!map.has(r.transportadora)) map.set(r.transportadora, new Set());
-      map.get(r.transportadora).add(r.tipoTransporte);
+      if (!r.transportadora || !map.has(r.tipoTransporte)) continue;
+      map.get(r.tipoTransporte).add(r.transportadora);
     }
-    const out = new Map();
-    for (const [nome, categorias] of map) out.set(nome, [...categorias]);
+    const out = {};
+    for (const [categoria, nomes] of map) out[categoria] = Utils.uniqueSorted([...nomes]);
     return out;
   }
 
@@ -1975,7 +1979,7 @@ const DataStore = (() => {
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
     setFilters, resetFilters, getFilters,
-    getDistinctValues, getCategoriasPorTransportadora, getAvailableYears, getLeadTimeStats,
+    getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
     getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
     onChange
   };
