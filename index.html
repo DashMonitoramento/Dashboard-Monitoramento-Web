@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260827b">
+<link rel="stylesheet" href="css/style.css?v=20260827c">
 </head>
 <body>
 
@@ -635,7 +635,36 @@
           </div>
         </div>
 
-        <!-- Drill-down: aparece só depois de clicar numa data na tabela acima -->
+        <!-- Submenu: transportadoras da data selecionada (aparece só depois de clicar numa data
+             na tabela acima; clicar numa transportadora abre o detalhe por nota, mais abaixo). -->
+        <div id="registro-dinamico-transportadoras" class="registro-dinamico__detalhe" hidden>
+          <div class="table-card__header">
+            <h3 id="registro-dinamico-transportadoras-titulo">Transportadoras</h3>
+            <button id="registro-dinamico-transportadoras-fechar" class="btn" type="button">✕ Fechar</button>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="registro-dinamico-transportadoras-table">
+              <thead>
+                <tr>
+                  <th data-field="transportadora">Transportadora</th>
+                  <th data-field="valorTotal" class="text-right">Valor da NF</th>
+                  <th data-field="quantidade" class="text-right">Quantidade de notas</th>
+                </tr>
+              </thead>
+              <tbody id="registro-dinamico-transportadoras-table-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span id="registro-dinamico-transportadoras-table-info">Nenhum registro</span>
+            <div class="pagination">
+              <button id="registro-dinamico-transportadoras-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+              <span id="registro-dinamico-transportadoras-table-page-label">Página 1 de 1</span>
+              <button id="registro-dinamico-transportadoras-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drill-down: aparece só depois de clicar numa transportadora no submenu acima -->
         <div id="registro-dinamico-detalhe" class="registro-dinamico__detalhe" hidden>
           <div class="table-card__header">
             <h3 id="registro-dinamico-detalhe-titulo">Notas faturadas</h3>
@@ -928,11 +957,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260827b"></script>
-<script src="js/utils.js?v=20260827b"></script>
-<script src="js/data.js?v=20260827b"></script>
-<script src="js/charts.js?v=20260827b"></script>
-<script src="js/dashboard.js?v=20260827b"></script>
-<script src="js/script.js?v=20260827b"></script>
+<script type="module" src="js/firebase-init.js?v=20260827c"></script>
+<script src="js/utils.js?v=20260827c"></script>
+<script src="js/data.js?v=20260827c"></script>
+<script src="js/charts.js?v=20260827c"></script>
+<script src="js/dashboard.js?v=20260827c"></script>
+<script src="js/script.js?v=20260827c"></script>
 </body>
 </html>
