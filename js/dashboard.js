@@ -418,6 +418,17 @@ const Dashboard = (() => {
     });
   }
 
+  // As 4 categorias de transporte filtráveis (pedido do usuário 2026-08-27) — cada uma vira um
+  // submenu próprio dentro de "Transporte" (busca + lista de nomes), todos escrevendo no MESMO
+  // filtro `transportadora` do DataStore (ver bindFilterCheckboxListGroup/populateFilterOptions).
+  // Os slugs batem com o sufixo dos ids no HTML (filter-transportadora-list-<slug>).
+  const CATEGORIAS_TRANSPORTE_UI = [
+    { label: 'Transportadora', slug: 'transportadora' },
+    { label: 'Agregado', slug: 'agregado' },
+    { label: 'Próprio Retira', slug: 'proprio-retira' },
+    { label: 'Exportação', slug: 'exportacao' }
+  ];
+
   function bindFilterInputs() {
     const $ = (id) => document.getElementById(id);
 
@@ -432,14 +443,9 @@ const Dashboard = (() => {
 
     bindFilterCheckboxList('filter-status-list', 'situacaoFiltro');
     bindFilterCheckboxList('filter-agendamento-list', 'agendamento');
-    bindFilterCheckboxList('filter-tipo-transporte-list', 'tipoTransporte');
-    bindFilterCheckboxList('filter-transportadora-list', 'transportadora');
-    // Marcar/desmarcar uma Categoria também estreita a lista de nomes abaixo (Transportadora)
-    // pros que pertencem a ela — pedido do usuário (2026-08-27): clicar em "Agregado" mostra só
-    // os motoristas agregados, clicar em "Transportadora" só as transportadoras de fato.
-    document.getElementById('filter-tipo-transporte-list').addEventListener('change', () => {
-      aplicarBuscaCheckboxList('filter-transportadora-list');
-    });
+    // 4 listas (uma por Categoria) escrevendo no mesmo filtro `transportadora` — precisa da
+    // versão "grupo" pra unir a seleção das 4 em vez de cada uma sobrescrever a das outras.
+    bindFilterCheckboxListGroup(CATEGORIAS_TRANSPORTE_UI.map(c => `filter-transportadora-list-${c.slug}`), 'transportadora');
     bindFilterCheckboxList('filter-vendedor-list', 'vendedor');
     bindFilterCheckboxList('filter-cliente-list', 'cliente');
     bindFilterCheckboxList('filter-cidade-list', 'cidade');
@@ -492,6 +498,34 @@ const Dashboard = (() => {
       if (todos) todos.checked = itens.length > 0 && itens.every(cb => cb.checked);
       const marcados = itens.filter(cb => cb.checked).map(cb => cb.value);
       DataStore.setFilters({ [filterKey]: marcados });
+    });
+  }
+
+  /** Como bindFilterCheckboxList, mas pra VÁRIAS listas independentes que escrevem no MESMO
+   * filterKey — caso das 4 listas de nomes por Categoria de Transporte (pedido do usuário
+   * 2026-08-27): marcar um nome em "Agregado" não pode apagar o que já estava marcado em
+   * "Transportadora". Cada mudança em qualquer uma das listas recalcula o filtro somando os
+   * marcados de TODAS elas juntas; "Selecionar todos" de cada lista continua marcando só os
+   * itens dela própria. */
+  function bindFilterCheckboxListGroup(containerIds, filterKey) {
+    const containers = containerIds.map(id => document.getElementById(id)).filter(Boolean);
+    function recomputarFiltro() {
+      const marcados = [];
+      containers.forEach(container => {
+        container.querySelectorAll('.filter-checkbox__item:checked').forEach(cb => marcados.push(cb.value));
+      });
+      DataStore.setFilters({ [filterKey]: marcados });
+    }
+    containers.forEach(container => {
+      container.addEventListener('change', (e) => {
+        const todos = container.querySelector('.filter-checkbox__todos');
+        if (e.target === todos) {
+          container.querySelectorAll('.filter-checkbox__item').forEach(cb => { cb.checked = todos.checked; });
+        }
+        const itens = Array.from(container.querySelectorAll('.filter-checkbox__item'));
+        if (todos) todos.checked = itens.length > 0 && itens.every(cb => cb.checked);
+        recomputarFiltro();
+      });
     });
   }
 
@@ -1736,49 +1770,33 @@ const Dashboard = (() => {
     aplicarBuscaCheckboxList(containerId);
   }
 
-  /** Liga cada lista de checkbox longa (Transportadora/Cliente, pedido do usuário 2026-08-24)
-   * ao seu campo de busca — filtra os itens visíveis por texto, sem mexer no que já está
-   * marcado (só escondido/mostrado, "Selecionar todos" continua valendo pra lista inteira). */
-  const BUSCA_POR_LISTA_CHECKBOX = {
-    'filter-transportadora-list': 'filter-transportadora-busca',
-    'filter-cliente-list': 'filter-cliente-busca',
-    'filter-cidade-list': 'filter-cidade-busca',
-    'filter-vendedor-list': 'filter-vendedor-busca',
-  };
+  /** Liga cada lista de checkbox longa (Transportadora×4/Cliente/Cidade/Vendedor) ao seu campo
+   * de busca — filtra os itens visíveis por texto, sem mexer no que já está marcado (só
+   * escondido/mostrado, "Selecionar todos" continua valendo pra lista inteira). */
+  const BUSCA_POR_LISTA_CHECKBOX = Object.assign(
+    {
+      'filter-cliente-list': 'filter-cliente-busca',
+      'filter-cidade-list': 'filter-cidade-busca',
+      'filter-vendedor-list': 'filter-vendedor-busca',
+    },
+    ...CATEGORIAS_TRANSPORTE_UI.map(c => ({
+      [`filter-transportadora-list-${c.slug}`]: `filter-transportadora-busca-${c.slug}`
+    }))
+  );
 
   function aplicarBuscaCheckboxList(listaId) {
     const buscaId = BUSCA_POR_LISTA_CHECKBOX[listaId];
+    if (!buscaId) return;
+    const busca = document.getElementById(buscaId);
     const lista = document.getElementById(listaId);
-    if (!lista) return;
-    const busca = buscaId ? document.getElementById(buscaId) : null;
-    const termo = busca ? busca.value.trim().toLowerCase() : '';
-    // Estreita a lista de Transportadora pelas Categorias marcadas acima (pedido do usuário
-    // 2026-08-27) — ver data-categorias, preenchido por aplicarCategoriasNaListaTransportadora.
-    // Só se aplica a essa lista especificamente; as demais (Cliente/Cidade/Vendedor) ignoram,
-    // já que não têm o checkbox-list de Categoria acima delas.
-    const categoriasMarcadas = listaId === 'filter-transportadora-list'
-      ? Array.from(document.querySelectorAll('#filter-tipo-transporte-list .filter-checkbox__item:checked')).map(cb => cb.value)
-      : [];
+    if (!busca || !lista) return;
+    const termo = busca.value.trim().toLowerCase();
     lista.querySelectorAll('.filter-checkbox:not(.filter-checkbox--todos)').forEach((label) => {
       const texto = label.textContent.trim().toLowerCase();
-      const bateTexto = termo === '' || texto.includes(termo);
-      const categoriasDoItem = (label.dataset.categorias || '').split('|').filter(Boolean);
-      const bateCategoria = categoriasMarcadas.length === 0 || categoriasDoItem.some(c => categoriasMarcadas.includes(c));
       // .filter-checkbox tem "display:flex" no CSS, que empataria em especificidade com a
       // regra padrão do navegador pro atributo "hidden" (e o navegador perderia) — por isso
       // esconde via style.display direto, não via .hidden.
-      label.style.display = (bateTexto && bateCategoria) ? '' : 'none';
-    });
-  }
-
-  /** Marca em cada item da lista de Transportadora (data-categorias) quais Categorias esse
-   * nome pertence, pra aplicarBuscaCheckboxList conseguir estreitar a lista ao marcar uma
-   * Categoria acima. Chamada de novo toda vez que a lista é reconstruída (populateFilterOptions). */
-  function aplicarCategoriasNaListaTransportadora() {
-    const mapa = DataStore.getCategoriasPorTransportadora();
-    document.querySelectorAll('#filter-transportadora-list .filter-checkbox:not(.filter-checkbox--todos)').forEach((label) => {
-      const input = label.querySelector('.filter-checkbox__item');
-      label.dataset.categorias = (mapa.get(input.value) || []).join('|');
+      label.style.display = (termo !== '' && !texto.includes(termo)) ? 'none' : '';
     });
   }
 
@@ -1790,15 +1808,27 @@ const Dashboard = (() => {
     });
   }
 
+  /** Popula as 4 listas de nomes de Transportadora, uma por Categoria (pedido do usuário
+   * 2026-08-27) — cada uma só com os nomes daquela categoria, evitando a duplicata que existia
+   * antes (mesma transportadora aparecendo com grafias diferentes numa lista única). As 4
+   * escrevem no MESMO filtro `transportadora` (ver bindFilterCheckboxListGroup), então a poda
+   * de valores que sumiram dos dados (ver decisão 2026-08-19) precisa ser feita uma vez só,
+   * contra a união das 4 listas — podar list a lista (filterKey de cada fillCheckboxList)
+   * removeria por engano os nomes marcados em QUALQUER OUTRA categoria. */
+  function populateFilterOptionsTransporte() {
+    const nomesPorCategoria = DataStore.getNomesTransportadoraPorCategoria();
+    const todosNomesValidos = new Set(Object.values(nomesPorCategoria).flat());
+    const atual = DataStore.getFilters().transportadora || [];
+    const podado = atual.filter(v => todosNomesValidos.has(v));
+    if (podado.length !== atual.length) DataStore.setFilters({ transportadora: podado });
+
+    CATEGORIAS_TRANSPORTE_UI.forEach(cat => {
+      fillCheckboxList(`filter-transportadora-list-${cat.slug}`, nomesPorCategoria[cat.label] || [], null);
+    });
+  }
+
   function populateFilterOptions() {
-    fillCheckboxList('filter-tipo-transporte-list', DataStore.getDistinctValues('tipoTransporte'), 'tipoTransporte');
-    fillCheckboxList('filter-transportadora-list', DataStore.getDistinctValues('transportadora'), 'transportadora');
-    // fillCheckboxList acima já chama aplicarBuscaCheckboxList uma vez, mas antes de
-    // data-categorias existir em cada item (lista acabou de ser reconstruída) — com alguma
-    // Categoria marcada, essa 1ª passagem esconderia a lista inteira por engano. Preenche os
-    // atributos e reaplica a visibilidade certa logo em seguida.
-    aplicarCategoriasNaListaTransportadora();
-    aplicarBuscaCheckboxList('filter-transportadora-list');
+    populateFilterOptionsTransporte();
     let vendedores = DataStore.getDistinctValues('vendedor');
     if (ocultarVendedorSemCliente) vendedores = vendedores.filter(v => v !== 'Não informado');
     fillCheckboxList('filter-vendedor-list', vendedores, 'vendedor');
