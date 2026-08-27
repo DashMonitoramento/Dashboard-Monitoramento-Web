@@ -367,7 +367,13 @@ async function loadInitialData() {
     await loadRegioesDataSilently(false);
     await loadLeadTimeDataSilently(false);
     await loadFeriadosDataSilently(false);
-    await loadCanhotosIndexSilently(false);
+    // Índice de canhotos (~20MB) NÃO entra no await — não alimenta nenhum registro/gráfico/KPI,
+    // só o Map usado quando ela clica numa NF pra abrir o comprovante (ver Dashboard.loadCanhotosIndex/
+    // canhotosIndex). Bloquear o carregamento inteiro por causa dele só atrasava a tela aparecer
+    // sem nenhum ganho — decisão do usuário (2026-08-27, "está demorando pra carregar"). Carrega
+    // em paralelo, por fora; o botão de canhoto só fica disponível assim que terminar (raramente
+    // é a primeira coisa que ela clica).
+    loadCanhotosIndexSilently(false);
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
     Dashboard.renderAll();
@@ -397,7 +403,7 @@ async function refreshData() {
     await loadRegioesDataSilently(true);
     await loadLeadTimeDataSilently(true);
     await loadFeriadosDataSilently(true);
-    await loadCanhotosIndexSilently(true);
+    loadCanhotosIndexSilently(true); // fora do await — ver comentário em loadInitialData
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
     Dashboard.renderAll();
