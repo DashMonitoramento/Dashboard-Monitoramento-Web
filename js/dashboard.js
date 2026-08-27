@@ -1810,6 +1810,16 @@ const Dashboard = (() => {
     });
     // Fechar o detalhe por nota só desmarca a transportadora — volta pro submenu da mesma data,
     // sem perder a data selecionada.
+    // Exporta exatamente o que está na tela (notas da data + transportadora escolhidas) —
+    // pedido do usuário (2026-08-27), reaproveita o mesmo exportarRegistros/tableColumns já
+    // usado pelos outros botões de exportação Excel do site.
+    document.getElementById('registro-dinamico-detalhe-export').addEventListener('click', () => {
+      const dataSlug = registroDinamicoDataSelecionada ? Utils.formatDate(registroDinamicoDataSelecionada).replace(/\//g, '-') : 'data';
+      const transpSlug = (registroDinamicoTransportadoraSelecionada || 'transportadora')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      exportarRegistros(`registro-dinamico-${dataSlug}-${transpSlug}.xlsx`, registrosDoDiaETransportadoraSelecionados());
+    });
+
     document.getElementById('registro-dinamico-detalhe-fechar').addEventListener('click', () => {
       registroDinamicoTransportadoraSelecionada = null;
       renderRegistroDinamico();
@@ -2534,8 +2544,13 @@ const Dashboard = (() => {
   function bindCanhotoLinks() {
     // Delegado no body (em vez de um listener por linha) porque a tabela é reconstruída a
     // cada render — um listener direto no botão se perderia toda vez.
+    // Precisa do [data-nf] no seletor, não só a classe .nf-link: essa classe também estiliza
+    // outros botões que não são NF nenhuma (data/transportadora do Registro Dinâmico, ver
+    // rowHtmlRegistroDinamico/rowHtmlRegistroDinamicoTransportadora) — sem essa restrição,
+    // clicar neles chamava openCanhoto(undefined) e mostrava "NF undefined: Sem Canhoto" à toa
+    // (bug reportado pelo usuário, 2026-08-27).
     document.body.addEventListener('click', (e) => {
-      const btn = e.target.closest('.nf-link');
+      const btn = e.target.closest('.nf-link[data-nf]');
       if (!btn) return;
       openCanhoto(btn.dataset.nf);
     });
