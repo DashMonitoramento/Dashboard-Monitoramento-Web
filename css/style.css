@@ -221,6 +221,26 @@ ul { list-style: none; margin: 0; padding: 0; }
 .sidebar-accordion .filter-field:last-child,
 .sidebar-accordion .filter-row:last-child { margin-bottom: 10px; }
 
+/* Sub-acordeão dentro de um .filter-field (ex.: Categoria dentro de Transporte, pedido do
+   usuário 2026-08-27) — mesma ideia do .sidebar-accordion, só mais discreto/aninhado: cada
+   categoria abre pra revelar sua própria busca + lista de nomes. */
+.sidebar-subaccordion {
+  border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;
+  margin-bottom: 6px;
+}
+.sidebar-subaccordion:last-child { margin-bottom: 0; }
+.sidebar-subaccordion summary {
+  cursor: pointer; padding: 7px 10px; font-size: 12px; font-weight: 600;
+  color: var(--text-primary); background: var(--surface);
+  display: flex; align-items: center; justify-content: space-between; user-select: none;
+}
+.sidebar-subaccordion summary::-webkit-details-marker { display: none; }
+.sidebar-subaccordion summary::after {
+  content: '▾'; color: var(--text-secondary); font-size: 9px; transition: transform var(--transition);
+}
+.sidebar-subaccordion[open] summary::after { transform: rotate(180deg); }
+.sidebar-subaccordion__body { padding: 8px 10px; }
+
 /* Campos de data: precisam de largura mínima para o ícone do calendário
    ficar visível e clicável — por isso ficam em linha própria, não em .filter-row. */
 .filter-field__date {
