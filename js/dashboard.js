@@ -432,7 +432,14 @@ const Dashboard = (() => {
 
     bindFilterCheckboxList('filter-status-list', 'situacaoFiltro');
     bindFilterCheckboxList('filter-agendamento-list', 'agendamento');
+    bindFilterCheckboxList('filter-tipo-transporte-list', 'tipoTransporte');
     bindFilterCheckboxList('filter-transportadora-list', 'transportadora');
+    // Marcar/desmarcar uma Categoria também estreita a lista de nomes abaixo (Transportadora)
+    // pros que pertencem a ela — pedido do usuário (2026-08-27): clicar em "Agregado" mostra só
+    // os motoristas agregados, clicar em "Transportadora" só as transportadoras de fato.
+    document.getElementById('filter-tipo-transporte-list').addEventListener('change', () => {
+      aplicarBuscaCheckboxList('filter-transportadora-list');
+    });
     bindFilterCheckboxList('filter-vendedor-list', 'vendedor');
     bindFilterCheckboxList('filter-cliente-list', 'cliente');
     bindFilterCheckboxList('filter-cidade-list', 'cidade');
@@ -1741,17 +1748,37 @@ const Dashboard = (() => {
 
   function aplicarBuscaCheckboxList(listaId) {
     const buscaId = BUSCA_POR_LISTA_CHECKBOX[listaId];
-    if (!buscaId) return;
-    const busca = document.getElementById(buscaId);
     const lista = document.getElementById(listaId);
-    if (!busca || !lista) return;
-    const termo = busca.value.trim().toLowerCase();
+    if (!lista) return;
+    const busca = buscaId ? document.getElementById(buscaId) : null;
+    const termo = busca ? busca.value.trim().toLowerCase() : '';
+    // Estreita a lista de Transportadora pelas Categorias marcadas acima (pedido do usuário
+    // 2026-08-27) — ver data-categorias, preenchido por aplicarCategoriasNaListaTransportadora.
+    // Só se aplica a essa lista especificamente; as demais (Cliente/Cidade/Vendedor) ignoram,
+    // já que não têm o checkbox-list de Categoria acima delas.
+    const categoriasMarcadas = listaId === 'filter-transportadora-list'
+      ? Array.from(document.querySelectorAll('#filter-tipo-transporte-list .filter-checkbox__item:checked')).map(cb => cb.value)
+      : [];
     lista.querySelectorAll('.filter-checkbox:not(.filter-checkbox--todos)').forEach((label) => {
       const texto = label.textContent.trim().toLowerCase();
+      const bateTexto = termo === '' || texto.includes(termo);
+      const categoriasDoItem = (label.dataset.categorias || '').split('|').filter(Boolean);
+      const bateCategoria = categoriasMarcadas.length === 0 || categoriasDoItem.some(c => categoriasMarcadas.includes(c));
       // .filter-checkbox tem "display:flex" no CSS, que empataria em especificidade com a
       // regra padrão do navegador pro atributo "hidden" (e o navegador perderia) — por isso
       // esconde via style.display direto, não via .hidden.
-      label.style.display = (termo !== '' && !texto.includes(termo)) ? 'none' : '';
+      label.style.display = (bateTexto && bateCategoria) ? '' : 'none';
+    });
+  }
+
+  /** Marca em cada item da lista de Transportadora (data-categorias) quais Categorias esse
+   * nome pertence, pra aplicarBuscaCheckboxList conseguir estreitar a lista ao marcar uma
+   * Categoria acima. Chamada de novo toda vez que a lista é reconstruída (populateFilterOptions). */
+  function aplicarCategoriasNaListaTransportadora() {
+    const mapa = DataStore.getCategoriasPorTransportadora();
+    document.querySelectorAll('#filter-transportadora-list .filter-checkbox:not(.filter-checkbox--todos)').forEach((label) => {
+      const input = label.querySelector('.filter-checkbox__item');
+      label.dataset.categorias = (mapa.get(input.value) || []).join('|');
     });
   }
 
@@ -1764,7 +1791,14 @@ const Dashboard = (() => {
   }
 
   function populateFilterOptions() {
+    fillCheckboxList('filter-tipo-transporte-list', DataStore.getDistinctValues('tipoTransporte'), 'tipoTransporte');
     fillCheckboxList('filter-transportadora-list', DataStore.getDistinctValues('transportadora'), 'transportadora');
+    // fillCheckboxList acima já chama aplicarBuscaCheckboxList uma vez, mas antes de
+    // data-categorias existir em cada item (lista acabou de ser reconstruída) — com alguma
+    // Categoria marcada, essa 1ª passagem esconderia a lista inteira por engano. Preenche os
+    // atributos e reaplica a visibilidade certa logo em seguida.
+    aplicarCategoriasNaListaTransportadora();
+    aplicarBuscaCheckboxList('filter-transportadora-list');
     let vendedores = DataStore.getDistinctValues('vendedor');
     if (ocultarVendedorSemCliente) vendedores = vendedores.filter(v => v !== 'Não informado');
     fillCheckboxList('filter-vendedor-list', vendedores, 'vendedor');
