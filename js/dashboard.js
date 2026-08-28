@@ -61,6 +61,21 @@ const Dashboard = (() => {
     next: 'registro-dinamico-detalhe-table-next', theadSelector: '#registro-dinamico-detalhe-table thead th[data-field]',
     colspan: 11
   };
+  // "Pedidos Aguardando Faturamento" (2026-08-28) — tela de detalhe própria, aberta ao clicar
+  // no card extra dentro de "Situação de agendamento". Não reaproveita status-detail-view
+  // (aquela tabela é hardcoded pras colunas de um registro de NF — Transportadora/Status/
+  // Situação/etc. — que essa base nem tem, ver pedidosNaoFaturados/getPedidosNaoFaturados em
+  // data.js). Mesmo "jeito" visual (cabeçalho com voltar, busca, tabela paginável), só que
+  // com colunas próprias (Número do Pedido/Cliente/Grupo Econômico/Data Emissão/Valor/Qtde).
+  let pedidosNaoFaturadosTable = Object.assign(createTableState(), { sortField: 'dataEmissao', sortDir: 'asc' });
+  const PEDIDOS_NAO_FATURADOS_TABLE_IDS = {
+    tbody: 'pedidos-nao-faturados-table-body', info: 'pedidos-nao-faturados-table-info',
+    pageLabel: 'pedidos-nao-faturados-table-page-label', prev: 'pedidos-nao-faturados-table-prev',
+    next: 'pedidos-nao-faturados-table-next', theadSelector: '#pedidos-nao-faturados-table thead th[data-field]',
+    colspan: 6
+  };
+  let pedidosNaoFaturadosBusca = '';
+
   // "Lead Time de Pedidos e Entregas" (2026-08-23) — painel próprio, com filtros e busca de
   // tabela independentes dos filtros globais da barra lateral (ver comentário em
   // calcularLeadTimePedidos, data.js).
@@ -254,6 +269,7 @@ const Dashboard = (() => {
     atualizarBotaoIrInicio();
     bindBuscaCheckboxList();
     bindRegistroDinamico();
+    bindPedidosNaoFaturadosView();
     bindMapaRegioesMensagens();
     bindLeadTimePedidos();
     createCharts();
@@ -283,7 +299,8 @@ const Dashboard = (() => {
     if (!botao) return;
     const main = document.getElementById('main-view');
     const detalhe = document.getElementById('status-detail-view');
-    const naTelaInicial = !main.hidden && detalhe.hidden;
+    const pedidosNaoFaturados = document.getElementById('pedidos-nao-faturados-view');
+    const naTelaInicial = !main.hidden && detalhe.hidden && (!pedidosNaoFaturados || pedidosNaoFaturados.hidden);
     botao.hidden = naTelaInicial;
   }
 
@@ -292,6 +309,7 @@ const Dashboard = (() => {
     if (!botao) return;
     botao.addEventListener('click', () => {
       closeStatusDetail();
+      fecharPedidosNaoFaturadosView();
       mostrarViewMapaRegioes('registros');
     });
   }
@@ -303,11 +321,15 @@ const Dashboard = (() => {
     // 2026-08-23: 4ª tela ("Lead Time de Pedidos e Entregas") — puramente adicional, não muda
     // nenhuma das 3 ramificações originais abaixo.
     const leadtimePedidos = document.getElementById('leadtime-pedidos-view');
+    // 2026-08-28: fecha sempre que troca de tela por aqui — evita ficar visível junto com
+    // mapa/dinâmico/leadtime ao clicar num botão de navegação enquanto essa tela está aberta.
+    const pedidosNaoFaturados = document.getElementById('pedidos-nao-faturados-view');
 
     main.hidden = view !== 'registros';
     embed.hidden = view !== 'mapa';
     dinamico.hidden = view !== 'dinamico';
     if (leadtimePedidos) leadtimePedidos.hidden = view !== 'leadtime-pedidos';
+    if (pedidosNaoFaturados) pedidosNaoFaturados.hidden = true;
     atualizarBotaoIrInicio();
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
@@ -2002,6 +2024,7 @@ const Dashboard = (() => {
     renderRegistroDinamico(); // no-op se a tela "Registro Dinâmico" não estiver visível
     renderLeadTime(); // no-op se o painel de Lead Time não estiver no DOM
     renderLeadTimePedidos(); // no-op se a tela "Lead Time de Pedidos e Entregas" não estiver visível
+    renderPedidosNaoFaturadosView(); // no-op se a tela "Pedidos Aguardando Faturamento" não estiver visível
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
     atualizarBotaoLimparFiltros();
@@ -2310,6 +2333,81 @@ const Dashboard = (() => {
     const elQtd = document.getElementById('pedidos-nao-faturados-quantidade');
     if (elValor) elValor.textContent = Utils.formatCurrency(stats.valorTotal);
     if (elQtd) elQtd.textContent = `${Utils.formatNumber(stats.quantidade)} pedido${stats.quantidade === 1 ? '' : 's'}`;
+  }
+
+  function rowHtmlPedidosNaoFaturados(p) {
+    return `
+      <tr>
+        <td>${escapeAttr(p.numeroPedido)}</td>
+        <td class="truncate" title="${escapeAttr(p.cliente)}">${escapeAttr(p.cliente)}</td>
+        <td class="truncate" title="${escapeAttr(p.grupoEconomico)}">${escapeAttr(p.grupoEconomico)}</td>
+        <td>${Utils.formatDate(p.dataEmissao)}</td>
+        <td class="text-right">${Utils.formatCurrency(p.valorPedido)}</td>
+        <td class="text-right">${Utils.formatNumber(p.qtdePedido)}</td>
+      </tr>
+    `;
+  }
+
+  /** Busca própria dessa tela (mesmo padrão da busca do status-detail-view) — não reage aos
+   * filtros da barra lateral (ver comentário em getPedidosNaoFaturadosStats, data.js). */
+  function pedidosNaoFaturadosFiltrados() {
+    const lista = DataStore.getPedidosNaoFaturados();
+    if (!pedidosNaoFaturadosBusca) return lista;
+    const termo = pedidosNaoFaturadosBusca.toLowerCase();
+    return lista.filter(p =>
+      p.numeroPedido.toLowerCase().includes(termo) ||
+      p.cliente.toLowerCase().includes(termo) ||
+      p.grupoEconomico.toLowerCase().includes(termo)
+    );
+  }
+
+  /** No-op se a tela não estiver visível — mesmo padrão de renderRegistroDinamico/renderLeadTime. */
+  function renderPedidosNaoFaturadosView() {
+    const view = document.getElementById('pedidos-nao-faturados-view');
+    if (!view || view.hidden) return;
+    renderTableGeneric(pedidosNaoFaturadosFiltrados(), pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS, rowHtmlPedidosNaoFaturados);
+  }
+
+  /** Abre a tela de detalhe (mesmo "jeito" do status-detail-view, pedido do usuário
+   * 2026-08-28) — fecha qualquer outra tela alternativa aberta antes, pra nunca ter duas
+   * visíveis ao mesmo tempo (mesma exclusividade mútua de mostrarViewMapaRegioes/openStatusDetail). */
+  function abrirPedidosNaoFaturadosView() {
+    closeStatusDetail();
+    mostrarViewMapaRegioes('registros');
+    pedidosNaoFaturadosTable.page = 1;
+    pedidosNaoFaturadosBusca = '';
+    const buscaInput = document.getElementById('pedidos-nao-faturados-table-search');
+    if (buscaInput) buscaInput.value = '';
+    renderTableGeneric(pedidosNaoFaturadosFiltrados(), pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS, rowHtmlPedidosNaoFaturados);
+    document.getElementById('main-view').hidden = true;
+    document.getElementById('pedidos-nao-faturados-view').hidden = false;
+    atualizarBotaoIrInicio();
+  }
+
+  function fecharPedidosNaoFaturadosView() {
+    const view = document.getElementById('pedidos-nao-faturados-view');
+    if (view) view.hidden = true;
+    document.getElementById('main-view').hidden = false;
+    atualizarBotaoIrInicio();
+  }
+
+  function bindPedidosNaoFaturadosView() {
+    const tile = document.getElementById('tile-pedidos-nao-faturados');
+    if (tile) tile.addEventListener('click', abrirPedidosNaoFaturadosView);
+
+    const botaoVoltar = document.getElementById('btn-back-pedidos-nao-faturados');
+    if (botaoVoltar) botaoVoltar.addEventListener('click', fecharPedidosNaoFaturadosView);
+
+    bindTableControlsFor(pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS,
+      pedidosNaoFaturadosFiltrados, rowHtmlPedidosNaoFaturados);
+
+    const buscaHandler = Utils.debounce((value) => {
+      pedidosNaoFaturadosBusca = value;
+      pedidosNaoFaturadosTable.page = 1;
+      renderPedidosNaoFaturadosView();
+    }, 250);
+    const buscaInput = document.getElementById('pedidos-nao-faturados-table-search');
+    if (buscaInput) buscaInput.addEventListener('input', (e) => buscaHandler(e.target.value));
   }
 
   /**
