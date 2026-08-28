@@ -553,6 +553,15 @@ ul { list-style: none; margin: 0; padding: 0; }
 .kpi-card--primary { --kpi-accent: var(--color-orange); }
 .kpi-card--secondary { --kpi-accent: var(--color-blue); }
 .kpi-card--actions { justify-content: center; }
+
+/* Versão compacta do .kpi-card — usada nos quadrados de "Situação de agendamento" ao lado da
+   pizza (pedido do usuário, 2026-08-28: "mesmo modelo dos cards [do topo]... mais você deixa
+   menor pra se ajustar junto com o gráfico"). Mesma estrutura/cores via --kpi-accent, só
+   padding/fonte/altura mínima reduzidos. */
+.kpi-card--mini { padding: 8px 10px; min-height: 0; gap: 2px; }
+.kpi-card--mini .kpi-card__label { font-size: 10.5px; }
+.kpi-card--mini .kpi-card__value { font-size: 17px; }
+.kpi-card--mini .kpi-card__subvalue { font-size: 11px; }
 .kpi-actions { display: flex; gap: 8px; justify-content: flex-start; margin: 4px 0 24px; }
 .kpi-actions .btn { border: 1.5px solid var(--color-orange); }
 
@@ -766,20 +775,31 @@ ul { list-style: none; margin: 0; padding: 0; }
 .chart-stat-tile__value { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .chart-stat-tile__count { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
 
-/* "Situação de agendamento" ocupa os 2/3 largos dessa linha (ver .charts-grid--donuts acima),
-   então os quadrados de informação (as 6 etapas + "Aguardando Agendamento" + "Pedidos Aguard.
-   Faturamento") têm bastante espaço horizontal — tamanho padrão de
-   .chart-legend--tiles/.chart-stat-tile, sem overrides de compactação.
-   Os dois quadrados "extra" (fora do container que o DashChart gerencia, ver
-   .chart-card__extra-tiles) ficam lado a lado em vez de empilhados. */
-.chart-card__extra-tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
-.chart-stat-tile--extra { flex: 1 1 220px; max-width: 320px; }
+/* "Situação de agendamento" mostra só a pizza, com um quadrado por etapa ao lado — mesmo
+   modelo visual dos KPIs do topo, só menor via .kpi-card--mini (pedido do usuário, 2026-08-28:
+   "deixe só a Pizza e os cards você deixa ao lado... mais você deixa menor"). Antes eram os
+   tiles auto-gerados pelo DashChart (.chart-legend--tiles acima) embaixo da pizza; agora esse
+   gráfico usa showLegend:false (ver createCharts em dashboard.js) e os 8 quadrados (as 6
+   etapas + os 2 extras "Aguardando Agendamento"/"Pedidos Aguard. Faturamento") são
+   .kpi-card--mini de verdade, lado a lado com a pizza via flex. */
+.agendamento-body { display: flex; gap: 16px; align-items: stretch; }
+.agendamento-body .chart-root--donut { flex: 1 1 240px; min-width: 0; }
+.agendamento-cards {
+  flex: 1 1 300px; display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 8px; align-content: start; min-width: 0;
+}
+/* Pizza desse gráfico específico não precisa mais da altura extra que era reservada pra
+   legenda embaixo (removida acima) — fica num tamanho mais discreto, coerente com os
+   quadrados menores ao lado. */
+.chart-card--agendamento .chart-root--donut { min-height: 260px; }
 
-/* Card com só a imagem "AGENDA" — fica ao lado de "Situação de agendamento" nessa linha,
-   no 1/3 estreito (pedido do usuário, 2026-08-28). object-fit:cover preenche o card mantendo
-   o recorte central da foto, sem distorcer a proporção. */
+/* Card com só a imagem "AGENDA" — fica ao lado de "Situação de agendamento" nessa linha, no
+   1/3 estreito. object-fit:cover preenche o card mantendo o recorte central da foto, sem
+   distorcer a proporção. Sem min-height alto de propósito (pedido do usuário, 2026-08-28: a
+   imagem "ficou muito grande" — ela agora simplesmente acompanha a altura, bem mais modesta,
+   do card de agendamento ao lado, que não é mais esticado por uma legenda grande embaixo). */
 .chart-card--foto { padding: 0; overflow: hidden; }
-.chart-card__foto-completa { width: 100%; height: 100%; min-height: 360px; object-fit: cover; display: block; }
+.chart-card__foto-completa { width: 100%; height: 100%; min-height: 160px; object-fit: cover; display: block; }
 
 /* ---------- 10. Tabela ---------- */
 .table-card {
