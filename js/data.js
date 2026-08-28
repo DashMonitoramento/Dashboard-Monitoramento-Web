@@ -2006,6 +2006,12 @@ const DataStore = (() => {
     };
   }
 
+  /** Lista completa (não filtrada pelos filtros da barra lateral, ver comentário acima) —
+   * usada pela tela de detalhe do card "Pedidos Aguardando Faturamento" (dashboard.js). */
+  function getPedidosNaoFaturados() {
+    return pedidosNaoFaturados;
+  }
+
   function getAvailableYears() {
     const years = rawRecords
       .map(r => (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao))
@@ -2049,7 +2055,7 @@ const DataStore = (() => {
     loadRegioesFromUrl, loadRegioesFromFile,
     loadLeadTimeFromUrl, loadLeadTimeFromFile,
     loadFeriadosFromUrl,
-    loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats,
+    loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
