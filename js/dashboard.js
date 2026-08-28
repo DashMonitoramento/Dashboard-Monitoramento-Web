@@ -75,6 +75,10 @@ const Dashboard = (() => {
     colspan: 6
   };
   let pedidosNaoFaturadosBusca = '';
+  // Número do pedido em edição (painel abaixo da tabela), ou null se nenhum — pedido do
+  // usuário (2026-08-28): clicar no Número do Pedido abre a edição, igual à de "Aguardando
+  // agendamento", só que pra um pedido só por vez (não a lista inteira de uma vez).
+  let pedidoSelecionadoParaEdicao = null;
 
   // "Lead Time de Pedidos e Entregas" (2026-08-23) — painel próprio, com filtros e busca de
   // tabela independentes dos filtros globais da barra lateral (ver comentário em
@@ -2363,9 +2367,10 @@ const Dashboard = (() => {
   }
 
   function rowHtmlPedidosNaoFaturados(p) {
+    const ativo = pedidoSelecionadoParaEdicao === p.numeroPedido;
     return `
       <tr>
-        <td>${escapeAttr(p.numeroPedido)}</td>
+        <td><button type="button" class="nf-link${ativo ? ' nf-link--ativo' : ''}" data-pedido-edicao="${escapeAttr(p.numeroPedido)}" title="Editar este pedido">${escapeAttr(p.numeroPedido)}</button></td>
         <td class="truncate" title="${escapeAttr(p.cliente)}">${escapeAttr(p.cliente)}</td>
         <td class="truncate" title="${escapeAttr(p.grupoEconomico)}">${escapeAttr(p.grupoEconomico)}</td>
         <td>${Utils.formatDate(p.dataEmissao)}</td>
@@ -2403,9 +2408,11 @@ const Dashboard = (() => {
     mostrarViewMapaRegioes('registros');
     pedidosNaoFaturadosTable.page = 1;
     pedidosNaoFaturadosBusca = '';
+    pedidoSelecionadoParaEdicao = null;
     const buscaInput = document.getElementById('pedidos-nao-faturados-table-search');
     if (buscaInput) buscaInput.value = '';
     renderTableGeneric(pedidosNaoFaturadosFiltrados(), pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS, rowHtmlPedidosNaoFaturados);
+    renderPedidosNaoFaturadosEdicao();
     document.getElementById('main-view').hidden = true;
     document.getElementById('pedidos-nao-faturados-view').hidden = false;
     atualizarBotaoIrInicio();
@@ -2414,8 +2421,74 @@ const Dashboard = (() => {
   function fecharPedidosNaoFaturadosView() {
     const view = document.getElementById('pedidos-nao-faturados-view');
     if (view) view.hidden = true;
+    pedidoSelecionadoParaEdicao = null;
     document.getElementById('main-view').hidden = false;
     atualizarBotaoIrInicio();
+  }
+
+  /** Painel de edição de UM pedido (mesmo modelo Firestore/visual de renderAgendamentoEdicao,
+   * ver detail-agendamento-section) — pedido do usuário 2026-08-28. Diferente daquele, mostra
+   * só o pedido clicado por vez (não a lista inteira), porque aqui a ação é "clicar no Número
+   * do Pedido", não "abrir uma tela já cheia de linhas editáveis". */
+  function renderPedidosNaoFaturadosEdicao() {
+    const section = document.getElementById('pedidos-nao-faturados-edicao-section');
+    if (!pedidoSelecionadoParaEdicao) { section.hidden = true; return; }
+    const pedido = DataStore.getPedidosNaoFaturados().find(p => p.numeroPedido === pedidoSelecionadoParaEdicao);
+    if (!pedido) { section.hidden = true; pedidoSelecionadoParaEdicao = null; return; }
+    section.hidden = false;
+
+    const admin = isAdminAgendamento();
+    document.getElementById('pedidos-nao-faturados-edicao-titulo').textContent = `Editar pedido ${pedido.numeroPedido}`;
+    document.getElementById('pedidos-nao-faturados-edicao-hint').textContent = admin
+      ? 'Preencha ou altere o status e a data de agendamento desse pedido — salva direto aqui, sem precisar de planilha.'
+      : 'Situação de agendamento do pedido (só o usuário responsável pode editar).';
+
+    const list = document.getElementById('pedidos-nao-faturados-edicao-list');
+    const statusAtual = pedido.statusAgendamento || '';
+    const dataAtual = formatDateParaInput(pedido.dataAgendamento);
+    const observacaoAtual = pedido.observacao || '';
+
+    if (!admin) {
+      list.innerHTML = `
+        <div class="agendamento-row">
+          <span class="agendamento-row__nf">${escapeAttr(pedido.numeroPedido)}</span>
+          <span class="agendamento-row__cliente" title="${escapeAttr(pedido.cliente)}">${escapeAttr(pedido.cliente)}</span>
+          <span class="agendamento-row__status--somente-leitura">${escapeAttr(statusAtual || 'Sem informação')}</span>
+          <span class="agendamento-row__status--somente-leitura">${dataAtual ? Utils.formatDate(pedido.dataAgendamento) : '—'}</span>
+          <span class="agendamento-row__observacao--somente-leitura" title="${escapeAttr(observacaoAtual)}">${escapeAttr(observacaoAtual || '—')}</span>
+          <span></span>
+        </div>
+      `;
+      return;
+    }
+
+    const opcoes = PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS.map(cat =>
+      `<option value="${escapeAttr(cat)}"${cat === statusAtual ? ' selected' : ''}>${escapeAttr(cat)}</option>`
+    ).join('');
+    list.innerHTML = `
+      <div class="agendamento-row" data-pedido="${escapeAttr(pedido.numeroPedido)}">
+        <span class="agendamento-row__nf">${escapeAttr(pedido.numeroPedido)}</span>
+        <span class="agendamento-row__cliente" title="${escapeAttr(pedido.cliente)}">${escapeAttr(pedido.cliente)}</span>
+        <select class="agendamento-row__status-select">
+          <option value=""${statusAtual ? '' : ' selected'}>Sem informação</option>
+          ${opcoes}
+        </select>
+        <input type="date" class="agendamento-row__data-input" value="${dataAtual}">
+        <input type="text" class="agendamento-row__observacao-input" placeholder="Observação (opcional)" value="${escapeAttr(observacaoAtual)}">
+        <button type="button" class="btn agendamento-row__salvar">Salvar</button>
+      </div>
+    `;
+  }
+
+  /** Clicar no pedido já selecionado fecha o painel de novo (alterna); clicar noutro troca
+   * direto, sem precisar fechar antes — mesmo padrão já usado em vários outros drill-downs. */
+  function abrirEdicaoPedido(numeroPedido) {
+    pedidoSelecionadoParaEdicao = pedidoSelecionadoParaEdicao === numeroPedido ? null : numeroPedido;
+    renderPedidosNaoFaturadosView();
+    renderPedidosNaoFaturadosEdicao();
+    if (pedidoSelecionadoParaEdicao) {
+      document.getElementById('pedidos-nao-faturados-edicao-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 
   function bindPedidosNaoFaturadosView() {
@@ -2427,6 +2500,45 @@ const Dashboard = (() => {
 
     bindTableControlsFor(pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS,
       pedidosNaoFaturadosFiltrados, rowHtmlPedidosNaoFaturados);
+
+    // Delegado no body (tabela é reconstruída a cada render) — clicar no Número do Pedido
+    // abre/fecha o painel de edição dele (pedido do usuário, 2026-08-28).
+    document.getElementById('pedidos-nao-faturados-table-body').addEventListener('click', (e) => {
+      const botao = e.target.closest('[data-pedido-edicao]');
+      if (botao) abrirEdicaoPedido(botao.dataset.pedidoEdicao);
+    });
+
+    document.getElementById('pedidos-nao-faturados-edicao-list').addEventListener('click', async (e) => {
+      const botao = e.target.closest('.agendamento-row__salvar');
+      if (!botao) return;
+      const linha = botao.closest('.agendamento-row');
+      const numeroPedido = linha.dataset.pedido;
+      let status = linha.querySelector('.agendamento-row__status-select').value;
+      const data = linha.querySelector('.agendamento-row__data-input').value;
+      const observacao = linha.querySelector('.agendamento-row__observacao-input').value.trim();
+
+      // Mesmo comportamento já usado no agendamento de notas (2026-08-19): preencher só a
+      // data, sem escolher status, já sobe pra "Agendado" sozinho.
+      if (!status && data) status = 'Agendado';
+
+      botao.disabled = true;
+      botao.textContent = 'Salvando...';
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        await fb.salvarAgendamentoManualPedido(numeroPedido, status, data, observacao);
+        DataStore.applyAgendamentoManual({ [`pedido-${numeroPedido}`]: { statusAgendamento: status, dataAgendamento: data, observacao } });
+        Utils.showToast(`Pedido ${numeroPedido}: agendamento salvo.`, 'success', 2500);
+        renderPedidosNaoFaturadosView();
+        renderPedidosNaoFaturadosEdicao();
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar o agendamento.', 'error', 5000);
+        botao.disabled = false;
+        botao.textContent = 'Salvar';
+      }
+    });
 
     const buscaHandler = Utils.debounce((value) => {
       pedidosNaoFaturadosBusca = value;
