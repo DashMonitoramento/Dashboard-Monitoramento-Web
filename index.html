@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828d">
+<link rel="stylesheet" href="css/style.css?v=20260828e">
 </head>
 <body>
 
@@ -414,10 +414,10 @@
       </div>
 
       <!-- GRÁFICOS -->
-      <!-- Trio de sempre (Status/Prazo/Agendamento) — pedido do usuário (2026-08-27): só o
-           card de Agendamento fica mais alto que os outros dois (mais altura, não largura;
-           ver align-items:start em .charts-grid--donuts no CSS, que impede os outros dois
-           de esticarem pra acompanhar). -->
+      <!-- Trio de sempre (Status/Prazo/imagem) — pedido do usuário (2026-08-28): a imagem
+           "AGENDA" ocupa o espaço que antes era do card "Situação de agendamento" aqui; esse
+           card em si (título + pizza + quadrados) mudou pra própria linha cheia logo abaixo,
+           que tinha espaço vazio sobrando (mais largura pros quadrados não truncarem o texto). -->
       <section class="charts-grid charts-grid--donuts" aria-label="Distribuições">
         <div class="chart-card">
           <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por status</h2></div>
@@ -429,25 +429,36 @@
           <div class="chart-root chart-root--donut" id="chart-prazo"></div>
         </div>
 
+        <div class="chart-card chart-card--foto">
+          <img src="assets/img/agendamento-banner.jpg" alt="" class="chart-card__foto-completa">
+        </div>
+      </section>
+
+      <!-- "Situação de agendamento" em linha própria, cheia — pedido do usuário (2026-08-28):
+           mais largura pros quadrados de informação não truncarem o texto (eram 2 por linha
+           numa coluna estreita antes; agora cabem bem mais por linha). -->
+      <section class="charts-grid charts-grid--agendamento" aria-label="Situação de agendamento">
         <div class="chart-card chart-card--agendamento">
           <div class="chart-card__header">
             <h2 class="chart-card__title">Situação de agendamento</h2>
           </div>
-          <div class="chart-root chart-root--donut chart-root--donut-grande" id="chart-agendamento"></div>
-          <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-aguardando-agendamento" data-detail="aguardando" style="border-color:#64748B" title="Ver notas aguardando agendamento">
-            <span class="chart-stat-tile__dot" style="background:#64748B"></span>
-            <div class="chart-stat-tile__text">
-              <span class="chart-stat-tile__label">Aguardando Agendamento</span>
-              <span class="chart-stat-tile__value" id="aguardando-agendamento-valor">R$ 0,00</span>
-              <span class="chart-stat-tile__count" id="aguardando-agendamento-quantidade">0 notas</span>
+          <div class="chart-root chart-root--donut" id="chart-agendamento"></div>
+          <div class="chart-card__extra-tiles">
+            <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-aguardando-agendamento" data-detail="aguardando" style="border-color:#64748B" title="Ver notas aguardando agendamento">
+              <span class="chart-stat-tile__dot" style="background:#64748B"></span>
+              <div class="chart-stat-tile__text">
+                <span class="chart-stat-tile__label">Aguardando Agendamento</span>
+                <span class="chart-stat-tile__value" id="aguardando-agendamento-valor">R$ 0,00</span>
+                <span class="chart-stat-tile__count" id="aguardando-agendamento-quantidade">0 notas</span>
+              </div>
             </div>
-          </div>
-          <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-pedidos-nao-faturados" style="border-color:#0EA5E9" title="Ver pedidos aguardando faturamento">
-            <span class="chart-stat-tile__dot" style="background:#0EA5E9"></span>
-            <div class="chart-stat-tile__text">
-              <span class="chart-stat-tile__label">Pedidos Aguard. Faturamento</span>
-              <span class="chart-stat-tile__value" id="pedidos-nao-faturados-valor">R$ 0,00</span>
-              <span class="chart-stat-tile__count" id="pedidos-nao-faturados-quantidade">0 pedidos</span>
+            <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-pedidos-nao-faturados" style="border-color:#0EA5E9" title="Ver pedidos aguardando faturamento">
+              <span class="chart-stat-tile__dot" style="background:#0EA5E9"></span>
+              <div class="chart-stat-tile__text">
+                <span class="chart-stat-tile__label">Pedidos Aguard. Faturamento</span>
+                <span class="chart-stat-tile__value" id="pedidos-nao-faturados-valor">R$ 0,00</span>
+                <span class="chart-stat-tile__count" id="pedidos-nao-faturados-quantidade">0 pedidos</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1039,11 +1050,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828d"></script>
-<script src="js/utils.js?v=20260828d"></script>
-<script src="js/data.js?v=20260828d"></script>
-<script src="js/charts.js?v=20260828d"></script>
-<script src="js/dashboard.js?v=20260828d"></script>
-<script src="js/script.js?v=20260828d"></script>
+<script type="module" src="js/firebase-init.js?v=20260828e"></script>
+<script src="js/utils.js?v=20260828e"></script>
+<script src="js/data.js?v=20260828e"></script>
+<script src="js/charts.js?v=20260828e"></script>
+<script src="js/dashboard.js?v=20260828e"></script>
+<script src="js/script.js?v=20260828e"></script>
 </body>
 </html>
