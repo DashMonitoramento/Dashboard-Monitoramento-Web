@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260827g">
+<link rel="stylesheet" href="css/style.css?v=20260828a">
 </head>
 <body>
 
@@ -414,7 +414,11 @@
       </div>
 
       <!-- GRÁFICOS -->
-      <section class="charts-grid charts-grid--donuts-2" aria-label="Distribuições">
+      <!-- Trio de sempre (Status/Prazo/Agendamento) — pedido do usuário (2026-08-27): só o
+           card de Agendamento fica mais alto que os outros dois (mais altura, não largura;
+           ver align-items:start em .charts-grid--donuts no CSS, que impede os outros dois
+           de esticarem pra acompanhar). -->
+      <section class="charts-grid charts-grid--donuts" aria-label="Distribuições">
         <div class="chart-card">
           <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por status</h2></div>
           <div class="chart-root chart-root--donut" id="chart-status"></div>
@@ -424,21 +428,16 @@
           <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por prazo</h2></div>
           <div class="chart-root chart-root--donut" id="chart-prazo"></div>
         </div>
-      </section>
 
-      <!-- Situação de agendamento em linha própria, cheia — pedido do usuário (2026-08-27):
-           mais altura, cards de informação maiores; espaço reservado pra imagem decorativa. -->
-      <section class="charts-grid charts-grid--agendamento" aria-label="Situação de agendamento">
         <div class="chart-card chart-card--agendamento">
           <div class="chart-card__header">
             <h2 class="chart-card__title">Situação de agendamento</h2>
-            <img src="assets/img/agendamento-banner.jpg" alt="" class="chart-card__banner" id="chart-agendamento-banner">
           </div>
           <div class="chart-root chart-root--donut chart-root--donut-grande" id="chart-agendamento"></div>
-          <div class="chart-stat-tile chart-stat-tile--extra" id="tile-pedidos-nao-faturados" style="border-color:#0EA5E9" title="Pedidos que ainda não viraram nota fiscal">
+          <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-pedidos-nao-faturados" style="border-color:#0EA5E9" title="Ver pedidos aguardando faturamento">
             <span class="chart-stat-tile__dot" style="background:#0EA5E9"></span>
             <div class="chart-stat-tile__text">
-              <span class="chart-stat-tile__label">Pedidos Aguar. Faturamento</span>
+              <span class="chart-stat-tile__label">Pedidos Aguard. Faturamento</span>
               <span class="chart-stat-tile__value" id="pedidos-nao-faturados-valor">R$ 0,00</span>
               <span class="chart-stat-tile__count" id="pedidos-nao-faturados-quantidade">0 pedidos</span>
             </div>
@@ -960,6 +959,57 @@
         </div>
       </section>
 
+      <!-- ===================== TELA DE DETALHE: Pedidos Aguardando Faturamento (2026-08-28) ===================
+           Mesmo "jeito" visual do status-detail-view acima (cabeçalho com voltar + título,
+           busca, tabela paginável) — mas é uma seção própria, não reaproveita aquela tabela:
+           os dados vêm de pedidosNaoFaturados (data.js), que não tem NF/Transportadora/Status
+           — só Número do Pedido/Cliente/Grupo Econômico/Data Emissão/Valor/Qtde. ============ -->
+      <section id="pedidos-nao-faturados-view" class="table-card" aria-label="Pedidos aguardando faturamento" hidden>
+        <div class="status-detail-view__header">
+          <button id="btn-back-pedidos-nao-faturados" class="btn-back-home" title="Voltar ao início" aria-label="Voltar ao início">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11.5 12 4l9 7.5"></path>
+              <path d="M5 10v9a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1v-9"></path>
+            </svg>
+          </button>
+          <div>
+            <h2 class="status-detail-view__title">Pedidos Aguardando Faturamento</h2>
+            <p class="status-detail-view__subtitle">Pedidos que ainda não viraram nota fiscal — some daqui assim que ganhar um número de nota.</p>
+          </div>
+        </div>
+
+        <div class="table-card__header">
+          <div class="table-search">
+            🔎 <input type="search" id="pedidos-nao-faturados-table-search" placeholder="Pesquisar...">
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="data-table" id="pedidos-nao-faturados-table">
+            <thead>
+              <tr>
+                <th data-field="numeroPedido">Número do Pedido</th>
+                <th data-field="cliente">Cliente</th>
+                <th data-field="grupoEconomico">Grupo Econômico</th>
+                <th data-field="dataEmissao">Data Emissão</th>
+                <th data-field="valorPedido" class="text-right">Valor Pedido</th>
+                <th data-field="qtdePedido" class="text-right">Qtde (CXS)</th>
+              </tr>
+            </thead>
+            <tbody id="pedidos-nao-faturados-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="table-footer">
+          <span id="pedidos-nao-faturados-table-info">Nenhum registro</span>
+          <div class="pagination">
+            <button id="pedidos-nao-faturados-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="pedidos-nao-faturados-table-page-label">Página 1 de 1</span>
+            <button id="pedidos-nao-faturados-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
+        </div>
+      </section>
+
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
         Dashboard de Entregas · Da Terrinha Alimentos — dados atualizados automaticamente a partir da planilha.
       </footer>
@@ -970,11 +1020,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260827g"></script>
-<script src="js/utils.js?v=20260827g"></script>
-<script src="js/data.js?v=20260827g"></script>
-<script src="js/charts.js?v=20260827g"></script>
-<script src="js/dashboard.js?v=20260827g"></script>
-<script src="js/script.js?v=20260827g"></script>
+<script type="module" src="js/firebase-init.js?v=20260828a"></script>
+<script src="js/utils.js?v=20260828a"></script>
+<script src="js/data.js?v=20260828a"></script>
+<script src="js/charts.js?v=20260828a"></script>
+<script src="js/dashboard.js?v=20260828a"></script>
+<script src="js/script.js?v=20260828a"></script>
 </body>
 </html>
