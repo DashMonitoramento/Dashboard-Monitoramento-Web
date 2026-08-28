@@ -702,13 +702,12 @@ ul { list-style: none; margin: 0; padding: 0; }
    "deixa ele mais largo pra aproveitar o espaço vazio"). */
 .chart-card--largo { grid-column: 1 / -1; }
 .charts-grid--donuts { grid-template-columns: repeat(3, 1fr); }
-/* "Situação de agendamento" fica mais alto que "Distribuição por status/por prazo" nesse
-   mesmo trio (pedido do usuário 2026-08-27: mais altura, NÃO mais largura — ela rejeitou uma
-   1ª tentativa que tinha tirado ele pra uma linha própria de tela cheia). align-items:start
-   é o que permite isso: sem essa regra, o grid estica os 3 cards pra mesma altura da linha
-   inteira (a do mais alto); com ela, cada card mantém sua altura própria e só "encosta" no
-   topo da linha, sobrando espaço vazio comum (não esticado) embaixo dos dois mais baixos. */
-.charts-grid--donuts { align-items: start; }
+/* "Situação de agendamento" (título+pizza+quadrados) saiu desse trio e foi para sua própria
+   linha de largura cheia abaixo (pedido do usuário, 2026-08-28) — aqui sobrou o lugar dela
+   pra imagem "AGENDA" (.chart-card--foto). Os 3 cards dessa linha agora têm conteúdo de
+   altura parecida, então usa o stretch padrão do grid (sem align-items:start) pra imagem
+   preencher a mesma altura dos dois donuts ao lado. */
+.charts-grid--agendamento { grid-template-columns: 1fr; }
 .chart-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
   padding: 18px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column;
@@ -726,16 +725,6 @@ ul { list-style: none; margin: 0; padding: 0; }
    rótulo com linha-guia por fora do círculo que fica perto da borda de cima — com pouca altura
    sobrando pro círculo, esse rótulo nasce colado no topo do canvas e é cortado visualmente. */
 .chart-root--donut { min-height: 360px; }
-/* "Situação de agendamento" continua na mesma largura de coluna dos outros 2 donuts, só um
-   pouco mais alto — pedido do usuário (2026-08-27). NÃO pode ser um valor muito maior que
-   360px: como esse card fica numa coluna estreita (1/3 da tela) e tem 7 quadrados de
-   informação (os outros dois têm só 4-5), empurrar esse número muito além de ~400px sobra
-   pouco espaço de verdade pra pizza dentro do card (min-height aqui e o do .chart-root já
-   competem pelo mesmo espaço via flex — testado e confirmado: um valor alto demais fazia a
-   pizza colapsar pra um mínimo de 120px, escondida atrás dos quadrados). A "altura extra"
-   pedida vem principalmente do card como um todo ficar mais alto (mais quadrados empilhados,
-   ver .chart-card--agendamento .chart-legend--tiles), não de inflar só a pizza. */
-.chart-root--donut-grande { min-height: 560px; }
 
 /* O canvas mora num wrapper próprio (.chart-plot-area), isolado via position:absolute, pra
    NUNCA contribuir com a altura automática do .chart-root — senão o ResizeObserver entra
@@ -776,52 +765,22 @@ ul { list-style: none; margin: 0; padding: 0; }
 .chart-stat-tile__value { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .chart-stat-tile__count { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
 
-/* "Situação de agendamento" continua no mesmo trio de "Distribuição por status/por prazo"
-   (mesma largura de coluna), só que os quadrados de informação (as 6 etapas + o novo "Pedidos
-   Aguar. Faturamento") ficam maiores/mais altos nessa tela específica — pedido do usuário
-   (2026-08-27: "mais altura, não largura" — rejeitou uma 1ª tentativa que tinha tirado esse
-   card pra uma linha própria de tela cheia). O card fica mais alto que os outros dois graças
-   ao align-items:start em .charts-grid--donuts (ver acima), não por ocupar mais colunas. Só
-   afeta esse gráfico: os demais (Distribuição por status/por prazo) continuam no tamanho
-   padrão de sempre. */
-.chart-card--agendamento .chart-legend--tiles { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 10px; }
-.chart-card--agendamento .chart-stat-tile,
-.chart-card--agendamento .chart-stat-tile--extra { padding: 10px 12px; gap: 10px; }
-.chart-card--agendamento .chart-stat-tile__dot { width: 12px; height: 12px; }
-.chart-card--agendamento .chart-stat-tile__label { font-size: 12px; }
-.chart-card--agendamento .chart-stat-tile__value { font-size: 15px; }
-.chart-card--agendamento .chart-stat-tile__count { font-size: 12px; }
+/* "Situação de agendamento" agora ocupa uma linha própria de largura cheia (pedido do
+   usuário, 2026-08-28), então os quadrados de informação (as 6 etapas + "Aguardando
+   Agendamento" + "Pedidos Aguard. Faturamento") têm bem mais espaço horizontal — não precisam
+   mais do dimensionamento compacto que era necessário quando o card vivia numa coluna estreita
+   de 1/3 da tela. Volta pro tamanho padrão de .chart-legend--tiles/.chart-stat-tile.
+   Os dois quadrados "extra" (fora do container que o DashChart gerencia, ver
+   .chart-card__extra-tiles) ficam lado a lado nessa linha cheia em vez de empilhados. */
+.chart-card__extra-tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.chart-stat-tile--extra { flex: 1 1 220px; max-width: 320px; }
 
-/* Card extra "Pedidos Aguardando Faturamento" — não é uma fatia da pizza (fonte de dados
-   totalmente separada, ver getPedidosNaoFaturadosStats em data.js), só reaproveita o mesmo
-   visual de quadrado pra ficar visualmente junto dos outros 6. */
-.chart-stat-tile--extra { max-width: 320px; }
-
-/* Imagem "AGENDA" como fundo do card inteiro (pedido do usuário 2026-08-28: "deixar ela no
-   quadrado inteiro" + estilo moderno) — substitui o ícone pequeno no cabeçalho de antes.
-   Gradiente escuro por cima (mesma técnica de "hero image" com scrim) garante que o texto e
-   os quadrados continuem legíveis em cima da foto, independente do tema claro/escuro do site
-   (por isso as cores abaixo são fixas, não var(--text-primary) etc. — a foto de fundo não
-   muda com o tema). */
-.chart-card--agendamento {
-  position: relative;
-  overflow: hidden;
-  background-image: linear-gradient(135deg, rgba(8, 13, 28, .88), rgba(8, 13, 28, .58) 55%, rgba(8, 13, 28, .88)),
-    url('../assets/img/agendamento-banner.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-.chart-card--agendamento .chart-card__title { color: #fff; }
-.chart-card--agendamento .chart-stat-tile,
-.chart-card--agendamento .chart-stat-tile--extra {
-  background: rgba(15, 23, 42, .55);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-}
-.chart-card--agendamento .chart-stat-tile__label,
-.chart-card--agendamento .chart-stat-tile__count { color: rgba(255, 255, 255, .8); }
-.chart-card--agendamento .chart-stat-tile__value { color: #fff; }
+/* Card com só a imagem "AGENDA" — ocupa o espaço que antes era do card "Situação de
+   agendamento" nesse trio (pedido do usuário, 2026-08-28: a imagem fica só nesse espaço,
+   não mais no card inteiro de agendamento). object-fit:cover preenche o card mantendo o
+   recorte central da foto, sem distorcer a proporção. */
+.chart-card--foto { padding: 0; overflow: hidden; }
+.chart-card__foto-completa { width: 100%; height: 100%; min-height: 360px; object-fit: cover; display: block; }
 
 /* ---------- 10. Tabela ---------- */
 .table-card {
