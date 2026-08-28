@@ -197,6 +197,18 @@ const Dashboard = (() => {
     'Devolução para Terrinha': 'agendamento-devolucao-terrinha'
   };
 
+  // Rótulo do gráfico "Situação de agendamento" -> sufixo do id do .kpi-card--mini
+  // correspondente ao lado da pizza (ver renderAgendamentoChart/index.html) — mesma ideia do
+  // mapa acima, só que pra atualizar o texto do quadrado em vez de abrir o detalhe.
+  const AGENDAMENTO_LABEL_PARA_TILE_ID = {
+    'Agendado': 'agendado',
+    'Sem etapa definida': 'sem-etapa',
+    'Aguardando Confirmação': 'aguardando-confirmacao',
+    'Reagendar': 'reagendar',
+    'Okker': 'okker',
+    'Devolução para Terrinha': 'devolucao'
+  };
+
   // Super admin: sempre pode editar a data/status de agendamento manual (Firestore) e é o
   // único que vê o botão "Gerenciar usuários" — por decisão do usuário (2026-08-14). Além
   // dele, qualquer usuário que o super admin habilitar pelo modal "Gerenciar usuários"
@@ -660,9 +672,10 @@ const Dashboard = (() => {
    * ============================================================ */
 
   function bindStatusDetail() {
-    // [data-detail] em vez de só ".kpi-card[data-detail]" — o tile "Aguardando Agendamento"
-    // dentro de "Situação de agendamento" (2026-08-28) usa o mesmo mecanismo de abrir o
-    // detalhe, mas não é um .kpi-card, é um .chart-stat-tile.
+    // [data-detail] em vez de só ".kpi-card[data-detail]": mantido genérico porque, no passado,
+    // nem todo elemento com data-detail era um .kpi-card (chegou a ser um .chart-stat-tile) —
+    // hoje os quadrados de "Situação de agendamento" também são .kpi-card--mini, mas o seletor
+    // continua amplo por segurança.
     document.querySelectorAll('[data-detail]').forEach(card => {
       card.addEventListener('click', () => openStatusDetail(card.dataset.detail));
     });
@@ -2174,14 +2187,13 @@ const Dashboard = (() => {
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
       // Agendado, Sem etapa definida, Aguardando Confirmação, Reagendar, Okker, Devolução p/ Terrinha.
+      // showLegend:false (pedido do usuário, 2026-08-28: "deixe só a Pizza") — os quadrados de
+      // cada etapa agora são .kpi-card--mini ao lado da pizza (ver index.html), clicáveis via
+      // data-detail/bindStatusDetail como qualquer outro KPI, não mais o tile-legend
+      // auto-gerado pelo DashChart (por isso não há mais onLegendClick aqui).
       options: {
         colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6', '#0EA5E9'],
-        // Clicar num tile abre a mesma tela de detalhe (com edição de data/status) que já
-        // existia só pro card "Aguardando agendamento" — pedido do usuário, 2026-08-19.
-        onLegendClick: (label) => {
-          const key = AGENDAMENTO_LABEL_PARA_DETAIL_KEY[label];
-          if (key) openStatusDetail(key);
-        }
+        showLegend: false
       }
     });
     charts.rankingTransportadorasMelhores = new DashChart(document.getElementById('chart-ranking-transportadoras-melhores'), {
@@ -2323,8 +2335,8 @@ const Dashboard = (() => {
    * além do card, mas continua "Em aberto" aguardando a entrega de fato. */
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
-    // Valor NF somado por etapa — pedido do usuário (2026-08-26): os quadrados abaixo da pizza
-    // mostram esse total em R$ no lugar da porcentagem (a % continua só dentro da pizza).
+    // Valor NF somado por etapa — os quadrados ao lado da pizza mostram esse total em R$ como
+    // subvalor (a % continua só dentro da própria pizza).
     const valores = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     records.forEach(r => {
       if (!r.necessitaAgendamento || !situacaoElegivelParaAgendamento(r.situacao)) return;
@@ -2334,8 +2346,19 @@ const Dashboard = (() => {
     });
     charts.agendamento.update({
       labels: AGENDAMENTO_STATUS_CATEGORIAS,
-      series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }],
-      options: { legendValores: AGENDAMENTO_STATUS_CATEGORIAS.map(c => valores[c]) }
+      series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }]
+    });
+    // Pizza fica sozinha (showLegend:false, ver createCharts) — quem mostra os números agora
+    // são os .kpi-card--mini ao lado (mesmo modelo dos KPIs do topo: contagem grande, valor em
+    // R$ como subvalor), atualizados aqui direto a partir do mesmo counts/valores que alimenta
+    // a pizza, pra nunca divergir dela.
+    AGENDAMENTO_STATUS_CATEGORIAS.forEach(c => {
+      const slug = AGENDAMENTO_LABEL_PARA_TILE_ID[c];
+      if (!slug) return;
+      const elCount = document.getElementById(`agendamento-tile-${slug}-count`);
+      const elValor = document.getElementById(`agendamento-tile-${slug}-valor`);
+      if (elCount) elCount.textContent = Utils.formatNumber(counts[c]);
+      if (elValor) elValor.textContent = Utils.formatCurrency(valores[c]);
     });
   }
 
@@ -2350,7 +2373,9 @@ const Dashboard = (() => {
     const elValor = document.getElementById('aguardando-agendamento-valor');
     const elQtd = document.getElementById('aguardando-agendamento-quantidade');
     if (elValor) elValor.textContent = Utils.formatCurrency(Utils.sum(notas, r => r.valorNF));
-    if (elQtd) elQtd.textContent = `${Utils.formatNumber(notas.length)} nota${notas.length === 1 ? '' : 's'}`;
+    // Contagem "pelada" (sem sufixo "notas"), mesmo modelo dos demais .kpi-card--mini ao lado
+    // da pizza (pedido do usuário, 2026-08-28) — o rótulo do card já diz o que está contando.
+    if (elQtd) elQtd.textContent = Utils.formatNumber(notas.length);
   }
 
   /** Card "Pedidos Aguardando Faturamento" (pedido do usuário, 2026-08-27) — não é uma fatia
@@ -2363,7 +2388,9 @@ const Dashboard = (() => {
     const elValor = document.getElementById('pedidos-nao-faturados-valor');
     const elQtd = document.getElementById('pedidos-nao-faturados-quantidade');
     if (elValor) elValor.textContent = Utils.formatCurrency(stats.valorTotal);
-    if (elQtd) elQtd.textContent = `${Utils.formatNumber(stats.quantidade)} pedido${stats.quantidade === 1 ? '' : 's'}`;
+    // Contagem "pelada" (sem sufixo "pedidos"), mesmo modelo dos demais .kpi-card--mini ao
+    // lado da pizza (pedido do usuário, 2026-08-28) — o rótulo do card já diz o que conta.
+    if (elQtd) elQtd.textContent = Utils.formatNumber(stats.quantidade);
   }
 
   function rowHtmlPedidosNaoFaturados(p) {
