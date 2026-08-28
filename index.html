@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828a">
+<link rel="stylesheet" href="css/style.css?v=20260828b">
 </head>
 <body>
 
@@ -434,6 +434,14 @@
             <h2 class="chart-card__title">Situação de agendamento</h2>
           </div>
           <div class="chart-root chart-root--donut chart-root--donut-grande" id="chart-agendamento"></div>
+          <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-aguardando-agendamento" data-detail="aguardando" style="border-color:#64748B" title="Ver notas aguardando agendamento">
+            <span class="chart-stat-tile__dot" style="background:#64748B"></span>
+            <div class="chart-stat-tile__text">
+              <span class="chart-stat-tile__label">Aguardando Agendamento</span>
+              <span class="chart-stat-tile__value" id="aguardando-agendamento-valor">R$ 0,00</span>
+              <span class="chart-stat-tile__count" id="aguardando-agendamento-quantidade">0 notas</span>
+            </div>
+          </div>
           <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-pedidos-nao-faturados" style="border-color:#0EA5E9" title="Ver pedidos aguardando faturamento">
             <span class="chart-stat-tile__dot" style="background:#0EA5E9"></span>
             <div class="chart-stat-tile__text">
@@ -480,7 +488,7 @@
           <div class="chart-root" id="chart-evolucao-mensal"></div>
         </div>
 
-        <div class="chart-card">
+        <div class="chart-card chart-card--largo">
           <div class="chart-card__header"><h2 class="chart-card__title">Comparativo entre períodos (faturamento por dia)</h2></div>
           <div class="chart-root" id="chart-comparativo"></div>
         </div>
@@ -1020,11 +1028,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828a"></script>
-<script src="js/utils.js?v=20260828a"></script>
-<script src="js/data.js?v=20260828a"></script>
-<script src="js/charts.js?v=20260828a"></script>
-<script src="js/dashboard.js?v=20260828a"></script>
-<script src="js/script.js?v=20260828a"></script>
+<script type="module" src="js/firebase-init.js?v=20260828b"></script>
+<script src="js/utils.js?v=20260828b"></script>
+<script src="js/data.js?v=20260828b"></script>
+<script src="js/charts.js?v=20260828b"></script>
+<script src="js/dashboard.js?v=20260828b"></script>
+<script src="js/script.js?v=20260828b"></script>
 </body>
 </html>
