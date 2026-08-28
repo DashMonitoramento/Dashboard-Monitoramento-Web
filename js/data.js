@@ -1992,7 +1992,13 @@ const DataStore = (() => {
         cliente: String(get('Cliente') || '').trim(),
         numeroPedido: String(get('Numero Pedido') || '').trim(),
         valorPedido: parseMoney(get('Valor Pedido')),
-        qtdePedido: parseMoney(get('Qtde Pedido'))
+        qtdePedido: parseMoney(get('Qtde Pedido')),
+        // Preenchidos pelo Firestore (agendamentosManuais, chave "pedido-<número>") — ver
+        // applyAgendamentoManual. Ficam vazios/nulos até essa base carregar (mesmo padrão dos
+        // campos equivalentes em rawRecords).
+        statusAgendamento: '',
+        dataAgendamento: null,
+        observacao: ''
       };
     }).filter(p => p.numeroPedido);
   }
@@ -2038,6 +2044,17 @@ const DataStore = (() => {
       if (info.statusAgendamento) r.statusAgendamento = info.statusAgendamento;
       if (info.dataAgendamento) r.dataAgendamento = Utils.parseDate(info.dataAgendamento);
       if (info.observacao !== undefined) r.observacaoAgendamento = info.observacao;
+    }
+    // Pedidos Aguardando Faturamento (2026-08-28) reaproveitam a MESMA coleção do Firestore
+    // (agendamentosManuais), só com a chave prefixada "pedido-<número>" — evita precisar criar
+    // uma coleção nova + regra de segurança nova no Firestore (essa aqui já funciona). Não tem
+    // NF pra cruzar (o pedido ainda nem virou nota), então usa numeroPedido direto.
+    for (const p of pedidosNaoFaturados) {
+      const info = porNf[`pedido-${p.numeroPedido}`];
+      if (!info) continue;
+      if (info.statusAgendamento) p.statusAgendamento = info.statusAgendamento;
+      if (info.dataAgendamento) p.dataAgendamento = Utils.parseDate(info.dataAgendamento);
+      if (info.observacao !== undefined) p.observacao = info.observacao;
     }
     aplicarReagendarQuandoObrigaAgendamento();
     recomputarPrazoStatus(); // a Data de Agendamento pode ter mudado acima
