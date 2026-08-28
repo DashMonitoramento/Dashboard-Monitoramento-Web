@@ -701,13 +701,14 @@ ul { list-style: none; margin: 0; padding: 0; }
    colunas — sem isso, sobra uma célula vazia do lado dele (pedido do usuário, 2026-08-28:
    "deixa ele mais largo pra aproveitar o espaço vazio"). */
 .chart-card--largo { grid-column: 1 / -1; }
-.charts-grid--donuts { grid-template-columns: repeat(3, 1fr); }
-/* "Situação de agendamento" (título+pizza+quadrados) saiu desse trio e foi para sua própria
-   linha de largura cheia abaixo (pedido do usuário, 2026-08-28) — aqui sobrou o lugar dela
-   pra imagem "AGENDA" (.chart-card--foto). Os 3 cards dessa linha agora têm conteúdo de
-   altura parecida, então usa o stretch padrão do grid (sem align-items:start) pra imagem
-   preencher a mesma altura dos dois donuts ao lado. */
-.charts-grid--agendamento { grid-template-columns: 1fr; }
+/* "Situação de agendamento" trocou de lugar com os 2 cards de "Distribuição" (pedido do
+   usuário, 2026-08-28) — agora ocupa a parte larga dessa linha (2/3), com a imagem "AGENDA"
+   ao lado (1/3, .chart-card--foto). Stretch padrão do grid (sem align-items:start) faz a
+   imagem preencher a mesma altura do card de agendamento ao lado. */
+.charts-grid--donuts { grid-template-columns: 2fr 1fr; }
+/* Distribuição por status/por prazo desceram pra essa linha própria (onde a Situação de
+   agendamento ficava antes) — pedido do usuário (2026-08-28). */
+.charts-grid--distribuicao { grid-template-columns: repeat(2, 1fr); }
 .chart-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
   padding: 18px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column;
@@ -765,20 +766,18 @@ ul { list-style: none; margin: 0; padding: 0; }
 .chart-stat-tile__value { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .chart-stat-tile__count { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
 
-/* "Situação de agendamento" agora ocupa uma linha própria de largura cheia (pedido do
-   usuário, 2026-08-28), então os quadrados de informação (as 6 etapas + "Aguardando
-   Agendamento" + "Pedidos Aguard. Faturamento") têm bem mais espaço horizontal — não precisam
-   mais do dimensionamento compacto que era necessário quando o card vivia numa coluna estreita
-   de 1/3 da tela. Volta pro tamanho padrão de .chart-legend--tiles/.chart-stat-tile.
+/* "Situação de agendamento" ocupa os 2/3 largos dessa linha (ver .charts-grid--donuts acima),
+   então os quadrados de informação (as 6 etapas + "Aguardando Agendamento" + "Pedidos Aguard.
+   Faturamento") têm bastante espaço horizontal — tamanho padrão de
+   .chart-legend--tiles/.chart-stat-tile, sem overrides de compactação.
    Os dois quadrados "extra" (fora do container que o DashChart gerencia, ver
-   .chart-card__extra-tiles) ficam lado a lado nessa linha cheia em vez de empilhados. */
+   .chart-card__extra-tiles) ficam lado a lado em vez de empilhados. */
 .chart-card__extra-tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .chart-stat-tile--extra { flex: 1 1 220px; max-width: 320px; }
 
-/* Card com só a imagem "AGENDA" — ocupa o espaço que antes era do card "Situação de
-   agendamento" nesse trio (pedido do usuário, 2026-08-28: a imagem fica só nesse espaço,
-   não mais no card inteiro de agendamento). object-fit:cover preenche o card mantendo o
-   recorte central da foto, sem distorcer a proporção. */
+/* Card com só a imagem "AGENDA" — fica ao lado de "Situação de agendamento" nessa linha,
+   no 1/3 estreito (pedido do usuário, 2026-08-28). object-fit:cover preenche o card mantendo
+   o recorte central da foto, sem distorcer a proporção. */
 .chart-card--foto { padding: 0; overflow: hidden; }
 .chart-card__foto-completa { width: 100%; height: 100%; min-height: 360px; object-fit: cover; display: block; }
 
