@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828e">
+<link rel="stylesheet" href="css/style.css?v=20260828f">
 </head>
 <body>
 
@@ -414,30 +414,11 @@
       </div>
 
       <!-- GRÁFICOS -->
-      <!-- Trio de sempre (Status/Prazo/imagem) — pedido do usuário (2026-08-28): a imagem
-           "AGENDA" ocupa o espaço que antes era do card "Situação de agendamento" aqui; esse
-           card em si (título + pizza + quadrados) mudou pra própria linha cheia logo abaixo,
-           que tinha espaço vazio sobrando (mais largura pros quadrados não truncarem o texto). -->
-      <section class="charts-grid charts-grid--donuts" aria-label="Distribuições">
-        <div class="chart-card">
-          <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por status</h2></div>
-          <div class="chart-root chart-root--donut" id="chart-status"></div>
-        </div>
-
-        <div class="chart-card">
-          <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por prazo</h2></div>
-          <div class="chart-root chart-root--donut" id="chart-prazo"></div>
-        </div>
-
-        <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg" alt="" class="chart-card__foto-completa">
-        </div>
-      </section>
-
-      <!-- "Situação de agendamento" em linha própria, cheia — pedido do usuário (2026-08-28):
-           mais largura pros quadrados de informação não truncarem o texto (eram 2 por linha
-           numa coluna estreita antes; agora cabem bem mais por linha). -->
-      <section class="charts-grid charts-grid--agendamento" aria-label="Situação de agendamento">
+      <!-- Linha de cima: "Situação de agendamento" (título+pizza+quadrados) no lugar largo que
+           antes era dos 2 cards de Distribuição + imagem "AGENDA" ao lado — pedido do usuário
+           (2026-08-28: trocar de posição). Os 2 cards de Distribuição desceram para a linha
+           logo abaixo (onde a Situação de agendamento ficava antes). -->
+      <section class="charts-grid charts-grid--donuts" aria-label="Situação de agendamento e imagem">
         <div class="chart-card chart-card--agendamento">
           <div class="chart-card__header">
             <h2 class="chart-card__title">Situação de agendamento</h2>
@@ -461,6 +442,24 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <div class="chart-card chart-card--foto">
+          <img src="assets/img/agendamento-banner.jpg" alt="" class="chart-card__foto-completa">
+        </div>
+      </section>
+
+      <!-- Distribuição por status/por prazo desceram pra essa linha — pedido do usuário
+           (2026-08-28): trocaram de lugar com "Situação de agendamento" (acima). -->
+      <section class="charts-grid charts-grid--distribuicao" aria-label="Distribuições">
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por status</h2></div>
+          <div class="chart-root chart-root--donut" id="chart-status"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por prazo</h2></div>
+          <div class="chart-root chart-root--donut" id="chart-prazo"></div>
         </div>
       </section>
 
@@ -1050,11 +1049,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828e"></script>
-<script src="js/utils.js?v=20260828e"></script>
-<script src="js/data.js?v=20260828e"></script>
-<script src="js/charts.js?v=20260828e"></script>
-<script src="js/dashboard.js?v=20260828e"></script>
-<script src="js/script.js?v=20260828e"></script>
+<script type="module" src="js/firebase-init.js?v=20260828f"></script>
+<script src="js/utils.js?v=20260828f"></script>
+<script src="js/data.js?v=20260828f"></script>
+<script src="js/charts.js?v=20260828f"></script>
+<script src="js/dashboard.js?v=20260828f"></script>
+<script src="js/script.js?v=20260828f"></script>
 </body>
 </html>
