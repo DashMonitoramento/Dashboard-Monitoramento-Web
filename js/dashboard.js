@@ -2154,9 +2154,6 @@ const Dashboard = (() => {
         }
       }
     });
-    charts.transportadora = new DashChart(document.getElementById('chart-transportadora'), {
-      type: 'bar', labels: [], series: [{ name: 'Notas', data: [], color: ChartPalette[1] }]
-    });
     charts.rankingTransportadorasMelhores = new DashChart(document.getElementById('chart-ranking-transportadoras-melhores'), {
       type: 'hbar', labels: [],
       series: [
@@ -2236,7 +2233,7 @@ const Dashboard = (() => {
     renderStatusChart(records);
     renderPrazoChart(records);
     renderAgendamentoChart(records);
-    renderTransportadoraChart(records);
+    renderPedidosNaoFaturadosCard();
     renderRankingTransportadoras(records);
     renderEvolucaoMensal(records);
     renderComparativo(records);
@@ -2302,16 +2299,17 @@ const Dashboard = (() => {
     });
   }
 
-  function renderTransportadoraChart(records) {
-    const grouped = Utils.groupBy(records, r => r.transportadora);
-    const entries = Array.from(grouped.entries())
-      .map(([name, items]) => ({ name, count: items.length }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
-    charts.transportadora.update({
-      labels: entries.map(e => e.name),
-      series: [{ name: 'Notas', data: entries.map(e => e.count), color: ChartPalette[1] }]
-    });
+  /** Card "Pedidos Aguardando Faturamento" (pedido do usuário, 2026-08-27) — não é uma fatia
+   * do donut "Situação de agendamento" (fonte de dados totalmente separada, sem NF/cruzamento
+   * com rawRecords, ver getPedidosNaoFaturadosStats em data.js), só um quadrado extra dentro
+   * do mesmo card, no mesmo formato visual dos outros. Valor fixo (não reage aos filtros da
+   * barra lateral) — essa base não tem Transportadora/Status/etc. pra cruzar com eles. */
+  function renderPedidosNaoFaturadosCard() {
+    const stats = DataStore.getPedidosNaoFaturadosStats();
+    const elValor = document.getElementById('pedidos-nao-faturados-valor');
+    const elQtd = document.getElementById('pedidos-nao-faturados-quantidade');
+    if (elValor) elValor.textContent = Utils.formatCurrency(stats.valorTotal);
+    if (elQtd) elQtd.textContent = `${Utils.formatNumber(stats.quantidade)} pedido${stats.quantidade === 1 ? '' : 's'}`;
   }
 
   /**
