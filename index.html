@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828c">
+<link rel="stylesheet" href="css/style.css?v=20260828d">
 </head>
 <body>
 
@@ -1016,6 +1016,17 @@
             <button id="pedidos-nao-faturados-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
           </div>
         </div>
+
+        <!-- Edição do pedido selecionado (clicar no Número do Pedido na tabela acima) — mesmo
+             modelo visual/Firestore de detail-agendamento-section, pedido do usuário 2026-08-28
+             ("abra uma tela abaixo pra fazer a edição igual a do Aguardando agendamento"). -->
+        <div id="pedidos-nao-faturados-edicao-section" class="detail-agendamento" hidden>
+          <div class="detail-agendamento__header">
+            <h3 class="detail-agendamento__title" id="pedidos-nao-faturados-edicao-titulo">Editar pedido</h3>
+            <p class="detail-agendamento__hint" id="pedidos-nao-faturados-edicao-hint"></p>
+          </div>
+          <div class="detail-agendamento__list" id="pedidos-nao-faturados-edicao-list"></div>
+        </div>
       </section>
 
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
@@ -1028,11 +1039,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828c"></script>
-<script src="js/utils.js?v=20260828c"></script>
-<script src="js/data.js?v=20260828c"></script>
-<script src="js/charts.js?v=20260828c"></script>
-<script src="js/dashboard.js?v=20260828c"></script>
-<script src="js/script.js?v=20260828c"></script>
+<script type="module" src="js/firebase-init.js?v=20260828d"></script>
+<script src="js/utils.js?v=20260828d"></script>
+<script src="js/data.js?v=20260828d"></script>
+<script src="js/charts.js?v=20260828d"></script>
+<script src="js/dashboard.js?v=20260828d"></script>
+<script src="js/script.js?v=20260828d"></script>
 </body>
 </html>
