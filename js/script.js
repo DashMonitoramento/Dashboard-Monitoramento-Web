@@ -20,6 +20,7 @@ const DEFAULT_REGIOES_URL = 'assets/data/sample-data-regioes.csv';
 const DEFAULT_LEADTIME_URL = 'assets/data/sample-data-leadtime.csv';
 const DEFAULT_FERIADOS_URL = 'assets/data/feriados.json';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
+const DEFAULT_PEDIDOS_NAO_FATURADOS_URL = 'assets/data/sample-data-pedidos-nao-faturados.csv';
 
 /* ============================================================
  * AUTENTICAÇÃO — Firebase Authentication (e-mail/senha)
@@ -294,6 +295,17 @@ async function loadFeriadosDataSilently(cacheBust) {
   }
 }
 
+/** Aba nova (2026-08-27) — pedidos ainda não faturados, alimenta só o card "Pedidos
+ * Aguardando Faturamento" no gráfico "Situação de agendamento". */
+async function loadPedidosNaoFaturadosDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_PEDIDOS_NAO_FATURADOS_URL}?t=${Date.now()}` : DEFAULT_PEDIDOS_NAO_FATURADOS_URL;
+    await DataStore.loadPedidosNaoFaturadosFromUrl(url);
+  } catch (err) {
+    console.warn('Pedidos não faturados não carregados automaticamente:', err.message);
+  }
+}
+
 /** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
  * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
 async function loadCanhotosIndexSilently(cacheBust) {
@@ -349,7 +361,7 @@ function prefetchTodasAsFontes() {
   [
     DEFAULT_BLUESOFT_URL, DEFAULT_CLIENTES_URL, DEFAULT_AGENDAMENTOS_URL, DEFAULT_MOTIVOS_URL,
     DEFAULT_RETORNO_URL, DEFAULT_FATURAMENTO_URL, DEFAULT_REGIOES_URL, DEFAULT_LEADTIME_URL,
-    DEFAULT_FERIADOS_URL, DEFAULT_CANHOTOS_URL,
+    DEFAULT_FERIADOS_URL, DEFAULT_CANHOTOS_URL, DEFAULT_PEDIDOS_NAO_FATURADOS_URL,
   ].forEach(url => { fetch(url).catch(() => {}); });
 }
 
@@ -367,6 +379,7 @@ async function loadInitialData() {
     await loadRegioesDataSilently(false);
     await loadLeadTimeDataSilently(false);
     await loadFeriadosDataSilently(false);
+    await loadPedidosNaoFaturadosDataSilently(false);
     // Índice de canhotos (~20MB) NÃO entra no await — não alimenta nenhum registro/gráfico/KPI,
     // só o Map usado quando ela clica numa NF pra abrir o comprovante (ver Dashboard.loadCanhotosIndex/
     // canhotosIndex). Bloquear o carregamento inteiro por causa dele só atrasava a tela aparecer
@@ -403,6 +416,7 @@ async function refreshData() {
     await loadRegioesDataSilently(true);
     await loadLeadTimeDataSilently(true);
     await loadFeriadosDataSilently(true);
+    await loadPedidosNaoFaturadosDataSilently(true);
     loadCanhotosIndexSilently(true); // fora do await — ver comentário em loadInitialData
     await loadAgendamentosManuaisSilently();
     await loadPermissaoEdicaoAgendamentoSilently();
