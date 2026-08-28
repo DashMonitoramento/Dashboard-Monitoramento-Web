@@ -2169,10 +2169,9 @@ const Dashboard = (() => {
     });
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
-      // Agendado, Sem etapa definida, Aguardando Confirmação, Okker — "Reagendar"/"Devolução
-      // p/ Terrinha" removidas do gráfico (pedido do usuário, 2026-08-28), ver AGENDAMENTO_STATUS_CATEGORIAS.
+      // Agendado, Sem etapa definida, Aguardando Confirmação, Reagendar, Okker, Devolução p/ Terrinha.
       options: {
-        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#8B5CF6'],
+        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6', '#0EA5E9'],
         // Clicar num tile abre a mesma tela de detalhe (com edição de data/status) que já
         // existia só pro card "Aguardando agendamento" — pedido do usuário, 2026-08-19.
         onLegendClick: (label) => {
@@ -2292,17 +2291,23 @@ const Dashboard = (() => {
   }
 
   // "Reagendar" e "Devolução para Terrinha" removidas do gráfico/cards (pedido do usuário,
-  // 2026-08-28) — notas nessas etapas caem em "Sem etapa definida" agora (ver
-  // AGENDAMENTO_ETAPAS_ESPECIFICAS abaixo, removidas de lá também), não desaparecem da conta.
   const AGENDAMENTO_STATUS_CATEGORIAS = [
-    'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Okker'
+    'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
   ];
   // As etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
   // (valor bruto da coluna "Status" da planilha de Agendamentos — precisa bater EXATAMENTE
   // com esse texto, incluindo acento, senão a nota cai em "Sem etapa definida" por engano).
   // Qualquer nota da população (ver renderAgendamentoChart) que não tenha uma dessas cai em
   // "Sem etapa definida" por padrão.
-  const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Okker'];
+  const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'];
+
+  // Dropdown de Status na edição de "Pedidos Aguardando Faturamento" (pedido do usuário,
+  // 2026-08-28) — mesmas etapas do agendamento de notas, MENOS "Reagendar"/"Devolução para
+  // Terrinha": um pedido que ainda nem virou nota não pode ser "reagendado" (só agenda uma vez,
+  // antes de faturar) nem "devolvido" (nunca chegou a sair). Lista própria, separada de
+  // AGENDAMENTO_STATUS_CATEGORIAS de propósito — mesmo conjunto hoje, mas são domínios de
+  // negócio diferentes e podem divergir no futuro.
+  const PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS = ['Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Okker'];
 
   /** Situação de agendamento: só entram notas que realmente "Obriga Agendamento" e estão "Em
    * aberto" (mesma população do card "Aguardando agendamento", ver STATUS_DETAIL_DEFS —
