@@ -656,7 +656,10 @@ const Dashboard = (() => {
    * ============================================================ */
 
   function bindStatusDetail() {
-    document.querySelectorAll('.kpi-card[data-detail]').forEach(card => {
+    // [data-detail] em vez de só ".kpi-card[data-detail]" — o tile "Aguardando Agendamento"
+    // dentro de "Situação de agendamento" (2026-08-28) usa o mesmo mecanismo de abrir o
+    // detalhe, mas não é um .kpi-card, é um .chart-stat-tile.
+    document.querySelectorAll('[data-detail]').forEach(card => {
       card.addEventListener('click', () => openStatusDetail(card.dataset.detail));
     });
     document.getElementById('btn-status-diversos').addEventListener('click', () => openStatusDetail('diversos'));
@@ -2166,9 +2169,10 @@ const Dashboard = (() => {
     });
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
-      // Agendado, Sem etapa definida, Aguardando Confirmação, Reagendar, Okker, Devolução p/ Terrinha.
+      // Agendado, Sem etapa definida, Aguardando Confirmação, Okker — "Reagendar"/"Devolução
+      // p/ Terrinha" removidas do gráfico (pedido do usuário, 2026-08-28), ver AGENDAMENTO_STATUS_CATEGORIAS.
       options: {
-        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6', '#0EA5E9'],
+        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#8B5CF6'],
         // Clicar num tile abre a mesma tela de detalhe (com edição de data/status) que já
         // existia só pro card "Aguardando agendamento" — pedido do usuário, 2026-08-19.
         onLegendClick: (label) => {
@@ -2256,6 +2260,7 @@ const Dashboard = (() => {
     renderStatusChart(records);
     renderPrazoChart(records);
     renderAgendamentoChart(records);
+    renderAguardandoAgendamentoCard(records);
     renderPedidosNaoFaturadosCard();
     renderRankingTransportadoras(records);
     renderEvolucaoMensal(records);
@@ -2286,15 +2291,18 @@ const Dashboard = (() => {
     });
   }
 
+  // "Reagendar" e "Devolução para Terrinha" removidas do gráfico/cards (pedido do usuário,
+  // 2026-08-28) — notas nessas etapas caem em "Sem etapa definida" agora (ver
+  // AGENDAMENTO_ETAPAS_ESPECIFICAS abaixo, removidas de lá também), não desaparecem da conta.
   const AGENDAMENTO_STATUS_CATEGORIAS = [
-    'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
+    'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Okker'
   ];
   // As etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
   // (valor bruto da coluna "Status" da planilha de Agendamentos — precisa bater EXATAMENTE
   // com esse texto, incluindo acento, senão a nota cai em "Sem etapa definida" por engano).
   // Qualquer nota da população (ver renderAgendamentoChart) que não tenha uma dessas cai em
   // "Sem etapa definida" por padrão.
-  const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'];
+  const AGENDAMENTO_ETAPAS_ESPECIFICAS = ['Agendado', 'Aguardando Confirmação', 'Okker'];
 
   /** Situação de agendamento: só entram notas que realmente "Obriga Agendamento" e estão "Em
    * aberto" (mesma população do card "Aguardando agendamento", ver STATUS_DETAIL_DEFS —
@@ -2320,6 +2328,20 @@ const Dashboard = (() => {
       series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }],
       options: { legendValores: AGENDAMENTO_STATUS_CATEGORIAS.map(c => valores[c]) }
     });
+  }
+
+  /** Card extra "Aguardando Agendamento" dentro de "Situação de agendamento" (pedido do
+   * usuário, 2026-08-28 — "inclui o Aguardando Agendamento"). Mesmo critério EXATO do card de
+   * KPI "Aguardando agendamento" no topo do dashboard (STATUS_DETAIL_DEFS['aguardando']) — só
+   * reaproveita esse teste, não inventa um novo, pra nunca divergir do card original. Clicável
+   * (data-detail="aguardando" no HTML, ver bindStatusDetail) — abre a MESMA tela de edição que
+   * o card de KPI já abre, não uma nova. */
+  function renderAguardandoAgendamentoCard(records) {
+    const notas = records.filter(STATUS_DETAIL_DEFS['aguardando'].test);
+    const elValor = document.getElementById('aguardando-agendamento-valor');
+    const elQtd = document.getElementById('aguardando-agendamento-quantidade');
+    if (elValor) elValor.textContent = Utils.formatCurrency(Utils.sum(notas, r => r.valorNF));
+    if (elQtd) elQtd.textContent = `${Utils.formatNumber(notas.length)} nota${notas.length === 1 ? '' : 's'}`;
   }
 
   /** Card "Pedidos Aguardando Faturamento" (pedido do usuário, 2026-08-27) — não é uma fatia
