@@ -697,6 +697,10 @@ ul { list-style: none; margin: 0; padding: 0; }
 
 /* ---------- 9. Gráficos ---------- */
 .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+/* "Comparativo entre períodos" é o último de um número ímpar de cards nessa grade de 2
+   colunas — sem isso, sobra uma célula vazia do lado dele (pedido do usuário, 2026-08-28:
+   "deixa ele mais largo pra aproveitar o espaço vazio"). */
+.chart-card--largo { grid-column: 1 / -1; }
 .charts-grid--donuts { grid-template-columns: repeat(3, 1fr); }
 /* "Situação de agendamento" fica mais alto que "Distribuição por status/por prazo" nesse
    mesmo trio (pedido do usuário 2026-08-27: mais altura, NÃO mais largura — ela rejeitou uma
