@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260827e">
+<link rel="stylesheet" href="css/style.css?v=20260827f">
 </head>
 <body>
 
@@ -414,7 +414,7 @@
       </div>
 
       <!-- GRÁFICOS -->
-      <section class="charts-grid charts-grid--donuts" aria-label="Distribuições">
+      <section class="charts-grid charts-grid--donuts-2" aria-label="Distribuições">
         <div class="chart-card">
           <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por status</h2></div>
           <div class="chart-root chart-root--donut" id="chart-status"></div>
@@ -424,19 +424,29 @@
           <div class="chart-card__header"><h2 class="chart-card__title">Distribuição por prazo</h2></div>
           <div class="chart-root chart-root--donut" id="chart-prazo"></div>
         </div>
+      </section>
 
-        <div class="chart-card">
-          <div class="chart-card__header"><h2 class="chart-card__title">Situação de agendamento</h2></div>
-          <div class="chart-root chart-root--donut" id="chart-agendamento"></div>
+      <!-- Situação de agendamento em linha própria, cheia — pedido do usuário (2026-08-27):
+           mais altura, cards de informação maiores; espaço reservado pra imagem decorativa. -->
+      <section class="charts-grid charts-grid--agendamento" aria-label="Situação de agendamento">
+        <div class="chart-card chart-card--agendamento">
+          <div class="chart-card__header">
+            <h2 class="chart-card__title">Situação de agendamento</h2>
+            <img src="assets/img/agendamento-banner.png" alt="" class="chart-card__banner" id="chart-agendamento-banner" hidden>
+          </div>
+          <div class="chart-root chart-root--donut chart-root--donut-grande" id="chart-agendamento"></div>
+          <div class="chart-stat-tile chart-stat-tile--extra" id="tile-pedidos-nao-faturados" style="border-color:#0EA5E9" title="Pedidos que ainda não viraram nota fiscal">
+            <span class="chart-stat-tile__dot" style="background:#0EA5E9"></span>
+            <div class="chart-stat-tile__text">
+              <span class="chart-stat-tile__label">Pedidos Aguar. Faturamento</span>
+              <span class="chart-stat-tile__value" id="pedidos-nao-faturados-valor">R$ 0,00</span>
+              <span class="chart-stat-tile__count" id="pedidos-nao-faturados-quantidade">0 pedidos</span>
+            </div>
+          </div>
         </div>
       </section>
 
       <section class="charts-grid" aria-label="Gráficos">
-        <div class="chart-card">
-          <div class="chart-card__header"><h2 class="chart-card__title">Notas por transportadora</h2></div>
-          <div class="chart-root" id="chart-transportadora"></div>
-        </div>
-
         <div class="chart-card">
           <div class="chart-card__header">
             <h2 class="chart-card__title">Ranking (top 10)</h2>
@@ -960,11 +970,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260827e"></script>
-<script src="js/utils.js?v=20260827e"></script>
-<script src="js/data.js?v=20260827e"></script>
-<script src="js/charts.js?v=20260827e"></script>
-<script src="js/dashboard.js?v=20260827e"></script>
-<script src="js/script.js?v=20260827e"></script>
+<script type="module" src="js/firebase-init.js?v=20260827f"></script>
+<script src="js/utils.js?v=20260827f"></script>
+<script src="js/data.js?v=20260827f"></script>
+<script src="js/charts.js?v=20260827f"></script>
+<script src="js/dashboard.js?v=20260827f"></script>
+<script src="js/script.js?v=20260827f"></script>
 </body>
 </html>
