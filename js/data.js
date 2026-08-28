@@ -1956,6 +1956,56 @@ const DataStore = (() => {
     return out;
   }
 
+  /* ============================================================
+   * PEDIDOS NÃO FATURADOS — aba nova (2026-08-27), pedidos que ainda não viraram nota
+   * fiscal. Fonte independente das outras: sem NF, não cruza com rawRecords, só alimenta o
+   * card "Pedidos Aguardando Faturamento" (total de pedidos + soma de valor) no gráfico
+   * "Situação de agendamento". Fica de fora dos filtros da barra lateral de propósito — são
+   * campos que essa base não tem (Transportadora/Status/etc.), pedido do usuário era só o
+   * card, não um recorte filtrável.
+   * ============================================================ */
+
+  let pedidosNaoFaturados = [];
+
+  async function loadPedidosNaoFaturadosFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexPedidosNaoFaturados(rawRows);
+    notify();
+  }
+
+  async function loadPedidosNaoFaturadosFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexPedidosNaoFaturados(rawRows);
+    notify();
+  }
+
+  function indexPedidosNaoFaturados(rawRows) {
+    pedidosNaoFaturados = rawRows.map(row => {
+      const headerIndex = buildHeaderIndex(row);
+      const get = (nome) => { const h = headerIndex[normalizeHeaderKey(nome)]; return h !== undefined ? row[h] : ''; };
+      return {
+        dataEmissao: Utils.parseDate(get('Data Emissao')),
+        grupoEconomico: String(get('Grupo Economico') || '').trim(),
+        cliente: String(get('Cliente') || '').trim(),
+        numeroPedido: String(get('Numero Pedido') || '').trim(),
+        valorPedido: parseMoney(get('Valor Pedido')),
+        qtdePedido: parseMoney(get('Qtde Pedido'))
+      };
+    }).filter(p => p.numeroPedido);
+  }
+
+  /** Total de pedidos ainda não faturados + soma do valor — usado pelo card "Pedidos
+   * Aguardando Faturamento" (ver renderPedidosNaoFaturadosCard em dashboard.js). */
+  function getPedidosNaoFaturadosStats() {
+    return {
+      quantidade: pedidosNaoFaturados.length,
+      valorTotal: Utils.sum(pedidosNaoFaturados, p => p.valorPedido)
+    };
+  }
+
   function getAvailableYears() {
     const years = rawRecords
       .map(r => (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao))
@@ -1999,6 +2049,7 @@ const DataStore = (() => {
     loadRegioesFromUrl, loadRegioesFromFile,
     loadLeadTimeFromUrl, loadLeadTimeFromFile,
     loadFeriadosFromUrl,
+    loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual,
     getRecords, getFilteredRecords, getLastUpdated,
