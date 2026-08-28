@@ -115,6 +115,23 @@ async function salvarAgendamentoManual(nf, statusAgendamento, dataAgendamento, o
   });
 }
 
+/** Mesma ideia de salvarAgendamentoManual acima, mas pra um Pedido Aguardando Faturamento
+ * (2026-08-28) — reaproveita a MESMA coleção do Firestore (agendamentosManuais), só com a
+ * chave prefixada "pedido-<número>" em vez da NF, pra não precisar criar uma coleção nova +
+ * regra de segurança nova (essa coleção já está liberada). Um pedido não tem NF ainda (é
+ * literalmente o que "aguardando faturamento" significa), então usa numeroPedido direto. */
+async function salvarAgendamentoManualPedido(numeroPedido, statusAgendamento, dataAgendamento, observacao) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  await setDoc(doc(db, AGENDAMENTOS_MANUAIS_COLECAO, `pedido-${numeroPedido}`), {
+    statusAgendamento: statusAgendamento || '',
+    dataAgendamento: dataAgendamento || '',
+    observacao: observacao || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  });
+}
+
 /** Grava só a observação de uma NF (usado pela tela "Notas em aberto", 2026-08-19 — uma nota
  * aberta pode não precisar de agendamento nenhum, então essa tela não mexe em status/data).
  * Usa `{merge: true}` de propósito — diferente de salvarAgendamentoManual acima, que sempre
@@ -169,7 +186,7 @@ async function getMinhaPermissaoEdicaoAgendamento() {
 
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
-  getAgendamentosManuais, salvarAgendamentoManual, salvarObservacaoNota,
+  getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento
 };
 window.dispatchEvent(new Event('firebase-ready'));
