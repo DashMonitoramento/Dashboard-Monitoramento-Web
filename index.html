@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828g">
+<link rel="stylesheet" href="css/style.css?v=20260828h">
 </head>
 <body>
 
@@ -423,29 +423,55 @@
           <div class="chart-card__header">
             <h2 class="chart-card__title">Situação de agendamento</h2>
           </div>
-          <div class="chart-root chart-root--donut" id="chart-agendamento"></div>
-          <div class="chart-card__extra-tiles">
-            <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-aguardando-agendamento" data-detail="aguardando" style="border-color:#64748B" title="Ver notas aguardando agendamento">
-              <span class="chart-stat-tile__dot" style="background:#64748B"></span>
-              <div class="chart-stat-tile__text">
-                <span class="chart-stat-tile__label">Aguardando Agendamento</span>
-                <span class="chart-stat-tile__value" id="aguardando-agendamento-valor">R$ 0,00</span>
-                <span class="chart-stat-tile__count" id="aguardando-agendamento-quantidade">0 notas</span>
-              </div>
-            </div>
-            <div class="chart-stat-tile chart-stat-tile--extra chart-stat-tile--clickable" id="tile-pedidos-nao-faturados" style="border-color:#0EA5E9" title="Ver pedidos aguardando faturamento">
-              <span class="chart-stat-tile__dot" style="background:#0EA5E9"></span>
-              <div class="chart-stat-tile__text">
-                <span class="chart-stat-tile__label">Pedidos Aguard. Faturamento</span>
-                <span class="chart-stat-tile__value" id="pedidos-nao-faturados-valor">R$ 0,00</span>
-                <span class="chart-stat-tile__count" id="pedidos-nao-faturados-quantidade">0 pedidos</span>
-              </div>
+          <div class="agendamento-body">
+            <div class="chart-root chart-root--donut" id="chart-agendamento"></div>
+            <div class="agendamento-cards">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-agendado" style="--kpi-accent:#2563EB" title="Ver notas agendadas">
+                <span class="kpi-card__label">Agendado</span>
+                <span class="kpi-card__value" id="agendamento-tile-agendado-count">0</span>
+                <span class="kpi-card__subvalue" id="agendamento-tile-agendado-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="aguardando" style="--kpi-accent:#EAB308" title="Ver notas sem etapa definida">
+                <span class="kpi-card__label">Sem etapa definida</span>
+                <span class="kpi-card__value" id="agendamento-tile-sem-etapa-count">0</span>
+                <span class="kpi-card__subvalue" id="agendamento-tile-sem-etapa-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-aguardando-confirmacao" style="--kpi-accent:#FF7A1A" title="Ver notas aguardando confirmação">
+                <span class="kpi-card__label">Aguardando Confirmação</span>
+                <span class="kpi-card__value" id="agendamento-tile-aguardando-confirmacao-count">0</span>
+                <span class="kpi-card__subvalue" id="agendamento-tile-aguardando-confirmacao-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-reagendar" style="--kpi-accent:#DC2626" title="Ver notas para reagendar">
+                <span class="kpi-card__label">Reagendar</span>
+                <span class="kpi-card__value" id="agendamento-tile-reagendar-count">0</span>
+                <span class="kpi-card__subvalue" id="agendamento-tile-reagendar-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-okker" style="--kpi-accent:#8B5CF6" title="Ver notas Okker">
+                <span class="kpi-card__label">Okker</span>
+                <span class="kpi-card__value" id="agendamento-tile-okker-count">0</span>
+                <span class="kpi-card__subvalue" id="agendamento-tile-okker-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-devolucao-terrinha" style="--kpi-accent:#0EA5E9" title="Ver notas de devolução para Terrinha">
+                <span class="kpi-card__label">Devolução para Terrinha</span>
+                <span class="kpi-card__value" id="agendamento-tile-devolucao-count">0</span>
+                <span class="kpi-card__subvalue" id="agendamento-tile-devolucao-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-aguardando-agendamento" data-detail="aguardando" style="--kpi-accent:#64748B" title="Ver notas aguardando agendamento">
+                <span class="kpi-card__label">Aguardando Agendamento</span>
+                <span class="kpi-card__value" id="aguardando-agendamento-quantidade">0</span>
+                <span class="kpi-card__subvalue" id="aguardando-agendamento-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-pedidos-nao-faturados" style="--kpi-accent:#0EA5E9" title="Ver pedidos aguardando faturamento">
+                <span class="kpi-card__label">Pedidos Aguard. Faturamento</span>
+                <span class="kpi-card__value" id="pedidos-nao-faturados-quantidade">0</span>
+                <span class="kpi-card__subvalue" id="pedidos-nao-faturados-valor">R$ 0,00</span>
+              </article>
             </div>
           </div>
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260828g" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260828h" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -1049,11 +1075,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828g"></script>
-<script src="js/utils.js?v=20260828g"></script>
-<script src="js/data.js?v=20260828g"></script>
-<script src="js/charts.js?v=20260828g"></script>
-<script src="js/dashboard.js?v=20260828g"></script>
-<script src="js/script.js?v=20260828g"></script>
+<script type="module" src="js/firebase-init.js?v=20260828h"></script>
+<script src="js/utils.js?v=20260828h"></script>
+<script src="js/data.js?v=20260828h"></script>
+<script src="js/charts.js?v=20260828h"></script>
+<script src="js/dashboard.js?v=20260828h"></script>
+<script src="js/script.js?v=20260828h"></script>
 </body>
 </html>
