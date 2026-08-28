@@ -698,6 +698,10 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* ---------- 9. Gráficos ---------- */
 .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
 .charts-grid--donuts { grid-template-columns: repeat(3, 1fr); }
+/* Distribuição por status / por prazo, lado a lado — "Situação de agendamento" saiu desse
+   trio pra própria linha cheia (ver .charts-grid--agendamento), pedido do usuário 2026-08-27. */
+.charts-grid--donuts-2 { grid-template-columns: repeat(2, 1fr); }
+.charts-grid--agendamento { grid-template-columns: 1fr; }
 .chart-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
   padding: 18px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column;
@@ -715,6 +719,9 @@ ul { list-style: none; margin: 0; padding: 0; }
    rótulo com linha-guia por fora do círculo que fica perto da borda de cima — com pouca altura
    sobrando pro círculo, esse rótulo nasce colado no topo do canvas e é cortado visualmente. */
 .chart-root--donut { min-height: 360px; }
+/* "Situação de agendamento" sozinha na própria linha, tela toda de largura — pedido do
+   usuário (2026-08-27): mais altura, pra pizza e os quadrados de informação ficarem maiores. */
+.chart-root--donut-grande { min-height: 480px; }
 
 /* O canvas mora num wrapper próprio (.chart-plot-area), isolado via position:absolute, pra
    NUNCA contribuir com a altura automática do .chart-root — senão o ResizeObserver entra
@@ -754,6 +761,28 @@ ul { list-style: none; margin: 0; padding: 0; }
 .chart-stat-tile__label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chart-stat-tile__value { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .chart-stat-tile__count { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+
+/* "Situação de agendamento" em linha própria, cheia (ver .charts-grid--agendamento) — os
+   quadrados de informação (as 6 etapas + o novo "Pedidos Aguar. Faturamento") ficam maiores
+   nessa tela específica, aproveitando a largura/altura extra — pedido do usuário 2026-08-27.
+   Só afeta esse gráfico: os demais (Distribuição por status/por prazo) continuam no tamanho
+   padrão de sempre. */
+.chart-card--agendamento .chart-legend--tiles { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.chart-card--agendamento .chart-stat-tile,
+.chart-card--agendamento .chart-stat-tile--extra { padding: 16px 18px; gap: 14px; }
+.chart-card--agendamento .chart-stat-tile__dot { width: 16px; height: 16px; }
+.chart-card--agendamento .chart-stat-tile__label { font-size: 13px; }
+.chart-card--agendamento .chart-stat-tile__value { font-size: 21px; }
+.chart-card--agendamento .chart-stat-tile__count { font-size: 13px; }
+
+/* Card extra "Pedidos Aguardando Faturamento" — não é uma fatia da pizza (fonte de dados
+   totalmente separada, ver getPedidosNaoFaturadosStats em data.js), só reaproveita o mesmo
+   visual de quadrado pra ficar visualmente junto dos outros 6. */
+.chart-stat-tile--extra { max-width: 320px; }
+
+/* Imagem decorativa dentro do card "Situação de agendamento" (pedido do usuário 2026-08-27,
+   "adicione essa imagem dentro"). Fica no cabeçalho, ao lado do título. */
+.chart-card__banner { height: 40px; width: auto; border-radius: var(--radius-sm); object-fit: cover; }
 
 /* ---------- 10. Tabela ---------- */
 .table-card {
