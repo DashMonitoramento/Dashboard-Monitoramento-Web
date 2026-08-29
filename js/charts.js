@@ -309,8 +309,15 @@ class DashChart {
     const plotW = this.width - padding.left - padding.right;
     const plotH = this.height - padding.top - padding.bottom;
 
+    // options.stacked (só faz sentido horizontal): em vez de sub-barras lado a lado, cada
+    // série é desenhada emendada dentro de UMA única barra por rótulo — usado no padrão
+    // "composição em %" (Desempenho por cliente/motorista/cidade: dentro do prazo / outros /
+    // não entregue), onde as partes de cada barra somam o total daquele rótulo (~100%).
+    const stacked = horizontal && !!this.options.stacked;
+
     const allValues = series.flatMap(s => s.data);
-    const maxValue = Math.max(...allValues, 1) * 1.15;
+    const totalsPorLabel = this.labels.map((_, i) => series.reduce((soma, s) => soma + (s.data[i] || 0), 0));
+    const maxValue = stacked ? Math.max(...totalsPorLabel, 1) : Math.max(...allValues, 1) * 1.15;
 
     // options.thickBars: pedido do usuário pros rankings de transportadoras (entregues vs.
     // vencidas) — barras mais grossas, com menos espaço vazio entre elas.
@@ -324,6 +331,7 @@ class DashChart {
     this._hitboxes = [];
 
     this.labels.forEach((label, i) => {
+      let offsetAcumulado = 0; // só usado em modo empilhado (stacked)
       series.forEach((s, si) => {
         const value = s.data[i] || 0;
         const ratio = value / maxValue;
@@ -334,20 +342,42 @@ class DashChart {
         const extra = s.tooltipExtra ? s.tooltipExtra[i] : null;
 
         if (horizontal) {
-          const y = padding.top + i * groupSize + barGap / 2 + si * barWidth;
           const w = plotW * ratio;
-          const x = padding.left;
-          const h = barWidth * innerBarRatio;
-          this._roundRect(ctx, x, y, w, h, 4, color);
-          this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name, extra });
-          this._drawValueInsideBar(ctx, x, y, w, h, value, true);
+          if (stacked) {
+            const y = padding.top + i * groupSize + barGap / 2;
+            const x = padding.left + offsetAcumulado;
+            const h = barSlot * innerBarRatio;
+            this._roundRect(ctx, x, y, w, h, 3, color);
+            this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name, extra, format: s.format });
+            // Sem o fallback "desenha pro lado" que _drawValueInsideBar usa nas barras
+            // agrupadas: aqui os segmentos ficam colados um no outro, então um rótulo vazando
+            // pra fora invadiria visualmente o próximo pedaço — melhor só omitir.
+            if (value > 0) {
+              const valueText = `${Math.round(value)}%`;
+              ctx.font = '600 11px Inter, system-ui, sans-serif';
+              if (w > ctx.measureText(valueText).width + 10) {
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#fff';
+                ctx.fillText(valueText, x + w / 2, y + h / 2);
+              }
+            }
+            offsetAcumulado += w;
+          } else {
+            const y = padding.top + i * groupSize + barGap / 2 + si * barWidth;
+            const x = padding.left;
+            const h = barWidth * innerBarRatio;
+            this._roundRect(ctx, x, y, w, h, 4, color);
+            this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name, extra, format: s.format });
+            this._drawValueInsideBar(ctx, x, y, w, h, value, true);
+          }
         } else {
           const x = padding.left + i * groupSize + barGap / 2 + si * barWidth;
           const h = plotH * ratio;
           const y = padding.top + plotH - h;
           const w = barWidth * innerBarRatio;
           this._roundRect(ctx, x, y, w, h, 4, color);
-          this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name, extra });
+          this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name, extra, format: s.format });
           this._drawValueInsideBar(ctx, x, y, w, h, value, false);
         }
       });
@@ -745,7 +775,7 @@ class DashChart {
       if (found) {
         found = {
           label: found.label,
-          lines: [`${found.series}: ${this._fmt(found.value)}`, ...(found.extra || [])],
+          lines: [`${found.series}: ${this._fmt(found.value, found.format)}`, ...(found.extra || [])],
           color: found.color
         };
       }
@@ -786,6 +816,7 @@ class DashChart {
   _fmt(value, format) {
     if (format === 'currency') return Utils.formatCurrency(value);
     if (format === 'number') return Utils.formatNumber(Math.round(value));
+    if (format === 'percent') return `${Math.round(value)}%`;
     return this.options.currency ? Utils.formatCurrency(value) : Utils.formatNumber(Math.round(value));
   }
 
