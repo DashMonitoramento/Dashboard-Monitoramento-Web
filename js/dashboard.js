@@ -2510,8 +2510,13 @@ const Dashboard = (() => {
         agendamentoPedidosPorCategoria[categoria] = (agendamentoPedidosPorCategoria[categoria] || 0) + 1;
       });
     }
+    // "Sem etapa definida" continua sendo a CHAVE interna da categoria (counts/valores,
+    // AGENDAMENTO_LABEL_PARA_TILE_ID, categoriaAgendamentoParaPedido etc. — não é seguro renomear
+    // isso tudo), só o texto que a pizza mostra no hover é trocado aqui (pedido do usuário,
+    // 2026-08-29: renomear só o rótulo visível do card/fatia, não a lógica).
+    const AGENDAMENTO_LABEL_EXIBICAO = { 'Sem etapa definida': 'Sem roteiro/ sem agendamento' };
     charts.agendamento.update({
-      labels: AGENDAMENTO_STATUS_CATEGORIAS,
+      labels: AGENDAMENTO_STATUS_CATEGORIAS.map(c => AGENDAMENTO_LABEL_EXIBICAO[c] || c),
       series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }]
     });
     // Pizza fica sozinha (showLegend:false, ver createCharts) — quem mostra os números agora
