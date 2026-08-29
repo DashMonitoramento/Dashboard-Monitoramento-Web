@@ -2329,14 +2329,30 @@ const Dashboard = (() => {
   // edição sem nenhuma opção selecionada.
   const PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS = ['Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Okker', 'Sem Roteiro'];
 
+  /** Mapeia o statusAgendamento de um PEDIDO (Pedidos Aguardando Faturamento) pra qual fatia
+   * do gráfico "Situação de agendamento" ele soma junto (pedido do usuário, 2026-08-28:
+   * "Aguardando Confirmação" conta com os demais que já têm esse status; "Sem Roteiro" conta
+   * como "Sem etapa definida" — não é uma fatia própria da pizza, só do dropdown de edição de
+   * pedidos; quem já tem data conta como "Agendado"). Vazio ou qualquer status desconhecido
+   * cai em "Sem etapa definida" por padrão, mesma regra já usada pras notas (ver
+   * AGENDAMENTO_ETAPAS_ESPECIFICAS acima). */
+  function categoriaAgendamentoParaPedido(statusAgendamento) {
+    if (statusAgendamento === 'Sem Roteiro') return 'Sem etapa definida';
+    if (AGENDAMENTO_STATUS_CATEGORIAS.includes(statusAgendamento)) return statusAgendamento;
+    return 'Sem etapa definida';
+  }
+
   /** Situação de agendamento: só entram notas que realmente "Obriga Agendamento" e estão "Em
    * aberto" (mesma população do card "Aguardando agendamento", ver STATUS_DETAIL_DEFS —
    * decisão do usuário, 2026-08-17), quebradas pelas etapas já registradas na planilha de
-   * Agendamentos; o que sobra vai pra "Sem etapa definida". Por causa disso, o card não bate
-   * mais com o TOTAL desse gráfico (soma das 5 fatias) — bate exatamente com a fatia "Sem etapa
-   * definida" sozinha, já que o card é, por definição, quem ainda não tem etapa nenhuma. As
-   * outras 4 fatias (Agendado/Aguardando Confirmação/Reagendar/Okker) mostram quem já avançou
-   * além do card, mas continua "Em aberto" aguardando a entrega de fato. */
+   * Agendamentos; o que sobra vai pra "Sem etapa definida". As outras 4 fatias
+   * (Agendado/Aguardando Confirmação/Reagendar/Okker) mostram quem já avançou além do card,
+   * mas continua "Em aberto" aguardando a entrega de fato.
+   * Desde 2026-08-28, os Pedidos Aguardando Faturamento também somam nessas fatias (ver
+   * categoriaAgendamentoParaPedido acima) quando não há filtro ativo — por isso o card
+   * "Aguardando agendamento" (só rawRecords) NÃO bate mais com a fatia "Sem etapa definida"
+   * sozinha na visão padrão sem filtro: a fatia agora é maior, pelos pedidos que também caem
+   * ali. Só voltam a bater quando um filtro estiver ativo (aí os pedidos ficam de fora). */
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
     // Valor NF somado por etapa — os quadrados ao lado da pizza mostram esse total em R$ como
@@ -2348,6 +2364,18 @@ const Dashboard = (() => {
       counts[categoria]++;
       valores[categoria] += r.valorNF || 0;
     });
+    // Pedidos Aguardando Faturamento somam nas MESMAS fatias (pedido do usuário, 2026-08-28) —
+    // só quando não há filtro ativo. Essa base não tem Transportadora/Status/etc. pra cruzar
+    // com os filtros da barra lateral (ver getPedidosNaoFaturadosStats) — com um filtro ativo,
+    // sempre somar os mesmos 469 pedidos (que não encolhem com o filtro) desvirtuaria a leitura
+    // do gráfico pro recorte que a usuária escolheu.
+    if (!algumFiltroAtivo()) {
+      DataStore.getPedidosNaoFaturados().forEach(p => {
+        const categoria = categoriaAgendamentoParaPedido(p.statusAgendamento);
+        counts[categoria]++;
+        valores[categoria] += p.valorPedido || 0;
+      });
+    }
     charts.agendamento.update({
       labels: AGENDAMENTO_STATUS_CATEGORIAS,
       series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }]
