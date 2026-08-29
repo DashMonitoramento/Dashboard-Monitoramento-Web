@@ -737,6 +737,7 @@ const Dashboard = (() => {
     renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS, (r) => rowHtml(r, false));
     renderMotivosBreakdown(detailRecords);
     renderPedidosHintNoDetalhe(detailKey);
+    renderReentregaHintNoDetalhe(detailKey);
     renderAgendamentoEdicao(detailRecords);
     renderObservacaoEdicao(detailRecords);
   }
@@ -754,6 +755,23 @@ const Dashboard = (() => {
     section.hidden = false;
     document.getElementById('detail-pedidos-hint-texto').textContent =
       `+ ${Utils.formatNumber(n)} pedido${n === 1 ? '' : 's'} aguardando faturamento também ${n === 1 ? 'conta' : 'contam'} nesse total (não aparece${n === 1 ? '' : 'm'} na tabela abaixo, que só mostra notas).`;
+  }
+
+  /** Aviso "o card conta toda tentativa, essa lista mostra só quem está reentrega agora" —
+   * pedido do usuário (2026-08-28): o card "Reentrega" passou a somar qtdReentregas (TODA
+   * tentativa de reentrega de cada nota, mesmo já resolvida depois — ver
+   * applyBluesoftEnrichment em data.js), então pode ser maior que essa lista, que continua
+   * mostrando só as notas cuja situação ATUAL é "Reentrega". Só aparece nessa tela específica,
+   * e só quando a diferença existir de verdade. */
+  function renderReentregaHintNoDetalhe(key) {
+    const section = document.getElementById('detail-reentrega-hint-section');
+    if (key !== 'reentrega') { section.hidden = true; return; }
+    const totalTentativas = Utils.sum(DataStore.getFilteredRecords(), r => r.qtdReentregas || 0);
+    const diferenca = totalTentativas - detailRecords.length;
+    if (diferenca <= 0) { section.hidden = true; return; }
+    section.hidden = false;
+    document.getElementById('detail-reentrega-hint-texto').textContent =
+      `O card no topo mostra ${Utils.formatNumber(totalTentativas)} — conta TODA tentativa de reentrega, incluindo ${Utils.formatNumber(diferenca)} de notas que já foram resolvidas depois (entregues, devolvidas, etc.) e por isso não aparecem na lista abaixo, que mostra só quem está reentrega agora.`;
   }
 
   /* ============================================================
@@ -2135,6 +2153,15 @@ const Dashboard = (() => {
     const devolucao = records.filter(STATUS_DETAIL_DEFS['devolucao'].test);
     const cancelado = records.filter(STATUS_DETAIL_DEFS['cancelado'].test);
     const reentrega = records.filter(STATUS_DETAIL_DEFS['reentrega'].test);
+    // Card "Reentrega": conta TODA VEZ que uma nota passou por reentrega, não só quem está
+    // reentrega agora (pedido do usuário, 2026-08-28 — ela vai montar um indicador de
+    // reentregas por motorista/transportadora, onde cada tentativa conta). Usa qtdReentregas
+    // (todas as tentativas da Bluesoft, ver applyBluesoftEnrichment em data.js), somado sobre
+    // TODOS os registros filtrados — não só o recorte `reentrega` acima, já que uma nota que
+    // hoje está Entregue pode ter passado por reentrega antes de ser resolvida. O VALOR (R$)
+    // continua vindo só do recorte `reentrega` de cima (decisão do usuário: não multiplicar o
+    // valor pela quantidade de vezes que repete).
+    const totalOcorrenciasReentrega = Utils.sum(records, r => r.qtdReentregas || 0);
     const aguardando = records.filter(STATUS_DETAIL_DEFS['aguardando'].test);
     // Recorte de "Em aberto (sem agendamento)" que já está em trânsito e dentro do prazo do
     // Lead Time — mesmo campo r.prazoStatus usado na coluna "Prazo" e no badge "Em Trânsito"
@@ -2151,7 +2178,7 @@ const Dashboard = (() => {
     setKPI('kpi-abertas-agendamento-count', abertasComAgendamento.length, Utils.formatNumber);
     setKPI('kpi-devolucao-count', devolucao.length, Utils.formatNumber);
     setKPI('kpi-cancelado-count', cancelado.length, Utils.formatNumber);
-    setKPI('kpi-reentrega-count', reentrega.length, Utils.formatNumber);
+    setKPI('kpi-reentrega-count', totalOcorrenciasReentrega, Utils.formatNumber);
     setKPI('kpi-aguardando-count', aguardando.length, Utils.formatNumber);
     setKPI('kpi-em-transito-count', emTransito.length, Utils.formatNumber);
     setKPI('kpi-percentual', percentual, v => Utils.formatPercent(v, 1));
