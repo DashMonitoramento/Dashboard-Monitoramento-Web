@@ -634,6 +634,12 @@ ul { list-style: none; margin: 0; padding: 0; }
   background: rgba(14, 165, 233, .08); display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-primary);
 }
+/* display:flex acima é regra de autor — sem isso, ela ganha do display:none padrão do atributo
+   [hidden] (de origem UA, sempre perde pra CSS de autor mesmo com especificidade igual/menor),
+   e o aviso aparece mesmo quando o JS marca hidden=true. Encontrado ao testar a tela
+   "Reentrega" (2026-08-28): o aviso de pedidos aparecia junto com o de reentrega, mesmo sem
+   nenhum pedido contribuindo pra essa categoria. */
+.detail-pedidos-hint[hidden] { display: none; }
 .detail-pedidos-hint .btn { flex-shrink: 0; padding: 6px 12px; font-size: 12px; }
 .motivo-bar-row__count { color: var(--text-secondary); font-weight: 700; white-space: nowrap; text-align: right; }
 
