@@ -6,11 +6,25 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829p">
+<link rel="stylesheet" href="css/style.css?v=20260829q">
 </head>
 <body>
 
 <!-- ===================== LOGIN ===================== -->
+<!-- ===================== TELA DE BOOT (2026-08-29) =====================
+     Cobre TUDO (login + dashboard) enquanto o Firebase ainda não respondeu se há sessão salva
+     e, se houver, enquanto os dados iniciais ainda estão carregando — pedido do usuário: sem
+     isso, ela via a tela de login piscar por uma fração de segundo (mesmo já logada, só
+     esperando o Firebase confirmar) e depois o dashboard aparecer com os números mudando
+     conforme cada fonte de dados terminava de carregar (o #loading-overlay de baixo é
+     translúcido/borrado de propósito pras atualizações manuais, então deixava passar esse
+     "piscar" por trás). Mesma imagem de fundo da tela de login, só que opaca (sem formulário),
+     só ela some quando já dá pra mostrar a versão final (login de verdade OU dashboard pronto). -->
+<div id="boot-overlay" class="boot-overlay">
+  <div class="spinner"></div>
+  <p class="boot-overlay__text">Carregando...</p>
+</div>
+
 <div id="login-overlay" class="login-overlay">
   <div class="login-split">
     <div class="login-split__form">
@@ -513,7 +527,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829p" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829q" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -1175,11 +1189,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829p"></script>
-<script src="js/utils.js?v=20260829p"></script>
-<script src="js/data.js?v=20260829p"></script>
-<script src="js/charts.js?v=20260829p"></script>
-<script src="js/dashboard.js?v=20260829p"></script>
-<script src="js/script.js?v=20260829p"></script>
+<script type="module" src="js/firebase-init.js?v=20260829q"></script>
+<script src="js/utils.js?v=20260829q"></script>
+<script src="js/data.js?v=20260829q"></script>
+<script src="js/charts.js?v=20260829q"></script>
+<script src="js/dashboard.js?v=20260829q"></script>
+<script src="js/script.js?v=20260829q"></script>
 </body>
 </html>
