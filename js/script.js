@@ -195,6 +195,22 @@ const Loading = (() => {
 })();
 
 /* ============================================================
+ * TELA DE BOOT — cobre login + dashboard até o Firebase confirmar a sessão e (se logada) os
+ * dados iniciais terminarem de carregar (ver loadInitialData). Visível por padrão no HTML (sem
+ * precisar de show() no primeiro carregamento da página); showBootOverlay() só é chamada de
+ * novo quando um login recém-enviado dispara Auth.onAuthChange, já que nesse caso o overlay já
+ * tinha sido escondido antes (pra revelar a tela de login em si).
+ * ============================================================ */
+function showBootOverlay() {
+  const el = document.getElementById('boot-overlay');
+  if (el) el.classList.remove('boot-overlay--hidden');
+}
+function hideBootOverlay() {
+  const el = document.getElementById('boot-overlay');
+  if (el) el.classList.add('boot-overlay--hidden');
+}
+
+/* ============================================================
  * CARREGAMENTO / ATUALIZAÇÃO DE DADOS
  * ============================================================ */
 
@@ -400,6 +416,10 @@ async function loadInitialData() {
     );
   } finally {
     Loading.hide();
+    // Só agora (dados carregados OU erro tratado — nunca deixa preso num spinner pra sempre) o
+    // dashboard de verdade fica visível, direto com os números finais, sem o "piscar" de valores
+    // mudando conforme cada fonte terminava de carregar (pedido do usuário, 2026-08-29).
+    hideBootOverlay();
   }
 }
 
@@ -720,11 +740,16 @@ function initLogin() {
       const btnGerenciarUsuarios = document.getElementById('btn-gerenciar-usuarios');
       if (btnGerenciarUsuarios) btnGerenciarUsuarios.hidden = !Dashboard.isSuperAdminAgendamento();
       overlay.classList.add('login-overlay--hidden');
+      // #boot-overlay continua visível (já está, por padrão, ao carregar a página; reforça aqui
+      // pro caso de vir de um login recém-enviado, não de uma sessão já salva) até os dados
+      // iniciais terminarem de carregar — ver hideBootOverlay() em loadInitialData().
+      showBootOverlay();
       bootstrapApp();
     } else {
       Auth.clearUser();
       showView('login');
       overlay.classList.remove('login-overlay--hidden');
+      hideBootOverlay();
     }
   });
 }
