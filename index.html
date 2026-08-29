@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828q">
+<link rel="stylesheet" href="css/style.css?v=20260829a">
 </head>
 <body>
 
@@ -172,8 +172,8 @@
     </div>
 
     <div class="sidebar-section">
-      <details class="sidebar-accordion">
-        <summary>Filtros</summary>
+      <div class="sidebar-accordion sidebar-accordion--fixo">
+        <div class="sidebar-accordion__titulo-fixo">Filtros</div>
         <div class="filters-panel">
         <details class="sidebar-accordion">
           <summary>Período</summary>
@@ -312,7 +312,7 @@
         </details>
 
         </div>
-      </details>
+      </div>
     </div>
 
     <div class="sidebar-section">
@@ -327,10 +327,6 @@
 
     <div class="sidebar-section">
       <div style="display:flex; flex-direction:column; gap:14px;">
-        <div class="filter-field">
-          <label for="filter-busca">Busca rápida</label>
-          <input type="search" id="filter-busca" placeholder="NF, cliente, motorista...">
-        </div>
         <button id="btn-reset-filters" class="btn btn--pill-red btn--block">Limpar filtros</button>
       </div>
     </div>
@@ -471,7 +467,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260828q" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829a" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -990,7 +986,9 @@
           </div>
         </div>
 
-        <div class="table-scroll">
+        <div class="table-scroll-wrapper">
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+          <div class="table-scroll">
           <table class="data-table" id="detail-data-table">
             <thead>
               <tr>
@@ -1012,6 +1010,8 @@
             </thead>
             <tbody id="detail-table-body"></tbody>
           </table>
+          </div>
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
         </div>
 
         <div class="table-footer">
@@ -1050,7 +1050,9 @@
           </div>
         </div>
 
-        <div class="table-scroll">
+        <div class="table-scroll-wrapper">
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+          <div class="table-scroll">
           <table class="data-table" id="pedidos-nao-faturados-table">
             <thead>
               <tr>
@@ -1065,6 +1067,8 @@
             </thead>
             <tbody id="pedidos-nao-faturados-table-body"></tbody>
           </table>
+          </div>
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
         </div>
 
         <div class="table-footer">
@@ -1098,11 +1102,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828q"></script>
-<script src="js/utils.js?v=20260828q"></script>
-<script src="js/data.js?v=20260828q"></script>
-<script src="js/charts.js?v=20260828q"></script>
-<script src="js/dashboard.js?v=20260828q"></script>
-<script src="js/script.js?v=20260828q"></script>
+<script type="module" src="js/firebase-init.js?v=20260829a"></script>
+<script src="js/utils.js?v=20260829a"></script>
+<script src="js/data.js?v=20260829a"></script>
+<script src="js/charts.js?v=20260829a"></script>
+<script src="js/dashboard.js?v=20260829a"></script>
+<script src="js/script.js?v=20260829a"></script>
 </body>
 </html>
