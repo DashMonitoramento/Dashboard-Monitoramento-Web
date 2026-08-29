@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829d">
+<link rel="stylesheet" href="css/style.css?v=20260829e">
 </head>
 <body>
 
@@ -493,7 +493,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829d" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829e" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -555,11 +555,11 @@
       <!-- TABELA -->
       <section class="table-card" id="registros-detalhados" aria-label="Tabela de registros">
         <div class="table-card__header">
-          <div class="table-search">
-            🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
-          </div>
           <div class="table-actions">
             <button id="btn-export-csv" class="btn">⬇️ Exportar Excel</button>
+          </div>
+          <div class="table-search">
+            🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
           </div>
         </div>
 
@@ -905,7 +905,9 @@
             <h3 class="chart-card__title">Detalhamento por pedido</h3>
             <div class="table-search">🔎 <input type="search" id="ltp-table-search" placeholder="Pesquisar na tabela..."></div>
           </div>
-          <div class="table-scroll">
+          <div class="table-scroll-wrapper">
+            <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+            <div class="table-scroll">
             <table class="data-table" id="ltp-table">
               <thead>
                 <tr>
@@ -930,6 +932,8 @@
               </thead>
               <tbody id="ltp-table-body"></tbody>
             </table>
+            </div>
+            <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
           </div>
           <div class="table-footer">
             <span id="ltp-table-info">Nenhum registro</span>
@@ -1138,11 +1142,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829d"></script>
-<script src="js/utils.js?v=20260829d"></script>
-<script src="js/data.js?v=20260829d"></script>
-<script src="js/charts.js?v=20260829d"></script>
-<script src="js/dashboard.js?v=20260829d"></script>
-<script src="js/script.js?v=20260829d"></script>
+<script type="module" src="js/firebase-init.js?v=20260829e"></script>
+<script src="js/utils.js?v=20260829e"></script>
+<script src="js/data.js?v=20260829e"></script>
+<script src="js/charts.js?v=20260829e"></script>
+<script src="js/dashboard.js?v=20260829e"></script>
+<script src="js/script.js?v=20260829e"></script>
 </body>
 </html>
