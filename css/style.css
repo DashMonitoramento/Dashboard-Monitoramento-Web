@@ -799,6 +799,12 @@ ul { list-style: none; margin: 0; padding: 0; }
   flex: 1 1 300px; display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr));
   gap: 8px; align-content: start; min-width: 0;
 }
+/* Quando o total de quadrados é ÍMPAR (hoje: 9, desde que os splits Sem/Com agendamento
+   entraram, 2026-08-29), o último ficaria sozinho numa linha, com a coluna da direita vazia —
+   esse seletor detecta exatamente esse caso (nth-child ímpar E last-child só acontecem juntos
+   quando a contagem total é ímpar) e estica esse último quadrado pra ocupar a linha inteira,
+   sem precisar de JS nem recalcular nada quando a quantidade de quadrados mudar de novo. */
+.agendamento-cards > :nth-child(odd):last-child { grid-column: 1 / -1; }
 /* Pizza desse gráfico específico não precisa mais da altura extra que era reservada pra
    legenda embaixo (removida acima) — fica num tamanho mais discreto, coerente com os
    quadrados menores ao lado. */
