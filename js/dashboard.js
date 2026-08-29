@@ -2103,8 +2103,23 @@ const Dashboard = (() => {
           if (window.Firebase) return resolve(window.Firebase);
           window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
         });
+        // DataStore.applyAgendamentoManual chama notify() por baixo, e o callback global
+        // render() (DataStore.onChange) zera registroDinamicoMesSelecionado/DataSelecionada/
+        // TransportadoraSelecionada incondicionalmente — regra pensada só pro caso "um filtro de
+        // verdade mudou" (comentário em render()), mas que também dispara aqui, sem querer,
+        // porque ambos passam pelo mesmo notify(). Resultado real reportado pela usuária: salvar
+        // a observação "voltava pra tela inicial do Registro Dinâmico". Guarda o que estava
+        // selecionado ANTES de chamar applyAgendamentoManual e restaura logo depois, antes do
+        // nosso próprio render — não mexe em render()/notify() (usado por outras telas também),
+        // só neutraliza o efeito colateral aqui.
+        const mesAntes = registroDinamicoMesSelecionado;
+        const dataAntes = registroDinamicoDataSelecionada;
+        const transportadoraAntes = registroDinamicoTransportadoraSelecionada;
         await fb.salvarObservacaoNota(nf, observacao);
         DataStore.applyAgendamentoManual({ [nf]: { observacao } });
+        registroDinamicoMesSelecionado = mesAntes;
+        registroDinamicoDataSelecionada = dataAntes;
+        registroDinamicoTransportadoraSelecionada = transportadoraAntes;
         Utils.showToast(`NF ${nf}: observação salva.`, 'success', 2500);
         // Fecha o painel de edição depois de salvar (pedido do usuário, 2026-08-29: "continue
         // na mesma tela, apenas suma a opção de editar") — a tabela acima já mostra o texto
@@ -2116,7 +2131,7 @@ const Dashboard = (() => {
         // navegador, não antes (senão ele sobrescreve de novo).
         const scrollYAntes = window.scrollY;
         registroDinamicoObservacaoNf = null;
-        renderRegistroDinamicoDetalhe();
+        renderRegistroDinamico();
         requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollYAntes)));
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao salvar a observação.', 'error', 5000);
