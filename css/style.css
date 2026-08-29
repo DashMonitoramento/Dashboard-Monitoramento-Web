@@ -246,13 +246,17 @@ ul { list-style: none; margin: 0; padding: 0; }
 
 /* "Filtros" (o acordeão mais externo da barra lateral) não recolhe mais — pedido do usuário
    (2026-08-29): fica sempre aberto, sem opção de fechar. Vira uma <div> em vez de <details>
-   (index.html), com um título fixo no lugar do <summary> clicável — mesma aparência visual
-   (mesmo fundo/padding/negrito do summary normal), só sem cursor:pointer nem a setinha ▾, já
-   que não há mais nada pra abrir/fechar. Os acordeões DE DENTRO (Período/Status/Transporte/
-   etc.) continuam <details> normais, recolhíveis como sempre — só o container externo mudou. */
+   (index.html), com um título fixo no lugar do <summary> clicável. Antes tinha o mesmo
+   fundo/padding do summary normal, envolvendo os 8 filtros de dentro num contorno só — pedido
+   do usuário (2026-08-29): tirar esse contorno "por fora", deixar só o nome "FILTROS" solto
+   (mesmo estilo discreto de título das outras seções, .sidebar-section__title), sem caixa
+   nenhuma ao redor dos submenus. Os acordeões DE DENTRO (Período/Status/Transporte/etc.)
+   continuam <details> normais, com sua própria caixinha, como sempre — só o container externo
+   deixou de ter contorno. */
+.sidebar-accordion--fixo { border: none; border-radius: 0; overflow: visible; }
 .sidebar-accordion__titulo-fixo {
-  padding: 9px 12px; font-size: 12.5px; font-weight: 700;
-  color: var(--text-primary); background: var(--surface-alt);
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-secondary); padding: 0; margin-bottom: 12px; background: transparent;
 }
 .sidebar-accordion--fixo > .sidebar-accordion__titulo-fixo + * { margin-top: 0; }
 .sidebar-accordion .filter-field,
