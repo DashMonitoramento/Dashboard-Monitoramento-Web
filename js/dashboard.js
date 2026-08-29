@@ -2724,16 +2724,27 @@ const Dashboard = (() => {
       `Retornou (Devolução/Reentrega/Cancelado): ${Utils.formatNumber(e.devolvidos)}`,
       `% de entrega: ${(e.taxa * 100).toFixed(1)}%`
     ]);
+    // Só a barra "Entregues" — pedido do usuário (2026-08-28): "Devolvidos" foi removida
+    // porque o título do gráfico já é "sem Devolução" (os 15 melhores por taxa de entrega
+    // naturalmente têm 0 ou quase 0 devolvidos, a barra vermelha não aparecia de verdade).
     charts.rankingTransportadorasMelhores.update({
       labels: melhores.map(e => e.name),
       series: [
-        { name: 'Entregues', data: melhores.map(e => e.entregues), color: '#16A34A', tooltipExtra: extraTooltipMelhores },
-        { name: 'Devolvidos', data: melhores.map(e => e.devolvidos), color: '#DC2626', tooltipExtra: extraTooltipMelhores }
+        { name: 'Entregues', data: melhores.map(e => e.entregues), color: '#16A34A', tooltipExtra: extraTooltipMelhores }
       ]
     });
+
+    // Mesmo aviso de tooltip do gráfico "melhores" acima, mas com "Reentregou" no lugar de
+    // "Retornou" (pedido do usuário, 2026-08-28 — ela testou passando o mouse na barra vermelha
+    // desse gráfico especificamente esperando essas mesmas informações extras).
+    const extraTooltipPiores = piores.map(e => [
+      `Saiu para entrega: ${Utils.formatNumber(e.total)}`,
+      `Reentregou (todas as tentativas): ${Utils.formatNumber(e.reentregas)}`,
+      `% de entrega: ${(e.taxa * 100).toFixed(1)}%`
+    ]);
     charts.rankingTransportadorasPiores.update({
       labels: piores.map(e => e.name),
-      series: [{ name: 'Reentregas', data: piores.map(e => e.reentregas), color: '#DC2626' }]
+      series: [{ name: 'Reentregas', data: piores.map(e => e.reentregas), color: '#DC2626', tooltipExtra: extraTooltipPiores }]
     });
   }
 
