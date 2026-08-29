@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829k">
+<link rel="stylesheet" href="css/style.css?v=20260829l">
 </head>
 <body>
 
@@ -508,7 +508,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829k" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829l" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -795,6 +795,20 @@
               <span id="registro-dinamico-detalhe-table-page-label">Página 1 de 1</span>
               <button id="registro-dinamico-detalhe-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
             </div>
+          </div>
+
+          <!-- Edição da observação da nota selecionada (clicar na célula "Observação" na tabela
+               acima) — mesmo modelo visual/Firestore de pedidos-nao-faturados-edicao-section,
+               pedido do usuário (2026-08-29): "ao clicar na coluna Observação, abrir uma tela
+               pra editar e salvar". Editar 1 nota por vez (não a lista inteira) porque o
+               detalhe de um dia/transportadora pode ter muitas notas — mesma razão que já valeu
+               pro Número do Pedido em "Pedidos Aguardando Faturamento". -->
+          <div id="registro-dinamico-observacao-edicao-section" class="detail-agendamento" hidden>
+            <div class="detail-agendamento__header">
+              <h3 class="detail-agendamento__title" id="registro-dinamico-observacao-edicao-titulo">Editar observação</h3>
+              <p class="detail-agendamento__hint" id="registro-dinamico-observacao-edicao-hint"></p>
+            </div>
+            <div class="detail-agendamento__list" id="registro-dinamico-observacao-edicao-list"></div>
           </div>
         </div>
       </section>
@@ -1156,11 +1170,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829k"></script>
-<script src="js/utils.js?v=20260829k"></script>
-<script src="js/data.js?v=20260829k"></script>
-<script src="js/charts.js?v=20260829k"></script>
-<script src="js/dashboard.js?v=20260829k"></script>
-<script src="js/script.js?v=20260829k"></script>
+<script type="module" src="js/firebase-init.js?v=20260829l"></script>
+<script src="js/utils.js?v=20260829l"></script>
+<script src="js/data.js?v=20260829l"></script>
+<script src="js/charts.js?v=20260829l"></script>
+<script src="js/dashboard.js?v=20260829l"></script>
+<script src="js/script.js?v=20260829l"></script>
 </body>
 </html>
