@@ -2410,6 +2410,10 @@ const Dashboard = (() => {
    * cai em "Sem etapa definida" por padrão, mesma regra já usada pras notas (ver
    * AGENDAMENTO_ETAPAS_ESPECIFICAS acima). */
   function categoriaAgendamentoParaPedido(statusAgendamento) {
+    // "Entrega Direta" (novo valor na coluna, 2026-08-29) significa que o pedido NÃO precisa
+    // de agendamento — sai direto. Por isso não conta em nenhuma fatia da pizza (mesma lógica
+    // de necessitaAgendamento:false pras notas normais, que também ficam de fora do gráfico).
+    if (statusAgendamento === 'Entrega Direta') return null;
     if (statusAgendamento === 'Sem Roteiro') return 'Sem etapa definida';
     if (AGENDAMENTO_STATUS_CATEGORIAS.includes(statusAgendamento)) return statusAgendamento;
     return 'Sem etapa definida';
@@ -2446,6 +2450,8 @@ const Dashboard = (() => {
     if (!algumFiltroAtivo()) {
       DataStore.getPedidosNaoFaturados().forEach(p => {
         const categoria = categoriaAgendamentoParaPedido(p.statusAgendamento);
+        // "Entrega Direta" (categoria null) não precisa de agendamento — fica de fora da pizza.
+        if (!categoria) return;
         counts[categoria]++;
         valores[categoria] += p.valorPedido || 0;
         agendamentoPedidosPorCategoria[categoria] = (agendamentoPedidosPorCategoria[categoria] || 0) + 1;
@@ -2498,6 +2504,22 @@ const Dashboard = (() => {
     // Contagem "pelada" (sem sufixo "pedidos"), mesmo modelo dos demais .kpi-card--mini ao
     // lado da pizza (pedido do usuário, 2026-08-28) — o rótulo do card já diz o que conta.
     if (elQtd) elQtd.textContent = Utils.formatNumber(stats.quantidade);
+
+    // Split "Sem agendamento" (Entrega Direta) vs "Com agendamento" (qualquer outro valor da
+    // coluna) — pedido do usuário (2026-08-29), depois que a planilha ganhou o valor "Entrega
+    // Direta": esses pedidos saem direto, sem passar pela etapa de agendamento; os demais
+    // (data real, Aguardando Confirmação, Sem Roteiro) ainda dependem dela.
+    const pedidos = DataStore.getPedidosNaoFaturados();
+    const semAgendamento = pedidos.filter(p => p.statusAgendamento === 'Entrega Direta');
+    const comAgendamento = pedidos.filter(p => p.statusAgendamento !== 'Entrega Direta');
+    const setTile = (prefixo, lista) => {
+      const elQtdSplit = document.getElementById(`${prefixo}-quantidade`);
+      const elValorSplit = document.getElementById(`${prefixo}-valor`);
+      if (elQtdSplit) elQtdSplit.textContent = Utils.formatNumber(lista.length);
+      if (elValorSplit) elValorSplit.textContent = Utils.formatCurrency(Utils.sum(lista, p => p.valorPedido));
+    };
+    setTile('pedidos-nao-faturados-sem-agendamento', semAgendamento);
+    setTile('pedidos-nao-faturados-com-agendamento', comAgendamento);
   }
 
   function rowHtmlPedidosNaoFaturados(p) {
@@ -2633,8 +2655,14 @@ const Dashboard = (() => {
   }
 
   function bindPedidosNaoFaturadosView() {
-    const tile = document.getElementById('tile-pedidos-nao-faturados');
-    if (tile) tile.addEventListener('click', abrirPedidosNaoFaturadosView);
+    // KPI de topo (total combinado) + os 2 quadrados de split (Sem/Com agendamento) dentro da
+    // pizza "Situação de agendamento" — todos abrem a mesma tela (2026-08-29), nenhum deles
+    // filtra por status ainda (ela não pediu isso).
+    ['tile-pedidos-nao-faturados', 'tile-pedidos-nao-faturados-sem-agendamento', 'tile-pedidos-nao-faturados-com-agendamento']
+      .forEach(id => {
+        const tile = document.getElementById(id);
+        if (tile) tile.addEventListener('click', abrirPedidosNaoFaturadosView);
+      });
 
     const botaoVoltar = document.getElementById('btn-back-pedidos-nao-faturados');
     if (botaoVoltar) botaoVoltar.addEventListener('click', fecharPedidosNaoFaturadosView);
