@@ -1409,7 +1409,16 @@ const Dashboard = (() => {
 
   function mesLabelLeadTime(date) { return `${Utils.MONTH_NAMES[date.getMonth()]}/${String(date.getFullYear()).slice(2)}`; }
 
-  function agruparMediaPorMes(itens, campoRegistro, campoCalc) {
+  /** Média mensal de um campo calculado (dias úteis) agrupado pelo mês de outro campo de data.
+   * excluirMesAtual (opcional): descarta o mês corrente (ainda em andamento) do resultado —
+   * usado só em "Dias para faturar por mês" (2026-08-29): o mês corrente sempre tem uma fatia
+   * grande de pedidos criados que AINDA não faturaram (excluídos do cálculo, ver `valor === null`
+   * abaixo) — a média do mês corrente reflete só quem já faturou rápido, então o número
+   * despenca artificialmente conforme o mês avança (confirmado: Ago/26 tinha 49% dos pedidos
+   * criados ainda sem faturamento, contra ~5% em meses fechados — viés clássico de "coorte
+   * imatura"/censura à direita). Não se aplica a "Dias fat.→coleta": ali a espera típica é de
+   * ~1 dia (não semanas), então o mês corrente não sofre o mesmo viés. */
+  function agruparMediaPorMes(itens, campoRegistro, campoCalc, excluirMesAtual = false) {
     const porMes = new Map();
     for (const it of itens) {
       const data = it.r[campoRegistro];
@@ -1419,6 +1428,10 @@ const Dashboard = (() => {
       if (!porMes.has(chave)) porMes.set(chave, { soma: 0, n: 0, label: mesLabelLeadTime(data), ts: new Date(data.getFullYear(), data.getMonth(), 1).getTime() });
       const agg = porMes.get(chave);
       agg.soma += valor; agg.n++;
+    }
+    if (excluirMesAtual) {
+      const hoje = new Date();
+      porMes.delete(`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`);
     }
     const ordenado = [...porMes.values()].sort((a, b) => a.ts - b.ts);
     return { labels: ordenado.map(a => a.label), data: ordenado.map(a => a.n ? +(a.soma / a.n).toFixed(1) : 0) };
@@ -1439,27 +1452,40 @@ const Dashboard = (() => {
     return { labels: ordenado.map(a => a.label), data: ordenado.map(a => a.total ? +(a.noPrazo / a.total * 100).toFixed(1) : 0) };
   }
 
-  /** Top N por dimensão (cliente/motorista/cidade), % dentro do prazo — só entre entregues com
-   * Lead Time cadastrado. Sem mínimo de amostra por dimensão (removido 2026-08-23): com filtro
-   * de período estreito, um mínimo de 3 entregas deixava a lista bem menor que 10 mesmo tendo
-   * mais motoristas/clientes/cidades disponíveis — usuária pediu pra sempre completar até 10
-   * pela ordem de volume, mesmo que a % de 1-2 notas não seja super significativa. */
-  function topNPorDimensaoPercentualPrazo(itens, campoRegistro, n = 10, excluirValor = null) {
+  /** Top N por dimensão (cliente/motorista/cidade), composição em % de todo o volume de
+   * pedidos (não só entregues): dentro do prazo (azul), Reentrega/Cancelado/Devolução (vermelho
+   * — pode ter sido erro do próprio motorista, ver [[project_dashboard_lead_time_report]]) e o
+   * restante (cinza — em trânsito, aguardando faturamento/coleta, sem Lead Time cadastrado
+   * etc.). Cada barra soma 100%. Padrão pedido pelo usuário (2026-08-29) pra qualquer gráfico
+   * futuro com mais de uma informação por barra (ver options.stacked em charts.js).
+   * Sem mínimo de amostra por dimensão (removido 2026-08-23): com filtro de período estreito, um
+   * mínimo de 3 pedidos deixava a lista bem menor que 10 mesmo tendo mais motoristas/clientes/
+   * cidades disponíveis — usuária pediu pra sempre completar até 10 pela ordem de volume. */
+  function composicaoPercentualPorDimensao(itens, campoRegistro, n = 10, excluirValor = null) {
     const porDim = new Map();
     for (const it of itens) {
-      if (!it.r.dataEntregaNF || it.calc.leadTimePrevisto === null) continue;
       const chave = it.r[campoRegistro] || 'Não informado';
       if (excluirValor && excluirValor(chave)) continue;
-      if (!porDim.has(chave)) porDim.set(chave, { noPrazo: 0, total: 0 });
+      if (!porDim.has(chave)) porDim.set(chave, { total: 0, noPrazo: 0, naoEntregue: 0 });
       const agg = porDim.get(chave);
       agg.total++;
       if (it.calc.situacao === 'Entregue no prazo') agg.noPrazo++;
+      else if (it.r.situacao === 'Reentrega' || it.r.situacao === 'Cancelado' || it.r.situacao === 'Devolução') agg.naoEntregue++;
     }
     const lista = [...porDim.entries()]
-      .map(([nome, a]) => ({ nome, pct: a.noPrazo / a.total * 100, total: a.total }))
+      .map(([nome, a]) => {
+        const pctNoPrazo = a.noPrazo / a.total * 100;
+        const pctNaoEntregue = a.naoEntregue / a.total * 100;
+        return { nome, total: a.total, pctNoPrazo, pctNaoEntregue, pctOutros: 100 - pctNoPrazo - pctNaoEntregue };
+      })
       .sort((a, b) => b.total - a.total).slice(0, n)
-      .sort((a, b) => b.pct - a.pct);
-    return { labels: lista.map(l => l.nome), data: lista.map(l => +l.pct.toFixed(1)) };
+      .sort((a, b) => b.pctNoPrazo - a.pctNoPrazo);
+    return {
+      labels: lista.map(l => l.nome),
+      noPrazo: lista.map(l => +l.pctNoPrazo.toFixed(1)),
+      outros: lista.map(l => +l.pctOutros.toFixed(1)),
+      naoEntregue: lista.map(l => +l.pctNaoEntregue.toFixed(1))
+    };
   }
 
   function previstoVsRealizadoPorTransportadora(itens, n = 10) {
@@ -1480,21 +1506,37 @@ const Dashboard = (() => {
   function contarPorSituacaoLeadTime(itens) {
     const contagem = new Map(SITUACAO_LEADTIME_ORDEM.map(s => [s, 0]));
     for (const it of itens) contagem.set(it.calc.situacao, (contagem.get(it.calc.situacao) || 0) + 1);
+    // Pedidos que ainda nem viraram nota fiscal (aba "Pedidos não Faturados (Emissão)") não
+    // aparecem em `itens` (que só cobre registros já com NF, vindos do Bluesoft) — mas na
+    // prática também são pedidos "Aguardando faturamento", e esse volume normalmente é bem
+    // maior que o de NFs emitidas aguardando faturamento. Pedido do usuário (2026-08-29): esse
+    // número precisa contar aqui também, senão o card fica com um total "bem menor" que a
+    // realidade.
+    contagem.set('Aguardando faturamento', contagem.get('Aguardando faturamento') + DataStore.getPedidosNaoFaturados().length);
     return { labels: SITUACAO_LEADTIME_ORDEM, data: SITUACAO_LEADTIME_ORDEM.map(s => contagem.get(s)) };
   }
 
+  /** Filtro próprio do gráfico "Previsto x realizado" (Transportadora/Agregado) — pedido do
+   * usuário (2026-08-29): a mesma categoria já existe no filtro global "Transporte" (tipoTransporte),
+   * mas ela quer poder escolher direto nesse gráfico específico sem afetar o resto do painel. */
+  function renderLtpPrevistoVsRealizado(itens) {
+    const tipo = document.getElementById('ltp-previsto-tipo-transporte')?.value || '';
+    const filtrados = tipo ? itens.filter(it => it.r.tipoTransporte === tipo) : itens;
+    const pvr = previstoVsRealizadoPorTransportadora(filtrados);
+    charts.ltpPrevistoVsRealizado.update({
+      labels: pvr.labels,
+      series: [{ name: 'Previsto', data: pvr.previsto, color: ChartPalette[7] }, { name: 'Realizado', data: pvr.real, color: ChartPalette[0] }]
+    });
+  }
+
   function renderLeadTimePedidosCharts(itens) {
-    const fat = agruparMediaPorMes(itens, 'dataCriacao', 'diasFaturar');
+    const fat = agruparMediaPorMes(itens, 'dataCriacao', 'diasFaturar', true);
     charts.ltpFaturamentoMensal.update({ labels: fat.labels, series: [{ name: 'Dias úteis', data: fat.data, color: ChartPalette[0] }] });
 
     const col = agruparMediaPorMes(itens, 'dataFaturamento', 'diasColeta');
     charts.ltpColetaMensal.update({ labels: col.labels, series: [{ name: 'Dias úteis', data: col.data, color: ChartPalette[1] }] });
 
-    const pvr = previstoVsRealizadoPorTransportadora(itens);
-    charts.ltpPrevistoVsRealizado.update({
-      labels: pvr.labels,
-      series: [{ name: 'Previsto', data: pvr.previsto, color: ChartPalette[7] }, { name: 'Realizado', data: pvr.real, color: ChartPalette[0] }]
-    });
+    renderLtpPrevistoVsRealizado(itens);
 
     const entreguesComLT = itens.filter(it => it.r.dataEntregaNF && it.calc.leadTimePrevisto !== null);
     const noPrazo = entreguesComLT.filter(it => it.calc.situacao === 'Entregue no prazo').length;
@@ -1503,17 +1545,26 @@ const Dashboard = (() => {
     const etapas = contarPorSituacaoLeadTime(itens);
     charts.ltpQtdPorEtapa.update({ labels: etapas.labels, series: [{ name: 'Pedidos', data: etapas.data, color: ChartPalette[4] }] });
 
-    const porCliente = topNPorDimensaoPercentualPrazo(itens, 'cliente');
-    charts.ltpPorCliente.update({ labels: porCliente.labels, series: [{ name: '% dentro do prazo', data: porCliente.data, color: ChartPalette[2] }] });
+    // Composição em %: cada barra soma 100% (dentro do prazo / outros / não entregue) — ver
+    // composicaoPercentualPorDimensao acima. options.stacked faz o charts.js emendar os 3
+    // segmentos numa única barra por linha em vez de sub-barras lado a lado.
+    const seriesComposicao = (comp) => [
+      { name: 'Dentro do prazo', data: comp.noPrazo, color: ChartPalette[1], format: 'percent' },
+      { name: 'Outros', data: comp.outros, color: ChartPalette[7], format: 'percent' },
+      { name: 'Não entregue (Reentrega/Cancelado/Devolução)', data: comp.naoEntregue, color: ChartPalette[3], format: 'percent' }
+    ];
+
+    const porCliente = composicaoPercentualPorDimensao(itens, 'cliente');
+    charts.ltpPorCliente.update({ labels: porCliente.labels, series: seriesComposicao(porCliente), options: { stacked: true } });
 
     // "ROTEIRO..." (ROTEIRO-CARRETA, ROTEIRO-TOCO etc.) não é motorista de verdade, é um código
     // interno de veículo/rota usado em transferências — usuária pediu pra tirar desse ranking
     // (2026-08-23).
-    const porMotorista = topNPorDimensaoPercentualPrazo(itens, 'motorista', 10, (nome) => String(nome).toUpperCase().startsWith('ROTEIRO'));
-    charts.ltpPorMotorista.update({ labels: porMotorista.labels, series: [{ name: '% dentro do prazo', data: porMotorista.data, color: ChartPalette[2] }] });
+    const porMotorista = composicaoPercentualPorDimensao(itens, 'motorista', 10, (nome) => String(nome).toUpperCase().startsWith('ROTEIRO'));
+    charts.ltpPorMotorista.update({ labels: porMotorista.labels, series: seriesComposicao(porMotorista), options: { stacked: true } });
 
-    const porCidade = topNPorDimensaoPercentualPrazo(itens, 'cidade');
-    charts.ltpPorCidade.update({ labels: porCidade.labels, series: [{ name: '% dentro do prazo', data: porCidade.data, color: ChartPalette[2] }] });
+    const porCidade = composicaoPercentualPorDimensao(itens, 'cidade');
+    charts.ltpPorCidade.update({ labels: porCidade.labels, series: seriesComposicao(porCidade), options: { stacked: true } });
 
     const evolucao = agruparPercentualPrazoPorMes(itens);
     charts.ltpEvolucaoCumprimento.update({ labels: evolucao.labels, series: [{ name: '% dentro do Lead Time', data: evolucao.data, color: ChartPalette[2] }] });
@@ -1820,6 +1871,8 @@ const Dashboard = (() => {
       document.getElementById('ltp-filtro-campo-data').value = 'criacao';
       renderLeadTimePedidos();
     });
+
+    document.getElementById('ltp-previsto-tipo-transporte').addEventListener('change', () => renderLtpPrevistoVsRealizado(leadTimePedidosItensFiltrados));
 
     const buscaTabelaDebounced = Utils.debounce((valor) => {
       leadTimePedidosBusca = valor;
