@@ -15,7 +15,7 @@ const Dashboard = (() => {
   const MAIN_TABLE_IDS = {
     tbody: 'table-body', info: 'table-info', pageLabel: 'table-page-label',
     prev: 'table-prev', next: 'table-next', theadSelector: '#data-table thead th[data-field]',
-    colspan: 22 // 14 colunas originais + 8 novas (2026-08-22, ver colunasTabelaPrincipal)
+    colspan: 23 // 15 colunas originais (+ Número do Pedido, 2026-08-29) + 8 novas (ver colunasTabelaPrincipal)
   };
 
   // Tela de detalhe (drill-down ao clicar num card de KPI) — reaproveita o mesmo
@@ -29,14 +29,10 @@ const Dashboard = (() => {
   // 2026-08-17: precisa dar pra pesquisar dentro do recorte do card, ex.: achar uma NF/cliente
   // específico entre as 175 notas de "Aguardando agendamento").
   let detailBusca = '';
-  // Quantos PEDIDOS (não notas) contribuem pra cada categoria de "Situação de agendamento" —
-  // populado por renderAgendamentoChart, lido por renderPedidosHintNoDetalhe (pedido do
-  // usuário, 2026-08-28: sem isso, clicar num card cuja contagem vinha só de pedidos abria
-  // essa tela de notas totalmente vazia, sem explicação nenhuma).
-  let agendamentoPedidosPorCategoria = {};
   const DETAIL_TABLE_IDS = {
     tbody: 'detail-table-body', info: 'detail-table-info', pageLabel: 'detail-table-page-label',
-    prev: 'detail-table-prev', next: 'detail-table-next', theadSelector: '#detail-data-table thead th[data-field]'
+    prev: 'detail-table-prev', next: 'detail-table-next', theadSelector: '#detail-data-table thead th[data-field]',
+    colspan: 15
   };
 
   // "Registro Dinâmico" (2026-08-18): consolida as notas filtradas por Data de Faturamento —
@@ -202,8 +198,9 @@ const Dashboard = (() => {
     'Devolução para Terrinha': 'agendamento-devolucao-terrinha'
   };
 
-  // Sentido inverso do mapa acima (chave da tela de detalhe -> rótulo da categoria) — usado só
-  // por renderPedidosHintNoDetalhe pra achar quantos pedidos contam nessa mesma categoria.
+  // Sentido inverso do mapa acima (chave da tela de detalhe -> rótulo da categoria) — usado por
+  // renderStatusDetail pra achar quais pedidos (Pedidos Aguardando Faturamento) entram na
+  // mesma categoria clicada, ver DETAIL_KEYS_COM_PEDIDOS/pedidoParaRegistroDetalhe.
   const AGENDAMENTO_DETAIL_KEY_PARA_LABEL = Object.fromEntries(
     Object.entries(AGENDAMENTO_LABEL_PARA_DETAIL_KEY).map(([label, key]) => [key, label])
   );
@@ -708,9 +705,6 @@ const Dashboard = (() => {
     });
     document.getElementById('btn-status-diversos').addEventListener('click', () => openStatusDetail('diversos'));
     document.getElementById('btn-back-home').addEventListener('click', closeStatusDetail);
-    // Botão do aviso "+N pedidos também contam aqui" (ver renderPedidosHintNoDetalhe) — leva
-    // direto pra tela "Pedidos Aguardando Faturamento", que já fecha essa tela de detalhe.
-    document.getElementById('btn-detail-ver-pedidos').addEventListener('click', abrirPedidosNaoFaturadosView);
   }
 
   function openStatusDetail(key) {
@@ -738,39 +732,65 @@ const Dashboard = (() => {
 
   /** Recalcula a lista da tela de detalhe a partir dos filtros atuais — chamado ao abrir e
    * de novo sempre que os dados/filtros mudarem enquanto essa tela estiver aberta. */
+  // Chaves de STATUS_DETAIL_DEFS que PEDIDOS (Pedidos Aguardando Faturamento, sem NF ainda)
+  // podem alimentar — mesmas 4 categorias que categoriaAgendamentoParaPedido consegue devolver
+  // (Agendado/Sem etapa definida/Aguardando Confirmação/Okker; um pedido nunca é "Reagendar" nem
+  // "Devolução para Terrinha", ver PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS).
+  const DETAIL_KEYS_COM_PEDIDOS = ['agendamento-agendado', 'aguardando', 'agendamento-aguardando-confirmacao', 'agendamento-okker'];
+
+  /** Converte um pedido (Pedidos Aguardando Faturamento) num "registro" no mesmo formato de uma
+   * nota, pra entrar na MESMA tabela de detalhe via rowHtml() — pedido do usuário (2026-08-29):
+   * antes, clicar num card como "Agendado" só mostrava notas (rawRecords) e um aviso à parte
+   * dizia que pedidos também contavam mas não apareciam ali, com um botão pra uma tela separada
+   * que mostra TODOS os pedidos sem distinguir categoria — na prática misturando "Agendado" com
+   * "Aguardando Confirmação" aos olhos dela. Agora os pedidos da categoria certa entram direto
+   * na lista, com o Número do Pedido visível; campos que não existem pra um pedido ainda sem NF
+   * (Transportadora/Motorista/Status/Prazo/Data coleta) ficam em branco/neutros, sem inventar
+   * dado — uma nota em branco na coluna NF já deixa claro que aquela linha é só um pedido. */
+  function pedidoParaRegistroDetalhe(p) {
+    return {
+      nf: '', cliente: p.cliente, transportadora: '', motorista: '', vendedor: '', cidade: '', uf: '',
+      status: 'Aguardando Faturamento', prazoStatus: 'Não se aplica', situacao: 'Aguardando Faturamento',
+      statusAgendamento: p.statusAgendamento, valorNF: p.valorPedido || 0,
+      dataEntrega: null, dataAgendamento: p.dataAgendamento, observacaoAgendamento: p.observacao,
+      numeroPedido: p.numeroPedido
+    };
+  }
+
   function renderStatusDetail() {
     if (!detailKey) return;
     const def = STATUS_DETAIL_DEFS[detailKey];
     let registros = DataStore.getFilteredRecords().filter(def.test);
+    // Pedidos somam nas MESMAS categorias do gráfico "Situação de agendamento"
+    // (categoriaAgendamentoParaPedido/renderAgendamentoChart) só quando nenhum filtro da barra
+    // lateral está ativo (essa base não tem Transportadora/Status/etc. pra cruzar com eles) —
+    // mesma regra dos cards, pra nunca divergir do que o card mostra.
+    if (DETAIL_KEYS_COM_PEDIDOS.includes(detailKey) && !algumFiltroAtivo()) {
+      const rotulo = AGENDAMENTO_DETAIL_KEY_PARA_LABEL[detailKey];
+      const pedidosDaCategoria = DataStore.getPedidosNaoFaturados()
+        .filter(p => categoriaAgendamentoParaPedido(p.statusAgendamento) === rotulo)
+        .map(pedidoParaRegistroDetalhe);
+      registros = registros.concat(pedidosDaCategoria);
+    }
     if (detailBusca) {
       const needle = detailBusca.toLowerCase();
       registros = registros.filter(r =>
-        `${r.nf} ${r.cliente} ${r.transportadora} ${r.motorista} ${r.vendedor} ${r.cidade} ${r.situacao}`
+        `${r.nf} ${r.cliente} ${r.transportadora} ${r.motorista} ${r.vendedor} ${r.cidade} ${r.situacao} ${r.numeroPedido || ''}`
           .toLowerCase().includes(needle));
     }
     detailRecords = registros;
     document.getElementById('detail-view-title').textContent = `${def.title} (${Utils.formatNumber(detailRecords.length)})`;
     renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS, (r) => rowHtml(r, false));
     renderMotivosBreakdown(detailRecords);
-    renderPedidosHintNoDetalhe(detailKey);
     renderReentregaHintNoDetalhe(detailKey);
-    renderAgendamentoEdicao(detailRecords);
-    renderObservacaoEdicao(detailRecords);
-  }
-
-  /** Aviso "+N pedidos aguardando faturamento também contam nesse total" — pedido do usuário
-   * (2026-08-28), depois que ela viu um card com número > 0 abrir essa tela sem NENHUMA nota
-   * (o card tinha contribuição só de pedidos, que não aparecem nessa tabela — ela só mostra
-   * notas de rawRecords). Só aparece quando a categoria clicada realmente tem pedidos
-   * contribuindo (ver agendamentoPedidosPorCategoria, populado em renderAgendamentoChart). */
-  function renderPedidosHintNoDetalhe(key) {
-    const section = document.getElementById('detail-pedidos-hint-section');
-    const label = AGENDAMENTO_DETAIL_KEY_PARA_LABEL[key];
-    const n = label ? (agendamentoPedidosPorCategoria[label] || 0) : 0;
-    if (!n) { section.hidden = true; return; }
-    section.hidden = false;
-    document.getElementById('detail-pedidos-hint-texto').textContent =
-      `+ ${Utils.formatNumber(n)} pedido${n === 1 ? '' : 's'} aguardando faturamento também ${n === 1 ? 'conta' : 'contam'} nesse total (não aparece${n === 1 ? '' : 'm'} na tabela abaixo, que só mostra notas).`;
+    // Pedido (pseudo-registro com nf === '', ver pedidoParaRegistroDetalhe) NÃO entra aqui —
+    // esse painel edita agendamento de NOTAS via r.nf.split('-')[0] como chave; pedidos têm seu
+    // PRÓPRIO mecanismo de edição (tela "Pedidos Aguardando Faturamento", chave "pedido-<número>"
+    // no Firestore, ver applyAgendamentoManual em data.js). Passar um pedido aqui salvaria
+    // agendamento sob uma chave vazia — por isso o filtro por r.nf antes de repassar adiante.
+    const apenasNotas = detailRecords.filter(r => r.nf);
+    renderAgendamentoEdicao(apenasNotas);
+    renderObservacaoEdicao(apenasNotas);
   }
 
   /** Aviso "o card conta toda tentativa, essa lista mostra só quem está reentrega agora" —
@@ -1019,6 +1039,7 @@ const Dashboard = (() => {
   function tableColumns() {
     return [
       { label: 'NF', value: r => r.nf },
+      { label: 'Número do Pedido', value: r => r.numeroPedido || '—' },
       { label: 'Cliente', value: r => r.cliente },
       { label: 'Transportadora', value: r => r.transportadora },
       { label: 'Motorista', value: r => r.motorista },
@@ -1043,6 +1064,7 @@ const Dashboard = (() => {
   function colunasTabelaPrincipal() {
     return [
       { field: 'nf', label: 'NF', value: r => r.nf },
+      { field: 'numeroPedido', label: 'Número do Pedido', value: r => r.numeroPedido || '—' },
       { field: 'cliente', label: 'Cliente', value: r => r.cliente },
       { field: 'transportadora', label: 'Transportadora', value: r => r.transportadora },
       { field: 'motorista', label: 'Motorista', value: r => r.motorista },
@@ -2499,7 +2521,6 @@ const Dashboard = (() => {
     // com os filtros da barra lateral (ver getPedidosNaoFaturadosStats) — com um filtro ativo,
     // sempre somar os mesmos 469 pedidos (que não encolhem com o filtro) desvirtuaria a leitura
     // do gráfico pro recorte que a usuária escolheu.
-    agendamentoPedidosPorCategoria = {};
     if (!algumFiltroAtivo()) {
       DataStore.getPedidosNaoFaturados().forEach(p => {
         const categoria = categoriaAgendamentoParaPedido(p.statusAgendamento);
@@ -2507,7 +2528,6 @@ const Dashboard = (() => {
         if (!categoria) return;
         counts[categoria]++;
         valores[categoria] += p.valorPedido || 0;
-        agendamentoPedidosPorCategoria[categoria] = (agendamentoPedidosPorCategoria[categoria] || 0) + 1;
       });
     }
     // "Sem etapa definida" continua sendo a CHAVE interna da categoria (counts/valores,
@@ -2958,9 +2978,15 @@ const Dashboard = (() => {
         <td>${escapeAttr(r.numeroPedidoEcommerce || '—')}</td>
         <td>${Utils.formatDate(r.dataFaturamento)}</td>
         <td>${escapeAttr(r.numeroFatura || '—')}</td>`;
+    // Pedido ainda sem nota (ver pedidoParaRegistroDetalhe) chega aqui com nf === '' — mostra
+    // travessão em vez de um botão de canhoto vazio/clicável sem função nenhuma.
+    const nfHtml = r.nf
+      ? `<button type="button" class="nf-link${temCanhoto ? ' nf-link--tem-canhoto' : ''}" data-nf="${escapeAttr(r.nf)}" title="Buscar canhoto de entrega">${escapeAttr(r.nf)}</button>`
+      : '—';
     return `
       <tr>
-        <td><button type="button" class="nf-link${temCanhoto ? ' nf-link--tem-canhoto' : ''}" data-nf="${escapeAttr(r.nf)}" title="Buscar canhoto de entrega">${escapeAttr(r.nf)}</button></td>
+        <td>${nfHtml}</td>
+        <td>${escapeAttr(r.numeroPedido || '—')}</td>
         <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
         <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
