@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829a">
+<link rel="stylesheet" href="css/style.css?v=20260829b">
 </head>
 <body>
 
@@ -347,12 +347,25 @@
     <div class="main-content">
 
       <div id="main-view">
-      <!-- KPIs -->
+      <!-- KPIs — reordenado 2026-08-29 (pedido do usuário): "% Entregas realizadas" deixou de
+           ser card próprio e virou o recorte extra de "Notas entregues" (mesmo modelo de
+           "Em Trânsito" dentro de "Em aberto"); "Em aberto (exige agendamento)" desceu pra
+           2ª linha, à esquerda de "Reentrega"; o card "Pedido Aguard. Faturamento" (antes só
+           um quadrado dentro do gráfico "Situação de agendamento") virou KPI de topo, à
+           direita de "Em aberto (exige agendamento)" — ver renderPedidosNaoFaturadosCard em
+           dashboard.js (mesmo id "tile-pedidos-nao-faturados" do quadrado antigo, só que
+           agora é este card aqui quem recebe o clique). -->
       <section class="kpi-grid" aria-label="Indicadores principais">
-        <article class="kpi-card kpi-card--success kpi-card--clickable" data-detail="entregue" title="Ver notas entregues">
-          <span class="kpi-card__label">Notas entregues</span>
-          <span class="kpi-card__value" id="kpi-entregues-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-entregues">R$ 0,00</span>
+        <article class="kpi-card kpi-card--success kpi-card--clickable kpi-card--com-extra" data-detail="entregue" title="Ver notas entregues">
+          <div class="kpi-card__principal">
+            <span class="kpi-card__label">Notas entregues</span>
+            <span class="kpi-card__value" id="kpi-entregues-count">0</span>
+            <span class="kpi-card__subvalue" id="kpi-valor-entregues">R$ 0,00</span>
+          </div>
+          <div class="kpi-card__extra" title="Percentual de entregas realizadas sobre o total de notas do período filtrado">
+            <span class="kpi-card__extra-label">% Entregas</span>
+            <span class="kpi-card__extra-value" id="kpi-percentual">0%</span>
+          </div>
         </article>
         <article class="kpi-card kpi-card--danger kpi-card--clickable kpi-card--com-extra" data-detail="em-aberto-sem-agendamento" title="Ver notas em aberto sem agendamento">
           <div class="kpi-card__principal">
@@ -366,11 +379,6 @@
             <span class="kpi-card__extra-subvalue" id="kpi-valor-em-transito">R$ 0,00</span>
           </div>
         </article>
-        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto-com-agendamento" title="Ver notas em aberto que exigem agendamento">
-          <span class="kpi-card__label">Em aberto (exige agendamento)</span>
-          <span class="kpi-card__value" id="kpi-abertas-agendamento-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-abertas-agendamento">R$ 0,00</span>
-        </article>
         <article class="kpi-card kpi-card--warning kpi-card--clickable kpi-card--com-extra" data-detail="devolucao" title="Ver notas em devolução">
           <div class="kpi-card__principal">
             <span class="kpi-card__label">Devolução</span>
@@ -383,6 +391,21 @@
             <span class="kpi-card__extra-subvalue" id="kpi-valor-cancelado">R$ 0,00</span>
           </div>
         </article>
+        <article class="kpi-card kpi-card--primary" title="Total de notas distintas, independente do status — cada NF conta uma vez só, mesmo com reentregas">
+          <span class="kpi-card__label">Total geral de notas</span>
+          <span class="kpi-card__value" id="kpi-total-notas">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-total-notas">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto-com-agendamento" title="Ver notas em aberto que exigem agendamento">
+          <span class="kpi-card__label">Em aberto (exige agendamento)</span>
+          <span class="kpi-card__value" id="kpi-abertas-agendamento-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-abertas-agendamento">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--secondary kpi-card--clickable" id="tile-pedidos-nao-faturados" title="Ver pedidos aguardando faturamento">
+          <span class="kpi-card__label">Pedido Aguard. Faturamento</span>
+          <span class="kpi-card__value" id="pedidos-nao-faturados-quantidade">0</span>
+          <span class="kpi-card__subvalue" id="pedidos-nao-faturados-valor">R$ 0,00</span>
+        </article>
         <article class="kpi-card kpi-card--secondary kpi-card--clickable" data-detail="reentrega" title="Ver notas em reentrega">
           <span class="kpi-card__label">Reentrega</span>
           <span class="kpi-card__value" id="kpi-reentrega-count">0</span>
@@ -392,15 +415,6 @@
           <span class="kpi-card__label">Aguardando agendamento</span>
           <span class="kpi-card__value" id="kpi-aguardando-count">0</span>
           <span class="kpi-card__subvalue" id="kpi-valor-aguardando">R$ 0,00</span>
-        </article>
-        <article class="kpi-card kpi-card--secondary">
-          <span class="kpi-card__label">% Entregas realizadas</span>
-          <span class="kpi-card__value" id="kpi-percentual">0%</span>
-        </article>
-        <article class="kpi-card kpi-card--primary" title="Total de notas distintas, independente do status — cada NF conta uma vez só, mesmo com reentregas">
-          <span class="kpi-card__label">Total geral de notas</span>
-          <span class="kpi-card__value" id="kpi-total-notas">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-total-notas">R$ 0,00</span>
         </article>
       </section>
 
@@ -457,17 +471,29 @@
                 <span class="kpi-card__value" id="aguardando-agendamento-quantidade">0</span>
                 <span class="kpi-card__subvalue" id="aguardando-agendamento-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-pedidos-nao-faturados" style="--kpi-accent:#0EA5E9" title="Ver pedidos aguardando faturamento">
-                <span class="kpi-card__label">Pedidos Aguard. Faturamento</span>
-                <span class="kpi-card__value" id="pedidos-nao-faturados-quantidade">0</span>
-                <span class="kpi-card__subvalue" id="pedidos-nao-faturados-valor">R$ 0,00</span>
+              <!-- Split "Pedidos Aguardando Faturamento" em Sem/Com agendamento (pedido do
+                   usuário, 2026-08-29) — a planilha ganhou o valor "Entrega Direta" na coluna
+                   "Data agendamento" (aba "Pedido Não Faturados (Emissão)"): pedidos assim
+                   saem direto, sem precisar de agendamento; qualquer outro valor (data real,
+                   Aguardando Confirmação, Sem Roteiro) significa que ainda depende de
+                   agendamento. Substituem o quadrado único de antes (o total combinado virou
+                   o KPI "Pedido Aguard. Faturamento" lá no topo, ver kpi-grid acima). -->
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-pedidos-nao-faturados-sem-agendamento" style="--kpi-accent:#0EA5E9" title="Ver pedidos aguardando faturamento">
+                <span class="kpi-card__label">Pedidos Aguard. Fatur. S/ Agendamento</span>
+                <span class="kpi-card__value" id="pedidos-nao-faturados-sem-agendamento-quantidade">0</span>
+                <span class="kpi-card__subvalue" id="pedidos-nao-faturados-sem-agendamento-valor">R$ 0,00</span>
+              </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-pedidos-nao-faturados-com-agendamento" style="--kpi-accent:#0EA5E9" title="Ver pedidos aguardando faturamento">
+                <span class="kpi-card__label">Pedidos Aguard. Fatur. C/ Agendamento</span>
+                <span class="kpi-card__value" id="pedidos-nao-faturados-com-agendamento-quantidade">0</span>
+                <span class="kpi-card__subvalue" id="pedidos-nao-faturados-com-agendamento-valor">R$ 0,00</span>
               </article>
             </div>
           </div>
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829a" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829b" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -1102,11 +1128,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829a"></script>
-<script src="js/utils.js?v=20260829a"></script>
-<script src="js/data.js?v=20260829a"></script>
-<script src="js/charts.js?v=20260829a"></script>
-<script src="js/dashboard.js?v=20260829a"></script>
-<script src="js/script.js?v=20260829a"></script>
+<script type="module" src="js/firebase-init.js?v=20260829b"></script>
+<script src="js/utils.js?v=20260829b"></script>
+<script src="js/data.js?v=20260829b"></script>
+<script src="js/charts.js?v=20260829b"></script>
+<script src="js/dashboard.js?v=20260829b"></script>
+<script src="js/script.js?v=20260829b"></script>
 </body>
 </html>
