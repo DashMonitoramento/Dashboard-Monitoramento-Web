@@ -80,6 +80,11 @@ const Dashboard = (() => {
   // usuário (2026-08-28): clicar no Número do Pedido abre a edição, igual à de "Aguardando
   // agendamento", só que pra um pedido só por vez (não a lista inteira de uma vez).
   let pedidoSelecionadoParaEdicao = null;
+  // Qual dos 2 quadrados de split (dentro de "Situação de agendamento") abriu essa tela — null
+  // quando veio do card combinado do topo (mostra tudo). Pedido do usuário (2026-08-29): antes
+  // os 3 gatilhos (card combinado + os 2 quadrados) abriam a MESMA lista completa, sem filtro
+  // nenhum — "S/ Agendamento" precisa mostrar só quem é "Entrega Direta" de verdade.
+  let pedidosNaoFaturadosCategoria = null;
 
   // "Lead Time de Pedidos e Entregas" (2026-08-23) — painel próprio, com filtros e busca de
   // tabela independentes dos filtros globais da barra lateral (ver comentário em
@@ -2622,9 +2627,16 @@ const Dashboard = (() => {
   }
 
   /** Busca própria dessa tela (mesmo padrão da busca do status-detail-view) — não reage aos
-   * filtros da barra lateral (ver comentário em getPedidosNaoFaturadosStats, data.js). */
+   * filtros da barra lateral (ver comentário em getPedidosNaoFaturadosStats, data.js). Aplica
+   * primeiro o filtro de categoria (qual quadrado abriu a tela, ver pedidosNaoFaturadosCategoria)
+   * — mesmo critério exato do card, pra nunca divergir dele. */
   function pedidosNaoFaturadosFiltrados() {
-    const lista = DataStore.getPedidosNaoFaturados();
+    let lista = DataStore.getPedidosNaoFaturados();
+    if (pedidosNaoFaturadosCategoria === 'sem-agendamento') {
+      lista = lista.filter(p => p.statusAgendamento === 'Entrega Direta');
+    } else if (pedidosNaoFaturadosCategoria === 'com-agendamento') {
+      lista = lista.filter(p => p.statusAgendamento !== 'Entrega Direta');
+    }
     if (!pedidosNaoFaturadosBusca) return lista;
     const termo = pedidosNaoFaturadosBusca.toLowerCase();
     return lista.filter(p =>
@@ -2634,28 +2646,43 @@ const Dashboard = (() => {
     );
   }
 
+  const PEDIDOS_NAO_FATURADOS_TITULO_POR_CATEGORIA = {
+    'sem-agendamento': 'Pedidos Aguard. Faturamento — S/ Agendamento (Entrega Direta)',
+    'com-agendamento': 'Pedidos Aguard. Faturamento — C/ Agendamento'
+  };
+
   /** No-op se a tela não estiver visível — mesmo padrão de renderRegistroDinamico/renderLeadTime. */
   function renderPedidosNaoFaturadosView() {
     const view = document.getElementById('pedidos-nao-faturados-view');
     if (!view || view.hidden) return;
-    renderTableGeneric(pedidosNaoFaturadosFiltrados(), pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS, rowHtmlPedidosNaoFaturados);
+    const registros = pedidosNaoFaturadosFiltrados();
+    const titulo = document.getElementById('pedidos-nao-faturados-titulo');
+    if (titulo) {
+      const base = PEDIDOS_NAO_FATURADOS_TITULO_POR_CATEGORIA[pedidosNaoFaturadosCategoria] || 'Pedidos Aguardando Faturamento';
+      titulo.textContent = `${base} (${Utils.formatNumber(registros.length)})`;
+    }
+    renderTableGeneric(registros, pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS, rowHtmlPedidosNaoFaturados);
   }
 
   /** Abre a tela de detalhe (mesmo "jeito" do status-detail-view, pedido do usuário
    * 2026-08-28) — fecha qualquer outra tela alternativa aberta antes, pra nunca ter duas
-   * visíveis ao mesmo tempo (mesma exclusividade mútua de mostrarViewMapaRegioes/openStatusDetail). */
-  function abrirPedidosNaoFaturadosView() {
+   * visíveis ao mesmo tempo (mesma exclusividade mútua de mostrarViewMapaRegioes/openStatusDetail).
+   * `categoria` (opcional): 'sem-agendamento'/'com-agendamento' quando veio de um dos 2
+   * quadrados de split, ou null/undefined quando veio do card combinado do topo (mostra tudo) —
+   * ver pedidosNaoFaturadosFiltrados/PEDIDOS_NAO_FATURADOS_TITULO_POR_CATEGORIA. */
+  function abrirPedidosNaoFaturadosView(categoria = null) {
     closeStatusDetail();
     mostrarViewMapaRegioes('registros');
+    pedidosNaoFaturadosCategoria = categoria;
     pedidosNaoFaturadosTable.page = 1;
     pedidosNaoFaturadosBusca = '';
     pedidoSelecionadoParaEdicao = null;
     const buscaInput = document.getElementById('pedidos-nao-faturados-table-search');
     if (buscaInput) buscaInput.value = '';
-    renderTableGeneric(pedidosNaoFaturadosFiltrados(), pedidosNaoFaturadosTable, PEDIDOS_NAO_FATURADOS_TABLE_IDS, rowHtmlPedidosNaoFaturados);
-    renderPedidosNaoFaturadosEdicao();
     document.getElementById('main-view').hidden = true;
     document.getElementById('pedidos-nao-faturados-view').hidden = false;
+    renderPedidosNaoFaturadosView();
+    renderPedidosNaoFaturadosEdicao();
     atualizarBotaoIrInicio();
   }
 
@@ -2733,14 +2760,19 @@ const Dashboard = (() => {
   }
 
   function bindPedidosNaoFaturadosView() {
-    // KPI de topo (total combinado) + os 2 quadrados de split (Sem/Com agendamento) dentro da
-    // pizza "Situação de agendamento" — todos abrem a mesma tela (2026-08-29), nenhum deles
-    // filtra por status ainda (ela não pediu isso).
-    ['tile-pedidos-nao-faturados', 'tile-pedidos-nao-faturados-sem-agendamento', 'tile-pedidos-nao-faturados-com-agendamento']
-      .forEach(id => {
-        const tile = document.getElementById(id);
-        if (tile) tile.addEventListener('click', abrirPedidosNaoFaturadosView);
-      });
+    // KPI de topo (total combinado) abre tudo; os 2 quadrados de split (Sem/Com agendamento,
+    // dentro da pizza "Situação de agendamento") agora filtram pra mostrar só a categoria
+    // certa — pedido do usuário (2026-08-29): "S/ Agendamento" tem que mostrar só "Entrega
+    // Direta", não a lista inteira.
+    const gatilhos = {
+      'tile-pedidos-nao-faturados': null,
+      'tile-pedidos-nao-faturados-sem-agendamento': 'sem-agendamento',
+      'tile-pedidos-nao-faturados-com-agendamento': 'com-agendamento'
+    };
+    Object.entries(gatilhos).forEach(([id, categoria]) => {
+      const tile = document.getElementById(id);
+      if (tile) tile.addEventListener('click', () => abrirPedidosNaoFaturadosView(categoria));
+    });
 
     const botaoVoltar = document.getElementById('btn-back-pedidos-nao-faturados');
     if (botaoVoltar) botaoVoltar.addEventListener('click', fecharPedidosNaoFaturadosView);
