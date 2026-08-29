@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828k">
+<link rel="stylesheet" href="css/style.css?v=20260828l">
 </head>
 <body>
 
@@ -471,7 +471,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260828k" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260828l" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -948,6 +948,16 @@
           <button type="button" id="btn-detail-ver-pedidos" class="btn">Ver Pedidos Aguardando Faturamento</button>
         </div>
 
+        <!-- Aviso "o card conta toda tentativa, essa lista mostra só quem está reentrega agora"
+             — pedido do usuário (2026-08-28): o card "Reentrega" passou a contar TODA VEZ que
+             uma nota passou por reentrega (mesmo já tendo sido entregue/resolvida depois), não
+             só quem está reentrega no momento — então o número do card pode ser maior que a
+             lista abaixo (ver renderReentregaHintNoDetalhe em dashboard.js). Só aparece na tela
+             "Reentrega" quando essa diferença existir. -->
+        <div id="detail-reentrega-hint-section" class="detail-pedidos-hint" hidden>
+          <span id="detail-reentrega-hint-texto"></span>
+        </div>
+
         <!-- Agendamento manual: só aparece na tela "Aguardando agendamento". Data e situação
              de agendamento digitadas direto aqui (Firestore) — edição só pro usuário admin
              configurado em dashboard.js; os demais veem só leitura. -->
@@ -1088,11 +1098,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828k"></script>
-<script src="js/utils.js?v=20260828k"></script>
-<script src="js/data.js?v=20260828k"></script>
-<script src="js/charts.js?v=20260828k"></script>
-<script src="js/dashboard.js?v=20260828k"></script>
-<script src="js/script.js?v=20260828k"></script>
+<script type="module" src="js/firebase-init.js?v=20260828l"></script>
+<script src="js/utils.js?v=20260828l"></script>
+<script src="js/data.js?v=20260828l"></script>
+<script src="js/charts.js?v=20260828l"></script>
+<script src="js/dashboard.js?v=20260828l"></script>
+<script src="js/script.js?v=20260828l"></script>
 </body>
 </html>
