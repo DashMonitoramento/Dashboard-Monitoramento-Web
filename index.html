@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828j">
+<link rel="stylesheet" href="css/style.css?v=20260828k">
 </head>
 <body>
 
@@ -471,7 +471,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260828j" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260828k" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -937,6 +937,17 @@
           <div class="detail-motivos__list" id="detail-motivos-list"></div>
         </div>
 
+        <!-- Aviso "tem pedidos que também contam nesse total" — pedido do usuário (2026-08-28):
+             antes, clicar num card cuja contagem incluía Pedidos Aguardando Faturamento podia
+             abrir essa tela SEM NENHUMA nota (o card tinha contribuição só de pedidos, que não
+             aparecem nessa tabela de notas) sem nenhuma explicação. Só aparece quando a
+             categoria clicada realmente tem pedidos contribuindo (ver
+             agendamentoPedidosPorCategoria/renderPedidosHintNoDetalhe em dashboard.js). -->
+        <div id="detail-pedidos-hint-section" class="detail-pedidos-hint" hidden>
+          <span id="detail-pedidos-hint-texto"></span>
+          <button type="button" id="btn-detail-ver-pedidos" class="btn">Ver Pedidos Aguardando Faturamento</button>
+        </div>
+
         <!-- Agendamento manual: só aparece na tela "Aguardando agendamento". Data e situação
              de agendamento digitadas direto aqui (Firestore) — edição só pro usuário admin
              configurado em dashboard.js; os demais veem só leitura. -->
@@ -1077,11 +1088,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828j"></script>
-<script src="js/utils.js?v=20260828j"></script>
-<script src="js/data.js?v=20260828j"></script>
-<script src="js/charts.js?v=20260828j"></script>
-<script src="js/dashboard.js?v=20260828j"></script>
-<script src="js/script.js?v=20260828j"></script>
+<script type="module" src="js/firebase-init.js?v=20260828k"></script>
+<script src="js/utils.js?v=20260828k"></script>
+<script src="js/data.js?v=20260828k"></script>
+<script src="js/charts.js?v=20260828k"></script>
+<script src="js/dashboard.js?v=20260828k"></script>
+<script src="js/script.js?v=20260828k"></script>
 </body>
 </html>
