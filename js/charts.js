@@ -328,6 +328,10 @@ class DashChart {
         const value = s.data[i] || 0;
         const ratio = value / maxValue;
         const color = s.color;
+        // Linhas extras opcionais no tooltip (ex.: "Ranking de entregas sem Devolução" mostra
+        // total saído + % de entrega, além do valor da própria barra) — série que não define
+        // tooltipExtra fica com o tooltip simples de sempre (só "série: valor").
+        const extra = s.tooltipExtra ? s.tooltipExtra[i] : null;
 
         if (horizontal) {
           const y = padding.top + i * groupSize + barGap / 2 + si * barWidth;
@@ -335,7 +339,7 @@ class DashChart {
           const x = padding.left;
           const h = barWidth * innerBarRatio;
           this._roundRect(ctx, x, y, w, h, 4, color);
-          this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name });
+          this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name, extra });
           this._drawValueInsideBar(ctx, x, y, w, h, value, true);
         } else {
           const x = padding.left + i * groupSize + barGap / 2 + si * barWidth;
@@ -343,7 +347,7 @@ class DashChart {
           const y = padding.top + plotH - h;
           const w = barWidth * innerBarRatio;
           this._roundRect(ctx, x, y, w, h, 4, color);
-          this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name });
+          this._hitboxes.push({ x, y, w, h, label, value, color, series: s.name, extra });
           this._drawValueInsideBar(ctx, x, y, w, h, value, false);
         }
       });
@@ -730,7 +734,13 @@ class DashChart {
 
     if (this.type === 'bar' || this.type === 'hbar') {
       found = (this._hitboxes || []).find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
-      if (found) found = { label: found.label, lines: [`${found.series}: ${this._fmt(found.value)}`], color: found.color };
+      if (found) {
+        found = {
+          label: found.label,
+          lines: [`${found.series}: ${this._fmt(found.value)}`, ...(found.extra || [])],
+          color: found.color
+        };
+      }
     } else if (this.type === 'line' || this.type === 'area') {
       const near = (this._points || []).find(p => Math.hypot(p.x - x, p.y - y) < 10);
       if (near) found = { label: near.label, lines: [`${near.series}: ${this._fmt(near.value, near.format)}`], color: near.color };
