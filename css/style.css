@@ -216,6 +216,18 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 .sidebar-accordion[open] summary::after { transform: rotate(180deg); }
 .sidebar-accordion > summary + * { margin-top: 0; }
+
+/* "Filtros" (o acordeão mais externo da barra lateral) não recolhe mais — pedido do usuário
+   (2026-08-29): fica sempre aberto, sem opção de fechar. Vira uma <div> em vez de <details>
+   (index.html), com um título fixo no lugar do <summary> clicável — mesma aparência visual
+   (mesmo fundo/padding/negrito do summary normal), só sem cursor:pointer nem a setinha ▾, já
+   que não há mais nada pra abrir/fechar. Os acordeões DE DENTRO (Período/Status/Transporte/
+   etc.) continuam <details> normais, recolhíveis como sempre — só o container externo mudou. */
+.sidebar-accordion__titulo-fixo {
+  padding: 9px 12px; font-size: 12.5px; font-weight: 700;
+  color: var(--text-primary); background: var(--surface-alt);
+}
+.sidebar-accordion--fixo > .sidebar-accordion__titulo-fixo + * { margin-top: 0; }
 .sidebar-accordion .filter-field,
 .sidebar-accordion .filter-row { margin: 10px 10px 10px; }
 .sidebar-accordion .filter-field:last-child,
@@ -382,19 +394,6 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 .btn-scroll-tabela[hidden] { display: none; }
 
-/* Cinza neutro em repouso (decisão do usuário, 2026-08-23; era laranja) + ícone de lupa
-   embutido (mesmo símbolo 🔎 já usado em ".table-search", só que via SVG em background porque
-   esse campo não tem um wrapper próprio pro emoji). ".is-filled" (JS, quando tem texto
-   digitado) continua verde — não foi pedido pra mudar isso. */
-#filter-busca {
-  border-width: 2px; border-color: var(--color-neutral); box-shadow: 0 0 6px rgba(100,116,139,.35);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: 10px center;
-  padding-left: 34px;
-  transition: border-color var(--transition), box-shadow var(--transition);
-}
-
 .filter-checkbox-list {
   display: flex; flex-direction: column; gap: 6px;
   max-height: 220px; overflow-y: auto; padding-right: 4px;
@@ -412,10 +411,6 @@ ul { list-style: none; margin: 0; padding: 0; }
   position: sticky; top: 0; background: var(--surface); z-index: 1;
   padding-bottom: 6px; margin-bottom: 2px; border-bottom: 1px solid var(--border);
 }
-#filter-busca.is-filled {
-  border-color: var(--color-success); box-shadow: 0 0 8px rgba(22,163,74,.55);
-}
-
 #ranking-dimension {
   border-width: 2px; border-color: var(--color-orange); box-shadow: 0 0 6px rgba(255,122,26,.45);
   font-weight: 700;
@@ -911,6 +906,24 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* Card com altura travada e rolagem própria (vertical + horizontal) — assim a tabela não
    empurra a paginação pra fora da tela quando tem muita linha por página. */
 .table-scroll { overflow: auto; max-height: 640px; }
+
+/* Setas de rolagem horizontal nas telas de detalhe que abrem ao clicar num card (pedido do
+   usuário, 2026-08-29) — os botões ficam FORA do .table-scroll (irmãos dele dentro do
+   wrapper), não dentro, de propósito: se estivessem dentro do container com overflow, eles
+   rolariam junto com o conteúdo (vertical E horizontalmente) em vez de ficarem fixos nas
+   bordas da área da tabela. */
+.table-scroll-wrapper { position: relative; }
+.table-scroll-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-primary); font-size: 18px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
+  box-shadow: var(--shadow-md); opacity: .9; transition: opacity var(--transition), background var(--transition);
+}
+.table-scroll-arrow:hover { opacity: 1; background: var(--surface-alt); }
+.table-scroll-arrow--left { left: 4px; }
+.table-scroll-arrow--right { right: 4px; }
+.table-scroll-arrow[disabled] { opacity: .25; cursor: default; }
 table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table thead th {
   position: sticky; top: 0; background: var(--surface); z-index: 1;
