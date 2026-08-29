@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260828h">
+<link rel="stylesheet" href="css/style.css?v=20260828i">
 </head>
 <body>
 
@@ -471,7 +471,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260828h" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260828i" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -1007,7 +1007,8 @@
            Mesmo "jeito" visual do status-detail-view acima (cabeçalho com voltar + título,
            busca, tabela paginável) — mas é uma seção própria, não reaproveita aquela tabela:
            os dados vêm de pedidosNaoFaturados (data.js), que não tem NF/Transportadora/Status
-           — só Número do Pedido/Cliente/Grupo Econômico/Data Emissão/Valor/Qtde. ============ -->
+           — só Número do Pedido/Cliente/Grupo Econômico/Data Emissão/Valor/Qtde/Situação de
+           Agendamento (esta última vinda da coluna "Data Agendamento" da planilha, 2026-08-28). ============ -->
       <section id="pedidos-nao-faturados-view" class="table-card" aria-label="Pedidos aguardando faturamento" hidden>
         <div class="status-detail-view__header">
           <button id="btn-back-pedidos-nao-faturados" class="btn-back-home" title="Voltar ao início" aria-label="Voltar ao início">
@@ -1038,6 +1039,7 @@
                 <th data-field="dataEmissao">Data Emissão</th>
                 <th data-field="valorPedido" class="text-right">Valor Pedido</th>
                 <th data-field="qtdePedido" class="text-right">Qtde (CXS)</th>
+                <th data-field="statusAgendamento">Situação Agendamento</th>
               </tr>
             </thead>
             <tbody id="pedidos-nao-faturados-table-body"></tbody>
@@ -1075,11 +1077,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260828h"></script>
-<script src="js/utils.js?v=20260828h"></script>
-<script src="js/data.js?v=20260828h"></script>
-<script src="js/charts.js?v=20260828h"></script>
-<script src="js/dashboard.js?v=20260828h"></script>
-<script src="js/script.js?v=20260828h"></script>
+<script type="module" src="js/firebase-init.js?v=20260828i"></script>
+<script src="js/utils.js?v=20260828i"></script>
+<script src="js/data.js?v=20260828i"></script>
+<script src="js/charts.js?v=20260828i"></script>
+<script src="js/dashboard.js?v=20260828i"></script>
+<script src="js/script.js?v=20260828i"></script>
 </body>
 </html>
