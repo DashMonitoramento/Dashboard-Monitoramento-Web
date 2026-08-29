@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829e">
+<link rel="stylesheet" href="css/style.css?v=20260829f">
 </head>
 <body>
 
@@ -167,7 +167,7 @@
     <div class="sidebar-section">
       <div class="sidebar-section__title">Fonte de dados</div>
       <div style="display:flex; flex-direction:column; gap:8px;">
-        <button id="btn-refresh-data" class="btn btn--ghost btn--block">🔄 Atualizar dados</button>
+        <button id="btn-refresh-data" class="btn btn--ghost btn--block" title="Atualizar dados">🔄 <span class="nav-label">Atualizar dados</span></button>
       </div>
     </div>
 
@@ -176,7 +176,7 @@
         <div class="sidebar-accordion__titulo-fixo">Filtros</div>
         <div class="filters-panel">
         <details class="sidebar-accordion">
-          <summary>Período</summary>
+          <summary title="Período"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></span><span class="nav-label">Período</span></summary>
           <div class="filter-field">
             <label for="filter-data-inicio">Data início</label>
             <input type="date" id="filter-data-inicio" class="filter-field__date">
@@ -204,7 +204,7 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Status</summary>
+          <summary title="Status"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg></span><span class="nav-label">Status</span></summary>
           <div class="filter-field">
             <div class="filter-checkbox-list" id="filter-status-list">
               <label class="filter-checkbox filter-checkbox--todos"><input type="checkbox" class="filter-checkbox__todos"> <strong>Selecionar todos</strong></label>
@@ -228,7 +228,7 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Agendamento</summary>
+          <summary title="Agendamento"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><path d="M9 15l2 2 4-4"></path></svg></span><span class="nav-label">Agendamento</span></summary>
           <div class="filter-field">
             <div class="filter-checkbox-list" id="filter-agendamento-list">
               <label class="filter-checkbox filter-checkbox--todos"><input type="checkbox" class="filter-checkbox__todos"> <strong>Selecionar todos</strong></label>
@@ -239,7 +239,7 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Transporte</summary>
+          <summary title="Transporte"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="7" width="13" height="10"></rect><path d="M14 10h4l3 3v4h-7z"></path><circle cx="5.5" cy="18.5" r="1.8"></circle><circle cx="16.5" cy="18.5" r="1.8"></circle></svg></span><span class="nav-label">Transporte</span></summary>
           <div class="filter-field">
             <label>Categoria</label>
             <details class="sidebar-subaccordion">
@@ -274,7 +274,7 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Cliente</summary>
+          <summary title="Cliente"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span><span class="nav-label">Cliente</span></summary>
           <div class="filter-field">
             <label>Cliente</label>
             <input type="search" id="filter-cliente-busca" class="filter-checkbox-search" placeholder="Pesquisar cliente...">
@@ -283,7 +283,7 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Cidade</summary>
+          <summary title="Cidade"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></span><span class="nav-label">Cidade</span></summary>
           <div class="filter-field">
             <label>Cidade</label>
             <input type="search" id="filter-cidade-busca" class="filter-checkbox-search" placeholder="Pesquisar cidade...">
@@ -292,7 +292,7 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Vendedor</summary>
+          <summary title="Vendedor"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg></span><span class="nav-label">Vendedor</span></summary>
           <div class="filter-field">
             <label>Vendedor(a)</label>
             <input type="search" id="filter-vendedor-busca" class="filter-checkbox-search" placeholder="Pesquisar vendedor...">
@@ -304,7 +304,7 @@
         </details>
 
         <details class="sidebar-accordion">
-          <summary>Região Comercial</summary>
+          <summary title="Região Comercial"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z"></path></svg></span><span class="nav-label">Região Comercial</span></summary>
           <div class="filter-field">
             <label>Região</label>
             <div class="filter-checkbox-list" id="filter-regiao-comercial-list"></div>
@@ -316,28 +316,43 @@
     </div>
 
     <div class="sidebar-section">
-      <div class="sidebar-section__title">Central de Dados</div>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--ativo" data-view="registros">📋 Registros detalhados</button>
-        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="mapa">🗺️ Análise por Região</button>
-        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="dinamico">📊 Registro Dinâmico</button>
-        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="leadtime-pedidos">📈 Lead Time de Pedidos e Entregas</button>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <button id="btn-reset-filters" class="btn btn--pill-red btn--block" title="Limpar filtros">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></span>
+          <span class="nav-label">Limpar filtros</span>
+        </button>
       </div>
     </div>
 
     <div class="sidebar-section">
-      <div style="display:flex; flex-direction:column; gap:14px;">
-        <button id="btn-reset-filters" class="btn btn--pill-red btn--block">Limpar filtros</button>
+      <div class="sidebar-section__title">Central de Dados</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--ativo" data-view="registros" title="Registros detalhados">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="14 3 14 9 20 9"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg></span>
+          <span class="nav-label">Registros detalhados</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="mapa" title="Análise por Região">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg></span>
+          <span class="nav-label">Análise por Região</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="dinamico" title="Registro Dinâmico">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg></span>
+          <span class="nav-label">Registro Dinâmico</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="leadtime-pedidos" title="Lead Time de Pedidos e Entregas">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></span>
+          <span class="nav-label">Lead Time de Pedidos e Entregas</span>
+        </button>
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-section__title">Legenda de status</div>
       <ul class="legend-status">
-        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-success)"></span>Entregue</li>
-        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-warning)"></span>No Prazo</li>
-        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-danger)"></span>Pendente / ATRASADO</li>
-        <li class="legend-status__item"><span class="legend-status__dot" style="background:var(--color-neutral)"></span>Sem informação</li>
+        <li class="legend-status__item" title="Entregue"><span class="legend-status__dot" style="background:var(--color-success)"></span><span class="nav-label">Entregue</span></li>
+        <li class="legend-status__item" title="No Prazo"><span class="legend-status__dot" style="background:var(--color-warning)"></span><span class="nav-label">No Prazo</span></li>
+        <li class="legend-status__item" title="Pendente / ATRASADO"><span class="legend-status__dot" style="background:var(--color-danger)"></span><span class="nav-label">Pendente / ATRASADO</span></li>
+        <li class="legend-status__item" title="Sem informação"><span class="legend-status__dot" style="background:var(--color-neutral)"></span><span class="nav-label">Sem informação</span></li>
       </ul>
     </div>
   </nav>
@@ -493,7 +508,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829e" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829f" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -1142,11 +1157,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829e"></script>
-<script src="js/utils.js?v=20260829e"></script>
-<script src="js/data.js?v=20260829e"></script>
-<script src="js/charts.js?v=20260829e"></script>
-<script src="js/dashboard.js?v=20260829e"></script>
-<script src="js/script.js?v=20260829e"></script>
+<script type="module" src="js/firebase-init.js?v=20260829f"></script>
+<script src="js/utils.js?v=20260829f"></script>
+<script src="js/data.js?v=20260829f"></script>
+<script src="js/charts.js?v=20260829f"></script>
+<script src="js/dashboard.js?v=20260829f"></script>
+<script src="js/script.js?v=20260829f"></script>
 </body>
 </html>
