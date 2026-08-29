@@ -436,6 +436,10 @@ function normalizeRecord(rawRow) {
     statusAgendamento: '',
     observacaoAgendamento: '',
     reagendar: '',
+    // Total de vezes que a nota passou por Reentrega (todas as tentativas, ver
+    // applyBluesoftEnrichment) — 0 até a Base Bluesoft enriquecer o registro; fica 0 pra
+    // sempre se a nota nem existir na Bluesoft (não tem como saber quantas tentativas teve).
+    qtdReentregas: 0,
     // Data de Criação do pedido e Data de Entrega da NF (distinta da "coleta" em dataEntrega)
     // — só existem pra registros vindos da Base Bluesoft (ver applyBluesoftEnrichment), usadas
     // pelo relatório de Lead Time em "Análise por Região".
@@ -569,6 +573,14 @@ const DataStore = (() => {
   // no relatório de Registros detalhados. Não afeta "Data Coleta" (r.dataEntrega) nem o
   // card "Total geral de notas", que continuam usando a mais antiga de propósito.
   let bluesoftDataColetaMaisRecentePorBaseNF = new Map();
+  // NF base -> QUANTAS linhas brutas da Bluesoft tiveram status "Reentrega", contando cada
+  // tentativa (mesmo as que depois foram substituídas por uma tentativa mais recente/conclusiva
+  // nos mapas acima). Pedido do usuário (2026-08-28): o card "Reentrega" precisa contar TODA
+  // VEZ que uma nota passou por reentrega ao longo do tempo — não só quem está reentrega AGORA
+  // (ver bluesoftCandidatoMaisRecente, que descarta tentativas antigas ao ficar só com a mais
+  // recente por NF) — porque ela vai usar esse total pra montar um indicador de reentregas por
+  // motorista/transportadora, onde cada tentativa conta, mesmo a nota tendo sido entregue depois.
+  let bluesoftReentregaOcorrenciasPorBaseNF = new Map();
   let clienteInfoByName = new Map(); // nome do cliente (normalizado) -> { vendedor, grupoEconomico }
   let clienteInfoByCNPJ = new Map(); // CNPJ (normalizado) -> { vendedor, grupoEconomico } — mais preciso que o nome, distingue filiais
   let clienteEntriesList = []; // todas as linhas da Planilha1 (mesmo nomes repetidos), para o fallback por substring
@@ -693,6 +705,7 @@ const DataStore = (() => {
     const map = new Map();
     const dataMaisAntigaPorBaseNF = new Map();
     const dataMaisRecentePorBaseNF = new Map();
+    const reentregaOcorrenciasPorBaseNF = new Map();
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
       // Aceita tanto o CSV enxuto (NF; Status Bluesoft) quanto uma exportação bruta
@@ -702,6 +715,15 @@ const DataStore = (() => {
       const nf = String((nfHeader !== undefined ? row[nfHeader] : '') || '').trim();
       const status = mapBluesoftStatus(statusHeader !== undefined ? row[statusHeader] : '');
       if (!nf || !status) continue;
+
+      // Conta TODA linha bruta com status "Reentrega", antes de qualquer dedup por NF (ver
+      // bluesoftReentregaOcorrenciasPorBaseNF acima) — cada linha é uma tentativa de entrega
+      // real, mesmo que uma tentativa mais recente/conclusiva substitua essa linha nos mapas
+      // abaixo.
+      if (status === 'Reentrega') {
+        const baseNfReentrega = nf.split('-')[0];
+        reentregaOcorrenciasPorBaseNF.set(baseNfReentrega, (reentregaOcorrenciasPorBaseNF.get(baseNfReentrega) || 0) + 1);
+      }
 
       const dataEntregaRaw = pickField(row, headerIndex, 'dataEntrega');
       const dataEntregaParsed = Utils.parseDate(dataEntregaRaw);
@@ -773,6 +795,7 @@ const DataStore = (() => {
     bluesoftStatusByNF = map;
     bluesoftDataColetaMaisAntigaPorBaseNF = dataMaisAntigaPorBaseNF;
     bluesoftDataColetaMaisRecentePorBaseNF = dataMaisRecentePorBaseNF;
+    bluesoftReentregaOcorrenciasPorBaseNF = reentregaOcorrenciasPorBaseNF;
   }
 
   /**
@@ -885,6 +908,9 @@ const DataStore = (() => {
         r.tipoTransporte = parseCategoriaTransporte(info.categoriaTransporte);
         r._tipoTransporteDaBluesoft = true;
       }
+      // Total de VEZES que essa nota passou por Reentrega (todas as tentativas, não só a
+      // situação atual) — ver bluesoftReentregaOcorrenciasPorBaseNF/decisão do usuário acima.
+      r.qtdReentregas = bluesoftReentregaOcorrenciasPorBaseNF.get(r.nf.split('-')[0]) || 0;
     }
 
     // Itera bluesoftByBaseNF (já reduzido à tentativa mais recente por NF base), não
@@ -933,7 +959,8 @@ const DataStore = (() => {
         statusAgendamento: '',
         observacaoAgendamento: '',
         motivo: '',
-        motivoCategoria: ''
+        motivoCategoria: '',
+        qtdReentregas: bluesoftReentregaOcorrenciasPorBaseNF.get(baseNf) || 0
       });
     }
 
