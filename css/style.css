@@ -170,15 +170,42 @@ ul { list-style: none; margin: 0; padding: 0; }
   width: var(--sidebar-width);
   background: var(--surface);
   border-right: 1px solid var(--border);
-  overflow-y: auto;
+  overflow-y: auto; overflow-x: hidden;
   transition: width var(--transition), transform var(--transition);
   z-index: 90;
   padding-bottom: 24px;
 }
 .sidebar--collapsed { width: var(--sidebar-width-collapsed); }
-.sidebar--collapsed .filters-panel,
+
+/* Ícone (Feather-style, 18x18) que acompanha cada filtro/página/ação da barra lateral — no
+   modo recolhido é só ele que sobra visível. */
+.nav-icon { width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.nav-icon svg { width: 100%; height: 100%; }
+
+/* Modo recolhido (2026-08-29, pedido do usuário: menu com dois estados) — some só o TEXTO
+   (títulos de seção, rótulos de filtro/página/legenda), os ÍCONES continuam todos visíveis:
+   diferente do comportamento antigo, que escondia o painel de filtros inteiro (".filters-panel
+   { display:none }") deixando só o título "Filtros" sem nada embaixo. Cada `<details>` de
+   filtro continua existindo/clicável no DOM (não usamos [open]/[closed] pra decidir o que
+   mostrar), só o conteúdo depois do <summary> fica forçosamente oculto enquanto o menu está
+   recolhido — reabre normalmente ao expandir de novo, sem perder o estado. */
 .sidebar--collapsed .nav-label,
-.sidebar--collapsed .sidebar-section__title { display: none; }
+.sidebar--collapsed .sidebar-section__title,
+.sidebar--collapsed .sidebar-accordion__titulo-fixo,
+.sidebar--collapsed .sidebar-accordion summary::after { display: none; }
+
+.sidebar--collapsed .sidebar-accordion > summary ~ * { display: none !important; }
+
+.sidebar--collapsed .sidebar-section { padding-left: 10px; padding-right: 10px; }
+
+.sidebar--collapsed .sidebar-accordion,
+.sidebar--collapsed .sidebar-accordion--fixo { border: none; }
+
+.sidebar--collapsed .sidebar-accordion summary,
+.sidebar--collapsed .toggle-view-btn,
+.sidebar--collapsed #btn-reset-filters { justify-content: center; }
+
+.sidebar--collapsed .legend-status__item { justify-content: center; }
 
 .sidebar-section { padding: 16px 18px; border-bottom: 1px solid var(--border); }
 .sidebar-section__title {
@@ -197,22 +224,22 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* Acordeão da barra lateral (Período, Status, Transporte...) —
    <details>/<summary> nativos, sem precisar de JS pra abrir/fechar. */
 .sidebar-accordion {
-  border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  border: 1px solid var(--border-light); border-radius: var(--radius-sm); overflow: hidden;
+  transition: border-color var(--transition);
 }
-/* Mesmo brilho cinza do card "Aguardando agendamento" ao passar o mouse. */
-.sidebar-accordion:hover {
-  border-color: var(--color-neutral);
-  box-shadow: 0 0 20px -6px var(--color-neutral);
-}
+/* Antes tinha um brilho (box-shadow) espalhado igual o dos cards de KPI — pedido do usuário
+   (2026-08-29): filtros mais "limpos e profissionais", sem excesso de glow — só a borda muda
+   de tom, sem sombra. */
+.sidebar-accordion:hover { border-color: var(--color-neutral); }
 .sidebar-accordion summary {
   cursor: pointer; padding: 9px 12px; font-size: 12.5px; font-weight: 700;
   color: var(--text-primary); background: var(--surface-alt);
-  display: flex; align-items: center; justify-content: space-between; user-select: none;
+  display: flex; align-items: center; gap: 10px; justify-content: flex-start; user-select: none;
 }
 .sidebar-accordion summary::-webkit-details-marker { display: none; }
 .sidebar-accordion summary::after {
   content: '▾'; color: var(--text-secondary); font-size: 10px; transition: transform var(--transition);
+  margin-left: auto;
 }
 .sidebar-accordion[open] summary::after { transform: rotate(180deg); }
 .sidebar-accordion > summary + * { margin-top: 0; }
@@ -361,27 +388,26 @@ ul { list-style: none; margin: 0; padding: 0; }
    "Registros detalhados", outra no topo do embed do mapa) pra sempre dar pra trocar de tela
    não importa qual das duas esteja visível — ver bindAlternarViewMapaRegioes em dashboard.js. */
 .tabs-registros-mapa { display: flex; gap: 10px; flex-wrap: wrap; }
+/* Itens de navegação da "Central de Dados" (2026-08-29, redesenho pedido pelo usuário) —
+   deixou de ser um par de pílulas coloridas com brilho pulsante (era a mesma linguagem visual
+   das setas "Entregues/Devolvidos" dos rankings) pra virar uma lista de item de menu comum:
+   linha inteira clicável, ícone+texto alinhados à esquerda, sem brilho nenhum. O item ativo é
+   sinalizado só por 3 coisas — fundo um pouco mais claro, barra vertical laranja à esquerda
+   (border-left, reservado já em repouso pra não deslocar o ícone ao ativar) e texto/ícone em
+   laranja — exatamente como pedido, "sem efeito de brilho verde". */
 .toggle-view-btn {
-  border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700;
-  cursor: pointer; border-width: 2px; transition: transform var(--transition), box-shadow var(--transition), background var(--transition), color var(--transition);
+  border-radius: var(--radius-sm); padding: 9px 12px 9px 10px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none; border-left: 3px solid transparent;
+  justify-content: flex-start; gap: 10px; text-align: left;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
-.toggle-view-btn:hover { transform: translateY(-1px); }
+.toggle-view-btn--inativo { background: transparent; color: var(--text-secondary); }
+.toggle-view-btn--inativo:hover { background: var(--surface-alt); color: var(--text-primary); }
 .toggle-view-btn--ativo {
-  background: rgba(22,163,74,.1); color: var(--color-success); border-color: var(--color-success);
-  box-shadow: 0 0 8px 1px rgba(22,163,74,.5), 0 0 3px rgba(22,163,74,.8);
-  animation: toggleViewGlow 2.4s ease-in-out infinite;
+  background: var(--surface-alt); color: var(--color-orange); border-left-color: var(--color-orange);
 }
-.toggle-view-btn--ativo:hover { box-shadow: 0 0 16px 3px rgba(22,163,74,.85); }
-.toggle-view-btn--inativo {
-  background: rgba(100,116,139,.1); color: var(--color-neutral); border-color: var(--color-neutral);
-  box-shadow: 0 0 6px 1px rgba(100,116,139,.45);
-}
-.toggle-view-btn--inativo:hover { box-shadow: 0 0 12px 2px rgba(100,116,139,.7); }
-@keyframes toggleViewGlow {
-  0%, 100% { box-shadow: 0 0 8px 1px rgba(22,163,74,.5), 0 0 3px rgba(22,163,74,.8); }
-  50%      { box-shadow: 0 0 16px 4px rgba(22,163,74,.9), 0 0 5px rgba(22,163,74,1); }
-}
-@media (prefers-reduced-motion: reduce) { .toggle-view-btn--ativo { animation: none; } }
+.toggle-view-btn--ativo:hover { background: var(--surface-alt); }
+.toggle-view-btn:hover { transform: none; box-shadow: none; }
 
 .table-column-toggles-row {
   display: flex; align-items: center; gap: 8px;
