@@ -2716,11 +2716,19 @@ const Dashboard = (() => {
       .sort((a, b) => b.reentregas - a.reentregas)
       .slice(0, QUANTIDADE);
 
+    // Ao passar o mouse em qualquer uma das barras (Entregues ou Devolvidos), o tooltip mostra
+    // também o total de notas que saíram e o % de entrega dessa transportadora — pedido do
+    // usuário (2026-08-28), pra ver o quadro completo sem precisar abrir outra tela.
+    const extraTooltipMelhores = melhores.map(e => [
+      `Saiu para entrega: ${Utils.formatNumber(e.total)}`,
+      `Retornou (Devolução/Reentrega/Cancelado): ${Utils.formatNumber(e.devolvidos)}`,
+      `% de entrega: ${(e.taxa * 100).toFixed(1)}%`
+    ]);
     charts.rankingTransportadorasMelhores.update({
       labels: melhores.map(e => e.name),
       series: [
-        { name: 'Entregues', data: melhores.map(e => e.entregues), color: '#16A34A' },
-        { name: 'Devolvidos', data: melhores.map(e => e.devolvidos), color: '#DC2626' }
+        { name: 'Entregues', data: melhores.map(e => e.entregues), color: '#16A34A', tooltipExtra: extraTooltipMelhores },
+        { name: 'Devolvidos', data: melhores.map(e => e.devolvidos), color: '#DC2626', tooltipExtra: extraTooltipMelhores }
       ]
     });
     charts.rankingTransportadorasPiores.update({
