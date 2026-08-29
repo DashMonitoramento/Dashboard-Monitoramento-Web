@@ -281,6 +281,7 @@ const Dashboard = (() => {
     bindTableControls();
     bindActionButtons();
     bindStatusDetail();
+    bindTableScrollArrows();
     bindCanhotoLinks();
     bindAgendamentoEdicao();
     bindObservacaoEdicao();
@@ -515,23 +516,15 @@ const Dashboard = (() => {
     bindFilterCheckboxList('filter-cidade-list', 'cidade');
     bindFilterCheckboxList('filter-regiao-comercial-list', 'regiaoComercial');
 
-    const buscaHandler = Utils.debounce((value) => DataStore.setFilters({ busca: value }), 250);
-    const buscaInput = $('filter-busca');
-    buscaInput.addEventListener('input', (e) => {
-      buscaHandler(e.target.value);
-      e.target.classList.toggle('is-filled', e.target.value.trim() !== '');
-    });
-    if (buscaInput.value.trim() !== '') buscaInput.classList.add('is-filled');
-
     $('btn-reset-filters').addEventListener('click', () => {
       DataStore.resetFilters();
       document.querySelectorAll('.filters-panel select, .filters-panel input').forEach(el => { el.value = ''; });
       document.querySelectorAll('.filters-panel .filter-checkbox-list input[type="checkbox"]').forEach(cb => { cb.checked = false; });
-      // Busca rápida (2026-08-23) saiu de dentro de .filters-panel pra ter sua própria seção
-      // na barra lateral — precisa limpar o valor aqui direto, não fica mais coberta pelo
-      // querySelectorAll('.filters-panel input') acima.
-      buscaInput.value = '';
-      buscaInput.classList.remove('is-filled');
+      // Busca rápida da barra lateral foi removida (pedido do usuário, 2026-08-29) — a única
+      // busca que sobrou é a da tabela ("Pesquisar na tabela...", ver bindTableControls), que
+      // já está coberta por essa mesma limpeza via DataStore.resetFilters() acima.
+      const tableSearch = document.getElementById('table-search');
+      if (tableSearch) tableSearch.value = '';
       Utils.showToast('Filtros limpos.', 'info', 2000);
     });
 
@@ -622,9 +615,6 @@ const Dashboard = (() => {
   function bindTableControls() {
     const searchHandler = Utils.debounce((value) => {
       DataStore.setFilters({ busca: value });
-      const buscaInput = document.getElementById('filter-busca');
-      buscaInput.value = value;
-      buscaInput.classList.toggle('is-filled', value.trim() !== '');
     }, 250);
     document.getElementById('table-search').addEventListener('input', (e) => searchHandler(e.target.value));
 
@@ -681,6 +671,32 @@ const Dashboard = (() => {
   /* ============================================================
    * TELA DE DETALHE (drill-down ao clicar num card de KPI)
    * ============================================================ */
+
+  /** Setas ‹ › nas telas de detalhe (que abrem ao clicar num card) pra rolar a tabela na
+   * horizontal sem precisar arrastar a barra de scroll — pedido do usuário (2026-08-29).
+   * Genérico: funciona pra qualquer `.table-scroll-wrapper` da página (hoje: status-detail-view
+   * e pedidos-nao-faturados-view), não precisa listar cada tela na mão. Os botões ficam
+   * desabilitados quando já não há mais o que rolar naquela direção. */
+  function bindTableScrollArrows() {
+    document.querySelectorAll('.table-scroll-wrapper').forEach(wrapper => {
+      const scroll = wrapper.querySelector('.table-scroll');
+      const btnLeft = wrapper.querySelector('.table-scroll-arrow--left');
+      const btnRight = wrapper.querySelector('.table-scroll-arrow--right');
+      if (!scroll || !btnLeft || !btnRight) return;
+
+      const atualizarEstado = () => {
+        btnLeft.disabled = scroll.scrollLeft <= 0;
+        btnRight.disabled = scroll.scrollLeft + scroll.clientWidth >= scroll.scrollWidth - 1;
+      };
+      btnLeft.addEventListener('click', () => scroll.scrollBy({ left: -300, behavior: 'smooth' }));
+      btnRight.addEventListener('click', () => scroll.scrollBy({ left: 300, behavior: 'smooth' }));
+      scroll.addEventListener('scroll', atualizarEstado);
+      // Reavalia quando a tabela muda de largura (colunas mostradas/ocultadas, dados carregados
+      // pela primeira vez, tela reaberta depois de escondida etc.).
+      new ResizeObserver(atualizarEstado).observe(scroll);
+      atualizarEstado();
+    });
+  }
 
   function bindStatusDetail() {
     // [data-detail] em vez de só ".kpi-card[data-detail]": mantido genérico porque, no passado,
