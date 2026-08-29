@@ -651,9 +651,10 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .motivo-bar-row__fill { transition: none; } }
 
-/* Aviso "+N pedidos também contam aqui" (pedido do usuário, 2026-08-28) — cor azul destacada
-   de propósito (mesma família de "#0EA5E9" já usada no tile "Pedidos Aguard. Faturamento"),
-   pra chamar atenção como um aviso informativo, não um erro nem um motivo comum. */
+/* Banner de aviso informativo nas telas de detalhe (ex.: "Reentrega", ver
+   detail-reentrega-hint-section) — cor azul destacada de propósito (mesma família de "#0EA5E9"
+   já usada no tile "Pedidos Aguard. Faturamento"), pra chamar atenção como aviso informativo,
+   não um erro nem um motivo comum. */
 .detail-pedidos-hint {
   margin-bottom: 18px; padding: 12px 16px; border: 1.5px solid #0EA5E9; border-radius: var(--radius-md);
   background: rgba(14, 165, 233, .08); display: flex; align-items: center; justify-content: space-between;
@@ -665,7 +666,6 @@ ul { list-style: none; margin: 0; padding: 0; }
    "Reentrega" (2026-08-28): o aviso de pedidos aparecia junto com o de reentrega, mesmo sem
    nenhum pedido contribuindo pra essa categoria. */
 .detail-pedidos-hint[hidden] { display: none; }
-.detail-pedidos-hint .btn { flex-shrink: 0; padding: 6px 12px; font-size: 12px; }
 .motivo-bar-row__count { color: var(--text-secondary); font-weight: 700; white-space: nowrap; text-align: right; }
 
 /* Agendamento manual (tela "Aguardando agendamento") — data/status digitados direto no
@@ -917,27 +917,28 @@ ul { list-style: none; margin: 0; padding: 0; }
    aplicarColunasOcultas em dashboard.js) — índices batem com a ordem das colunas de
    #data-table (thead th / rowHtml). */
 #data-table[data-hide~="nf"] th:nth-child(1), #data-table[data-hide~="nf"] td:nth-child(1) { display: none; }
-#data-table[data-hide~="cliente"] th:nth-child(2), #data-table[data-hide~="cliente"] td:nth-child(2) { display: none; }
-#data-table[data-hide~="transportadora"] th:nth-child(3), #data-table[data-hide~="transportadora"] td:nth-child(3) { display: none; }
-#data-table[data-hide~="motorista"] th:nth-child(4), #data-table[data-hide~="motorista"] td:nth-child(4) { display: none; }
-#data-table[data-hide~="vendedor"] th:nth-child(5), #data-table[data-hide~="vendedor"] td:nth-child(5) { display: none; }
-#data-table[data-hide~="cidade"] th:nth-child(6), #data-table[data-hide~="cidade"] td:nth-child(6) { display: none; }
-#data-table[data-hide~="status"] th:nth-child(7), #data-table[data-hide~="status"] td:nth-child(7) { display: none; }
-#data-table[data-hide~="prazoStatus"] th:nth-child(8), #data-table[data-hide~="prazoStatus"] td:nth-child(8) { display: none; }
-#data-table[data-hide~="situacao"] th:nth-child(9), #data-table[data-hide~="situacao"] td:nth-child(9) { display: none; }
-#data-table[data-hide~="statusAgendamento"] th:nth-child(10), #data-table[data-hide~="statusAgendamento"] td:nth-child(10) { display: none; }
-#data-table[data-hide~="valorNF"] th:nth-child(11), #data-table[data-hide~="valorNF"] td:nth-child(11) { display: none; }
-#data-table[data-hide~="dataEntrega"] th:nth-child(12), #data-table[data-hide~="dataEntrega"] td:nth-child(12) { display: none; }
-#data-table[data-hide~="dataAgendamento"] th:nth-child(13), #data-table[data-hide~="dataAgendamento"] td:nth-child(13) { display: none; }
-#data-table[data-hide~="observacaoAgendamento"] th:nth-child(14), #data-table[data-hide~="observacaoAgendamento"] td:nth-child(14) { display: none; }
-#data-table[data-hide~="filial"] th:nth-child(15), #data-table[data-hide~="filial"] td:nth-child(15) { display: none; }
-#data-table[data-hide~="codigoCliente"] th:nth-child(16), #data-table[data-hide~="codigoCliente"] td:nth-child(16) { display: none; }
-#data-table[data-hide~="telefone"] th:nth-child(17), #data-table[data-hide~="telefone"] td:nth-child(17) { display: none; }
-#data-table[data-hide~="dataCriacao"] th:nth-child(18), #data-table[data-hide~="dataCriacao"] td:nth-child(18) { display: none; }
-#data-table[data-hide~="dataEntregaNF"] th:nth-child(19), #data-table[data-hide~="dataEntregaNF"] td:nth-child(19) { display: none; }
-#data-table[data-hide~="numeroPedidoEcommerce"] th:nth-child(20), #data-table[data-hide~="numeroPedidoEcommerce"] td:nth-child(20) { display: none; }
-#data-table[data-hide~="dataFaturamento"] th:nth-child(21), #data-table[data-hide~="dataFaturamento"] td:nth-child(21) { display: none; }
-#data-table[data-hide~="numeroFatura"] th:nth-child(22), #data-table[data-hide~="numeroFatura"] td:nth-child(22) { display: none; }
+#data-table[data-hide~="numeroPedido"] th:nth-child(2), #data-table[data-hide~="numeroPedido"] td:nth-child(2) { display: none; }
+#data-table[data-hide~="cliente"] th:nth-child(3), #data-table[data-hide~="cliente"] td:nth-child(3) { display: none; }
+#data-table[data-hide~="transportadora"] th:nth-child(4), #data-table[data-hide~="transportadora"] td:nth-child(4) { display: none; }
+#data-table[data-hide~="motorista"] th:nth-child(5), #data-table[data-hide~="motorista"] td:nth-child(5) { display: none; }
+#data-table[data-hide~="vendedor"] th:nth-child(6), #data-table[data-hide~="vendedor"] td:nth-child(6) { display: none; }
+#data-table[data-hide~="cidade"] th:nth-child(7), #data-table[data-hide~="cidade"] td:nth-child(7) { display: none; }
+#data-table[data-hide~="status"] th:nth-child(8), #data-table[data-hide~="status"] td:nth-child(8) { display: none; }
+#data-table[data-hide~="prazoStatus"] th:nth-child(9), #data-table[data-hide~="prazoStatus"] td:nth-child(9) { display: none; }
+#data-table[data-hide~="situacao"] th:nth-child(10), #data-table[data-hide~="situacao"] td:nth-child(10) { display: none; }
+#data-table[data-hide~="statusAgendamento"] th:nth-child(11), #data-table[data-hide~="statusAgendamento"] td:nth-child(11) { display: none; }
+#data-table[data-hide~="valorNF"] th:nth-child(12), #data-table[data-hide~="valorNF"] td:nth-child(12) { display: none; }
+#data-table[data-hide~="dataEntrega"] th:nth-child(13), #data-table[data-hide~="dataEntrega"] td:nth-child(13) { display: none; }
+#data-table[data-hide~="dataAgendamento"] th:nth-child(14), #data-table[data-hide~="dataAgendamento"] td:nth-child(14) { display: none; }
+#data-table[data-hide~="observacaoAgendamento"] th:nth-child(15), #data-table[data-hide~="observacaoAgendamento"] td:nth-child(15) { display: none; }
+#data-table[data-hide~="filial"] th:nth-child(16), #data-table[data-hide~="filial"] td:nth-child(16) { display: none; }
+#data-table[data-hide~="codigoCliente"] th:nth-child(17), #data-table[data-hide~="codigoCliente"] td:nth-child(17) { display: none; }
+#data-table[data-hide~="telefone"] th:nth-child(18), #data-table[data-hide~="telefone"] td:nth-child(18) { display: none; }
+#data-table[data-hide~="dataCriacao"] th:nth-child(19), #data-table[data-hide~="dataCriacao"] td:nth-child(19) { display: none; }
+#data-table[data-hide~="dataEntregaNF"] th:nth-child(20), #data-table[data-hide~="dataEntregaNF"] td:nth-child(20) { display: none; }
+#data-table[data-hide~="numeroPedidoEcommerce"] th:nth-child(21), #data-table[data-hide~="numeroPedidoEcommerce"] td:nth-child(21) { display: none; }
+#data-table[data-hide~="dataFaturamento"] th:nth-child(22), #data-table[data-hide~="dataFaturamento"] td:nth-child(22) { display: none; }
+#data-table[data-hide~="numeroFatura"] th:nth-child(23), #data-table[data-hide~="numeroFatura"] td:nth-child(23) { display: none; }
 
 /* Card com altura travada e rolagem própria (vertical + horizontal) — assim a tabela não
    empurra a paginação pra fora da tela quando tem muita linha por página. */
