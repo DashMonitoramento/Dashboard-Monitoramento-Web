@@ -72,7 +72,7 @@ const Dashboard = (() => {
     tbody: 'pedidos-nao-faturados-table-body', info: 'pedidos-nao-faturados-table-info',
     pageLabel: 'pedidos-nao-faturados-table-page-label', prev: 'pedidos-nao-faturados-table-prev',
     next: 'pedidos-nao-faturados-table-next', theadSelector: '#pedidos-nao-faturados-table thead th[data-field]',
-    colspan: 6
+    colspan: 7
   };
   let pedidosNaoFaturadosBusca = '';
   // Número do pedido em edição (painel abaixo da tabela), ou null se nenhum — pedido do
@@ -2323,7 +2323,11 @@ const Dashboard = (() => {
   // antes de faturar) nem "devolvido" (nunca chegou a sair). Lista própria, separada de
   // AGENDAMENTO_STATUS_CATEGORIAS de propósito — mesmo conjunto hoje, mas são domínios de
   // negócio diferentes e podem divergir no futuro.
-  const PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS = ['Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Okker'];
+  // "Sem Roteiro" adicionada em 2026-08-28: valor real que já vem da própria planilha (coluna
+  // "Data agendamento" da aba "Pedido Não Faturados (Emissão)", ver indexPedidosNaoFaturados
+  // em data.js) — sem essa entrada, um pedido com esse status apareceria com o dropdown de
+  // edição sem nenhuma opção selecionada.
+  const PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS = ['Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Okker', 'Sem Roteiro'];
 
   /** Situação de agendamento: só entram notas que realmente "Obriga Agendamento" e estão "Em
    * aberto" (mesma população do card "Aguardando agendamento", ver STATUS_DETAIL_DEFS —
@@ -2395,6 +2399,12 @@ const Dashboard = (() => {
 
   function rowHtmlPedidosNaoFaturados(p) {
     const ativo = pedidoSelecionadoParaEdicao === p.numeroPedido;
+    // Situação de agendamento (coluna "Data Agendamento" da planilha, ver indexPedidosNaoFaturados
+    // em data.js): "Agendado" mostra a data; qualquer outro status ("Aguardando Confirmação",
+    // "Sem Roteiro", ou o que a usuária editou manualmente no site) mostra o texto direto.
+    const situacaoAgendamento = p.statusAgendamento === 'Agendado'
+      ? Utils.formatDate(p.dataAgendamento)
+      : (p.statusAgendamento || '—');
     return `
       <tr>
         <td><button type="button" class="nf-link${ativo ? ' nf-link--ativo' : ''}" data-pedido-edicao="${escapeAttr(p.numeroPedido)}" title="Editar este pedido">${escapeAttr(p.numeroPedido)}</button></td>
@@ -2403,6 +2413,7 @@ const Dashboard = (() => {
         <td>${Utils.formatDate(p.dataEmissao)}</td>
         <td class="text-right">${Utils.formatCurrency(p.valorPedido)}</td>
         <td class="text-right">${Utils.formatNumber(p.qtdePedido)}</td>
+        <td class="truncate" title="${escapeAttr(situacaoAgendamento)}">${escapeAttr(situacaoAgendamento)}</td>
       </tr>
     `;
   }
