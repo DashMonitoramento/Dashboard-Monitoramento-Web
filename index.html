@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829f">
+<link rel="stylesheet" href="css/style.css?v=20260829g">
 </head>
 <body>
 
@@ -394,6 +394,21 @@
             <span class="kpi-card__extra-subvalue" id="kpi-valor-em-transito">R$ 0,00</span>
           </div>
         </article>
+        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto-com-agendamento" title="Ver notas em aberto que exigem agendamento">
+          <span class="kpi-card__label">Em aberto (exige agendamento)</span>
+          <span class="kpi-card__value" id="kpi-abertas-agendamento-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-abertas-agendamento">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--neutral kpi-card--clickable" data-detail="aguardando" title="Ver notas aguardando agendamento">
+          <span class="kpi-card__label">Aguardando agendamento</span>
+          <span class="kpi-card__value" id="kpi-aguardando-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-aguardando">R$ 0,00</span>
+        </article>
+        <article class="kpi-card kpi-card--secondary kpi-card--clickable" data-detail="reentrega" title="Ver notas em reentrega">
+          <span class="kpi-card__label">Reentrega</span>
+          <span class="kpi-card__value" id="kpi-reentrega-count">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-reentrega">R$ 0,00</span>
+        </article>
         <article class="kpi-card kpi-card--warning kpi-card--clickable kpi-card--com-extra" data-detail="devolucao" title="Ver notas em devolução">
           <div class="kpi-card__principal">
             <span class="kpi-card__label">Devolução</span>
@@ -406,30 +421,15 @@
             <span class="kpi-card__extra-subvalue" id="kpi-valor-cancelado">R$ 0,00</span>
           </div>
         </article>
-        <article class="kpi-card kpi-card--primary" title="Total de notas distintas, independente do status — cada NF conta uma vez só, mesmo com reentregas">
-          <span class="kpi-card__label">Total geral de notas</span>
-          <span class="kpi-card__value" id="kpi-total-notas">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-total-notas">R$ 0,00</span>
-        </article>
-        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto-com-agendamento" title="Ver notas em aberto que exigem agendamento">
-          <span class="kpi-card__label">Em aberto (exige agendamento)</span>
-          <span class="kpi-card__value" id="kpi-abertas-agendamento-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-abertas-agendamento">R$ 0,00</span>
-        </article>
         <article class="kpi-card kpi-card--secondary kpi-card--clickable" id="tile-pedidos-nao-faturados" title="Ver pedidos aguardando faturamento">
           <span class="kpi-card__label">Pedido Aguard. Faturamento</span>
           <span class="kpi-card__value" id="pedidos-nao-faturados-quantidade">0</span>
           <span class="kpi-card__subvalue" id="pedidos-nao-faturados-valor">R$ 0,00</span>
         </article>
-        <article class="kpi-card kpi-card--secondary kpi-card--clickable" data-detail="reentrega" title="Ver notas em reentrega">
-          <span class="kpi-card__label">Reentrega</span>
-          <span class="kpi-card__value" id="kpi-reentrega-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-reentrega">R$ 0,00</span>
-        </article>
-        <article class="kpi-card kpi-card--neutral kpi-card--clickable" data-detail="aguardando" title="Ver notas aguardando agendamento">
-          <span class="kpi-card__label">Aguardando agendamento</span>
-          <span class="kpi-card__value" id="kpi-aguardando-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-aguardando">R$ 0,00</span>
+        <article class="kpi-card kpi-card--primary" title="Total de notas distintas, independente do status — cada NF conta uma vez só, mesmo com reentregas">
+          <span class="kpi-card__label">Total geral de notas</span>
+          <span class="kpi-card__value" id="kpi-total-notas">0</span>
+          <span class="kpi-card__subvalue" id="kpi-valor-total-notas">R$ 0,00</span>
         </article>
       </section>
 
@@ -457,7 +457,7 @@
                 <span class="kpi-card__subvalue" id="agendamento-tile-agendado-valor">R$ 0,00</span>
               </article>
               <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="aguardando" style="--kpi-accent:#EAB308" title="Ver notas sem etapa definida">
-                <span class="kpi-card__label">Sem etapa definida</span>
+                <span class="kpi-card__label">Sem roteiro/ sem agendamento</span>
                 <span class="kpi-card__value" id="agendamento-tile-sem-etapa-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-sem-etapa-valor">R$ 0,00</span>
               </article>
@@ -508,7 +508,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829f" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829g" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -1157,11 +1157,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829f"></script>
-<script src="js/utils.js?v=20260829f"></script>
-<script src="js/data.js?v=20260829f"></script>
-<script src="js/charts.js?v=20260829f"></script>
-<script src="js/dashboard.js?v=20260829f"></script>
-<script src="js/script.js?v=20260829f"></script>
+<script type="module" src="js/firebase-init.js?v=20260829g"></script>
+<script src="js/utils.js?v=20260829g"></script>
+<script src="js/data.js?v=20260829g"></script>
+<script src="js/charts.js?v=20260829g"></script>
+<script src="js/dashboard.js?v=20260829g"></script>
+<script src="js/script.js?v=20260829g"></script>
 </body>
 </html>
