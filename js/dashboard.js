@@ -29,6 +29,11 @@ const Dashboard = (() => {
   // 2026-08-17: precisa dar pra pesquisar dentro do recorte do card, ex.: achar uma NF/cliente
   // específico entre as 175 notas de "Aguardando agendamento").
   let detailBusca = '';
+  // Quantos PEDIDOS (não notas) contribuem pra cada categoria de "Situação de agendamento" —
+  // populado por renderAgendamentoChart, lido por renderPedidosHintNoDetalhe (pedido do
+  // usuário, 2026-08-28: sem isso, clicar num card cuja contagem vinha só de pedidos abria
+  // essa tela de notas totalmente vazia, sem explicação nenhuma).
+  let agendamentoPedidosPorCategoria = {};
   const DETAIL_TABLE_IDS = {
     tbody: 'detail-table-body', info: 'detail-table-info', pageLabel: 'detail-table-page-label',
     prev: 'detail-table-prev', next: 'detail-table-next', theadSelector: '#detail-data-table thead th[data-field]'
@@ -196,6 +201,12 @@ const Dashboard = (() => {
     'Okker': 'agendamento-okker',
     'Devolução para Terrinha': 'agendamento-devolucao-terrinha'
   };
+
+  // Sentido inverso do mapa acima (chave da tela de detalhe -> rótulo da categoria) — usado só
+  // por renderPedidosHintNoDetalhe pra achar quantos pedidos contam nessa mesma categoria.
+  const AGENDAMENTO_DETAIL_KEY_PARA_LABEL = Object.fromEntries(
+    Object.entries(AGENDAMENTO_LABEL_PARA_DETAIL_KEY).map(([label, key]) => [key, label])
+  );
 
   // Rótulo do gráfico "Situação de agendamento" -> sufixo do id do .kpi-card--mini
   // correspondente ao lado da pizza (ver renderAgendamentoChart/index.html) — mesma ideia do
@@ -681,6 +692,9 @@ const Dashboard = (() => {
     });
     document.getElementById('btn-status-diversos').addEventListener('click', () => openStatusDetail('diversos'));
     document.getElementById('btn-back-home').addEventListener('click', closeStatusDetail);
+    // Botão do aviso "+N pedidos também contam aqui" (ver renderPedidosHintNoDetalhe) — leva
+    // direto pra tela "Pedidos Aguardando Faturamento", que já fecha essa tela de detalhe.
+    document.getElementById('btn-detail-ver-pedidos').addEventListener('click', abrirPedidosNaoFaturadosView);
   }
 
   function openStatusDetail(key) {
@@ -722,8 +736,24 @@ const Dashboard = (() => {
     document.getElementById('detail-view-title').textContent = `${def.title} (${Utils.formatNumber(detailRecords.length)})`;
     renderTableGeneric(detailRecords, detailTable, DETAIL_TABLE_IDS, (r) => rowHtml(r, false));
     renderMotivosBreakdown(detailRecords);
+    renderPedidosHintNoDetalhe(detailKey);
     renderAgendamentoEdicao(detailRecords);
     renderObservacaoEdicao(detailRecords);
+  }
+
+  /** Aviso "+N pedidos aguardando faturamento também contam nesse total" — pedido do usuário
+   * (2026-08-28), depois que ela viu um card com número > 0 abrir essa tela sem NENHUMA nota
+   * (o card tinha contribuição só de pedidos, que não aparecem nessa tabela — ela só mostra
+   * notas de rawRecords). Só aparece quando a categoria clicada realmente tem pedidos
+   * contribuindo (ver agendamentoPedidosPorCategoria, populado em renderAgendamentoChart). */
+  function renderPedidosHintNoDetalhe(key) {
+    const section = document.getElementById('detail-pedidos-hint-section');
+    const label = AGENDAMENTO_DETAIL_KEY_PARA_LABEL[key];
+    const n = label ? (agendamentoPedidosPorCategoria[label] || 0) : 0;
+    if (!n) { section.hidden = true; return; }
+    section.hidden = false;
+    document.getElementById('detail-pedidos-hint-texto').textContent =
+      `+ ${Utils.formatNumber(n)} pedido${n === 1 ? '' : 's'} aguardando faturamento também ${n === 1 ? 'conta' : 'contam'} nesse total (não aparece${n === 1 ? '' : 'm'} na tabela abaixo, que só mostra notas).`;
   }
 
   /* ============================================================
@@ -2369,11 +2399,13 @@ const Dashboard = (() => {
     // com os filtros da barra lateral (ver getPedidosNaoFaturadosStats) — com um filtro ativo,
     // sempre somar os mesmos 469 pedidos (que não encolhem com o filtro) desvirtuaria a leitura
     // do gráfico pro recorte que a usuária escolheu.
+    agendamentoPedidosPorCategoria = {};
     if (!algumFiltroAtivo()) {
       DataStore.getPedidosNaoFaturados().forEach(p => {
         const categoria = categoriaAgendamentoParaPedido(p.statusAgendamento);
         counts[categoria]++;
         valores[categoria] += p.valorPedido || 0;
+        agendamentoPedidosPorCategoria[categoria] = (agendamentoPedidosPorCategoria[categoria] || 0) + 1;
       });
     }
     charts.agendamento.update({
