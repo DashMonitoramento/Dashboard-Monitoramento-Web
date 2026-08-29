@@ -950,17 +950,27 @@ ul { list-style: none; margin: 0; padding: 0; }
    rolariam junto com o conteúdo (vertical E horizontalmente) em vez de ficarem fixos nas
    bordas da área da tabela. */
 .table-scroll-wrapper { position: relative; }
+/* Contorno laranja bem visível (mesma linguagem do .btn-scroll-tabela/#btn-refresh-data) —
+   pedido do usuário (2026-08-29): as setas antigas (borda cinza discreta) ficavam praticamente
+   invisíveis por cima de linhas cheias de badge/texto, especialmente em tabelas compridas onde
+   o botão (centralizado na altura do wrapper) cai bem no meio do conteúdo, não numa borda vazia.
+   Sem animação de pulso de propósito (diferente do Status Diversos/Atualizar dados): aqui é
+   uma ferramenta de uso constante, não um alerta — várias setas piscando ao mesmo tempo em
+   telas com múltiplas tabelas (ex.: Qualidade dos dados) ficaria poluído. */
 .table-scroll-arrow {
   position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
-  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
-  background: var(--surface); color: var(--text-primary); font-size: 18px; font-weight: 700;
+  width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--color-orange);
+  background: var(--surface); color: var(--color-orange); font-size: 18px; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
-  box-shadow: var(--shadow-md); opacity: .9; transition: opacity var(--transition), background var(--transition);
+  box-shadow: 0 0 8px 1px rgba(255,122,26,.45), var(--shadow-md); opacity: 1;
+  transition: opacity var(--transition), background var(--transition), box-shadow var(--transition);
 }
-.table-scroll-arrow:hover { opacity: 1; background: var(--surface-alt); }
+.table-scroll-arrow:hover { background: rgba(255,122,26,.12); box-shadow: 0 0 16px 3px rgba(255,122,26,.7), var(--shadow-md); }
 .table-scroll-arrow--left { left: 4px; }
 .table-scroll-arrow--right { right: 4px; }
-.table-scroll-arrow[disabled] { opacity: .25; cursor: default; }
+.table-scroll-arrow[disabled] {
+  opacity: .4; cursor: default; box-shadow: none; border-color: var(--border); color: var(--text-secondary);
+}
 table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table thead th {
   position: sticky; top: 0; background: var(--surface); z-index: 1;
