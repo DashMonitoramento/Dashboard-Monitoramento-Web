@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829c">
+<link rel="stylesheet" href="css/style.css?v=20260829d">
 </head>
 <body>
 
@@ -493,7 +493,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829c" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829d" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -862,15 +862,25 @@
 
           <!-- GRÁFICOS -->
           <section class="charts-grid">
-            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Média de dias p/ faturar, por mês</h2></div><div class="chart-root" id="chart-ltp-faturamento-mensal"></div></div>
+            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Média de dias p/ faturar, por mês</h2></div><div class="chart-root" id="chart-ltp-faturamento-mensal"></div><p class="chart-card__hint">Mês corrente não entra na média: como ainda tem pedido criado esse mês que não faturou, a média ficaria artificialmente baixa (só contaria quem faturou rápido).</p></div>
             <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Média de dias fat.→coleta, por mês</h2></div><div class="chart-root" id="chart-ltp-coleta-mensal"></div></div>
-            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Lead Time previsto x realizado (por transportadora)</h2></div><div class="chart-root" id="chart-ltp-previsto-vs-realizado"></div></div>
+            <div class="chart-card">
+              <div class="chart-card__header">
+                <h2 class="chart-card__title">Lead Time previsto x realizado (por transportadora)</h2>
+                <select id="ltp-previsto-tipo-transporte">
+                  <option value="">Transportadora + Agregado</option>
+                  <option value="Transportadora">Transportadora</option>
+                  <option value="Agregado">Agregado</option>
+                </select>
+              </div>
+              <div class="chart-root" id="chart-ltp-previsto-vs-realizado"></div>
+            </div>
             <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">% de entregas dentro x fora do prazo</h2></div><div class="chart-root chart-root--donut" id="chart-ltp-percentual-prazo"></div></div>
             <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Pedidos por etapa</h2></div><div class="chart-root" id="chart-ltp-qtd-por-etapa"></div></div>
             <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Desempenho por cliente (top 10)</h2></div><div class="chart-root" id="chart-ltp-por-cliente"></div></div>
             <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Desempenho por motorista (top 10)</h2></div><div class="chart-root" id="chart-ltp-por-motorista"></div></div>
             <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Desempenho por cidade (top 10)</h2></div><div class="chart-root" id="chart-ltp-por-cidade"></div></div>
-            <div class="chart-card"><div class="chart-card__header"><h2 class="chart-card__title">Evolução mensal do % de cumprimento do Lead Time</h2></div><div class="chart-root" id="chart-ltp-evolucao-cumprimento"></div></div>
+            <div class="chart-card chart-card--largo"><div class="chart-card__header"><h2 class="chart-card__title">Evolução mensal do % de cumprimento do Lead Time</h2></div><div class="chart-root" id="chart-ltp-evolucao-cumprimento"></div></div>
           </section>
 
           <!-- QUALIDADE DE DADOS -->
@@ -1128,11 +1138,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829c"></script>
-<script src="js/utils.js?v=20260829c"></script>
-<script src="js/data.js?v=20260829c"></script>
-<script src="js/charts.js?v=20260829c"></script>
-<script src="js/dashboard.js?v=20260829c"></script>
-<script src="js/script.js?v=20260829c"></script>
+<script type="module" src="js/firebase-init.js?v=20260829d"></script>
+<script src="js/utils.js?v=20260829d"></script>
+<script src="js/data.js?v=20260829d"></script>
+<script src="js/charts.js?v=20260829d"></script>
+<script src="js/dashboard.js?v=20260829d"></script>
+<script src="js/script.js?v=20260829d"></script>
 </body>
 </html>
