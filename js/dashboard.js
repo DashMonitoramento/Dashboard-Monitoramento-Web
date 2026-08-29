@@ -2686,31 +2686,47 @@ const Dashboard = (() => {
 
     // "Devolvidos" agrupa as 3 situações que significam que a nota voltou (por decisão do
     // usuário, 2026-08-16): Devolução, Reentrega e Cancelado — não é mais sobre prazo vencido.
+    // Usado só pelo ranking "melhores" (Entregues/Devolvidos) — o "piores" agora usa só
+    // `reentregas`, ver abaixo.
     const entries = Array.from(grouped.entries())
       .map(([name, items]) => {
         const total = items.length;
         const entregues = items.filter(r => r.status === 'ENTREGUE').length;
         const devolvidos = items.filter(r => r.situacao === 'Devolução' || r.situacao === 'Reentrega' || r.situacao === 'Cancelado').length;
-        return { name, total, entregues, devolvidos, taxa: entregues / total };
+        // Total de VEZES que uma nota dessa transportadora passou por Reentrega (todas as
+        // tentativas históricas, não só quem está reentrega agora — ver qtdReentregas em
+        // data.js/2026-08-28). Pedido do usuário: "Ranking dos 15 que voltam com entrega" deve
+        // contar SÓ reentrega, nunca Devolução/Cancelado — esses dois são problema interno
+        // (fiscal, comercial, etc.), não erro do motorista; reentrega é a única situação que
+        // pode de fato ser atribuída a quem dirigiu.
+        const reentregas = Utils.sum(items, r => r.qtdReentregas || 0);
+        return { name, total, entregues, devolvidos, reentregas, taxa: entregues / total };
       })
-      .filter(e => e.total >= 3)
-      .sort((a, b) => b.taxa - a.taxa);
+      .filter(e => e.total >= 3);
 
-    // A taxa decide quem entra em cada lista — mas taxa não é o que aparece nas barras, então
-    // ordenar por ela deixava o gráfico com barras fora de ordem visualmente. Pra exibição,
-    // ordena sempre pela quantidade de Entregues (decrescente, igual ao "Ranking top 10").
-    const melhores = entries.slice(0, QUANTIDADE).sort((a, b) => b.entregues - a.entregues);
-    const piores = entries.slice(-QUANTIDADE).sort((a, b) => b.entregues - a.entregues);
+    // "Melhores" continua ordenado por taxa de entrega (Entregues/Devolvidos) — não mudou.
+    const melhores = entries.slice()
+      .sort((a, b) => b.taxa - a.taxa)
+      .slice(0, QUANTIDADE)
+      .sort((a, b) => b.entregues - a.entregues);
 
-    const toSeries = (list) => ({
-      labels: list.map(e => e.name),
+    // "Piores" (Ranking dos 15 que voltam com entrega) agora ordena por total de reentregas,
+    // não mais por taxa de entrega — pedido do usuário (2026-08-28).
+    const piores = entries.slice()
+      .sort((a, b) => b.reentregas - a.reentregas)
+      .slice(0, QUANTIDADE);
+
+    charts.rankingTransportadorasMelhores.update({
+      labels: melhores.map(e => e.name),
       series: [
-        { name: 'Entregues', data: list.map(e => e.entregues), color: '#16A34A' },
-        { name: 'Devolvidos', data: list.map(e => e.devolvidos), color: '#DC2626' }
+        { name: 'Entregues', data: melhores.map(e => e.entregues), color: '#16A34A' },
+        { name: 'Devolvidos', data: melhores.map(e => e.devolvidos), color: '#DC2626' }
       ]
     });
-    charts.rankingTransportadorasMelhores.update(toSeries(melhores));
-    charts.rankingTransportadorasPiores.update(toSeries(piores));
+    charts.rankingTransportadorasPiores.update({
+      labels: piores.map(e => e.name),
+      series: [{ name: 'Reentregas', data: piores.map(e => e.reentregas), color: '#DC2626' }]
+    });
   }
 
   function renderEvolucaoMensal(records) {
