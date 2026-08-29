@@ -814,8 +814,37 @@ ul { list-style: none; margin: 0; padding: 0; }
    distorcer a proporção. Sem min-height alto de propósito (pedido do usuário, 2026-08-28: a
    imagem "ficou muito grande" — ela agora simplesmente acompanha a altura, bem mais modesta,
    do card de agendamento ao lado, que não é mais esticado por uma legenda grande embaixo). */
-.chart-card--foto { padding: 0; overflow: hidden; }
+.chart-card--foto { padding: 0; overflow: hidden; position: relative; }
 .chart-card__foto-completa { width: 100%; height: 100%; min-height: 160px; object-fit: cover; display: block; }
+
+/* Animação sobre a foto AGENDA (pedido do usuário, 2026-08-28: "manter a atual + animar" —
+   brilho pulsando + anéis girando) — tudo em CSS puro, sobreposto ao centro do círculo
+   "AGENDA" da própria foto via ::before/::after (a foto em si continua uma imagem estática).
+   ::before = brilho pulsando; ::after = anel girando, um pouco maior que o brilho. */
+.chart-card--foto::before {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 38%; aspect-ratio: 1;
+  transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+  animation: agendaBrilhoPulso 2.6s ease-in-out infinite;
+}
+.chart-card--foto::after {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 48%; aspect-ratio: 1;
+  transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+  border: 2px dashed rgba(125, 211, 252, .65);
+  animation: agendaAnelGirando 16s linear infinite;
+}
+@keyframes agendaBrilhoPulso {
+  0%, 100% { box-shadow: 0 0 26px 4px rgba(56, 189, 248, .3); opacity: .55; }
+  50% { box-shadow: 0 0 50px 12px rgba(56, 189, 248, .55); opacity: 1; }
+}
+@keyframes agendaAnelGirando {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+/* Quem prefere menos movimento na tela (configuração do sistema operacional) não recebe as
+   animações — só a foto parada, como era antes. */
+@media (prefers-reduced-motion: reduce) {
+  .chart-card--foto::before, .chart-card--foto::after { animation: none; }
+}
 
 /* ---------- 10. Tabela ---------- */
 .table-card {
