@@ -112,6 +112,11 @@ const Dashboard = (() => {
   // mostra TODOS os dias normalmente na tabela de cima; selecionar um mês filtra só pra ele
   // (decisão do usuário, 2026-08-19: clicar de novo no card ativo desmarca e volta a mostrar tudo).
   let registroDinamicoMesSelecionado = null;
+  // NF (base, sem sufixo "-1") em edição no painel de observação abaixo do detalhe por nota, ou
+  // null se nenhuma — pedido do usuário (2026-08-29): "ao clicar na coluna Observação, abrir
+  // uma tela pra editar e salvar". Mesmo padrão de "1 item por vez" do Número do Pedido em
+  // "Pedidos Aguardando Faturamento" (ver abrirEdicaoPedido).
+  let registroDinamicoObservacaoNf = null;
 
   // Precisa ficar em sincronia com os valores dos checkboxes de #filter-status-list no
   // index.html — qualquer r.situacao fora dessa lista cai no botão "Status Diversos".
@@ -1316,7 +1321,9 @@ const Dashboard = (() => {
         <td>${r.situacao === 'NF Não encontrada' ? `<span class="badge badge--neutral">${escapeAttr(r.situacao)}</span>` : escapeAttr(r.situacao)}</td>
         <td>${escapeAttr(r.statusAgendamento || '—')}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
-        <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${escapeAttr(r.observacaoAgendamento || '—')}</td>
+        <td class="truncate" title="Clique para editar a observação">
+          <button type="button" class="nf-link${registroDinamicoObservacaoNf === r.nf.split('-')[0] ? ' nf-link--ativo' : ''}" data-observacao-edicao="${escapeAttr(r.nf.split('-')[0])}">${escapeAttr(r.observacaoAgendamento || 'Adicionar observação')}</button>
+        </td>
       </tr>
     `;
   }
@@ -1940,6 +1947,58 @@ const Dashboard = (() => {
     document.getElementById('registro-dinamico-detalhe-titulo').textContent =
       `Notas faturadas em ${Utils.formatDate(registroDinamicoDataSelecionada)} — ${registroDinamicoTransportadoraSelecionada} (${Utils.formatNumber(registros.length)})`;
     renderTableGeneric(registros, registroDinamicoDetalheTable, REGISTRO_DINAMICO_DETALHE_IDS, rowHtmlRegistroDinamicoDetalhe);
+    renderRegistroDinamicoObservacaoEdicao();
+  }
+
+  /** Painel de edição da observação de UMA nota (clicar no botão da coluna "Observação" na
+   * tabela de detalhe acima) — mesmo modelo Firestore de renderObservacaoEdicao (só 1 nota por
+   * vez, não a lista inteira: um dia/transportadora pode ter muitas notas). */
+  function renderRegistroDinamicoObservacaoEdicao() {
+    const section = document.getElementById('registro-dinamico-observacao-edicao-section');
+    if (!registroDinamicoObservacaoNf) { section.hidden = true; return; }
+    const registro = registrosDoDiaETransportadoraSelecionados().find(r => r.nf.split('-')[0] === registroDinamicoObservacaoNf);
+    if (!registro) { section.hidden = true; registroDinamicoObservacaoNf = null; return; }
+    section.hidden = false;
+
+    const admin = isAdminAgendamento();
+    document.getElementById('registro-dinamico-observacao-edicao-titulo').textContent = `Editar observação — NF ${registro.nf}`;
+    document.getElementById('registro-dinamico-observacao-edicao-hint').textContent = admin
+      ? 'Escreva uma observação livre sobre a nota — salva direto aqui, sem precisar de planilha.'
+      : 'Observação da nota (só o usuário responsável pode editar).';
+
+    const list = document.getElementById('registro-dinamico-observacao-edicao-list');
+    const observacaoAtual = registro.observacaoAgendamento || '';
+
+    if (!admin) {
+      list.innerHTML = `
+        <div class="observacao-row">
+          <span class="observacao-row__nf">${escapeAttr(registro.nf)}</span>
+          <span class="observacao-row__cliente" title="${escapeAttr(registro.cliente)}">${escapeAttr(registro.cliente)}</span>
+          <span class="observacao-row__somente-leitura" title="${escapeAttr(observacaoAtual)}">${escapeAttr(observacaoAtual || '—')}</span>
+          <span></span>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = `
+      <div class="observacao-row" data-nf="${escapeAttr(registroDinamicoObservacaoNf)}">
+        <span class="observacao-row__nf">${escapeAttr(registro.nf)}</span>
+        <span class="observacao-row__cliente" title="${escapeAttr(registro.cliente)}">${escapeAttr(registro.cliente)}</span>
+        <input type="text" class="observacao-row__input" placeholder="Observação (opcional)" value="${escapeAttr(observacaoAtual)}">
+        <button type="button" class="btn observacao-row__salvar">Salvar</button>
+      </div>
+    `;
+  }
+
+  /** Clicar na observação já em edição fecha o painel (alterna); clicar noutra troca direto —
+   * mesmo padrão de abrirEdicaoPedido ("Pedidos Aguardando Faturamento"). */
+  function abrirEdicaoObservacaoRegistroDinamico(nfBase) {
+    registroDinamicoObservacaoNf = registroDinamicoObservacaoNf === nfBase ? null : nfBase;
+    renderRegistroDinamicoDetalhe();
+    if (registroDinamicoObservacaoNf) {
+      document.getElementById('registro-dinamico-observacao-edicao-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 
   /** Clicar numa data já expandida fecha o submenu de novo (alterna); clicar noutra data troca
@@ -1950,6 +2009,7 @@ const Dashboard = (() => {
     const jaEstaAberta = registroDinamicoDataSelecionada && registroDinamicoDataSelecionada.getTime() === novaData.getTime();
     registroDinamicoDataSelecionada = jaEstaAberta ? null : novaData;
     registroDinamicoTransportadoraSelecionada = null;
+    registroDinamicoObservacaoNf = null;
     registroDinamicoTransportadoraTable.page = 1;
     registroDinamicoDetalheTable.page = 1;
     renderRegistroDinamico();
@@ -1960,6 +2020,7 @@ const Dashboard = (() => {
   function abrirRegistroDinamicoTransportadora(nome) {
     const jaEstaSelecionada = registroDinamicoTransportadoraSelecionada === nome;
     registroDinamicoTransportadoraSelecionada = jaEstaSelecionada ? null : nome;
+    registroDinamicoObservacaoNf = null;
     registroDinamicoDetalheTable.page = 1;
     renderRegistroDinamico();
   }
@@ -1992,6 +2053,7 @@ const Dashboard = (() => {
     document.getElementById('registro-dinamico-transportadoras-fechar').addEventListener('click', () => {
       registroDinamicoDataSelecionada = null;
       registroDinamicoTransportadoraSelecionada = null;
+      registroDinamicoObservacaoNf = null;
       renderRegistroDinamico();
     });
     // Fechar o detalhe por nota só desmarca a transportadora — volta pro submenu da mesma data,
@@ -2008,7 +2070,40 @@ const Dashboard = (() => {
 
     document.getElementById('registro-dinamico-detalhe-fechar').addEventListener('click', () => {
       registroDinamicoTransportadoraSelecionada = null;
+      registroDinamicoObservacaoNf = null;
       renderRegistroDinamico();
+    });
+
+    // Delegado no body da tabela (reconstruída a cada render) — clicar na Observação
+    // abre/fecha o painel de edição dela (pedido do usuário, 2026-08-29).
+    document.getElementById('registro-dinamico-detalhe-table-body').addEventListener('click', (e) => {
+      const botao = e.target.closest('[data-observacao-edicao]');
+      if (botao) abrirEdicaoObservacaoRegistroDinamico(botao.dataset.observacaoEdicao);
+    });
+
+    document.getElementById('registro-dinamico-observacao-edicao-list').addEventListener('click', async (e) => {
+      const botao = e.target.closest('.observacao-row__salvar');
+      if (!botao) return;
+      const linha = botao.closest('.observacao-row');
+      const nf = linha.dataset.nf;
+      const observacao = linha.querySelector('.observacao-row__input').value.trim();
+
+      botao.disabled = true;
+      botao.textContent = 'Salvando...';
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        await fb.salvarObservacaoNota(nf, observacao);
+        DataStore.applyAgendamentoManual({ [nf]: { observacao } });
+        Utils.showToast(`NF ${nf}: observação salva.`, 'success', 2500);
+        renderRegistroDinamicoDetalhe();
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar a observação.', 'error', 5000);
+        botao.disabled = false;
+        botao.textContent = 'Salvar';
+      }
     });
   }
 
