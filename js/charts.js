@@ -507,11 +507,19 @@ class DashChart {
 
     ctx.font = '11px Inter, system-ui, sans-serif';
     ctx.fillStyle = text;
-    ctx.textAlign = 'center';
     const axisLabelStep = Math.max(1, Math.ceil(n / Math.max(3, Math.floor(plotW / 60))));
     this.labels.forEach((label, i) => {
       if (i % axisLabelStep !== 0 && i !== n - 1) return;
       const x = padding.left + i * stepX;
+      // Rótulo das pontas (primeiro/último mês) alinhado PRA DENTRO do gráfico, não
+      // centralizado no ponto — com textAlign:'center' sempre, a etiqueta do último mês
+      // (ex.: "Ago/26") tinha metade da própria largura projetada pra FORA do padding direito
+      // (só 16px), cortada pela borda do canvas (pedido do usuário, 2026-08-29: "está cortado
+      // a data agosto no final"). Os rótulos do meio continuam centralizados — lá sobra
+      // espaço de sobra dos dois lados, sem risco de corte.
+      if (i === 0) ctx.textAlign = 'left';
+      else if (i === n - 1) ctx.textAlign = 'right';
+      else ctx.textAlign = 'center';
       ctx.fillText(this._truncate(label, 8), x, this.height - 8);
     });
   }
