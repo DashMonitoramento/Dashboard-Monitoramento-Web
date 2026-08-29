@@ -625,6 +625,16 @@ ul { list-style: none; margin: 0; padding: 0; }
   transition: width 700ms cubic-bezier(.33,1,.68,1);
 }
 @media (prefers-reduced-motion: reduce) { .motivo-bar-row__fill { transition: none; } }
+
+/* Aviso "+N pedidos também contam aqui" (pedido do usuário, 2026-08-28) — cor azul destacada
+   de propósito (mesma família de "#0EA5E9" já usada no tile "Pedidos Aguard. Faturamento"),
+   pra chamar atenção como um aviso informativo, não um erro nem um motivo comum. */
+.detail-pedidos-hint {
+  margin-bottom: 18px; padding: 12px 16px; border: 1.5px solid #0EA5E9; border-radius: var(--radius-md);
+  background: rgba(14, 165, 233, .08); display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-primary);
+}
+.detail-pedidos-hint .btn { flex-shrink: 0; padding: 6px 12px; font-size: 12px; }
 .motivo-bar-row__count { color: var(--text-secondary); font-weight: 700; white-space: nowrap; text-align: right; }
 
 /* Agendamento manual (tela "Aguardando agendamento") — data/status digitados direto no
