@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829j">
+<link rel="stylesheet" href="css/style.css?v=20260829k">
 </head>
 <body>
 
@@ -508,7 +508,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829j" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260829k" alt="" class="chart-card__foto-completa">
         </div>
       </section>
 
@@ -764,7 +764,9 @@
               <button id="registro-dinamico-detalhe-fechar" class="btn" type="button">✕ Fechar</button>
             </div>
           </div>
-          <div class="table-scroll">
+          <div class="table-scroll-wrapper">
+            <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+            <div class="table-scroll">
             <table class="data-table" id="registro-dinamico-detalhe-table">
               <thead>
                 <tr>
@@ -783,6 +785,8 @@
               </thead>
               <tbody id="registro-dinamico-detalhe-table-body"></tbody>
             </table>
+            </div>
+            <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
           </div>
           <div class="table-footer">
             <span id="registro-dinamico-detalhe-table-info">Nenhum registro</span>
@@ -904,7 +908,11 @@
             <summary>Qualidade dos dados <span id="ltp-qualidade-contagem" class="badge badge--neutral"></span></summary>
             <div style="padding:12px;">
               <p class="chart-card__hint">Pedidos com sequência de datas inconsistente (excluídos das médias, listados aqui para correção na planilha):</p>
-              <div class="table-scroll"><table class="data-table" id="ltp-table-inconsistencias"><thead><tr><th>NF</th><th>Cliente</th><th>Inconsistência</th><th>Data Criação</th><th>Data Faturamento</th><th>Data Coleta</th><th>Data Entrega</th></tr></thead><tbody></tbody></table></div>
+              <div class="table-scroll-wrapper">
+                <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+                <div class="table-scroll"><table class="data-table" id="ltp-table-inconsistencias"><thead><tr><th>NF</th><th>Cliente</th><th>Inconsistência</th><th>Data Criação</th><th>Data Faturamento</th><th>Data Coleta</th><th>Data Entrega</th></tr></thead><tbody></tbody></table></div>
+                <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
+              </div>
 
               <p class="chart-card__hint" style="margin-top:12px;">Transportadora + Cidade sem Lead Time cadastrado (priorize cadastrar as de maior volume na aba "Lead Time Atualizado"):</p>
               <div class="table-scroll"><table class="data-table" id="ltp-table-sem-leadtime"><thead><tr><th>Transportadora</th><th>Cidade</th><th>UF</th><th class="text-right">Pedidos</th></tr></thead><tbody></tbody></table></div>
@@ -1023,11 +1031,11 @@
         </div>
 
         <div class="table-card__header">
-          <div class="table-search">
-            🔎 <input type="search" id="detail-table-search" placeholder="Pesquisar...">
-          </div>
           <div class="table-actions">
             <button id="btn-export-csv-detail" class="btn">⬇️ Exportar Excel</button>
+          </div>
+          <div class="table-search">
+            🔎 <input type="search" id="detail-table-search" placeholder="Pesquisar...">
           </div>
         </div>
 
@@ -1091,7 +1099,7 @@
         </div>
 
         <div class="table-card__header">
-          <div class="table-search">
+          <div class="table-search" style="margin-left:auto;">
             🔎 <input type="search" id="pedidos-nao-faturados-table-search" placeholder="Pesquisar...">
           </div>
         </div>
@@ -1148,11 +1156,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829j"></script>
-<script src="js/utils.js?v=20260829j"></script>
-<script src="js/data.js?v=20260829j"></script>
-<script src="js/charts.js?v=20260829j"></script>
-<script src="js/dashboard.js?v=20260829j"></script>
-<script src="js/script.js?v=20260829j"></script>
+<script type="module" src="js/firebase-init.js?v=20260829k"></script>
+<script src="js/utils.js?v=20260829k"></script>
+<script src="js/data.js?v=20260829k"></script>
+<script src="js/charts.js?v=20260829k"></script>
+<script src="js/dashboard.js?v=20260829k"></script>
+<script src="js/script.js?v=20260829k"></script>
 </body>
 </html>
