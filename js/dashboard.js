@@ -134,6 +134,17 @@ const Dashboard = (() => {
     return situacao === 'Em aberto' || situacao === 'Aguardando agendamento';
   }
 
+  /** Uma nota/pedido "Agendado" cuja Data de Agendamento já passou (antes de hoje) — pedido do
+   * usuário (2026-08-29): esses precisam sair do card "Agendado" e formar uma categoria própria
+   * "Agendamento Vencido" (ela ainda não foi entregue, mas o dia marcado já passou). Sem data
+   * (não deveria acontecer pra quem já é "Agendado", mas por segurança) conta como não vencido. */
+  function agendamentoVencido(dataAgendamento) {
+    if (!dataAgendamento) return false;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    return dataAgendamento.getTime() < hoje.getTime();
+  }
+
   // Cada entrada define o que um card de KPI representa, pra abrir a tela de detalhe com
   // exatamente os registros que compõem aquele número (mesmo critério usado em renderKPIs).
   const STATUS_DETAIL_DEFS = {
@@ -177,7 +188,13 @@ const Dashboard = (() => {
     // precisa de entrada própria, é literalmente o mesmo recorte de 'aguardando' acima.
     'agendamento-agendado': {
       title: 'Agendado',
-      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Agendado'
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Agendado' && !agendamentoVencido(r.dataAgendamento)
+    },
+    // Pedido do usuário (2026-08-29): quem tem data marcada mas ela já passou sai de "Agendado"
+    // e vira essa categoria própria — mesma população, só separada pela data.
+    'agendamento-vencido': {
+      title: 'Agendamento Vencido',
+      test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Agendado' && agendamentoVencido(r.dataAgendamento)
     },
     'agendamento-aguardando-confirmacao': {
       title: 'Aguardando Confirmação',
@@ -201,6 +218,7 @@ const Dashboard = (() => {
   // de STATUS_DETAIL_DEFS a abrir. "Sem etapa definida" aponta pro mesmo 'aguardando' de sempre.
   const AGENDAMENTO_LABEL_PARA_DETAIL_KEY = {
     'Agendado': 'agendamento-agendado',
+    'Agendamento Vencido': 'agendamento-vencido',
     'Sem etapa definida': 'aguardando',
     'Aguardando Confirmação': 'agendamento-aguardando-confirmacao',
     'Reagendar': 'agendamento-reagendar',
@@ -220,6 +238,7 @@ const Dashboard = (() => {
   // mapa acima, só que pra atualizar o texto do quadrado em vez de abrir o detalhe.
   const AGENDAMENTO_LABEL_PARA_TILE_ID = {
     'Agendado': 'agendado',
+    'Agendamento Vencido': 'vencido',
     'Sem etapa definida': 'sem-etapa',
     'Aguardando Confirmação': 'aguardando-confirmacao',
     'Reagendar': 'reagendar',
@@ -746,7 +765,7 @@ const Dashboard = (() => {
   // podem alimentar — mesmas 4 categorias que categoriaAgendamentoParaPedido consegue devolver
   // (Agendado/Sem etapa definida/Aguardando Confirmação/Okker; um pedido nunca é "Reagendar" nem
   // "Devolução para Terrinha", ver PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS).
-  const DETAIL_KEYS_COM_PEDIDOS = ['agendamento-agendado', 'aguardando', 'agendamento-aguardando-confirmacao', 'agendamento-okker'];
+  const DETAIL_KEYS_COM_PEDIDOS = ['agendamento-agendado', 'agendamento-vencido', 'aguardando', 'agendamento-aguardando-confirmacao', 'agendamento-okker'];
 
   /** Converte um pedido (Pedidos Aguardando Faturamento) num "registro" no mesmo formato de uma
    * nota, pra entrar na MESMA tabela de detalhe via rowHtml() — pedido do usuário (2026-08-29):
@@ -778,7 +797,7 @@ const Dashboard = (() => {
     if (DETAIL_KEYS_COM_PEDIDOS.includes(detailKey) && !algumFiltroAtivo()) {
       const rotulo = AGENDAMENTO_DETAIL_KEY_PARA_LABEL[detailKey];
       const pedidosDaCategoria = DataStore.getPedidosNaoFaturados()
-        .filter(p => categoriaAgendamentoParaPedido(p.statusAgendamento) === rotulo)
+        .filter(p => categoriaAgendamentoParaPedido(p.statusAgendamento, p.dataAgendamento) === rotulo)
         .map(pedidoParaRegistroDetalhe);
       registros = registros.concat(pedidosDaCategoria);
     }
@@ -868,7 +887,7 @@ const Dashboard = (() => {
   // agendamento") mais as 4 novas fatias clicáveis do donut (2026-08-19). "Sem etapa definida"
   // não precisa de chave própria aqui: ela É 'aguardando', já contemplada.
   const AGENDAMENTO_EDICAO_DETAIL_KEYS = [
-    'aguardando', 'agendamento-agendado', 'agendamento-aguardando-confirmacao',
+    'aguardando', 'agendamento-agendado', 'agendamento-vencido', 'agendamento-aguardando-confirmacao',
     'agendamento-reagendar', 'agendamento-okker', 'agendamento-devolucao-terrinha'
   ];
 
@@ -2592,6 +2611,15 @@ const Dashboard = (() => {
   const AGENDAMENTO_STATUS_CATEGORIAS = [
     'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
   ];
+  // Categorias de fato EXIBIDAS no gráfico/cards de "Situação de agendamento" — igual à lista
+  // acima, só que com "Agendamento Vencido" inserida (pedido do usuário, 2026-08-29). Lista
+  // SEPARADA de propósito: AGENDAMENTO_STATUS_CATEGORIAS também alimenta o <select> de edição
+  // manual (renderAgendamentoEdicao) — "Agendamento Vencido" não é um status que se ESCOLHE lá,
+  // é uma categoria CALCULADA (Agendado + data já passada), então não pode aparecer como opção
+  // selecionável nesse dropdown.
+  const AGENDAMENTO_CATEGORIAS_EXIBICAO = [
+    'Agendado', 'Agendamento Vencido', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
+  ];
   // As etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
   // (valor bruto da coluna "Status" da planilha de Agendamentos — precisa bater EXATAMENTE
   // com esse texto, incluindo acento, senão a nota cai em "Sem etapa definida" por engano).
@@ -2618,12 +2646,15 @@ const Dashboard = (() => {
    * pedidos; quem já tem data conta como "Agendado"). Vazio ou qualquer status desconhecido
    * cai em "Sem etapa definida" por padrão, mesma regra já usada pras notas (ver
    * AGENDAMENTO_ETAPAS_ESPECIFICAS acima). */
-  function categoriaAgendamentoParaPedido(statusAgendamento) {
+  function categoriaAgendamentoParaPedido(statusAgendamento, dataAgendamento) {
     // "Entrega Direta" (novo valor na coluna, 2026-08-29) significa que o pedido NÃO precisa
     // de agendamento — sai direto. Por isso não conta em nenhuma fatia da pizza (mesma lógica
     // de necessitaAgendamento:false pras notas normais, que também ficam de fora do gráfico).
     if (statusAgendamento === 'Entrega Direta') return null;
     if (statusAgendamento === 'Sem Roteiro') return 'Sem etapa definida';
+    // Mesma regra das notas (2026-08-29): pedido "Agendado" cuja data já passou vira
+    // "Agendamento Vencido" em vez de continuar contando como "Agendado".
+    if (statusAgendamento === 'Agendado' && agendamentoVencido(dataAgendamento)) return 'Agendamento Vencido';
     if (AGENDAMENTO_STATUS_CATEGORIAS.includes(statusAgendamento)) return statusAgendamento;
     return 'Sem etapa definida';
   }
@@ -2640,13 +2671,16 @@ const Dashboard = (() => {
    * sozinha na visão padrão sem filtro: a fatia agora é maior, pelos pedidos que também caem
    * ali. Só voltam a bater quando um filtro estiver ativo (aí os pedidos ficam de fora). */
   function renderAgendamentoChart(records) {
-    const counts = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
+    const counts = Object.fromEntries(AGENDAMENTO_CATEGORIAS_EXIBICAO.map(c => [c, 0]));
     // Valor NF somado por etapa — os quadrados ao lado da pizza mostram esse total em R$ como
     // subvalor (a % continua só dentro da própria pizza).
-    const valores = Object.fromEntries(AGENDAMENTO_STATUS_CATEGORIAS.map(c => [c, 0]));
+    const valores = Object.fromEntries(AGENDAMENTO_CATEGORIAS_EXIBICAO.map(c => [c, 0]));
     records.forEach(r => {
       if (!r.necessitaAgendamento || !situacaoElegivelParaAgendamento(r.situacao)) return;
-      const categoria = AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento) ? r.statusAgendamento : 'Sem etapa definida';
+      let categoria = AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento) ? r.statusAgendamento : 'Sem etapa definida';
+      // "Agendado" cuja data já passou sai dessa categoria e vira "Agendamento Vencido" (pedido
+      // do usuário, 2026-08-29).
+      if (categoria === 'Agendado' && agendamentoVencido(r.dataAgendamento)) categoria = 'Agendamento Vencido';
       counts[categoria]++;
       valores[categoria] += r.valorNF || 0;
     });
@@ -2657,7 +2691,7 @@ const Dashboard = (() => {
     // do gráfico pro recorte que a usuária escolheu.
     if (!algumFiltroAtivo()) {
       DataStore.getPedidosNaoFaturados().forEach(p => {
-        const categoria = categoriaAgendamentoParaPedido(p.statusAgendamento);
+        const categoria = categoriaAgendamentoParaPedido(p.statusAgendamento, p.dataAgendamento);
         // "Entrega Direta" (categoria null) não precisa de agendamento — fica de fora da pizza.
         if (!categoria) return;
         counts[categoria]++;
@@ -2670,14 +2704,14 @@ const Dashboard = (() => {
     // 2026-08-29: renomear só o rótulo visível do card/fatia, não a lógica).
     const AGENDAMENTO_LABEL_EXIBICAO = { 'Sem etapa definida': 'Sem roteiro/ sem agendamento' };
     charts.agendamento.update({
-      labels: AGENDAMENTO_STATUS_CATEGORIAS.map(c => AGENDAMENTO_LABEL_EXIBICAO[c] || c),
-      series: [{ data: AGENDAMENTO_STATUS_CATEGORIAS.map(c => counts[c]) }]
+      labels: AGENDAMENTO_CATEGORIAS_EXIBICAO.map(c => AGENDAMENTO_LABEL_EXIBICAO[c] || c),
+      series: [{ data: AGENDAMENTO_CATEGORIAS_EXIBICAO.map(c => counts[c]) }]
     });
     // Pizza fica sozinha (showLegend:false, ver createCharts) — quem mostra os números agora
     // são os .kpi-card--mini ao lado (mesmo modelo dos KPIs do topo: contagem grande, valor em
     // R$ como subvalor), atualizados aqui direto a partir do mesmo counts/valores que alimenta
     // a pizza, pra nunca divergir dela.
-    AGENDAMENTO_STATUS_CATEGORIAS.forEach(c => {
+    AGENDAMENTO_CATEGORIAS_EXIBICAO.forEach(c => {
       const slug = AGENDAMENTO_LABEL_PARA_TILE_ID[c];
       if (!slug) return;
       const elCount = document.getElementById(`agendamento-tile-${slug}-count`);
