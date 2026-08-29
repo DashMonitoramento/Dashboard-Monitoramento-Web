@@ -1994,9 +1994,17 @@ const Dashboard = (() => {
   /** Clicar na observação já em edição fecha o painel (alterna); clicar noutra troca direto —
    * mesmo padrão de abrirEdicaoPedido ("Pedidos Aguardando Faturamento"). */
   function abrirEdicaoObservacaoRegistroDinamico(nfBase) {
-    registroDinamicoObservacaoNf = registroDinamicoObservacaoNf === nfBase ? null : nfBase;
-    renderRegistroDinamicoDetalhe();
-    if (registroDinamicoObservacaoNf) {
+    const vaiFechar = registroDinamicoObservacaoNf === nfBase;
+    registroDinamicoObservacaoNf = vaiFechar ? null : nfBase;
+    if (vaiFechar) {
+      // Fechar colapsa o painel (hidden) — sem congelar o scroll, o navegador ancora o layout
+      // que encolheu abaixo do ponto de scroll atual e a página pula pra cima sozinha (mesmo
+      // efeito corrigido no handler de salvar, ver comentário lá).
+      const scrollYAntes = window.scrollY;
+      renderRegistroDinamicoDetalhe();
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollYAntes)));
+    } else {
+      renderRegistroDinamicoDetalhe();
       document.getElementById('registro-dinamico-observacao-edicao-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }
@@ -2101,8 +2109,15 @@ const Dashboard = (() => {
         // Fecha o painel de edição depois de salvar (pedido do usuário, 2026-08-29: "continue
         // na mesma tela, apenas suma a opção de editar") — a tabela acima já mostra o texto
         // novo na própria célula, então reabrir a edição não é necessário até ela clicar de novo.
+        // O painel some (hidden) e ocupava espaço ABAIXO da tabela — sem o congelamento de
+        // scroll abaixo, o navegador "ancora" o layout que encolheu e a página pula pra cima
+        // sozinha (confirmado: ela reportou voltar pro topo do Registro Dinâmico ao salvar).
+        // rAF duplo garante que a restauração aconteça DEPOIS do reflow/ancoragem do próprio
+        // navegador, não antes (senão ele sobrescreve de novo).
+        const scrollYAntes = window.scrollY;
         registroDinamicoObservacaoNf = null;
         renderRegistroDinamicoDetalhe();
+        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollYAntes)));
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao salvar a observação.', 'error', 5000);
         botao.disabled = false;
