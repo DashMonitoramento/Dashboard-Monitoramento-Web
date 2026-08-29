@@ -2098,6 +2098,10 @@ const Dashboard = (() => {
         await fb.salvarObservacaoNota(nf, observacao);
         DataStore.applyAgendamentoManual({ [nf]: { observacao } });
         Utils.showToast(`NF ${nf}: observação salva.`, 'success', 2500);
+        // Fecha o painel de edição depois de salvar (pedido do usuário, 2026-08-29: "continue
+        // na mesma tela, apenas suma a opção de editar") — a tabela acima já mostra o texto
+        // novo na própria célula, então reabrir a edição não é necessário até ela clicar de novo.
+        registroDinamicoObservacaoNf = null;
         renderRegistroDinamicoDetalhe();
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao salvar a observação.', 'error', 5000);
