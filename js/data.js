@@ -1986,6 +1986,24 @@ const DataStore = (() => {
     pedidosNaoFaturados = rawRows.map(row => {
       const headerIndex = buildHeaderIndex(row);
       const get = (nome) => { const h = headerIndex[normalizeHeaderKey(nome)]; return h !== undefined ? row[h] : ''; };
+      // Coluna "Data Agendamento" (planilha renomeada/upgradada pela usuária, 2026-08-28) —
+      // dupla finalidade, igual statusAgendamento/dataAgendamento de rawRecords: ou é uma DATA
+      // de verdade (pedido já tem data marcada) ou um TEXTO livre dizendo por que ainda não
+      // tem ("Aguardando Confirmação", "Sem Roteiro", etc. — ver
+      // PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS em dashboard.js). Não travamos numa lista fixa
+      // de textos aqui: qualquer valor não-data vira o status literal, então um texto novo que
+      // a usuária digitar na planilha amanhã já aparece no site sem precisar mexer no código
+      // (só não vai estar no dropdown de edição manual até alguém adicionar lá).
+      const agendamentoBruto = String(get('Data Agendamento') || '').trim();
+      const agendamentoData = Utils.parseDate(agendamentoBruto);
+      let statusAgendamentoPadrao = '';
+      let dataAgendamentoPadrao = null;
+      if (agendamentoData) {
+        statusAgendamentoPadrao = 'Agendado';
+        dataAgendamentoPadrao = agendamentoData;
+      } else if (agendamentoBruto) {
+        statusAgendamentoPadrao = agendamentoBruto;
+      }
       return {
         dataEmissao: Utils.parseDate(get('Data Emissao')),
         grupoEconomico: String(get('Grupo Economico') || '').trim(),
@@ -1993,11 +2011,12 @@ const DataStore = (() => {
         numeroPedido: String(get('Numero Pedido') || '').trim(),
         valorPedido: parseMoney(get('Valor Pedido')),
         qtdePedido: parseMoney(get('Qtde Pedido')),
-        // Preenchidos pelo Firestore (agendamentosManuais, chave "pedido-<número>") — ver
-        // applyAgendamentoManual. Ficam vazios/nulos até essa base carregar (mesmo padrão dos
-        // campos equivalentes em rawRecords).
-        statusAgendamento: '',
-        dataAgendamento: null,
+        // Valor-padrão vem da própria planilha (acima); o Firestore (agendamentosManuais,
+        // chave "pedido-<número>") só SOBRESCREVE quando ela tiver algo — ver
+        // applyAgendamentoManual, mesmo padrão de precedência já usado pros campos
+        // equivalentes em rawRecords (fonte automática primeiro, edição manual por cima).
+        statusAgendamento: statusAgendamentoPadrao,
+        dataAgendamento: dataAgendamentoPadrao,
         observacao: ''
       };
     }).filter(p => p.numeroPedido);
