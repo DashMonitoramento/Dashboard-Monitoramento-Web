@@ -860,40 +860,126 @@ ul { list-style: none; margin: 0; padding: 0; }
    distorcer a proporção. Sem min-height alto de propósito (pedido do usuário, 2026-08-28: a
    imagem "ficou muito grande" — ela agora simplesmente acompanha a altura, bem mais modesta,
    do card de agendamento ao lado, que não é mais esticado por uma legenda grande embaixo). */
-.chart-card--foto { padding: 0; overflow: hidden; position: relative; }
+/* isolation:isolate cria um contexto de empilhamento próprio pro card — sem isso, o
+   mix-blend-mode do scanner (ver .agenda-fx__scanner mais abaixo) poderia "vazar" e misturar
+   cor com elementos de FORA do card, não só com a foto por baixo dele. */
+.chart-card--foto { padding: 0; overflow: hidden; position: relative; isolation: isolate; }
 /* object-position: left (em vez do center padrão) — pedido do usuário (2026-08-28): a foto
    atual tem um textinho de crédito no canto inferior esquerdo que o corte central cortava
    fora (a foto é mais larga que o card, então cover recorta as laterais; "left" preserva a
    borda esquerda inteira, sacrificando um pouco da direita em vez disso). */
 .chart-card__foto-completa { width: 100%; height: 100%; min-height: 160px; object-fit: cover; object-position: left; display: block; }
 
-/* Animação sobre a foto AGENDA (pedido do usuário, 2026-08-28: "manter a atual + animar" —
-   brilho pulsando + anéis girando) — tudo em CSS puro, sobreposto ao centro do círculo
-   "AGENDA" da própria foto via ::before/::after (a foto em si continua uma imagem estática).
-   ::before = brilho pulsando; ::after = anel girando, um pouco maior que o brilho. */
-.chart-card--foto::before {
-  content: ''; position: absolute; top: 50%; left: 50%; width: 38%; aspect-ratio: 1;
-  transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
-  animation: agendaBrilhoPulso 2.6s ease-in-out infinite;
+/* ==========================================================================
+   Animação HUD sobre a foto AGENDA (pedido do usuário, 2026-08-29: "painel tecnológico
+   futurista" — anéis girando em velocidades/sentidos diferentes, pulso central, feixes de luz
+   percorrendo os anéis, ícones piscando alternado, scanner ocasional, tudo reagindo ao hover).
+   A foto em si (assets/img/agendamento-banner.jpg) continua uma imagem ESTÁTICA — nada aqui
+   toca nela; é uma camada .agenda-fx por cima, com elementos próprios, cada um animado só com
+   transform/opacity (aceleração por GPU) — só a cor do anel usa "border", que não muda a cada
+   frame (só a cor é fixa, quem se move é o elemento inteiro via transform:rotate).
+   ========================================================================== */
+.agenda-fx {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  --agenda-glow: 1; --agenda-speed: 1;
 }
-.chart-card--foto::after {
-  content: ''; position: absolute; top: 50%; left: 50%; width: 48%; aspect-ratio: 1;
-  transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
-  border: 2px dashed rgba(125, 211, 252, .65);
-  animation: agendaAnelGirando 16s linear infinite;
+
+/* Anéis concêntricos — tamanhos/velocidades/sentidos diferentes (sensação de profundidade).
+   O feixe de luz (.agenda-fx__beam) é FILHO do anel: fica parado num ponto fixo da borda (topo)
+   e "viaja" pelo círculo de graça, só porque o anel-pai gira — não precisa de animação própria. */
+.agenda-fx__ring {
+  position: absolute; top: 50%; left: 50%; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation-timing-function: linear; animation-iteration-count: infinite;
 }
-@keyframes agendaBrilhoPulso {
-  0%, 100% { box-shadow: 0 0 26px 4px rgba(56, 189, 248, .3); opacity: .55; }
-  50% { box-shadow: 0 0 50px 12px rgba(56, 189, 248, .55); opacity: 1; }
+.agenda-fx__ring--a {
+  width: 48%; aspect-ratio: 1; border: 2px dashed rgba(125, 211, 252, .65);
+  animation-name: agendaGirarHorario; animation-duration: calc(16s / var(--agenda-speed));
 }
-@keyframes agendaAnelGirando {
+.agenda-fx__ring--b {
+  width: 63%; aspect-ratio: 1; border: 1.5px dotted rgba(56, 189, 248, .5);
+  animation-name: agendaGirarAntiHorario; animation-duration: calc(24s / var(--agenda-speed));
+}
+.agenda-fx__ring--c {
+  width: 78%; aspect-ratio: 1; border: 1px dashed rgba(148, 163, 184, .35);
+  animation-name: agendaGirarHorario; animation-duration: calc(38s / var(--agenda-speed));
+}
+@keyframes agendaGirarHorario {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-/* Quem prefere menos movimento na tela (configuração do sistema operacional) não recebe as
-   animações — só a foto parada, como era antes. */
+@keyframes agendaGirarAntiHorario {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+
+/* Pontinho brilhante colado na borda superior do anel — o pai gira, ele "percorre" o círculo
+   (efeito de leitura/processamento). */
+.agenda-fx__beam {
+  position: absolute; top: -3px; left: 50%; width: 7px; height: 7px; margin-left: -3.5px;
+  border-radius: 50%; background: radial-gradient(circle, #E0F2FE 0%, #38BDF8 55%, transparent 100%);
+  box-shadow: 0 0 8px 2px rgba(56, 189, 248, .8);
+}
+.agenda-fx__beam--b { background: radial-gradient(circle, #CFFAFE 0%, #22D3EE 55%, transparent 100%); }
+
+/* Brilho pulsando no centro (por trás/ao redor da palavra "AGENDA" — a legibilidade do texto
+   não muda, ele é da foto, isso aqui só pulsa atrás dele). */
+.agenda-fx__pulse {
+  position: absolute; top: 50%; left: 50%; width: 38%; aspect-ratio: 1;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  animation: agendaBrilhoPulso calc(2.6s / var(--agenda-speed)) ease-in-out infinite;
+}
+@keyframes agendaBrilhoPulso {
+  0%, 100% { box-shadow: 0 0 calc(26px * var(--agenda-glow)) calc(4px * var(--agenda-glow)) rgba(56, 189, 248, .3); opacity: .55; }
+  50% { box-shadow: 0 0 calc(50px * var(--agenda-glow)) calc(12px * var(--agenda-glow)) rgba(56, 189, 248, .55); opacity: 1; }
+}
+
+/* Scanner: arco de luz que varre o painel de vez em quando (não contínuo) — fica invisível
+   ~80% do ciclo, "acende" e dá uma volta rápida, some de novo. mix-blend-mode:screen pra
+   clarear por cima da foto escura sem esconder o que está embaixo. */
+.agenda-fx__scanner {
+  position: absolute; top: 50%; left: 50%; width: 78%; aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(0deg); border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(165, 243, 252, .55) 10deg, transparent 24deg, transparent 360deg);
+  mix-blend-mode: screen; opacity: 0;
+  animation: agendaScanner calc(11s / var(--agenda-speed)) ease-in-out infinite;
+}
+@keyframes agendaScanner {
+  0%, 76% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg); }
+  80% { opacity: .8; }
+  93% { opacity: .8; transform: translate(-50%, -50%) rotate(340deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Pulsos de luz nos "ícones" ao redor do centro (posições aproximadas dos badges já desenhados
+   na própria foto) — cada um com seu próprio atraso, pra nunca piscarem todos juntos. */
+.agenda-fx__icon-glow {
+  position: absolute; width: 5%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, rgba(224, 242, 254, .9) 0%, rgba(56, 189, 248, .55) 45%, transparent 75%);
+  opacity: 0;
+  animation: agendaIconePulso calc(4.8s / var(--agenda-speed)) ease-in-out infinite;
+}
+.agenda-fx__icon-glow--1 { top: 21%; left: 66%; transform: translate(-50%, -50%); animation-delay: 0s; }
+.agenda-fx__icon-glow--2 { top: 50%; left: 83%; transform: translate(-50%, -50%); animation-delay: 1.2s; }
+.agenda-fx__icon-glow--3 { top: 78%; left: 33%; transform: translate(-50%, -50%); animation-delay: 2.4s; }
+.agenda-fx__icon-glow--4 { top: 21%; left: 33%; transform: translate(-50%, -50%); animation-delay: 3.6s; }
+@keyframes agendaIconePulso {
+  0%, 60%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.7); }
+  15% { opacity: .9; transform: translate(-50%, -50%) scale(1.15); }
+  30% { opacity: .3; transform: translate(-50%, -50%) scale(.9); }
+}
+
+/* Hover no card inteiro: brilho mais forte + tudo gira/pulsa mais rápido, sem "zoom" na foto —
+   só as 2 custom properties mudam, cada elemento já lê elas nas próprias animações acima. */
+.chart-card--foto:hover .agenda-fx {
+  --agenda-glow: 1.6; --agenda-speed: 1.8;
+}
+
+/* Quem prefere menos movimento na tela (configuração do sistema operacional) não recebe
+   nenhuma das animações — só a foto parada, como era antes. */
 @media (prefers-reduced-motion: reduce) {
-  .chart-card--foto::before, .chart-card--foto::after { animation: none; }
+  .agenda-fx__ring, .agenda-fx__pulse, .agenda-fx__scanner, .agenda-fx__icon-glow { animation: none; }
+  .agenda-fx__pulse { opacity: .7; box-shadow: 0 0 26px 4px rgba(56, 189, 248, .3); }
 }
 
 /* ---------- 10. Tabela ---------- */
