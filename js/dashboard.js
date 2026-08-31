@@ -28,6 +28,13 @@ const Dashboard = (() => {
   // (2026-08-30) — mesmo padrão de painel único usado em "Registro Dinâmico"
   // (registroDinamicoObservacaoNf), só que pra tabela inicial.
   let registrosDetalhadosObservacaoNf = null;
+  // "Ocorrências do Dia" (2026-08-31): tela nova no "Central de Dados" que é a MESMA tabela
+  // "Registros detalhados" (mesmo estado `table`, mesma seleção, mesmo Enviar Ocorrência/Enviar
+  // Relatório) só que em tela cheia (KPIs/gráficos escondidos, ver mostrarViewMapaRegioes) e com
+  // um filtro extra por cima: Data Coleta dentro do período escolhido + a nota já ter uma
+  // Observação preenchida (ver aplicarFiltroOcorrenciasDoDia). Não cria tabela/estado duplicado.
+  let modoOcorrenciasAtivo = false;
+  let ocorrenciasDoDiaPeriodo = 'hoje'; // 'ontem' | 'hoje' | 'semana' | 'mes'
   const MAIN_TABLE_IDS = {
     tbody: 'table-body', info: 'table-info', pageLabel: 'table-page-label',
     prev: 'table-prev', next: 'table-next', theadSelector: '#data-table thead th[data-field]',
@@ -335,6 +342,7 @@ const Dashboard = (() => {
     bindActionButtons();
     bindSelecaoEOcorrencia();
     bindObservacaoEdicaoPrincipal();
+    bindOcorrenciasDoDia();
     bindStatusDetail();
     bindTableScrollArrows();
     bindCanhotoLinks();
@@ -383,7 +391,10 @@ const Dashboard = (() => {
     const main = document.getElementById('main-view');
     const detalhe = document.getElementById('status-detail-view');
     const pedidosNaoFaturados = document.getElementById('pedidos-nao-faturados-view');
-    const naTelaInicial = !main.hidden && detalhe.hidden && (!pedidosNaoFaturados || pedidosNaoFaturados.hidden);
+    // "Ocorrências do Dia" reaproveita o #main-view (mesma tabela), mas não é a tela inicial —
+    // o botão "casinha" precisa continuar visível nela pra voltar pro Registros detalhados normal.
+    const naTelaInicial = !main.hidden && !main.classList.contains('modo-tabela-foco') &&
+      detalhe.hidden && (!pedidosNaoFaturados || pedidosNaoFaturados.hidden);
     botao.hidden = naTelaInicial;
   }
 
@@ -407,8 +418,16 @@ const Dashboard = (() => {
     // 2026-08-28: fecha sempre que troca de tela por aqui — evita ficar visível junto com
     // mapa/dinâmico/leadtime ao clicar num botão de navegação enquanto essa tela está aberta.
     const pedidosNaoFaturados = document.getElementById('pedidos-nao-faturados-view');
+    // "Ocorrências do Dia" (2026-08-31) reaproveita o MESMO #main-view/tabela "Registros
+    // detalhados" — não é uma tela própria, só um modo dele (main.hidden continua false), com
+    // KPIs/gráficos escondidos via CSS (.modo-tabela-foco) e o filtro extra de
+    // aplicarFiltroOcorrenciasDoDia por cima.
+    const barraOcorrencias = document.getElementById('ocorrencias-periodo-bar');
 
-    main.hidden = view !== 'registros';
+    main.hidden = view !== 'registros' && view !== 'ocorrencias';
+    main.classList.toggle('modo-tabela-foco', view === 'ocorrencias');
+    modoOcorrenciasAtivo = view === 'ocorrencias';
+    if (barraOcorrencias) barraOcorrencias.hidden = view !== 'ocorrencias';
     embed.hidden = view !== 'mapa';
     dinamico.hidden = view !== 'dinamico';
     if (leadtimePedidos) leadtimePedidos.hidden = view !== 'leadtime-pedidos';
@@ -434,6 +453,11 @@ const Dashboard = (() => {
       renderLeadTimePedidos();
       if (leadtimePedidos) leadtimePedidos.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
+      // 'registros' e 'ocorrencias' entram aqui — entrar/sair do modo muda quais registros a
+      // tabela mostra (aplicarFiltroOcorrenciasDoDia), então precisa redesenhar mesmo sem
+      // nenhum filtro global ter mudado.
+      table.page = 1;
+      renderTable(DataStore.getFilteredRecords());
       document.getElementById('registros-detalhados').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
@@ -675,7 +699,9 @@ const Dashboard = (() => {
 
     // rowHtmlComSelecao (não o rowHtml padrão) — senão ordenar por coluna ou trocar de página
     // (Próxima/Anterior) desenharia as linhas sem a coluna de checkbox (2026-08-30).
-    bindTableControlsFor(table, MAIN_TABLE_IDS, () => DataStore.getFilteredRecords(), rowHtmlComSelecao);
+    // aplicarFiltroOcorrenciasDoDia é passthrough fora do modo "Ocorrências do Dia" — sem isso,
+    // ordenar/paginar nessa tela voltaria a mostrar TODAS as notas, não só as filtradas.
+    bindTableControlsFor(table, MAIN_TABLE_IDS, () => aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()), rowHtmlComSelecao);
 
     document.getElementById('table-page-size').addEventListener('change', (e) => {
       table.pageSize = Number(e.target.value);
@@ -711,7 +737,7 @@ const Dashboard = (() => {
 
   function bindActionButtons() {
     document.getElementById('btn-export-csv').addEventListener('click', () => {
-      exportarRegistros('dashboard-entregas.xlsx', DataStore.getFilteredRecords());
+      exportarRegistros(nomeArquivoExportacao(), aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()));
     });
 
     document.getElementById('btn-export-csv-detail').addEventListener('click', () => {
@@ -3295,17 +3321,101 @@ const Dashboard = (() => {
     });
   }
 
+  function inicioDoDia(data) {
+    const d = new Date(data);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  function fimDoDia(data) {
+    const d = new Date(data);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }
+
+  /** Intervalo [início, fim] do período escolhido na barra "Ocorrências do Dia" — Semana/Mês
+   * contam "até hoje" (semana atual desde segunda-feira, mês atual desde o dia 1), não uma
+   * janela rolante de N dias — mesma convenção de "período até hoje" de relatório de BI. */
+  function periodoOcorrenciasDoDia(periodo) {
+    const hoje = inicioDoDia(new Date());
+    if (periodo === 'ontem') {
+      const ontem = new Date(hoje);
+      ontem.setDate(ontem.getDate() - 1);
+      return [ontem, fimDoDia(ontem)];
+    }
+    if (periodo === 'semana') {
+      const inicioSemana = new Date(hoje);
+      const diaSemana = inicioSemana.getDay(); // 0=domingo..6=sábado
+      inicioSemana.setDate(inicioSemana.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1));
+      return [inicioSemana, fimDoDia(hoje)];
+    }
+    if (periodo === 'mes') {
+      return [new Date(hoje.getFullYear(), hoje.getMonth(), 1), fimDoDia(hoje)];
+    }
+    return [hoje, fimDoDia(hoje)]; // 'hoje' (padrão)
+  }
+
+  function rotuloPeriodoOcorrencias(periodo) {
+    return { ontem: 'Ontem', hoje: 'Hoje', semana: 'Semana', mes: 'Mês' }[periodo] || 'Hoje';
+  }
+
+  /** Filtro da tela "Ocorrências do Dia" (pedido do usuário, 2026-08-31): Data Coleta
+   * (r.dataEntrega) dentro do período escolhido + a nota já ter uma Observação preenchida —
+   * reaproveita o mesmo campo já editável na própria coluna Observação da tabela (ver
+   * bindObservacaoEdicaoPrincipal), não cria nenhum dado/coleção novo. Passthrough (devolve
+   * `records` sem alterar) quando o modo não está ativo, pra poder aplicar incondicionalmente
+   * em qualquer lugar que já use DataStore.getFilteredRecords() pra essa tabela. */
+  function aplicarFiltroOcorrenciasDoDia(records) {
+    if (!modoOcorrenciasAtivo) return records;
+    const [inicio, fim] = periodoOcorrenciasDoDia(ocorrenciasDoDiaPeriodo);
+    return records.filter(r =>
+      (r.observacaoAgendamento || '').trim() &&
+      r.dataEntrega && r.dataEntrega.getTime() >= inicio.getTime() && r.dataEntrega.getTime() <= fim.getTime()
+    );
+  }
+
+  /** Nome do Excel exportado — inclui o período quando "Ocorrências do Dia" está ativo, pra ela
+   * já saber o que é o arquivo quando for anexar no relatório da diretoria. */
+  function nomeArquivoExportacao() {
+    if (!modoOcorrenciasAtivo) return 'dashboard-entregas.xlsx';
+    const hoje = new Date();
+    const slug = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+    return `ocorrencias-${ocorrenciasDoDiaPeriodo}-${slug}.xlsx`;
+  }
+
+  /** Liga os 4 botões de período (Ontem/Hoje/Semana/Mês) da barra que só aparece na tela
+   * "Ocorrências do Dia" (ver mostrarViewMapaRegioes). */
+  function bindOcorrenciasDoDia() {
+    const barra = document.getElementById('ocorrencias-periodo-bar');
+    if (!barra) return;
+    barra.querySelectorAll('.ocorrencias-periodo-btn').forEach(botao => {
+      botao.addEventListener('click', () => {
+        ocorrenciasDoDiaPeriodo = botao.dataset.periodo;
+        barra.querySelectorAll('.ocorrencias-periodo-btn').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
+        table.page = 1;
+        renderTable(DataStore.getFilteredRecords());
+      });
+    });
+  }
+
   function renderTable(records) {
+    // Aplica o filtro de "Ocorrências do Dia" por cima do recorte filtrado normal (é passthrough
+    // quando o modo não está ativo) — ANTES de podar a seleção, pra "selecionar todas"/seleção
+    // continuarem batendo com o que está realmente visível nessa tela.
+    const registrosExibidos = aplicarFiltroOcorrenciasDoDia(records);
     // Poda a seleção ANTES de desenhar — se um filtro/busca mudou e alguma NF marcada não bate
     // mais com o recorte atual, ela sai da seleção (pedido do usuário, 2026-08-30: "validar quais
     // registros continuam selecionados pra evitar enviar uma NF incorreta"). Precisa ser sempre
     // contra o conjunto FILTRADO completo (não só a página atual), já que "selecionar todas"
     // também opera sobre o filtrado completo, não só as 25 linhas visíveis.
-    const nfsValidos = new Set(DataStore.getFilteredRecords().map(r => r.nf));
+    const nfsValidos = new Set(registrosExibidos.map(r => r.nf));
     notasSelecionadas.forEach(nf => { if (!nfsValidos.has(nf)) notasSelecionadas.delete(nf); });
-    renderTableGeneric(records, table, MAIN_TABLE_IDS, rowHtmlComSelecao);
+    renderTableGeneric(registrosExibidos, table, MAIN_TABLE_IDS, rowHtmlComSelecao);
     atualizarBotoesScrollTabela();
     atualizarSelecaoUI();
+    if (modoOcorrenciasAtivo) {
+      const contagem = document.getElementById('ocorrencias-periodo-contagem');
+      if (contagem) contagem.textContent = `${Utils.formatNumber(registrosExibidos.length)} ocorrência${registrosExibidos.length === 1 ? '' : 's'} encontrada${registrosExibidos.length === 1 ? '' : 's'}`;
+    }
     renderRegistrosDetalhadosObservacaoEdicao();
   }
 
@@ -3436,7 +3546,7 @@ const Dashboard = (() => {
     }
     const checkboxTodos = document.getElementById('table-select-all');
     if (checkboxTodos) {
-      const registros = DataStore.getFilteredRecords();
+      const registros = aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords());
       const marcados = registros.filter(r => notasSelecionadas.has(r.nf)).length;
       checkboxTodos.checked = registros.length > 0 && marcados === registros.length;
       checkboxTodos.indeterminate = marcados > 0 && marcados < registros.length;
@@ -3445,7 +3555,8 @@ const Dashboard = (() => {
 
   /** Liga os checkboxes de linha (delegado no tbody, pois a tabela é reconstruída a cada
    * render), o "selecionar todos" do cabeçalho (opera sobre TODO o recorte filtrado, não só a
-   * página atual) e o "Limpar seleção" da barra flutuante. */
+   * página atual — inclui o filtro de "Ocorrências do Dia" quando esse modo está ativo) e o
+   * "Limpar seleção" da barra flutuante. */
   function bindSelecaoTabela() {
     document.getElementById(MAIN_TABLE_IDS.tbody).addEventListener('change', (e) => {
       const checkbox = e.target.closest('.row-select-checkbox');
@@ -3456,7 +3567,7 @@ const Dashboard = (() => {
     });
 
     document.getElementById('table-select-all').addEventListener('change', (e) => {
-      const registros = DataStore.getFilteredRecords();
+      const registros = aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords());
       if (e.target.checked) registros.forEach(r => notasSelecionadas.add(r.nf));
       else registros.forEach(r => notasSelecionadas.delete(r.nf));
       renderTable(DataStore.getFilteredRecords());
@@ -3660,6 +3771,11 @@ const Dashboard = (() => {
 
     document.getElementById('btn-enviar-relatorio').addEventListener('click', () => {
       selecionarCanal('whatsapp');
+      // Mensagem padrão troca quando aberta a partir de "Ocorrências do Dia" — mesmo texto de
+      // sempre nas outras telas, pra não confundir quem já está acostumada com o padrão atual.
+      document.getElementById('relatorio-mensagem').value = modoOcorrenciasAtivo
+        ? `Olá, tudo bem?\n\nSegue anexo o relatório de ocorrências do dia (${rotuloPeriodoOcorrencias(ocorrenciasDoDiaPeriodo)}) para acompanhamento.`
+        : 'Olá, tudo bem?\n\nSegue anexo o relatório atualizado.';
       modal.hidden = false;
     });
 
@@ -3673,7 +3789,7 @@ const Dashboard = (() => {
 
     document.getElementById('btn-confirmar-relatorio').addEventListener('click', async () => {
       const mensagem = document.getElementById('relatorio-mensagem').value;
-      await exportarRegistros('dashboard-entregas.xlsx', DataStore.getFilteredRecords());
+      await exportarRegistros(nomeArquivoExportacao(), aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()));
       if (relatorioCanalSelecionado === 'whatsapp') {
         const numero = document.getElementById('relatorio-whatsapp-numero').value.replace(/\D/g, '');
         window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener');
