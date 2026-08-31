@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260829r">
+<link rel="stylesheet" href="css/style.css?v=20260830a">
 </head>
 <body>
 
@@ -128,6 +128,79 @@
     <p class="modal-card__hint">Marque quem, além de você, pode preencher a data e o status de agendamento das notas.</p>
     <div id="lista-usuarios" class="usuarios-lista">
       <p class="usuarios-lista__carregando">Carregando usuários...</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== BARRA FLUTUANTE: NOTAS SELECIONADAS (2026-08-30) =====================
+     Aparece só quando pelo menos 1 checkbox da tabela "Registros detalhados" está marcado (ver
+     notasSelecionadas em dashboard.js) — fixa no rodapé da tela, não cobre a tabela em si. ============ -->
+<div id="selecao-flutuante" class="selecao-flutuante" hidden>
+  <span id="selecao-flutuante-texto">0 notas selecionadas</span>
+  <div class="selecao-flutuante__acoes">
+    <button type="button" id="btn-selecao-enviar-ocorrencia" class="btn btn--pill-orange">⚠️ Enviar Ocorrência</button>
+    <button type="button" id="btn-selecao-limpar" class="btn btn--ghost">Limpar seleção</button>
+  </div>
+</div>
+
+<!-- ===================== MODAL: ENVIAR RELATÓRIO (2026-08-30) =====================
+     Reaproveita o MESMO Excel do botão "Exportar Excel" (exportarRegistros/tableColumns em
+     dashboard.js) — só adiciona o envio por WhatsApp/E-mail em cima do arquivo baixado. Nem
+     WhatsApp Web nem mailto: permitem anexar arquivo via JavaScript (limitação do navegador,
+     não do site) — por isso o Excel baixa normalmente e o aviso pede pra anexar na mão. ============ -->
+<div id="modal-enviar-relatorio" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h2 class="modal-card__title">Enviar Relatório</h2>
+      <button type="button" id="btn-fechar-modal-relatorio" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <p class="modal-card__hint">Como deseja enviar?</p>
+    <div class="modal-tabs">
+      <button type="button" class="modal-tab modal-tab--ativa" data-canal="whatsapp">📱 WhatsApp</button>
+      <button type="button" class="modal-tab" data-canal="email">✉️ E-mail</button>
+    </div>
+    <div class="modal-field" id="campo-relatorio-whatsapp">
+      <label for="relatorio-whatsapp-numero">Número do WhatsApp (com DDD)</label>
+      <input type="text" id="relatorio-whatsapp-numero" placeholder="Ex.: 11 91234-5678">
+    </div>
+    <div class="modal-field" id="campo-relatorio-email" hidden>
+      <label for="relatorio-email-destinatario">Destinatário</label>
+      <input type="email" id="relatorio-email-destinatario" placeholder="nome@empresa.com">
+    </div>
+    <div class="modal-field">
+      <label for="relatorio-mensagem">Mensagem</label>
+      <textarea id="relatorio-mensagem" rows="4">Olá, tudo bem?
+
+Segue anexo o relatório atualizado.</textarea>
+    </div>
+    <p class="modal-card__hint" id="relatorio-aviso-anexo">O Excel será baixado automaticamente — o navegador não permite anexar arquivos sozinho, então anexe esse arquivo na conversa/e-mail que abrir.</p>
+    <div class="modal-actions">
+      <button type="button" id="btn-cancelar-relatorio" class="btn">Cancelar</button>
+      <button type="button" id="btn-confirmar-relatorio" class="btn btn--pill-orange">Baixar Excel e continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: ENVIAR OCORRÊNCIA (2026-08-30) =====================
+     Conteúdo de #ocorrencia-blocos é 100% gerado via JS (abrirModalOcorrencia/renderBlocosOcorrencia
+     em dashboard.js) — o número de blocos varia (1 quando todas as NFs selecionadas têm o mesmo
+     Cliente+Motorista, ou mais quando ela escolhe "criar ocorrências separadas"). ============ -->
+<div id="modal-ocorrencia" class="modal-overlay" hidden>
+  <div class="modal-card modal-card--grande">
+    <div class="modal-card__header">
+      <h2 class="modal-card__title">Nova Ocorrência</h2>
+      <button type="button" id="btn-fechar-modal-ocorrencia" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <div id="ocorrencia-aviso-misto" class="ocorrencia-aviso" hidden>
+      <p>⚠️ As notas selecionadas possuem clientes ou motoristas diferentes.</p>
+      <div class="ocorrencia-aviso__acoes">
+        <button type="button" id="btn-ocorrencia-separar" class="btn btn--pill-orange">Criar ocorrências separadas automaticamente</button>
+        <button type="button" id="btn-ocorrencia-voltar" class="btn">Voltar para seleção</button>
+      </div>
+    </div>
+    <div id="ocorrencia-blocos"></div>
+    <div class="modal-actions modal-actions--rodape">
+      <button type="button" id="btn-ocorrencia-fechar-rodape" class="btn">Fechar</button>
     </div>
   </div>
 </div>
@@ -527,7 +600,7 @@
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260829r" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260830a" alt="" class="chart-card__foto-completa">
           <!-- Camada de animação HUD por cima da foto estática (pedido do usuário, 2026-08-29:
                "não simplesmente rotacionar a imagem inteira... criar camadas independentes") —
                só esses elementos se movem, a foto (e a palavra AGENDA nela) fica parada. -->
@@ -609,6 +682,8 @@
         <div class="table-card__header">
           <div class="table-actions">
             <button id="btn-export-csv" class="btn">⬇️ Exportar Excel</button>
+            <button id="btn-enviar-relatorio" class="btn">📤 Enviar Relatório</button>
+            <button id="btn-enviar-ocorrencia" class="btn btn--ocorrencia">⚠️ Enviar Ocorrência</button>
           </div>
           <div class="table-search">
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
@@ -633,6 +708,7 @@
           <table class="data-table" id="data-table">
             <thead>
               <tr>
+                <th class="col-checkbox"><input type="checkbox" id="table-select-all" title="Selecionar todas as notas filtradas"></th>
                 <th data-field="nf">NF</th>
                 <th data-field="numeroPedido">Número do Pedido</th>
                 <th data-field="cliente">Cliente</th>
@@ -1207,11 +1283,11 @@
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260829r"></script>
-<script src="js/utils.js?v=20260829r"></script>
-<script src="js/data.js?v=20260829r"></script>
-<script src="js/charts.js?v=20260829r"></script>
-<script src="js/dashboard.js?v=20260829r"></script>
-<script src="js/script.js?v=20260829r"></script>
+<script type="module" src="js/firebase-init.js?v=20260830a"></script>
+<script src="js/utils.js?v=20260830a"></script>
+<script src="js/data.js?v=20260830a"></script>
+<script src="js/charts.js?v=20260830a"></script>
+<script src="js/dashboard.js?v=20260830a"></script>
+<script src="js/script.js?v=20260830a"></script>
 </body>
 </html>
