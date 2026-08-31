@@ -184,14 +184,23 @@ const Dashboard = (() => {
     // "Situação de agendamento"). Antes contava TUDO que não fosse Entregue/Devolução/Cancelado
     // (incluía Reentrega, notas que nem obrigam agendamento etc.), o que inflava muito esse
     // número (1.442) em relação ao que o card deveria representar de verdade: notas realmente
-    // paradas esperando alguém agendar. Esse card agora bate exatamente com a fatia "Sem etapa
-    // definida" do gráfico de agendamento (não mais com o TOTAL do gráfico, ver
-    // renderAgendamentoChart) — faz sentido: lá ele é literalmente "ainda sem etapa nenhuma".
+    // paradas esperando alguém agendar. Só NOTAS (já faturadas, com roteiro) — pedidos sem NF
+    // ainda NÃO entram aqui (ver 'sem-roteiro' abaixo), justamente pra não confundir "já tem
+    // roteiro mas falta status" com "nem tem roteiro ainda" (pedido do usuário, 2026-08-30).
     'aguardando': {
       title: 'Aguardando agendamento',
       test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) &&
         !AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)
     },
+    // Fatia "Sem roteiro/ sem agendamento" do gráfico "Situação de agendamento" (pedido do
+    // usuário, 2026-08-30): antes ela reaproveitava a MESMA chave 'aguardando' acima, misturando
+    // notas já faturadas (que JÁ TÊM roteiro, só falta marcar o status) com pedidos que nem
+    // viraram nota ainda. Isso fazia um pedido faturado aparecer como "sem roteiro", o que é
+    // errado — se já foi faturado, o roteiro existe. `test` sempre false de propósito: NENHUMA
+    // nota pertence aqui (notas faturadas sem status ficam só em 'aguardando'/no card
+    // "Aguardando Agendamento" ao lado); só PEDIDOS (Pedidos Aguardando Faturamento, sem NF
+    // ainda) entram, via DETAIL_KEYS_COM_PEDIDOS/categoriaAgendamentoParaPedido mais abaixo.
+    'sem-roteiro': { title: 'Sem roteiro/ sem agendamento', test: () => false },
     'diversos': { title: 'Status Diversos', test: r => !KNOWN_SITUACOES.includes(r.situacao) },
     // Uma entrada por fatia do donut "Situação de agendamento" (pedido do usuário, 2026-08-19,
     // pra editar a data/status/observação de quem já tem etapa — igual já funcionava só pro
@@ -227,11 +236,13 @@ const Dashboard = (() => {
   };
 
   // Rótulo do tile do donut (ver renderAgendamentoChart/AGENDAMENTO_STATUS_CATEGORIAS) -> chave
-  // de STATUS_DETAIL_DEFS a abrir. "Sem etapa definida" aponta pro mesmo 'aguardando' de sempre.
+  // de STATUS_DETAIL_DEFS a abrir. "Sem etapa definida" aponta pra 'sem-roteiro' (só pedidos,
+  // 2026-08-30 — ver comentário em STATUS_DETAIL_DEFS['sem-roteiro']), NÃO pra 'aguardando'
+  // (que é só notas já faturadas, card "Aguardando Agendamento" à parte).
   const AGENDAMENTO_LABEL_PARA_DETAIL_KEY = {
     'Agendado': 'agendamento-agendado',
     'Agendamento Vencido': 'agendamento-vencido',
-    'Sem etapa definida': 'aguardando',
+    'Sem etapa definida': 'sem-roteiro',
     'Aguardando Confirmação': 'agendamento-aguardando-confirmacao',
     'Reagendar': 'agendamento-reagendar',
     'Okker': 'agendamento-okker',
@@ -779,8 +790,10 @@ const Dashboard = (() => {
   // Chaves de STATUS_DETAIL_DEFS que PEDIDOS (Pedidos Aguardando Faturamento, sem NF ainda)
   // podem alimentar — mesmas 4 categorias que categoriaAgendamentoParaPedido consegue devolver
   // (Agendado/Sem etapa definida/Aguardando Confirmação/Okker; um pedido nunca é "Reagendar" nem
-  // "Devolução para Terrinha", ver PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS).
-  const DETAIL_KEYS_COM_PEDIDOS = ['agendamento-agendado', 'agendamento-vencido', 'aguardando', 'agendamento-aguardando-confirmacao', 'agendamento-okker'];
+  // "Devolução para Terrinha", ver PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS). 'sem-roteiro' (não
+  // 'aguardando') recebe os pedidos "Sem etapa definida" — pedido do usuário (2026-08-30): notas
+  // já faturadas (chave 'aguardando') não são "sem roteiro", só pedidos sem NF ainda são.
+  const DETAIL_KEYS_COM_PEDIDOS = ['agendamento-agendado', 'agendamento-vencido', 'sem-roteiro', 'agendamento-aguardando-confirmacao', 'agendamento-okker'];
 
   /** Converte um pedido (Pedidos Aguardando Faturamento) num "registro" no mesmo formato de uma
    * nota, pra entrar na MESMA tabela de detalhe via rowHtml() — pedido do usuário (2026-08-29):
@@ -899,8 +912,9 @@ const Dashboard = (() => {
   const AGENDAMENTO_EDICAO_LIMITE = 200;
 
   // Telas onde o painel de edição de agendamento aparece — a original ("Aguardando
-  // agendamento") mais as 4 novas fatias clicáveis do donut (2026-08-19). "Sem etapa definida"
-  // não precisa de chave própria aqui: ela É 'aguardando', já contemplada.
+  // agendamento") mais as 4 novas fatias clicáveis do donut (2026-08-19). 'sem-roteiro' (fatia
+  // "Sem roteiro/ sem agendamento", 2026-08-30) fica de fora de propósito: só tem pedidos ali,
+  // e pedidos não editam agendamento por esse painel (ver pedidoParaRegistroDetalhe).
   const AGENDAMENTO_EDICAO_DETAIL_KEYS = [
     'aguardando', 'agendamento-agendado', 'agendamento-vencido', 'agendamento-aguardando-confirmacao',
     'agendamento-reagendar', 'agendamento-okker', 'agendamento-devolucao-terrinha'
@@ -2677,14 +2691,14 @@ const Dashboard = (() => {
   /** Situação de agendamento: só entram notas que realmente "Obriga Agendamento" e estão "Em
    * aberto" (mesma população do card "Aguardando agendamento", ver STATUS_DETAIL_DEFS —
    * decisão do usuário, 2026-08-17), quebradas pelas etapas já registradas na planilha de
-   * Agendamentos; o que sobra vai pra "Sem etapa definida". As outras 4 fatias
-   * (Agendado/Aguardando Confirmação/Reagendar/Okker) mostram quem já avançou além do card,
-   * mas continua "Em aberto" aguardando a entrega de fato.
-   * Desde 2026-08-28, os Pedidos Aguardando Faturamento também somam nessas fatias (ver
-   * categoriaAgendamentoParaPedido acima) quando não há filtro ativo — por isso o card
-   * "Aguardando agendamento" (só rawRecords) NÃO bate mais com a fatia "Sem etapa definida"
-   * sozinha na visão padrão sem filtro: a fatia agora é maior, pelos pedidos que também caem
-   * ali. Só voltam a bater quando um filtro estiver ativo (aí os pedidos ficam de fora). */
+   * Agendamentos. As outras 4 fatias (Agendado/Aguardando Confirmação/Reagendar/Okker) mostram
+   * quem já avançou além do card, mas continua "Em aberto" aguardando a entrega de fato.
+   * "Sem etapa definida" (fatia "Sem roteiro/ sem agendamento") NÃO leva nota nenhuma (pedido
+   * do usuário, 2026-08-30: "o pedido ja foi faturado então ele nao esta SEM ROTEIRO") — uma
+   * nota só existe depois de faturada, ou seja, JÁ TEM roteiro; uma nota sem etapa registrada só
+   * conta no card "Aguardando Agendamento" à parte (STATUS_DETAIL_DEFS['aguardando']), nunca
+   * nessa fatia. Só os Pedidos Aguardando Faturamento sem roteiro de verdade (ver
+   * categoriaAgendamentoParaPedido logo abaixo) alimentam "Sem etapa definida" agora. */
   function renderAgendamentoChart(records) {
     const counts = Object.fromEntries(AGENDAMENTO_CATEGORIAS_EXIBICAO.map(c => [c, 0]));
     // Valor NF somado por etapa — os quadrados ao lado da pizza mostram esse total em R$ como
@@ -2692,7 +2706,11 @@ const Dashboard = (() => {
     const valores = Object.fromEntries(AGENDAMENTO_CATEGORIAS_EXIBICAO.map(c => [c, 0]));
     records.forEach(r => {
       if (!r.necessitaAgendamento || !situacaoElegivelParaAgendamento(r.situacao)) return;
-      let categoria = AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento) ? r.statusAgendamento : 'Sem etapa definida';
+      // Nota sem nenhuma etapa registrada NÃO entra em "Sem etapa definida" (essa fatia é só
+      // pedidos sem roteiro, ver comentário acima) — fica de fora da pizza, só conta no card
+      // "Aguardando Agendamento" à parte (renderAguardandoAgendamentoCard).
+      if (!AGENDAMENTO_ETAPAS_ESPECIFICAS.includes(r.statusAgendamento)) return;
+      let categoria = r.statusAgendamento;
       // "Agendado" cuja data já passou sai dessa categoria e vira "Agendamento Vencido" (pedido
       // do usuário, 2026-08-29).
       if (categoria === 'Agendado' && agendamentoVencido(r.dataAgendamento)) categoria = 'Agendamento Vencido';
