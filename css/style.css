@@ -832,6 +832,35 @@ ul { list-style: none; margin: 0; padding: 0; }
   background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius-sm);
   padding: 10px 12px; color: var(--text-primary); margin: 0;
 }
+
+/* "Ocorrências do Dia" — tela nova no menu "Central de Dados" (2026-08-31): a MESMA tabela
+   "Registros detalhados" em tela cheia, sem os KPIs/gráficos de cima, com uma barra de período
+   extra no topo. .modo-tabela-foco fica no próprio #main-view (não no body), pra não afetar
+   nenhuma outra tela — esconde só os filhos diretos de KPI/gráfico, mantendo #registros-detalhados
+   e tudo dentro dele intacto. */
+#main-view.modo-tabela-foco > .kpi-grid,
+#main-view.modo-tabela-foco > .kpi-actions,
+#main-view.modo-tabela-foco > .charts-grid {
+  display: none;
+}
+.ocorrencias-periodo-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 16px; margin-bottom: 14px; border: 1px solid var(--border);
+  border-radius: var(--radius-md); background: var(--surface-alt);
+}
+.ocorrencias-periodo-bar[hidden] { display: none; }
+.ocorrencias-periodo-bar__label { font-size: 12.5px; font-weight: 800; color: var(--text-primary); }
+.ocorrencias-periodo-bar__opcoes { display: flex; gap: 8px; }
+.ocorrencias-periodo-btn {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-primary);
+  border-radius: 999px; padding: 6px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  transition: var(--transition);
+}
+.ocorrencias-periodo-btn:hover { border-color: var(--color-orange); }
+.ocorrencias-periodo-btn--ativo {
+  background: var(--color-orange); border-color: var(--color-orange); color: #fff;
+}
+.ocorrencias-periodo-bar__contagem { margin-left: auto; font-size: 12.5px; color: var(--text-secondary); font-weight: 700; }
 .usuarios-lista { display: flex; flex-direction: column; gap: 8px; }
 .usuarios-lista__carregando, .usuarios-lista__vazio { font-size: 13px; color: var(--text-secondary); }
 .usuario-row {
