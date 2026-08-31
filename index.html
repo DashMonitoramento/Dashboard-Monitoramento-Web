@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260830d">
+<link rel="stylesheet" href="css/style.css?v=20260831a">
 </head>
 <body>
 
@@ -430,6 +430,10 @@ Segue anexo o relatório atualizado.</textarea>
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></span>
           <span class="nav-label">Lead Time de Pedidos e Entregas</span>
         </button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="ocorrencias" title="Ocorrências do Dia">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
+          <span class="nav-label">Ocorrências do Dia</span>
+        </button>
       </div>
     </div>
 
@@ -600,7 +604,7 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260830d" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260831a" alt="" class="chart-card__foto-completa">
           <!-- Camada de animação HUD por cima da foto estática (pedido do usuário, 2026-08-29:
                "não simplesmente rotacionar a imagem inteira... criar camadas independentes") —
                só esses elementos se movem, a foto (e a palavra AGENDA nela) fica parada. -->
@@ -679,6 +683,21 @@ Segue anexo o relatório atualizado.</textarea>
 
       <!-- TABELA -->
       <section class="table-card" id="registros-detalhados" aria-label="Tabela de registros">
+        <!-- Barra de período só visível na tela "Ocorrências do Dia" (menu "Central de Dados",
+             2026-08-31) — mostra/some via mostrarViewMapaRegioes; filtra a MESMA tabela abaixo
+             por Data Coleta dentro do período + a nota já ter uma Observação preenchida (ver
+             aplicarFiltroOcorrenciasDoDia/bindOcorrenciasDoDia em dashboard.js). -->
+        <div id="ocorrencias-periodo-bar" class="ocorrencias-periodo-bar" hidden>
+          <span class="ocorrencias-periodo-bar__label">⚠️ Ocorrências do Dia — Período:</span>
+          <div class="ocorrencias-periodo-bar__opcoes">
+            <button type="button" class="ocorrencias-periodo-btn" data-periodo="ontem">Ontem</button>
+            <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-periodo="hoje">Hoje</button>
+            <button type="button" class="ocorrencias-periodo-btn" data-periodo="semana">Semana</button>
+            <button type="button" class="ocorrencias-periodo-btn" data-periodo="mes">Mês</button>
+          </div>
+          <span id="ocorrencias-periodo-contagem" class="ocorrencias-periodo-bar__contagem"></span>
+        </div>
+
         <div class="table-card__header">
           <div class="table-actions">
             <button id="btn-export-csv" class="btn">⬇️ Exportar Excel</button>
@@ -1294,11 +1313,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260830d"></script>
-<script src="js/utils.js?v=20260830d"></script>
-<script src="js/data.js?v=20260830d"></script>
-<script src="js/charts.js?v=20260830d"></script>
-<script src="js/dashboard.js?v=20260830d"></script>
-<script src="js/script.js?v=20260830d"></script>
+<script type="module" src="js/firebase-init.js?v=20260831a"></script>
+<script src="js/utils.js?v=20260831a"></script>
+<script src="js/data.js?v=20260831a"></script>
+<script src="js/charts.js?v=20260831a"></script>
+<script src="js/dashboard.js?v=20260831a"></script>
+<script src="js/script.js?v=20260831a"></script>
 </body>
 </html>
