@@ -3475,23 +3475,27 @@ const Dashboard = (() => {
   /** Agrupa os registros selecionados em 1 bloco por combinação Cliente+Motorista distinta —
    * normalmente 1 bloco só (pedido do usuário: "várias notas do mesmo cliente" viram uma única
    * ocorrência). Cada bloco recebe um id estável (proximoIdBlocoOcorrencia) pra sobreviver a
-   * re-renders do modal (remoção de chip, digitação na observação). */
+   * re-renders do modal (remoção de chip, digitação na ocorrência). Transportadora é capturada
+   * do 1º registro do grupo, mesmo padrão já usado pra cliente/motorista (o agrupamento continua
+   * só por Cliente+Motorista, não foi ampliado pra incluir Transportadora na chave). */
   function montarBlocosOcorrencia(registros) {
     const grupos = new Map();
     registros.forEach(r => {
       const chave = chaveClienteMotorista(r);
-      if (!grupos.has(chave)) grupos.set(chave, { cliente: r.cliente, motorista: r.motorista, nfs: [] });
+      if (!grupos.has(chave)) grupos.set(chave, { cliente: r.cliente, motorista: r.motorista, transportadora: r.transportadora, nfs: [] });
       grupos.get(chave).nfs.push(r.nf);
     });
     return Array.from(grupos.values()).map(g => ({
-      id: proximoIdBlocoOcorrencia++, cliente: g.cliente, motorista: g.motorista, nfs: g.nfs, observacao: ''
+      id: proximoIdBlocoOcorrencia++, cliente: g.cliente, motorista: g.motorista, transportadora: g.transportadora, nfs: g.nfs, ocorrencia: ''
     }));
   }
 
-  /** Monta o texto exato que será copiado/enviado — mesmo formato pedido pelo usuário:
-   * "NF: ... / Cliente: ... / Observação: ... / Motorista: ...". */
+  /** Monta o texto exato que será copiado/enviado — formato definido pela usuária (2026-08-30,
+   * script pronto pra WhatsApp): rótulos em negrito (sintaxe *texto* do WhatsApp — aparece como
+   * asterisco literal em e-mail/pré-visualização, inerente a usar o mesmo texto puro nos 3
+   * canais) e o campo antes chamado "Observação" agora é "⚠️ Ocorrência". */
   function gerarMensagemOcorrencia(bloco) {
-    return `NF: ${bloco.nfs.join(' / ')}\nCliente: ${bloco.cliente}\nObservação: ${bloco.observacao || '(preencher observação)'}\nMotorista: ${bloco.motorista}`;
+    return `*NF:* ${bloco.nfs.join(' / ')}\n*Cliente:* ${bloco.cliente}\n⚠️ *Ocorrência:* ${bloco.ocorrencia || '(preencher ocorrência)'}\n*Transportadora:* ${bloco.transportadora || '—'}\n*Motorista:* ${bloco.motorista}`;
   }
 
   function abrirModalOcorrencia() {
@@ -3538,12 +3542,16 @@ const Dashboard = (() => {
           <input type="text" value="${escapeAttr(bloco.cliente)}" readonly>
         </div>
         <div class="modal-field">
+          <label>Transportadora</label>
+          <input type="text" value="${escapeAttr(bloco.transportadora || '—')}" readonly>
+        </div>
+        <div class="modal-field">
           <label>Motorista</label>
           <input type="text" value="${escapeAttr(bloco.motorista)}" readonly>
         </div>
         <div class="modal-field">
-          <label>Observação</label>
-          <textarea rows="3" data-observacao-bloco="${bloco.id}" placeholder="Descreva a ocorrência...">${escapeAttr(bloco.observacao)}</textarea>
+          <label>Ocorrência</label>
+          <textarea rows="3" data-ocorrencia-bloco="${bloco.id}" placeholder="Descreva a ocorrência...">${escapeAttr(bloco.ocorrencia)}</textarea>
         </div>
         <div class="modal-field">
           <label>Pré-visualização</label>
@@ -3578,11 +3586,11 @@ const Dashboard = (() => {
     const container = document.getElementById('ocorrencia-blocos');
 
     container.addEventListener('input', (e) => {
-      const textarea = e.target.closest('[data-observacao-bloco]');
+      const textarea = e.target.closest('[data-ocorrencia-bloco]');
       if (!textarea) return;
-      const bloco = ocorrenciaBlocos.find(b => b.id === Number(textarea.dataset.observacaoBloco));
+      const bloco = ocorrenciaBlocos.find(b => b.id === Number(textarea.dataset.ocorrenciaBloco));
       if (!bloco) return;
-      bloco.observacao = textarea.value;
+      bloco.ocorrencia = textarea.value;
       const preview = container.querySelector(`[data-preview-bloco="${bloco.id}"]`);
       if (preview) preview.textContent = gerarMensagemOcorrencia(bloco);
     });
