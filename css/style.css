@@ -747,6 +747,91 @@ ul { list-style: none; margin: 0; padding: 0; }
 .modal-card__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .modal-card__title { font-size: 16px; font-weight: 800; }
 .modal-card__hint { font-size: 12.5px; color: var(--text-secondary); margin: 6px 0 14px; }
+/* "Modal grande" (Enviar Ocorrência, 2026-08-30) — mesmo cartão/cores do .modal-card padrão,
+   só mais largo, pra caber os blocos de ocorrência (chips + campos + pré-visualização). */
+.modal-card--grande { max-width: 760px; }
+
+/* ---------- 6.5 Ações em lote da tabela: seleção de NF, relatório, ocorrência (2026-08-30) ---------- */
+.col-checkbox { width: 36px; text-align: center; }
+.col-checkbox input, .row-select-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-orange); }
+
+/* Botão "Enviar Ocorrência" (cabeçalho da tabela) — mesmo contorno laranja pulsante já usado em
+   "Atualizar dados"/"Status Diversos" (ver #btn-status-diversos, .btn-scroll-tabela,
+   #btn-refresh-data), reaproveitado aqui porque é uma ação que "chama atenção" da mesma forma. */
+.btn--ocorrencia {
+  border-width: 2px; border-color: var(--color-orange); background: rgba(255,122,26,.08); color: var(--color-orange);
+  box-shadow: 0 0 8px 1px rgba(255,122,26,.5), 0 0 3px rgba(255,122,26,.8);
+  animation: statusDiversosGlow 2.4s ease-in-out infinite;
+}
+.btn--ocorrencia:hover { box-shadow: 0 0 16px 3px rgba(255,122,26,.85); }
+@media (prefers-reduced-motion: reduce) { .btn--ocorrencia { animation: none; } }
+
+/* Barra flutuante — some/aparece conforme notasSelecionadas (dashboard.js), fixa no rodapé pra
+   nunca cobrir cabeçalho/paginação/gráficos da tela por cima. */
+.selecao-flutuante {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 200;
+  display: flex; align-items: center; gap: 18px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  padding: 10px 12px 10px 20px; box-shadow: var(--shadow-md);
+  animation: selecaoFlutuanteEntrar .25s ease-out;
+}
+.selecao-flutuante[hidden] { display: none; }
+@keyframes selecaoFlutuanteEntrar {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+#selecao-flutuante-texto { font-size: 13.5px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.selecao-flutuante__acoes { display: flex; gap: 8px; }
+
+/* Abas simples (WhatsApp/E-mail) dentro do modal "Enviar Relatório". */
+.modal-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.modal-tab {
+  flex: 1; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface-alt); color: var(--text-secondary); font-weight: 600; font-size: 13px; cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+.modal-tab--ativa { border-color: var(--color-orange); color: var(--color-orange); background: rgba(255,122,26,.08); }
+
+.modal-field { margin-bottom: 14px; }
+.modal-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+.modal-field input, .modal-field textarea {
+  width: 100%; padding: 9px 11px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface-alt); color: var(--text-primary); font-family: inherit; font-size: 13px; resize: vertical;
+}
+.modal-field input:focus, .modal-field textarea:focus { outline: 2px solid var(--color-blue); outline-offset: 1px; }
+.modal-field input[readonly] { color: var(--text-secondary); cursor: default; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.modal-actions--rodape { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+/* Aviso de cliente/motorista diferentes, dentro do modal de ocorrência. */
+.ocorrencia-aviso {
+  background: rgba(220,38,38,.08); border: 1px solid rgba(220,38,38,.35); border-radius: var(--radius-md);
+  padding: 14px 16px; margin-bottom: 16px;
+}
+.ocorrencia-aviso p { font-size: 13.5px; font-weight: 700; color: var(--color-danger); margin-bottom: 10px; }
+.ocorrencia-aviso__acoes { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Cada bloco = 1 ocorrência (1 combinação de Cliente+Motorista) — a maioria das vezes é só 1. */
+.ocorrencia-bloco {
+  border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin-bottom: 14px; background: var(--surface-alt);
+}
+.ocorrencia-bloco:last-child { margin-bottom: 0; }
+.ocorrencia-bloco__chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.nf-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 12px; border-radius: 999px;
+  background: rgba(255,122,26,.1); border: 1px solid rgba(255,122,26,.4); color: var(--color-orange);
+  font-size: 12px; font-weight: 700;
+}
+.nf-chip__remover {
+  width: 18px; height: 18px; border-radius: 50%; border: none; background: rgba(255,122,26,.18); color: var(--color-orange);
+  font-size: 13px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.nf-chip__remover:hover { background: var(--color-orange); color: #fff; }
+.ocorrencia-preview {
+  white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 12.5px; line-height: 1.6;
+  background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; color: var(--text-primary); margin: 0;
+}
 .usuarios-lista { display: flex; flex-direction: column; gap: 8px; }
 .usuarios-lista__carregando, .usuarios-lista__vazio { font-size: 13px; color: var(--text-secondary); }
 .usuario-row {
@@ -1017,29 +1102,29 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* Esconde a coluna correspondente quando o campo aparece em data-hide (ver
    aplicarColunasOcultas em dashboard.js) — índices batem com a ordem das colunas de
    #data-table (thead th / rowHtml). */
-#data-table[data-hide~="nf"] th:nth-child(1), #data-table[data-hide~="nf"] td:nth-child(1) { display: none; }
-#data-table[data-hide~="numeroPedido"] th:nth-child(2), #data-table[data-hide~="numeroPedido"] td:nth-child(2) { display: none; }
-#data-table[data-hide~="cliente"] th:nth-child(3), #data-table[data-hide~="cliente"] td:nth-child(3) { display: none; }
-#data-table[data-hide~="transportadora"] th:nth-child(4), #data-table[data-hide~="transportadora"] td:nth-child(4) { display: none; }
-#data-table[data-hide~="motorista"] th:nth-child(5), #data-table[data-hide~="motorista"] td:nth-child(5) { display: none; }
-#data-table[data-hide~="vendedor"] th:nth-child(6), #data-table[data-hide~="vendedor"] td:nth-child(6) { display: none; }
-#data-table[data-hide~="cidade"] th:nth-child(7), #data-table[data-hide~="cidade"] td:nth-child(7) { display: none; }
-#data-table[data-hide~="status"] th:nth-child(8), #data-table[data-hide~="status"] td:nth-child(8) { display: none; }
-#data-table[data-hide~="prazoStatus"] th:nth-child(9), #data-table[data-hide~="prazoStatus"] td:nth-child(9) { display: none; }
-#data-table[data-hide~="situacao"] th:nth-child(10), #data-table[data-hide~="situacao"] td:nth-child(10) { display: none; }
-#data-table[data-hide~="statusAgendamento"] th:nth-child(11), #data-table[data-hide~="statusAgendamento"] td:nth-child(11) { display: none; }
-#data-table[data-hide~="valorNF"] th:nth-child(12), #data-table[data-hide~="valorNF"] td:nth-child(12) { display: none; }
-#data-table[data-hide~="dataEntrega"] th:nth-child(13), #data-table[data-hide~="dataEntrega"] td:nth-child(13) { display: none; }
-#data-table[data-hide~="dataAgendamento"] th:nth-child(14), #data-table[data-hide~="dataAgendamento"] td:nth-child(14) { display: none; }
-#data-table[data-hide~="observacaoAgendamento"] th:nth-child(15), #data-table[data-hide~="observacaoAgendamento"] td:nth-child(15) { display: none; }
-#data-table[data-hide~="filial"] th:nth-child(16), #data-table[data-hide~="filial"] td:nth-child(16) { display: none; }
-#data-table[data-hide~="codigoCliente"] th:nth-child(17), #data-table[data-hide~="codigoCliente"] td:nth-child(17) { display: none; }
-#data-table[data-hide~="telefone"] th:nth-child(18), #data-table[data-hide~="telefone"] td:nth-child(18) { display: none; }
-#data-table[data-hide~="dataCriacao"] th:nth-child(19), #data-table[data-hide~="dataCriacao"] td:nth-child(19) { display: none; }
-#data-table[data-hide~="dataEntregaNF"] th:nth-child(20), #data-table[data-hide~="dataEntregaNF"] td:nth-child(20) { display: none; }
-#data-table[data-hide~="numeroPedidoEcommerce"] th:nth-child(21), #data-table[data-hide~="numeroPedidoEcommerce"] td:nth-child(21) { display: none; }
-#data-table[data-hide~="dataFaturamento"] th:nth-child(22), #data-table[data-hide~="dataFaturamento"] td:nth-child(22) { display: none; }
-#data-table[data-hide~="numeroFatura"] th:nth-child(23), #data-table[data-hide~="numeroFatura"] td:nth-child(23) { display: none; }
+#data-table[data-hide~="nf"] th:nth-child(2), #data-table[data-hide~="nf"] td:nth-child(2) { display: none; }
+#data-table[data-hide~="numeroPedido"] th:nth-child(3), #data-table[data-hide~="numeroPedido"] td:nth-child(3) { display: none; }
+#data-table[data-hide~="cliente"] th:nth-child(4), #data-table[data-hide~="cliente"] td:nth-child(4) { display: none; }
+#data-table[data-hide~="transportadora"] th:nth-child(5), #data-table[data-hide~="transportadora"] td:nth-child(5) { display: none; }
+#data-table[data-hide~="motorista"] th:nth-child(6), #data-table[data-hide~="motorista"] td:nth-child(6) { display: none; }
+#data-table[data-hide~="vendedor"] th:nth-child(7), #data-table[data-hide~="vendedor"] td:nth-child(7) { display: none; }
+#data-table[data-hide~="cidade"] th:nth-child(8), #data-table[data-hide~="cidade"] td:nth-child(8) { display: none; }
+#data-table[data-hide~="status"] th:nth-child(9), #data-table[data-hide~="status"] td:nth-child(9) { display: none; }
+#data-table[data-hide~="prazoStatus"] th:nth-child(10), #data-table[data-hide~="prazoStatus"] td:nth-child(10) { display: none; }
+#data-table[data-hide~="situacao"] th:nth-child(11), #data-table[data-hide~="situacao"] td:nth-child(11) { display: none; }
+#data-table[data-hide~="statusAgendamento"] th:nth-child(12), #data-table[data-hide~="statusAgendamento"] td:nth-child(12) { display: none; }
+#data-table[data-hide~="valorNF"] th:nth-child(13), #data-table[data-hide~="valorNF"] td:nth-child(13) { display: none; }
+#data-table[data-hide~="dataEntrega"] th:nth-child(14), #data-table[data-hide~="dataEntrega"] td:nth-child(14) { display: none; }
+#data-table[data-hide~="dataAgendamento"] th:nth-child(15), #data-table[data-hide~="dataAgendamento"] td:nth-child(15) { display: none; }
+#data-table[data-hide~="observacaoAgendamento"] th:nth-child(16), #data-table[data-hide~="observacaoAgendamento"] td:nth-child(16) { display: none; }
+#data-table[data-hide~="filial"] th:nth-child(17), #data-table[data-hide~="filial"] td:nth-child(17) { display: none; }
+#data-table[data-hide~="codigoCliente"] th:nth-child(18), #data-table[data-hide~="codigoCliente"] td:nth-child(18) { display: none; }
+#data-table[data-hide~="telefone"] th:nth-child(19), #data-table[data-hide~="telefone"] td:nth-child(19) { display: none; }
+#data-table[data-hide~="dataCriacao"] th:nth-child(20), #data-table[data-hide~="dataCriacao"] td:nth-child(20) { display: none; }
+#data-table[data-hide~="dataEntregaNF"] th:nth-child(21), #data-table[data-hide~="dataEntregaNF"] td:nth-child(21) { display: none; }
+#data-table[data-hide~="numeroPedidoEcommerce"] th:nth-child(22), #data-table[data-hide~="numeroPedidoEcommerce"] td:nth-child(22) { display: none; }
+#data-table[data-hide~="dataFaturamento"] th:nth-child(23), #data-table[data-hide~="dataFaturamento"] td:nth-child(23) { display: none; }
+#data-table[data-hide~="numeroFatura"] th:nth-child(24), #data-table[data-hide~="numeroFatura"] td:nth-child(24) { display: none; }
 
 /* Card com altura travada e rolagem própria (vertical + horizontal) — assim a tabela não
    empurra a paginação pra fora da tela quando tem muita linha por página. */
