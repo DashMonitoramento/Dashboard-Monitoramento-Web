@@ -24,6 +24,10 @@ const Dashboard = (() => {
   // e o clique em "Criar ocorrências separadas automaticamente" (ver abrirModalOcorrencia).
   let ocorrenciaRegistrosPendentes = [];
   let relatorioCanalSelecionado = 'whatsapp';
+  // NF (base, sem sufixo) cuja observação está sendo editada na tabela "Registros detalhados"
+  // (2026-08-30) — mesmo padrão de painel único usado em "Registro Dinâmico"
+  // (registroDinamicoObservacaoNf), só que pra tabela inicial.
+  let registrosDetalhadosObservacaoNf = null;
   const MAIN_TABLE_IDS = {
     tbody: 'table-body', info: 'table-info', pageLabel: 'table-page-label',
     prev: 'table-prev', next: 'table-next', theadSelector: '#data-table thead th[data-field]',
@@ -330,6 +334,7 @@ const Dashboard = (() => {
     bindTableControls();
     bindActionButtons();
     bindSelecaoEOcorrencia();
+    bindObservacaoEdicaoPrincipal();
     bindStatusDetail();
     bindTableScrollArrows();
     bindCanhotoLinks();
@@ -3193,10 +3198,19 @@ const Dashboard = (() => {
    * #detail-data-table via DETAIL_TABLE_IDS) — ela compartilha esse mesmo renderizador mas não
    * tem o mecanismo de mostrar/ocultar coluna (nem cabeçalho pras 8 colunas novas), então
    * incluir essas células ali sairia sem rótulo e desalinhado. */
-  function rowHtml(r, incluirColunasNovas = true) {
+  function rowHtml(r, incluirColunasNovas = true, observacaoClicavel = false) {
     // Verde quando a NF já tem canhoto indexado (pasta do SharePoint), laranja quando não tem
     // — só uma consulta O(1) no Map já carregado em memória, sem custo perceptível por linha.
     const temCanhoto = canhotosIndex.has(r.nf.split('-')[0]);
+    // Coluna Observação clicável (2026-08-30, pedido do usuário: "mesma opção que tem no
+    // Registro Dinâmico") — só na tabela "Registros detalhados" (rowHtmlComSelecao passa true);
+    // a tela de detalhe/drill-down continua com o texto simples de sempre (observacaoClicavel
+    // fica false por padrão), pra não interferir no painel de edição em massa dela
+    // (renderObservacaoEdicao/OBSERVACAO_EDICAO_DETAIL_KEYS).
+    const nfBaseObservacao = r.nf ? r.nf.split('-')[0] : '';
+    const observacaoHtml = observacaoClicavel
+      ? `<button type="button" class="nf-link${registrosDetalhadosObservacaoNf === nfBaseObservacao ? ' nf-link--ativo' : ''}" data-observacao-edicao-principal="${escapeAttr(nfBaseObservacao)}">${escapeAttr(r.observacaoAgendamento || 'Adicionar observação')}</button>`
+      : escapeAttr(r.observacaoAgendamento || '—');
     const colunasNovasHtml = !incluirColunasNovas ? '' : `
         <td class="truncate" title="${escapeAttr(r.filial)}">${escapeAttr(r.filial || '—')}</td>
         <td>${escapeAttr(r.codigoCliente || '—')}</td>
@@ -3227,7 +3241,7 @@ const Dashboard = (() => {
         <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
         <td>${Utils.formatDate(r.dataEntrega)}</td>
         <td>${Utils.formatDate(r.dataAgendamento)}</td>
-        <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${escapeAttr(r.observacaoAgendamento || '—')}</td>${colunasNovasHtml}
+        <td class="truncate" title="${escapeAttr(r.observacaoAgendamento || '')}">${observacaoHtml}</td>${colunasNovasHtml}
       </tr>
     `;
   }
@@ -3235,11 +3249,12 @@ const Dashboard = (() => {
   /** Linha da tabela PRINCIPAL, com a coluna extra de checkbox na frente (2026-08-30, "Enviar
    * Ocorrência") — reaproveita rowHtml() sem alterar ele (a tela de detalhe/drill-down, que
    * também usa rowHtml, continua sem checkbox — esse recurso é só da tabela "Registros
-   * detalhados"). Só injeta um <td> a mais logo depois do <tr> de abertura. */
+   * detalhados"). Só injeta um <td> a mais logo depois do <tr> de abertura. Observação clicável
+   * (3º parâmetro true) também é exclusiva dessa tabela, mesmo motivo. */
   function rowHtmlComSelecao(r) {
     const marcado = notasSelecionadas.has(r.nf) ? ' checked' : '';
     const checkboxHtml = `<td class="col-checkbox"><input type="checkbox" class="row-select-checkbox" data-nf="${escapeAttr(r.nf)}"${marcado}></td>`;
-    return rowHtml(r, true).replace('<tr>', `<tr>${checkboxHtml}`);
+    return rowHtml(r, true, true).replace('<tr>', `<tr>${checkboxHtml}`);
   }
 
   /** Ordena, pagina e desenha uma tabela — usado pela tabela principal, pela tela de detalhe
@@ -3291,6 +3306,117 @@ const Dashboard = (() => {
     renderTableGeneric(records, table, MAIN_TABLE_IDS, rowHtmlComSelecao);
     atualizarBotoesScrollTabela();
     atualizarSelecaoUI();
+    renderRegistrosDetalhadosObservacaoEdicao();
+  }
+
+  /** Painel de edição da observação de UMA nota (clicar no botão da coluna "Observação" na
+   * tabela "Registros detalhados" acima) — mesmo modelo já usado em "Registro Dinâmico"
+   * (renderRegistroDinamicoObservacaoEdicao/abrirEdicaoObservacaoRegistroDinamico), só que pra
+   * tabela inicial (pedido do usuário, 2026-08-30: "mesma opção que tem no Registro Dinâmico").
+   * Busca a nota em TODO o recorte filtrado (não só a página atual), já que a nota clicada pode
+   * não estar mais na página corrente depois de reordenar/paginar/mudar linhas por página. */
+  function renderRegistrosDetalhadosObservacaoEdicao() {
+    const section = document.getElementById('registros-detalhados-observacao-edicao-section');
+    if (!registrosDetalhadosObservacaoNf) { section.hidden = true; return; }
+    const registro = DataStore.getFilteredRecords().find(r => r.nf.split('-')[0] === registrosDetalhadosObservacaoNf);
+    if (!registro) { section.hidden = true; registrosDetalhadosObservacaoNf = null; return; }
+    section.hidden = false;
+
+    const admin = isAdminAgendamento();
+    document.getElementById('registros-detalhados-observacao-edicao-titulo').textContent = `Editar observação — NF ${registro.nf}`;
+    document.getElementById('registros-detalhados-observacao-edicao-hint').textContent = admin
+      ? 'Escreva uma observação livre sobre a nota — salva direto aqui, sem precisar de planilha.'
+      : 'Observação da nota (só o usuário responsável pode editar).';
+
+    const list = document.getElementById('registros-detalhados-observacao-edicao-list');
+    const observacaoAtual = registro.observacaoAgendamento || '';
+
+    if (!admin) {
+      list.innerHTML = `
+        <div class="observacao-row">
+          <span class="observacao-row__nf">${escapeAttr(registro.nf)}</span>
+          <span class="observacao-row__cliente" title="${escapeAttr(registro.cliente)}">${escapeAttr(registro.cliente)}</span>
+          <span class="observacao-row__somente-leitura" title="${escapeAttr(observacaoAtual)}">${escapeAttr(observacaoAtual || '—')}</span>
+          <span></span>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = `
+      <div class="observacao-row" data-nf="${escapeAttr(registrosDetalhadosObservacaoNf)}">
+        <span class="observacao-row__nf">${escapeAttr(registro.nf)}</span>
+        <span class="observacao-row__cliente" title="${escapeAttr(registro.cliente)}">${escapeAttr(registro.cliente)}</span>
+        <input type="text" class="observacao-row__input" placeholder="Observação (opcional)" value="${escapeAttr(observacaoAtual)}">
+        <button type="button" class="btn observacao-row__salvar">Salvar</button>
+      </div>
+    `;
+  }
+
+  /** Clicar na observação já em edição fecha o painel (alterna); clicar noutra troca direto —
+   * mesmo padrão de abrirEdicaoObservacaoRegistroDinamico. */
+  function abrirEdicaoObservacaoRegistrosDetalhados(nfBase) {
+    const vaiFechar = registrosDetalhadosObservacaoNf === nfBase;
+    registrosDetalhadosObservacaoNf = vaiFechar ? null : nfBase;
+    if (vaiFechar) {
+      // Fechar colapsa o painel abaixo da tabela — sem congelar o scroll, o navegador ancora o
+      // layout que encolheu e a página pula pra cima sozinha (mesmo efeito já visto/corrigido em
+      // Registro Dinâmico).
+      const scrollYAntes = window.scrollY;
+      renderTable(DataStore.getFilteredRecords());
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollYAntes)));
+    } else {
+      renderTable(DataStore.getFilteredRecords());
+      document.getElementById('registros-detalhados-observacao-edicao-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  /** Delegado no tbody (reconstruído a cada render) — clicar na Observação abre/fecha o painel;
+   * delegado na lista do painel — clicar em Salvar grava no Firestore. */
+  function bindObservacaoEdicaoPrincipal() {
+    document.getElementById(MAIN_TABLE_IDS.tbody).addEventListener('click', (e) => {
+      const botao = e.target.closest('[data-observacao-edicao-principal]');
+      if (botao) abrirEdicaoObservacaoRegistrosDetalhados(botao.dataset.observacaoEdicaoPrincipal);
+    });
+
+    document.getElementById('registros-detalhados-observacao-edicao-list').addEventListener('click', async (e) => {
+      const botao = e.target.closest('.observacao-row__salvar');
+      if (!botao) return;
+      const linha = botao.closest('.observacao-row');
+      const nf = linha.dataset.nf;
+      const observacao = linha.querySelector('.observacao-row__input').value.trim();
+
+      botao.disabled = true;
+      botao.textContent = 'Salvando...';
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        // DataStore.applyAgendamentoManual chama notify() por baixo, e o callback global
+        // render() (DataStore.onChange) zera table.page incondicionalmente pra 1 — regra pensada
+        // só pro caso "um filtro de verdade mudou", mas que também dispara aqui, sem querer, já
+        // que ambos passam pelo mesmo notify() (mesma causa raiz já corrigida em Registro
+        // Dinâmico, ver comentário equivalente lá). Guarda a página ANTES de chamar
+        // applyAgendamentoManual e restaura logo depois, antes do nosso próprio render.
+        const paginaAntes = table.page;
+        await fb.salvarObservacaoNota(nf, observacao);
+        DataStore.applyAgendamentoManual({ [nf]: { observacao } });
+        table.page = paginaAntes;
+        Utils.showToast(`NF ${nf}: observação salva.`, 'success', 2500);
+        // Fecha o painel depois de salvar (mesmo comportamento já estabelecido em Registro
+        // Dinâmico) — a tabela acima já mostra o texto novo na própria célula. rAF duplo evita o
+        // salto de scroll pro topo quando o painel (abaixo da tabela) encolhe.
+        const scrollYAntes = window.scrollY;
+        registrosDetalhadosObservacaoNf = null;
+        renderTable(DataStore.getFilteredRecords());
+        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollYAntes)));
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar a observação.', 'error', 5000);
+        botao.disabled = false;
+        botao.textContent = 'Salvar';
+      }
+    });
   }
 
   /* ============================================================
