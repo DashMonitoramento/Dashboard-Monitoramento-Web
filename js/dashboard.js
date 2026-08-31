@@ -12,10 +12,22 @@ const Dashboard = (() => {
     return { sortField: 'dataEntrega', sortDir: 'desc', page: 1, pageSize: 25 };
   }
   let table = createTableState();
+  // NFs marcadas na tabela "Registros detalhados" (2026-08-30, "Enviar Ocorrência") — só nessa
+  // tabela, não nas telas de detalhe/drill-down. Chave = r.nf (único por linha). Podado sempre
+  // que os filtros mudam (ver renderTable) pra nunca ficar com uma NF que saiu do recorte atual.
+  let notasSelecionadas = new Set();
+  // Bloco(s) da ocorrência aberta no momento — 1 bloco por combinação Cliente+Motorista distinta
+  // entre as NFs selecionadas (normalmente só 1). Ver abrirModalOcorrencia/renderBlocosOcorrencia.
+  let ocorrenciaBlocos = [];
+  let proximoIdBlocoOcorrencia = 0;
+  // Guarda os registros selecionados quando há Cliente/Motorista misto, entre mostrar o aviso
+  // e o clique em "Criar ocorrências separadas automaticamente" (ver abrirModalOcorrencia).
+  let ocorrenciaRegistrosPendentes = [];
+  let relatorioCanalSelecionado = 'whatsapp';
   const MAIN_TABLE_IDS = {
     tbody: 'table-body', info: 'table-info', pageLabel: 'table-page-label',
     prev: 'table-prev', next: 'table-next', theadSelector: '#data-table thead th[data-field]',
-    colspan: 23 // 15 colunas originais (+ Número do Pedido, 2026-08-29) + 8 novas (ver colunasTabelaPrincipal)
+    colspan: 24 // coluna de checkbox (2026-08-30) + 15 colunas originais (+ Número do Pedido) + 8 novas (ver colunasTabelaPrincipal)
   };
 
   // Tela de detalhe (drill-down ao clicar num card de KPI) — reaproveita o mesmo
@@ -306,6 +318,7 @@ const Dashboard = (() => {
     bindFilterInputs();
     bindTableControls();
     bindActionButtons();
+    bindSelecaoEOcorrencia();
     bindStatusDetail();
     bindTableScrollArrows();
     bindCanhotoLinks();
@@ -644,7 +657,9 @@ const Dashboard = (() => {
     }, 250);
     document.getElementById('table-search').addEventListener('input', (e) => searchHandler(e.target.value));
 
-    bindTableControlsFor(table, MAIN_TABLE_IDS, () => DataStore.getFilteredRecords());
+    // rowHtmlComSelecao (não o rowHtml padrão) — senão ordenar por coluna ou trocar de página
+    // (Próxima/Anterior) desenharia as linhas sem a coluna de checkbox (2026-08-30).
+    bindTableControlsFor(table, MAIN_TABLE_IDS, () => DataStore.getFilteredRecords(), rowHtmlComSelecao);
 
     document.getElementById('table-page-size').addEventListener('change', (e) => {
       table.pageSize = Number(e.target.value);
@@ -3199,6 +3214,16 @@ const Dashboard = (() => {
     `;
   }
 
+  /** Linha da tabela PRINCIPAL, com a coluna extra de checkbox na frente (2026-08-30, "Enviar
+   * Ocorrência") — reaproveita rowHtml() sem alterar ele (a tela de detalhe/drill-down, que
+   * também usa rowHtml, continua sem checkbox — esse recurso é só da tabela "Registros
+   * detalhados"). Só injeta um <td> a mais logo depois do <tr> de abertura. */
+  function rowHtmlComSelecao(r) {
+    const marcado = notasSelecionadas.has(r.nf) ? ' checked' : '';
+    const checkboxHtml = `<td class="col-checkbox"><input type="checkbox" class="row-select-checkbox" data-nf="${escapeAttr(r.nf)}"${marcado}></td>`;
+    return rowHtml(r, true).replace('<tr>', `<tr>${checkboxHtml}`);
+  }
+
   /** Ordena, pagina e desenha uma tabela — usado pela tabela principal, pela tela de detalhe
    * (drill-down de KPI) e pelo Registro Dinâmico, cada uma com seu próprio estado, ids de
    * elementos e (quando as linhas não são um registro de NF puro) renderizador de linha. */
@@ -3238,8 +3263,281 @@ const Dashboard = (() => {
   }
 
   function renderTable(records) {
-    renderTableGeneric(records, table, MAIN_TABLE_IDS);
+    // Poda a seleção ANTES de desenhar — se um filtro/busca mudou e alguma NF marcada não bate
+    // mais com o recorte atual, ela sai da seleção (pedido do usuário, 2026-08-30: "validar quais
+    // registros continuam selecionados pra evitar enviar uma NF incorreta"). Precisa ser sempre
+    // contra o conjunto FILTRADO completo (não só a página atual), já que "selecionar todas"
+    // também opera sobre o filtrado completo, não só as 25 linhas visíveis.
+    const nfsValidos = new Set(DataStore.getFilteredRecords().map(r => r.nf));
+    notasSelecionadas.forEach(nf => { if (!nfsValidos.has(nf)) notasSelecionadas.delete(nf); });
+    renderTableGeneric(records, table, MAIN_TABLE_IDS, rowHtmlComSelecao);
     atualizarBotoesScrollTabela();
+    atualizarSelecaoUI();
+  }
+
+  /* ============================================================
+   * SELEÇÃO DE NFs, ENVIAR OCORRÊNCIA, ENVIAR RELATÓRIO (2026-08-30)
+   * ============================================================ */
+
+  /** Mostra/some a barra flutuante e sincroniza o checkbox "selecionar todos" do cabeçalho —
+   * inclusive o estado indeterminate, quando só parte das linhas do recorte filtrado atual está
+   * marcada. Chamada sempre que a seleção muda e a cada renderTable (filtro/busca/paginação). */
+  function atualizarSelecaoUI() {
+    const n = notasSelecionadas.size;
+    const barra = document.getElementById('selecao-flutuante');
+    if (barra) {
+      barra.hidden = n === 0;
+      const texto = document.getElementById('selecao-flutuante-texto');
+      if (texto) texto.textContent = `${n} nota${n === 1 ? '' : 's'} selecionada${n === 1 ? '' : 's'}`;
+    }
+    const checkboxTodos = document.getElementById('table-select-all');
+    if (checkboxTodos) {
+      const registros = DataStore.getFilteredRecords();
+      const marcados = registros.filter(r => notasSelecionadas.has(r.nf)).length;
+      checkboxTodos.checked = registros.length > 0 && marcados === registros.length;
+      checkboxTodos.indeterminate = marcados > 0 && marcados < registros.length;
+    }
+  }
+
+  /** Liga os checkboxes de linha (delegado no tbody, pois a tabela é reconstruída a cada
+   * render), o "selecionar todos" do cabeçalho (opera sobre TODO o recorte filtrado, não só a
+   * página atual) e o "Limpar seleção" da barra flutuante. */
+  function bindSelecaoTabela() {
+    document.getElementById(MAIN_TABLE_IDS.tbody).addEventListener('change', (e) => {
+      const checkbox = e.target.closest('.row-select-checkbox');
+      if (!checkbox) return;
+      if (checkbox.checked) notasSelecionadas.add(checkbox.dataset.nf);
+      else notasSelecionadas.delete(checkbox.dataset.nf);
+      atualizarSelecaoUI();
+    });
+
+    document.getElementById('table-select-all').addEventListener('change', (e) => {
+      const registros = DataStore.getFilteredRecords();
+      if (e.target.checked) registros.forEach(r => notasSelecionadas.add(r.nf));
+      else registros.forEach(r => notasSelecionadas.delete(r.nf));
+      renderTable(DataStore.getFilteredRecords());
+    });
+
+    document.getElementById('btn-selecao-limpar').addEventListener('click', () => {
+      notasSelecionadas.clear();
+      renderTable(DataStore.getFilteredRecords());
+    });
+  }
+
+  function chaveClienteMotorista(r) {
+    return `${r.cliente}|||${r.motorista}`;
+  }
+
+  /** Agrupa os registros selecionados em 1 bloco por combinação Cliente+Motorista distinta —
+   * normalmente 1 bloco só (pedido do usuário: "várias notas do mesmo cliente" viram uma única
+   * ocorrência). Cada bloco recebe um id estável (proximoIdBlocoOcorrencia) pra sobreviver a
+   * re-renders do modal (remoção de chip, digitação na observação). */
+  function montarBlocosOcorrencia(registros) {
+    const grupos = new Map();
+    registros.forEach(r => {
+      const chave = chaveClienteMotorista(r);
+      if (!grupos.has(chave)) grupos.set(chave, { cliente: r.cliente, motorista: r.motorista, nfs: [] });
+      grupos.get(chave).nfs.push(r.nf);
+    });
+    return Array.from(grupos.values()).map(g => ({
+      id: proximoIdBlocoOcorrencia++, cliente: g.cliente, motorista: g.motorista, nfs: g.nfs, observacao: ''
+    }));
+  }
+
+  /** Monta o texto exato que será copiado/enviado — mesmo formato pedido pelo usuário:
+   * "NF: ... / Cliente: ... / Observação: ... / Motorista: ...". */
+  function gerarMensagemOcorrencia(bloco) {
+    return `NF: ${bloco.nfs.join(' / ')}\nCliente: ${bloco.cliente}\nObservação: ${bloco.observacao || '(preencher observação)'}\nMotorista: ${bloco.motorista}`;
+  }
+
+  function abrirModalOcorrencia() {
+    if (notasSelecionadas.size === 0) {
+      Utils.showToast('Selecione pelo menos uma NF para gerar a ocorrência.', 'warning');
+      return;
+    }
+    const registros = DataStore.getFilteredRecords().filter(r => notasSelecionadas.has(r.nf));
+    const combinacoes = new Set(registros.map(chaveClienteMotorista));
+    const avisoMisto = document.getElementById('ocorrencia-aviso-misto');
+    const blocosContainer = document.getElementById('ocorrencia-blocos');
+    if (combinacoes.size > 1) {
+      ocorrenciaRegistrosPendentes = registros;
+      ocorrenciaBlocos = [];
+      avisoMisto.hidden = false;
+      blocosContainer.hidden = true;
+      blocosContainer.innerHTML = '';
+    } else {
+      avisoMisto.hidden = true;
+      blocosContainer.hidden = false;
+      ocorrenciaBlocos = montarBlocosOcorrencia(registros);
+      renderBlocosOcorrencia();
+    }
+    document.getElementById('modal-ocorrencia').hidden = false;
+  }
+
+  function fecharModalOcorrencia() {
+    document.getElementById('modal-ocorrencia').hidden = true;
+  }
+
+  function renderBlocosOcorrencia() {
+    const container = document.getElementById('ocorrencia-blocos');
+    container.innerHTML = ocorrenciaBlocos.map(bloco => `
+      <div class="ocorrencia-bloco" data-bloco-id="${bloco.id}">
+        <div class="ocorrencia-bloco__chips">
+          ${bloco.nfs.map(nf => `<span class="nf-chip">NF ${escapeAttr(nf)}<button type="button" class="nf-chip__remover" data-remover-nf="${escapeAttr(nf)}" data-bloco-id="${bloco.id}" aria-label="Remover NF ${escapeAttr(nf)} desta ocorrência">×</button></span>`).join('')}
+        </div>
+        <div class="modal-field">
+          <label>NFs selecionadas</label>
+          <input type="text" value="${escapeAttr(bloco.nfs.join(' / '))}" readonly>
+        </div>
+        <div class="modal-field">
+          <label>Cliente</label>
+          <input type="text" value="${escapeAttr(bloco.cliente)}" readonly>
+        </div>
+        <div class="modal-field">
+          <label>Motorista</label>
+          <input type="text" value="${escapeAttr(bloco.motorista)}" readonly>
+        </div>
+        <div class="modal-field">
+          <label>Observação</label>
+          <textarea rows="3" data-observacao-bloco="${bloco.id}" placeholder="Descreva a ocorrência...">${escapeAttr(bloco.observacao)}</textarea>
+        </div>
+        <div class="modal-field">
+          <label>Pré-visualização</label>
+          <div class="ocorrencia-preview" data-preview-bloco="${bloco.id}">${escapeAttr(gerarMensagemOcorrencia(bloco))}</div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-copiar-bloco="${bloco.id}">📋 Copiar mensagem</button>
+          <button type="button" class="btn" data-whatsapp-bloco="${bloco.id}">WhatsApp</button>
+          <button type="button" class="btn" data-email-bloco="${bloco.id}">E-mail</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function bindOcorrencia() {
+    document.getElementById('btn-enviar-ocorrencia').addEventListener('click', abrirModalOcorrencia);
+    document.getElementById('btn-selecao-enviar-ocorrencia').addEventListener('click', abrirModalOcorrencia);
+
+    const modal = document.getElementById('modal-ocorrencia');
+    document.getElementById('btn-fechar-modal-ocorrencia').addEventListener('click', fecharModalOcorrencia);
+    document.getElementById('btn-ocorrencia-fechar-rodape').addEventListener('click', fecharModalOcorrencia);
+    document.getElementById('btn-ocorrencia-voltar').addEventListener('click', fecharModalOcorrencia);
+    modal.addEventListener('click', (e) => { if (e.target === modal) fecharModalOcorrencia(); });
+
+    document.getElementById('btn-ocorrencia-separar').addEventListener('click', () => {
+      document.getElementById('ocorrencia-aviso-misto').hidden = true;
+      document.getElementById('ocorrencia-blocos').hidden = false;
+      ocorrenciaBlocos = montarBlocosOcorrencia(ocorrenciaRegistrosPendentes);
+      renderBlocosOcorrencia();
+    });
+
+    const container = document.getElementById('ocorrencia-blocos');
+
+    container.addEventListener('input', (e) => {
+      const textarea = e.target.closest('[data-observacao-bloco]');
+      if (!textarea) return;
+      const bloco = ocorrenciaBlocos.find(b => b.id === Number(textarea.dataset.observacaoBloco));
+      if (!bloco) return;
+      bloco.observacao = textarea.value;
+      const preview = container.querySelector(`[data-preview-bloco="${bloco.id}"]`);
+      if (preview) preview.textContent = gerarMensagemOcorrencia(bloco);
+    });
+
+    container.addEventListener('click', (e) => {
+      const removerBtn = e.target.closest('[data-remover-nf]');
+      if (removerBtn) {
+        const bloco = ocorrenciaBlocos.find(b => b.id === Number(removerBtn.dataset.blocoId));
+        if (bloco) {
+          const nf = removerBtn.dataset.removerNf;
+          bloco.nfs = bloco.nfs.filter(n => n !== nf);
+          notasSelecionadas.delete(nf);
+          if (bloco.nfs.length === 0) ocorrenciaBlocos = ocorrenciaBlocos.filter(b => b.id !== bloco.id);
+          if (ocorrenciaBlocos.length === 0) {
+            fecharModalOcorrencia();
+            Utils.showToast('Todas as NFs foram removidas da ocorrência.', 'info', 3000);
+          } else {
+            renderBlocosOcorrencia();
+          }
+          renderTable(DataStore.getFilteredRecords());
+        }
+        return;
+      }
+      const copiarBtn = e.target.closest('[data-copiar-bloco]');
+      if (copiarBtn) {
+        const bloco = ocorrenciaBlocos.find(b => b.id === Number(copiarBtn.dataset.copiarBloco));
+        if (bloco) {
+          navigator.clipboard.writeText(gerarMensagemOcorrencia(bloco))
+            .then(() => Utils.showToast('Mensagem copiada.', 'success', 2500))
+            .catch(() => Utils.showToast('Não foi possível copiar a mensagem.', 'error', 4000));
+        }
+        return;
+      }
+      const whatsappBtn = e.target.closest('[data-whatsapp-bloco]');
+      if (whatsappBtn) {
+        const bloco = ocorrenciaBlocos.find(b => b.id === Number(whatsappBtn.dataset.whatsappBloco));
+        if (bloco) {
+          window.open(`https://wa.me/?text=${encodeURIComponent(gerarMensagemOcorrencia(bloco))}`, '_blank', 'noopener');
+          Utils.showToast('Abrindo WhatsApp com a mensagem pronta.', 'success', 2500);
+        }
+        return;
+      }
+      const emailBtn = e.target.closest('[data-email-bloco]');
+      if (emailBtn) {
+        const bloco = ocorrenciaBlocos.find(b => b.id === Number(emailBtn.dataset.emailBloco));
+        if (bloco) {
+          window.open(`mailto:?subject=${encodeURIComponent('Ocorrência de entrega')}&body=${encodeURIComponent(gerarMensagemOcorrencia(bloco))}`, '_blank');
+          Utils.showToast('Abrindo e-mail com a mensagem pronta.', 'success', 2500);
+        }
+      }
+    });
+  }
+
+  /** "Enviar Relatório" reaproveita o MESMO Excel de "Exportar Excel" (exportarRegistros) — só
+   * adiciona o WhatsApp/E-mail em cima do arquivo já baixado. Nem WhatsApp Web nem mailto:
+   * permitem anexar arquivo via JavaScript (restrição do navegador), por isso o aviso pede pra
+   * anexar na mão em vez de tentar contornar essa limitação. */
+  function bindEnviarRelatorio() {
+    const modal = document.getElementById('modal-enviar-relatorio');
+
+    function selecionarCanal(canal) {
+      relatorioCanalSelecionado = canal;
+      modal.querySelectorAll('.modal-tab').forEach(tab => tab.classList.toggle('modal-tab--ativa', tab.dataset.canal === canal));
+      document.getElementById('campo-relatorio-whatsapp').hidden = canal !== 'whatsapp';
+      document.getElementById('campo-relatorio-email').hidden = canal !== 'email';
+    }
+
+    document.getElementById('btn-enviar-relatorio').addEventListener('click', () => {
+      selecionarCanal('whatsapp');
+      modal.hidden = false;
+    });
+
+    modal.querySelectorAll('.modal-tab').forEach(tab => {
+      tab.addEventListener('click', () => selecionarCanal(tab.dataset.canal));
+    });
+
+    document.getElementById('btn-fechar-modal-relatorio').addEventListener('click', () => { modal.hidden = true; });
+    document.getElementById('btn-cancelar-relatorio').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+    document.getElementById('btn-confirmar-relatorio').addEventListener('click', async () => {
+      const mensagem = document.getElementById('relatorio-mensagem').value;
+      await exportarRegistros('dashboard-entregas.xlsx', DataStore.getFilteredRecords());
+      if (relatorioCanalSelecionado === 'whatsapp') {
+        const numero = document.getElementById('relatorio-whatsapp-numero').value.replace(/\D/g, '');
+        window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener');
+      } else {
+        const destinatario = document.getElementById('relatorio-email-destinatario').value.trim();
+        window.open(`mailto:${destinatario}?subject=${encodeURIComponent('Relatório atualizado')}&body=${encodeURIComponent(mensagem)}`, '_blank');
+      }
+      Utils.showToast('Excel baixado — anexe o arquivo manualmente na conversa/e-mail que abriu.', 'info', 6000);
+      modal.hidden = true;
+    });
+  }
+
+  function bindSelecaoEOcorrencia() {
+    bindSelecaoTabela();
+    bindOcorrencia();
+    bindEnviarRelatorio();
   }
 
   /* ============================================================
