@@ -175,8 +175,12 @@
     margin-bottom:14px;
     flex-wrap:wrap;
   }
+  /* Tamanho padrão (pedido do usuário, 2026-09-01) -- mesma largura do campo "Pesquisar na
+     tabela" do dashboard principal (.table-search, min-width:240px em css/style.css), não mais
+     esticando pra ocupar a linha inteira. flex-shrink:1 continua deixando encolher em telas
+     bem estreitas (celular). */
   .search{
-    flex:1 1 180px;
+    flex:0 1 240px;
     position:relative;
   }
   .search input{
@@ -1376,11 +1380,13 @@ function renderStats(){
   });
 }
 function renderTabsStatus(){
+  // Pedido do usuário (2026-09-01): removida a aba "Cancelado" do filtro rápido -- notas com
+  // esse status continuam existindo e aparecem normalmente em "Todos", só não tem mais atalho
+  // próprio pra filtrar só elas (o campo Status no formulário de edição não foi tocado).
   const tabs = [
     {v:'todos', l:'Todos'},
     {v:'pendente', l:'Pendente'},
-    {v:'resolvido', l:'Resolvido'},
-    {v:'cancelado', l:'Cancelado'}
+    {v:'resolvido', l:'Resolvido'}
   ];
   const wrap = $('tabsStatus');
   wrap.innerHTML = '';
