@@ -228,6 +228,14 @@ const Dashboard = (() => {
       title: 'Agendamento Vencido',
       test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Agendado' && agendamentoVencido(r.dataAgendamento)
     },
+    // Fatia "Agendado Não Faturado" (pedido do usuário, 2026-09-01): mesma ideia de 'sem-roteiro'
+    // — antes, um Pedido Aguardando Faturamento com data de agendamento já marcada contava
+    // junto com 'agendamento-agendado'/'agendamento-vencido' (misturando com NOTAS já
+    // faturadas). `test` sempre false de propósito: NENHUMA nota entra aqui (uma nota já
+    // faturada e agendada é 'Agendado'/'Agendamento Vencido' de verdade, não "não faturado") —
+    // só PEDIDOS com data de agendamento marcada, via DETAIL_KEYS_COM_PEDIDOS/
+    // categoriaAgendamentoParaPedido mais abaixo.
+    'agendamento-nao-faturado': { title: 'Agendado Não Faturado', test: () => false },
     'agendamento-aguardando-confirmacao': {
       title: 'Aguardando Confirmação',
       test: r => r.necessitaAgendamento && situacaoElegivelParaAgendamento(r.situacao) && r.statusAgendamento === 'Aguardando Confirmação'
@@ -253,6 +261,7 @@ const Dashboard = (() => {
   const AGENDAMENTO_LABEL_PARA_DETAIL_KEY = {
     'Agendado': 'agendamento-agendado',
     'Agendamento Vencido': 'agendamento-vencido',
+    'Agendado Não Faturado': 'agendamento-nao-faturado',
     'Sem etapa definida': 'sem-roteiro',
     'Aguardando Confirmação': 'agendamento-aguardando-confirmacao',
     'Reagendar': 'agendamento-reagendar',
@@ -273,6 +282,7 @@ const Dashboard = (() => {
   const AGENDAMENTO_LABEL_PARA_TILE_ID = {
     'Agendado': 'agendado',
     'Agendamento Vencido': 'vencido',
+    'Agendado Não Faturado': 'nao-faturado',
     'Sem etapa definida': 'sem-etapa',
     'Aguardando Confirmação': 'aguardando-confirmacao',
     'Reagendar': 'reagendar',
@@ -819,12 +829,15 @@ const Dashboard = (() => {
   /** Recalcula a lista da tela de detalhe a partir dos filtros atuais — chamado ao abrir e
    * de novo sempre que os dados/filtros mudarem enquanto essa tela estiver aberta. */
   // Chaves de STATUS_DETAIL_DEFS que PEDIDOS (Pedidos Aguardando Faturamento, sem NF ainda)
-  // podem alimentar — mesmas 4 categorias que categoriaAgendamentoParaPedido consegue devolver
-  // (Agendado/Sem etapa definida/Aguardando Confirmação/Okker; um pedido nunca é "Reagendar" nem
-  // "Devolução para Terrinha", ver PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS). 'sem-roteiro' (não
-  // 'aguardando') recebe os pedidos "Sem etapa definida" — pedido do usuário (2026-08-30): notas
-  // já faturadas (chave 'aguardando') não são "sem roteiro", só pedidos sem NF ainda são.
-  const DETAIL_KEYS_COM_PEDIDOS = ['agendamento-agendado', 'agendamento-vencido', 'sem-roteiro', 'agendamento-aguardando-confirmacao', 'agendamento-okker'];
+  // podem alimentar — mesmas categorias que categoriaAgendamentoParaPedido consegue devolver
+  // (Agendado Não Faturado/Sem etapa definida/Aguardando Confirmação/Okker; um pedido nunca é
+  // "Reagendar" nem "Devolução para Terrinha", ver PEDIDOS_NAO_FATURADOS_STATUS_CATEGORIAS).
+  // 'sem-roteiro' (não 'aguardando') recebe os pedidos "Sem etapa definida" — pedido do usuário
+  // (2026-08-30): notas já faturadas (chave 'aguardando') não são "sem roteiro", só pedidos sem
+  // NF ainda são. 'agendamento-nao-faturado' (2026-09-01) é a mesma ideia pro "Agendado": um
+  // pedido com data marcada mas ainda sem NF não é a mesma coisa que uma nota já faturada e
+  // agendada, por isso NÃO usa 'agendamento-agendado'/'agendamento-vencido' (que ficam só notas).
+  const DETAIL_KEYS_COM_PEDIDOS = ['agendamento-agendado', 'agendamento-vencido', 'agendamento-nao-faturado', 'sem-roteiro', 'agendamento-aguardando-confirmacao', 'agendamento-okker'];
 
   /** Converte um pedido (Pedidos Aguardando Faturamento) num "registro" no mesmo formato de uma
    * nota, pra entrar na MESMA tabela de detalhe via rowHtml() — pedido do usuário (2026-08-29):
@@ -2547,13 +2560,15 @@ const Dashboard = (() => {
     });
     charts.agendamento = new DashChart(document.getElementById('chart-agendamento'), {
       type: 'donut', labels: [], series: [{ data: [] }],
-      // Agendado, Sem etapa definida, Aguardando Confirmação, Reagendar, Okker, Devolução p/ Terrinha.
+      // Agendado, Agendamento Vencido, Agendado Não Faturado, Sem etapa definida, Aguardando
+      // Confirmação, Reagendar, Okker, Devolução p/ Terrinha (mesma ordem de
+      // AGENDAMENTO_CATEGORIAS_EXIBICAO, cores batendo com os --kpi-accent dos tiles em index.html).
       // showLegend:false (pedido do usuário, 2026-08-28: "deixe só a Pizza") — os quadrados de
       // cada etapa agora são .kpi-card--mini ao lado da pizza (ver index.html), clicáveis via
       // data-detail/bindStatusDetail como qualquer outro KPI, não mais o tile-legend
       // auto-gerado pelo DashChart (por isso não há mais onLegendClick aqui).
       options: {
-        colors: ['#2563EB', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6', '#0EA5E9'],
+        colors: ['#2563EB', '#DC2626', '#14B8A6', '#EAB308', '#FF7A1A', '#DC2626', '#8B5CF6', '#0EA5E9'],
         showLegend: false
       }
     });
@@ -2672,13 +2687,13 @@ const Dashboard = (() => {
     'Agendado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
   ];
   // Categorias de fato EXIBIDAS no gráfico/cards de "Situação de agendamento" — igual à lista
-  // acima, só que com "Agendamento Vencido" inserida (pedido do usuário, 2026-08-29). Lista
-  // SEPARADA de propósito: AGENDAMENTO_STATUS_CATEGORIAS também alimenta o <select> de edição
-  // manual (renderAgendamentoEdicao) — "Agendamento Vencido" não é um status que se ESCOLHE lá,
-  // é uma categoria CALCULADA (Agendado + data já passada), então não pode aparecer como opção
-  // selecionável nesse dropdown.
+  // acima, só que com "Agendamento Vencido" e "Agendado Não Faturado" inseridas (pedidos do
+  // usuário, 2026-08-29 e 2026-09-01). Lista SEPARADA de propósito: AGENDAMENTO_STATUS_CATEGORIAS
+  // também alimenta o <select> de edição manual (renderAgendamentoEdicao) — nenhuma das duas é um
+  // status que se ESCOLHE lá, são categorias CALCULADAS (Agendado + data já passada / Agendado
+  // mas ainda sem NF), então não podem aparecer como opção selecionável nesse dropdown.
   const AGENDAMENTO_CATEGORIAS_EXIBICAO = [
-    'Agendado', 'Agendamento Vencido', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
+    'Agendado', 'Agendamento Vencido', 'Agendado Não Faturado', 'Sem etapa definida', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'
   ];
   // As etapas abaixo são as únicas que representam um estágio de agendamento JÁ REGISTRADO
   // (valor bruto da coluna "Status" da planilha de Agendamentos — precisa bater EXATAMENTE
@@ -2703,18 +2718,20 @@ const Dashboard = (() => {
    * do gráfico "Situação de agendamento" ele soma junto (pedido do usuário, 2026-08-28:
    * "Aguardando Confirmação" conta com os demais que já têm esse status; "Sem Roteiro" conta
    * como "Sem etapa definida" — não é uma fatia própria da pizza, só do dropdown de edição de
-   * pedidos; quem já tem data conta como "Agendado"). Vazio ou qualquer status desconhecido
-   * cai em "Sem etapa definida" por padrão, mesma regra já usada pras notas (ver
-   * AGENDAMENTO_ETAPAS_ESPECIFICAS acima). */
+   * pedidos). Vazio ou qualquer status desconhecido cai em "Sem etapa definida" por padrão,
+   * mesma regra já usada pras notas (ver AGENDAMENTO_ETAPAS_ESPECIFICAS acima). */
   function categoriaAgendamentoParaPedido(statusAgendamento, dataAgendamento) {
     // "Entrega Direta" (novo valor na coluna, 2026-08-29) significa que o pedido NÃO precisa
     // de agendamento — sai direto. Por isso não conta em nenhuma fatia da pizza (mesma lógica
     // de necessitaAgendamento:false pras notas normais, que também ficam de fora do gráfico).
     if (statusAgendamento === 'Entrega Direta') return null;
     if (statusAgendamento === 'Sem Roteiro') return 'Sem etapa definida';
-    // Mesma regra das notas (2026-08-29): pedido "Agendado" cuja data já passou vira
-    // "Agendamento Vencido" em vez de continuar contando como "Agendado".
-    if (statusAgendamento === 'Agendado' && agendamentoVencido(dataAgendamento)) return 'Agendamento Vencido';
+    // Pedido do usuário (2026-09-01): pedido com data de agendamento marcada tem sua PRÓPRIA
+    // fatia ("Agendado Não Faturado"), separada de 'Agendado'/'Agendamento Vencido' — essas duas
+    // agora são só de NOTAS já faturadas (ver renderAgendamentoChart/STATUS_DETAIL_DEFS). Um
+    // pedido nunca vira "Agendamento Vencido": ele conta aqui igual, tenha a data passado ou não
+    // — ela só pediu "todos os Pedidos que estão com data de agendamento" numa fatia só.
+    if (statusAgendamento === 'Agendado') return 'Agendado Não Faturado';
     if (AGENDAMENTO_STATUS_CATEGORIAS.includes(statusAgendamento)) return statusAgendamento;
     return 'Sem etapa definida';
   }
