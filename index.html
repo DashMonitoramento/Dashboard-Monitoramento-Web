@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260831a">
+<link rel="stylesheet" href="css/style.css?v=20260901a">
 </head>
 <body>
 
@@ -434,6 +434,13 @@ Segue anexo o relatório atualizado.</textarea>
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
           <span class="nav-label">Ocorrências do Dia</span>
         </button>
+        <!-- App "Manifesto" (2026-09-01): página própria em manifesto/index.html, app de página
+             única com dados no localStorage do navegador (não integra com DataStore/Firestore
+             do dashboard) — por isso é um link normal (nova aba), não um data-view. -->
+        <a href="manifesto/index.html" target="_blank" rel="noopener" class="btn btn--ghost btn--block" title="Controle de Entregas (Manifesto)" style="text-decoration:none;">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
+          <span class="nav-label">Controle de Entregas</span>
+        </a>
       </div>
     </div>
 
@@ -604,7 +611,7 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260831a" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260901a" alt="" class="chart-card__foto-completa">
           <!-- Camada de animação HUD por cima da foto estática (pedido do usuário, 2026-08-29:
                "não simplesmente rotacionar a imagem inteira... criar camadas independentes") —
                só esses elementos se movem, a foto (e a palavra AGENDA nela) fica parada. -->
@@ -1313,11 +1320,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260831a"></script>
-<script src="js/utils.js?v=20260831a"></script>
-<script src="js/data.js?v=20260831a"></script>
-<script src="js/charts.js?v=20260831a"></script>
-<script src="js/dashboard.js?v=20260831a"></script>
-<script src="js/script.js?v=20260831a"></script>
+<script type="module" src="js/firebase-init.js?v=20260901a"></script>
+<script src="js/utils.js?v=20260901a"></script>
+<script src="js/data.js?v=20260901a"></script>
+<script src="js/charts.js?v=20260901a"></script>
+<script src="js/dashboard.js?v=20260901a"></script>
+<script src="js/script.js?v=20260901a"></script>
 </body>
 </html>
