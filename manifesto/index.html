@@ -129,10 +129,18 @@
     border-radius:var(--radius-md);
     padding:12px 14px;
     cursor:pointer;
-    transition:transform .12s ease, border-color .12s ease;
+    position:relative;
+    transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
   }
   .stat-card:active{ transform:scale(0.97); }
   .stat-card.active{ border-color:var(--line-strong); box-shadow:var(--shadow); }
+  /* Brilho ao passar o mouse, mesmo padrão do .kpi-card:hover do dashboard (css/style.css) --
+     usa a cor de cada tipo (--stat-accent, definida por data-tipo abaixo) como cor do brilho. */
+  .stat-card:hover{
+    border-color:var(--stat-accent, var(--brand));
+    box-shadow:0 0 26px -6px var(--stat-accent, var(--brand)), var(--shadow);
+    transform:translateY(-2px);
+  }
   .stat-label{
     font-size:11.5px;
     text-transform:uppercase;
@@ -151,10 +159,13 @@
     font-size:11px;
     font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   }
+  .stat-card[data-tipo="recusa"]{ --stat-accent:var(--recusa); }
   .stat-card[data-tipo="recusa"] .stat-num{ color:var(--recusa); }
+  .stat-card[data-tipo="reentrega"]{ --stat-accent:var(--reentrega); }
   .stat-card[data-tipo="reentrega"] .stat-num{ color:var(--reentrega); }
+  .stat-card[data-tipo="agendamento"]{ --stat-accent:var(--agendamento); }
   .stat-card[data-tipo="agendamento"] .stat-num{ color:var(--agendamento); }
-  .stat-card[data-tipo="sem_tratativa"]{ background:var(--semtrat-bg); border-color:var(--semtrat); }
+  .stat-card[data-tipo="sem_tratativa"]{ --stat-accent:var(--semtrat); background:var(--semtrat-bg); border-color:var(--semtrat); }
   .stat-card[data-tipo="sem_tratativa"] .stat-label,
   .stat-card[data-tipo="sem_tratativa"] .stat-num{ color:var(--semtrat); }
   /* ---------- controls ---------- */
@@ -259,6 +270,50 @@
     border-radius:var(--radius-sm);
     padding:8px 10px;
   }
+  /* Observação clicável/editável direto na lista (pedido do usuário, 2026-09-01) — mesmo padrão
+     de "clique pra editar" já usado no dashboard principal. Reaproveita a aparência de .item-obs
+     como botão (texto à esquerda, cursor de edição) em vez de <div> só-leitura. */
+  .item-obs-btn{
+    display:block;
+    width:100%;
+    text-align:left;
+    border:1px dashed var(--line);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    cursor:pointer;
+    transition:border-color .12s ease;
+  }
+  .item-obs-btn:hover{ border-color:var(--brand); }
+  .item-obs-btn--vazio{ color:var(--ink-faint); font-style:italic; }
+  .item-obs-input{
+    width:100%;
+    min-height:64px;
+    resize:vertical;
+    font-size:13px;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    color:var(--ink);
+    background:var(--surface-soft);
+    border:1px solid var(--brand);
+    border-radius:var(--radius-sm);
+    padding:8px 10px;
+    box-sizing:border-box;
+  }
+  .item-obs-actions{ display:flex; gap:8px; margin-top:6px; }
+  /* Troca rápida de Tipo direto na lista, sem precisar abrir "Editar" (pedido do usuário,
+     2026-09-01) — reaproveita a mesma pílula colorida de .tag, só que como <select>. */
+  .item-tipo-select{
+    -webkit-appearance:none; appearance:none;
+    display:inline-flex; align-items:center;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    font-weight:600; font-size:11px; letter-spacing:0.04em; text-transform:uppercase;
+    padding:4px 22px 4px 9px; border-radius:999px; white-space:nowrap; cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 6px center; background-size:11px;
+  }
+  .item-tipo-select.recusa{ background-color:var(--recusa-bg); color:var(--recusa); border:1px solid var(--recusa); }
+  .item-tipo-select.reentrega{ background-color:var(--reentrega-bg); color:var(--reentrega); border:1px solid var(--reentrega); }
+  .item-tipo-select.agendamento{ background-color:var(--agendamento-bg); color:var(--agendamento); border:1px solid var(--agendamento); }
+  .item-tipo-select.sem_tratativa{ background-color:var(--semtrat-bg); color:var(--semtrat); border:1px solid var(--semtrat); }
+  .item-tipo-select option{ background:var(--surface); color:var(--ink); text-transform:none; letter-spacing:normal; }
   .item-actions{
     display:flex;
     gap:8px;
@@ -1099,6 +1154,9 @@ let editId = null;
 let tipoAtual = 'recusa';
 let filtroTipo = 'todos';
 let filtroStatus = 'todos';
+// Id do registro cuja Observação está em edição inline na lista (pedido do usuário, 2026-09-01)
+// — mesmo padrão de "clique pra editar" já usado no dashboard principal, só 1 por vez.
+let obsEditandoId = null;
 let estoqueIniciado = false; // declarado aqui em cima para nunca ser lido antes de existir
 let fotoThumbUrl = null;
 const $ = (id) => document.getElementById(id);
@@ -1284,9 +1342,22 @@ function renderLista(){
     const div = document.createElement('div');
     div.className = 'item';
     const horaTxt = e.hora ? ' · ' + e.hora : '';
+    const emEdicaoObs = obsEditandoId === e.id;
+    const obsHtml = emEdicaoObs
+      ? `<textarea class="item-obs-input" id="obsInput_${e.id}" placeholder="Observação (opcional)">${escapeHtml(e.obs)}</textarea>
+         <div class="item-obs-actions">
+           <button class="btn-sm" data-act="obs-cancelar" data-id="${e.id}">Cancelar</button>
+           <button class="btn-sm success" data-act="obs-salvar" data-id="${e.id}">Salvar observação</button>
+         </div>`
+      : `<button type="button" class="item-obs item-obs-btn${e.obs ? '' : ' item-obs-btn--vazio'}" data-act="obs-editar" data-id="${e.id}">${e.obs ? escapeHtml(e.obs) : '+ Adicionar observação'}</button>`;
     div.innerHTML = `
       <div class="item-top">
-        <span class="tag ${e.tipo}">${labelTipo(e.tipo)}</span>
+        <select class="item-tipo-select ${e.tipo}" data-id="${e.id}" title="Mudar o tipo dessa nota">
+          <option value="recusa" ${e.tipo==='recusa'?'selected':''}>Recusa</option>
+          <option value="reentrega" ${e.tipo==='reentrega'?'selected':''}>Reentrega</option>
+          <option value="agendamento" ${e.tipo==='agendamento'?'selected':''}>Agendamento</option>
+          <option value="sem_tratativa" ${e.tipo==='sem_tratativa'?'selected':''}>Sem tratativa</option>
+        </select>
         <span class="status-chip ${e.status}">${labelStatus(e.status)}</span>
       </div>
       <div class="item-cliente">${escapeHtml(e.cliente)}</div>
@@ -1295,7 +1366,7 @@ function renderLista(){
         <span>${fmtData(e.data)}${horaTxt}</span>
         ${e.motivo ? `<span>· ${escapeHtml(e.motivo)}</span>` : ''}
       </div>
-      ${e.obs ? `<div class="item-obs">${escapeHtml(e.obs)}</div>` : ''}
+      ${obsHtml}
       <div class="item-actions">
         ${e.tipo==='sem_tratativa' ? `<button class="btn-sm success" data-act="tratar" data-id="${e.id}">Tratar agora</button>` : ''}
         ${e.tipo!=='sem_tratativa' && e.status!=='resolvido' ? `<button class="btn-sm success" data-act="resolver" data-id="${e.id}">Marcar resolvido</button>` : ''}
@@ -1314,8 +1385,48 @@ function renderLista(){
       else if(act==='tratar') abrirEdicao(id);
       else if(act==='resolver') marcarResolvido(id);
       else if(act==='etiqueta') abrirEtiqueta(id);
+      else if(act==='obs-editar'){ obsEditandoId = id; renderLista(); focarObsInput(id); }
+      else if(act==='obs-cancelar'){ obsEditandoId = null; renderLista(); }
+      else if(act==='obs-salvar') salvarObsInline(id);
     };
   });
+  wrap.querySelectorAll('select.item-tipo-select').forEach(sel=>{
+    sel.onchange = ()=> trocarTipoInline(sel.dataset.id, sel.value, sel);
+  });
+}
+function focarObsInput(id){
+  const el = $('obsInput_'+id);
+  if(!el) return;
+  el.focus();
+  el.setSelectionRange(el.value.length, el.value.length);
+}
+async function salvarObsInline(id){
+  const el = $('obsInput_'+id);
+  const idx = entries.findIndex(x=>x.id===id);
+  if(!el || idx<0) return;
+  entries[idx] = { ...entries[idx], obs: el.value.trim(), updatedAt: Date.now() };
+  await saveEntries();
+  enfileirarSync('registro', entries[idx]);
+  obsEditandoId = null;
+  render();
+}
+// Troca rápida de Tipo direto na lista (pedido do usuário, 2026-09-01) — mesma checagem de
+// duplicada de salvar(), pra não deixar uma nota virar cópia de outra que já existe.
+async function trocarTipoInline(id, novoTipo, selEl){
+  const idx = entries.findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const tipoAntigo = entries[idx].tipo;
+  if(novoTipo === tipoAntigo) return;
+  const duplicada = encontrarNotaDuplicada({ ...entries[idx], tipo: novoTipo }, id);
+  if(duplicada){
+    alert(`Já existe uma nota igual — ${labelTipo(novoTipo)} para ${duplicada.cliente} em ${fmtData(duplicada.data)}. Não é possível mudar pra esse tipo.`);
+    if(selEl) selEl.value = tipoAntigo;
+    return;
+  }
+  entries[idx] = { ...entries[idx], tipo: novoTipo, updatedAt: Date.now() };
+  await saveEntries();
+  enfileirarSync('registro', entries[idx]);
+  render();
 }
 function escapeHtml(s){
   const d = document.createElement('div');
