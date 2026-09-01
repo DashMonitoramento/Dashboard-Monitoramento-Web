@@ -789,6 +789,7 @@
     <button type="button" class="active" data-view="registros">Registros</button>
     <button type="button" data-view="estoque">Estoque 3D</button>
     <button type="button" data-view="exportar">Exportar</button>
+    <button type="button" data-view="importar">Importar</button>
   </div>
   <div id="viewRegistros">
     <div class="stats" id="stats"></div>
@@ -895,6 +896,23 @@
       <div class="modal-actions" style="margin-top:0;">
         <button class="btn-sm" id="btnSelecionarExcel">Selecionar arquivo Excel</button>
         <button class="btn-primary" id="btnAtualizarExcel" style="flex:none; padding:8px 14px; font-size:12.5px;">Atualizar agora</button>
+      </div>
+    </div>
+  </div>
+  <div id="viewImportar" style="display:none;">
+    <div class="export-card">
+      <h2>Importar planilha</h2>
+      <p class="hint">Selecione um arquivo .xlsx ou .csv com os registros que você já tem. Colunas reconhecidas: <strong>Tipo, Cliente, Endereço, Data, Hora, Motivo, Localização, Status, Observações</strong> — as mesmas colunas de "Exportar planilha" (dá pra reaproveitar um arquivo exportado daqui, ou uma planilha sua com esses mesmos nomes de coluna).</p>
+      <input type="file" id="inputImportar" accept=".xlsx,.xls,.csv" style="display:none;">
+      <button class="btn-sm" id="btnSelecionarImportar">Selecionar arquivo</button>
+      <p class="export-last" id="importArquivoInfo">Nenhum arquivo selecionado.</p>
+      <div id="importPreview" style="display:none; margin-top:14px;">
+        <p class="export-last" id="importResumo"></p>
+        <div class="estoque-lista" id="importListaProblemas"></div>
+        <div class="modal-actions" style="margin-top:12px;">
+          <button class="btn-primary" id="btnConfirmarImportar">Importar</button>
+          <button class="btn-sm" id="btnCancelarImportar">Cancelar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1546,11 +1564,13 @@ document.querySelectorAll('#mainNav button').forEach(b=>{
     $('viewRegistros').style.display = v==='registros' ? 'block' : 'none';
     $('viewEstoque').style.display = v==='estoque' ? 'block' : 'none';
     $('viewExportar').style.display = v==='exportar' ? 'block' : 'none';
+    $('viewImportar').style.display = v==='importar' ? 'block' : 'none';
     if(v==='exportar'){
       atualizarContagemExport();
       carregarConfigSync();
       atualizarStatusExcel();
     }
+    if(v==='importar') resetarImportar();
     $('btnAddProduto').style.display = (v==='estoque' && modo3d==='produtos') ? 'flex' : 'none';
     if(v==='estoque') requestAnimationFrame(initEstoque3D);
   };
@@ -1992,6 +2012,184 @@ async function exportarExcel(){
   atualizarContagemExport();
 }
 $('btnExportar').onclick = exportarExcel;
+
+/* ---------- importação de planilha (.xlsx/.xls/.csv) ---------- */
+// Mesmas colunas que "Exportar planilha" gera (ver exportarExcel acima) — cabeçalhos
+// normalizados (minúsculo, sem acento) pra aceitar tanto um arquivo exportado daqui quanto uma
+// planilha própria com nomes de coluna parecidos.
+const IMPORT_ALIASES = {
+  tipo: ['tipo'],
+  cliente: ['cliente', 'nome', 'nome do cliente'],
+  endereco: ['endereco', 'local de entrega', 'local'],
+  data: ['data', 'data ocorrencia', 'data da ocorrencia'],
+  hora: ['hora'],
+  motivo: ['motivo'],
+  localizacao: ['localizacao', 'local de estoque'],
+  status: ['status', 'situacao'],
+  obs: ['observacoes', 'observacao', 'obs']
+};
+let importLinhas = [];
+
+function resetarImportar(){
+  importLinhas = [];
+  $('importArquivoInfo').textContent = 'Nenhum arquivo selecionado.';
+  $('importPreview').style.display = 'none';
+  $('inputImportar').value = '';
+}
+
+function mapearCabecalhoImportado(headerRaw){
+  const h = normalizarTexto(headerRaw);
+  for(const campo in IMPORT_ALIASES){
+    if(IMPORT_ALIASES[campo].includes(h)) return campo;
+  }
+  return null;
+}
+
+function converterDataImportada(valor){
+  if(valor instanceof Date && !isNaN(valor)){
+    // XLSX (cellDates:true) sempre entrega datas de planilha/CSV ancoradas em UTC — usar getters
+    // locais aqui perderia um dia sempre que o fuso do navegador estiver atrás de UTC (ex.: Brasil).
+    const y = valor.getUTCFullYear(), m = String(valor.getUTCMonth()+1).padStart(2,'0'), d = String(valor.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = (valor || '').toString().trim();
+  if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return '';
+}
+
+function converterTipoImportado(valor){
+  const v = normalizarTexto(valor);
+  if(['recusa','reentrega','agendamento'].includes(v)) return v;
+  if(v==='sem tratativa' || v==='sem_tratativa' || v==='semtratativa') return 'sem_tratativa';
+  return null;
+}
+
+function converterStatusImportado(valor){
+  const v = normalizarTexto(valor);
+  return ['pendente','resolvido','cancelado'].includes(v) ? v : null;
+}
+
+async function lerArquivoImportado(file){
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type:'array', cellDates:true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, { defval:'' });
+}
+
+// Mesma validação/checagem de duplicada de salvar() (ver acima) — importar precisa se comportar
+// igual a lançar cada linha manualmente, só que em lote. Duplicada existente (já em `entries`) OU
+// duplicada dentro do próprio arquivo (planilha com a mesma nota repetida) são ambas ignoradas.
+function processarLinhasImportadas(linhasBrutas){
+  const validas = [];
+  const problemas = [];
+
+  linhasBrutas.forEach((linhaBruta, i) => {
+    const numeroLinha = i + 2; // +1 pelo cabeçalho, +1 porque planilha começa em 1
+    const valoresBrutos = Object.values(linhaBruta);
+    if(valoresBrutos.every(v => v==='' || v==null)) return; // linha em branco, ignora sem avisar
+
+    const linha = {};
+    Object.keys(linhaBruta).forEach(headerOriginal => {
+      const campo = mapearCabecalhoImportado(headerOriginal);
+      if(campo) linha[campo] = linhaBruta[headerOriginal];
+    });
+
+    const cliente = (linha.cliente || '').toString().trim();
+    const endereco = (linha.endereco || '').toString().trim();
+    const data = converterDataImportada(linha.data);
+    if(!cliente || !endereco || !data){
+      problemas.push({ linha: numeroLinha, motivo: 'faltando Cliente, Endereço ou Data válida (aceita AAAA-MM-DD ou DD/MM/AAAA)' });
+      return;
+    }
+
+    const payload = {
+      tipo: converterTipoImportado(linha.tipo) || 'sem_tratativa',
+      cliente, endereco, data,
+      hora: (linha.hora || '').toString().trim(),
+      motivo: (linha.motivo || '').toString().trim(),
+      localizacao: (linha.localizacao || '').toString().trim(),
+      status: converterStatusImportado(linha.status) || 'pendente',
+      obs: (linha.obs || '').toString().trim()
+    };
+
+    const duplicadaExistente = encontrarNotaDuplicada(payload, null);
+    const duplicadaNoArquivo = validas.find(x =>
+      x.tipo===payload.tipo && x.data===payload.data &&
+      normalizarTexto(x.cliente)===normalizarTexto(payload.cliente) &&
+      normalizarTexto(x.endereco)===normalizarTexto(payload.endereco)
+    );
+    if(duplicadaExistente || duplicadaNoArquivo){
+      problemas.push({ linha: numeroLinha, motivo: 'já existe uma nota igual (mesmo tipo/cliente/endereço/data) — ignorada' });
+      return;
+    }
+
+    validas.push(payload);
+  });
+
+  return { validas, problemas };
+}
+
+function mostrarPreviewImportacao(nomeArquivo, validas, problemas){
+  importLinhas = validas;
+  $('importArquivoInfo').textContent = `Arquivo: ${nomeArquivo}`;
+  $('importPreview').style.display = 'block';
+  $('importResumo').textContent = `${validas.length} registro(s) prontos pra importar` +
+    (problemas.length ? ` — ${problemas.length} linha(s) ignorada(s) (veja abaixo).` : '.');
+  const lista = $('importListaProblemas');
+  lista.innerHTML = problemas.length === 0 ? '' : problemas.slice(0, 30).map(p => `
+    <div class="estoque-item-row">
+      <div class="estoque-item-info">
+        <div class="estoque-item-nome">Linha ${p.linha}</div>
+        <div class="estoque-item-meta">${escapeHtml(p.motivo)}</div>
+      </div>
+    </div>
+  `).join('') + (problemas.length > 30 ? `<p class="hint">+ ${problemas.length - 30} outra(s) linha(s) ignorada(s).</p>` : '');
+  $('btnConfirmarImportar').textContent = `Importar ${validas.length} registro(s)`;
+  $('btnConfirmarImportar').disabled = validas.length === 0;
+}
+
+async function confirmarImportacao(){
+  if(importLinhas.length === 0) return;
+  const btn = $('btnConfirmarImportar');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+  const novas = importLinhas.map(payload => {
+    const registro = { ...payload, id: uid(), createdAt: Date.now(), updatedAt: Date.now(), exportedAt: null };
+    entries.push(registro);
+    return registro;
+  });
+  await saveEntries();
+  novas.forEach(registro => enfileirarSync('registro', registro));
+  const total = novas.length;
+  render();
+  resetarImportar();
+  alert(`${total} registro(s) importado(s) com sucesso.`);
+}
+
+$('btnSelecionarImportar').onclick = () => $('inputImportar').click();
+$('inputImportar').onchange = async (ev) => {
+  const file = ev.target.files[0];
+  if(!file) return;
+  try{
+    const linhasBrutas = await lerArquivoImportado(file);
+    if(linhasBrutas.length === 0){
+      alert('Não encontrei nenhuma linha nesse arquivo.');
+      resetarImportar();
+      return;
+    }
+    const { validas, problemas } = processarLinhasImportadas(linhasBrutas);
+    mostrarPreviewImportacao(file.name, validas, problemas);
+  }catch(err){
+    console.error('Falha ao ler arquivo de importação', err);
+    alert('Não consegui ler esse arquivo. Confira se é um .xlsx, .xls ou .csv válido.');
+    resetarImportar();
+  }
+};
+$('btnCancelarImportar').onclick = resetarImportar;
+$('btnConfirmarImportar').onclick = confirmarImportacao;
 
 /* ---------- atualização automática do arquivo Excel local ---------- */
 let arquivoExcelHandle = null;
