@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260901a">
+<link rel="stylesheet" href="css/style.css?v=20260901b">
 </head>
 <body>
 
@@ -559,6 +559,11 @@ Segue anexo o relatório atualizado.</textarea>
                 <span class="kpi-card__value" id="agendamento-tile-vencido-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-vencido-valor">R$ 0,00</span>
               </article>
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-nao-faturado" style="--kpi-accent:#14B8A6" title="Ver pedidos com data de agendamento marcada, ainda sem nota fiscal">
+                <span class="kpi-card__label">Agendado Não Faturado</span>
+                <span class="kpi-card__value" id="agendamento-tile-nao-faturado-count">0</span>
+                <span class="kpi-card__subvalue" id="agendamento-tile-nao-faturado-valor">R$ 0,00</span>
+              </article>
               <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="sem-roteiro" style="--kpi-accent:#EAB308" title="Ver pedidos sem roteiro e sem agendamento">
                 <span class="kpi-card__label">Sem roteiro/ sem agendamento</span>
                 <span class="kpi-card__value" id="agendamento-tile-sem-etapa-count">0</span>
@@ -611,7 +616,7 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
 
         <div class="chart-card chart-card--foto">
-          <img src="assets/img/agendamento-banner.jpg?v=20260901a" alt="" class="chart-card__foto-completa">
+          <img src="assets/img/agendamento-banner.jpg?v=20260901b" alt="" class="chart-card__foto-completa">
           <!-- Camada de animação HUD por cima da foto estática (pedido do usuário, 2026-08-29:
                "não simplesmente rotacionar a imagem inteira... criar camadas independentes") —
                só esses elementos se movem, a foto (e a palavra AGENDA nela) fica parada. -->
@@ -1320,11 +1325,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260901a"></script>
-<script src="js/utils.js?v=20260901a"></script>
-<script src="js/data.js?v=20260901a"></script>
-<script src="js/charts.js?v=20260901a"></script>
-<script src="js/dashboard.js?v=20260901a"></script>
-<script src="js/script.js?v=20260901a"></script>
+<script type="module" src="js/firebase-init.js?v=20260901b"></script>
+<script src="js/utils.js?v=20260901b"></script>
+<script src="js/data.js?v=20260901b"></script>
+<script src="js/charts.js?v=20260901b"></script>
+<script src="js/dashboard.js?v=20260901b"></script>
+<script src="js/script.js?v=20260901b"></script>
 </body>
 </html>
