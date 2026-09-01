@@ -251,6 +251,12 @@
     font-weight:600;
     font-size:15px;
   }
+  .item-nf{
+    font-weight:500;
+    font-size:12px;
+    color:var(--ink-faint);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
   .item-endereco{
     font-size:13px;
     color:var(--ink-soft);
@@ -927,6 +933,26 @@
     </div>
 
     <div class="export-card">
+      <h2>Conectar com o Dashboard</h2>
+      <p class="hint">Entre com a mesma conta do dashboard pra puxar automaticamente a Observação das notas que já exigem agendamento, a partir do Número da NF (campo novo no cadastro).</p>
+      <div id="dashLoginForm">
+        <div class="export-field">
+          <label>E-mail</label>
+          <input type="email" id="dashEmailInput" placeholder="mesmo e-mail do dashboard" autocomplete="username">
+        </div>
+        <div class="export-field">
+          <label>Senha</label>
+          <input type="password" id="dashSenhaInput" placeholder="mesma senha do dashboard" autocomplete="current-password">
+        </div>
+      </div>
+      <p class="export-last" id="dashLoginStatus">Não conectado.</p>
+      <div class="modal-actions" style="margin-top:0;">
+        <button class="btn-primary" id="btnDashEntrar" style="flex:none; padding:8px 14px; font-size:12.5px;">Entrar</button>
+        <button class="btn-sm" id="btnDashSair" style="display:none;">Sair</button>
+      </div>
+    </div>
+
+    <div class="export-card">
       <h2>Sincronização automática</h2>
       <p class="hint">Faz cada aparelho (celular, computador) mandar os registros e itens de estoque pra uma central única, assim que salvar. Configure uma vez só — <a href="#" id="linkComoConfigurarSync">como configurar</a>.</p>
       <div class="export-field">
@@ -997,6 +1023,11 @@
         <button type="button" class="tipo-btn" data-t="agendamento">Agendamento</button>
         <button type="button" class="tipo-btn" data-t="sem_tratativa">Sem tratativa</button>
       </div>
+    </div>
+    <div class="field">
+      <label>Número da NF (opcional)</label>
+      <input type="text" id="fNF" placeholder="Ex: 192233-1" inputmode="numeric">
+      <p class="hint" id="nfObsStatus" style="margin-top:4px; display:none;"></p>
     </div>
     <div class="field">
       <label>Cliente / destinatário</label>
@@ -1094,6 +1125,51 @@
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Conexão com o Firebase do dashboard principal (pedido do usuário, 2026-09-01: puxar a
+     Observação das notas que já exigem agendamento, a partir do Número da NF). Mesmo projeto/
+     config de ../js/firebase-init.js — mesma conta de login. Só leitura (getDoc de 1 documento
+     em agendamentosManuais/{nf}), nunca escreve nada nessa coleção a partir daqui. Isolado no
+     bloco de módulo ES logo abaixo (import), exposto via window.DashFirebase + evento
+     'dash-firebase-ready', mesmo padrão de window.Firebase/'firebase-ready' do dashboard. -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+    setPersistence, browserLocalPersistence
+  } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBjNQAQOahpl3Wy6zWiWcnUHgTmJTAUnVE",
+    authDomain: "dashboard-terrinha.firebaseapp.com",
+    projectId: "dashboard-terrinha",
+    storageBucket: "dashboard-terrinha.firebasestorage.app",
+    messagingSenderId: "246670092939",
+    appId: "1:246670092939:web:56ba5649779ff3378ac28e",
+    measurementId: "G-0XK76RER2E"
+  };
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  // browserLocalPersistence (diferente do dashboard, que usa browserSessionPersistence) de
+  // propósito: o Manifesto abre numa aba nova cada vez (sessionStorage não é compartilhado
+  // entre abas) e é usado várias vezes ao dia — faz sentido continuar logada aqui até ela
+  // mesma clicar em "Sair", em vez de pedir login de novo a cada vez que abrir a aba.
+  setPersistence(auth, browserLocalPersistence).catch(()=>{});
+
+  async function buscarObservacaoAgendamento(nf){
+    const snap = await getDoc(doc(db, 'agendamentosManuais', nf));
+    return snap.exists() ? (snap.data().observacao || '') : '';
+  }
+
+  window.DashFirebase = {
+    entrar: (email, senha) => signInWithEmailAndPassword(auth, email, senha),
+    sair: () => signOut(auth),
+    aoMudarLogin: (cb) => onAuthStateChanged(auth, cb),
+    buscarObservacaoAgendamento
+  };
+  window.dispatchEvent(new Event('dash-firebase-ready'));
+</script>
 <script>
   function carregarScript(src, timeoutMs){
     return new Promise((resolve, reject)=>{
@@ -1360,7 +1436,7 @@ function renderLista(){
         </select>
         <span class="status-chip ${e.status}">${labelStatus(e.status)}</span>
       </div>
-      <div class="item-cliente">${escapeHtml(e.cliente)}</div>
+      <div class="item-cliente">${escapeHtml(e.cliente)}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
       <div class="item-endereco">${escapeHtml(e.endereco)}</div>
       <div class="item-meta">
         <span>${fmtData(e.data)}${horaTxt}</span>
@@ -1473,6 +1549,8 @@ function selecionarTipo(t){
 function abrirModal(){
   editId = null;
   $('modalTitle').textContent = 'Novo registro';
+  $('fNF').value = '';
+  $('nfObsStatus').style.display = 'none';
   $('fCliente').value = '';
   $('fEndereco').value = '';
   $('fData').value = new Date().toISOString().slice(0,10);
@@ -1496,6 +1574,8 @@ function abrirEdicao(id){
   if(!e) return;
   editId = id;
   $('modalTitle').textContent = 'Editar registro';
+  $('fNF').value = e.nf || '';
+  $('nfObsStatus').style.display = 'none';
   $('fCliente').value = e.cliente;
   $('fEndereco').value = e.endereco;
   $('fData').value = e.data;
@@ -1559,6 +1639,7 @@ async function salvar(){
   $('formErr').style.display = 'none';
   const payload = {
     tipo: tipoAtual,
+    nf: $('fNF').value.trim(),
     cliente, endereco, data,
     hora: $('fHora').value,
     motivo: $('fMotivo').value.trim(),
@@ -1667,6 +1748,96 @@ $('etiquetaClose').onclick = fecharEtiqueta;
 $('etiquetaOverlay').onclick = (ev)=>{ if(ev.target.id==='etiquetaOverlay') fecharEtiqueta(); };
 $('etiquetaImprimirBtn').onclick = ()=> window.print();
 loadEntries();
+
+/* ---------- conexão com o Firebase do dashboard (puxar Observação por NF) ---------- */
+// window.DashFirebase é criado por um <script type="module"> separado, no <head> (import ES,
+// carrega em paralelo/depois do parsing) — pode não estar pronto ainda quando este script
+// (clássico, roda inline) chega aqui, por isso espera o evento 'dash-firebase-ready' (mesmo
+// padrão já usado pro window.Firebase do dashboard principal).
+let dashFirebase = null;
+let dashUsuarioAtual = null;
+function obterDashFirebase(){
+  return new Promise(resolve=>{
+    if(window.DashFirebase) return resolve(window.DashFirebase);
+    window.addEventListener('dash-firebase-ready', ()=> resolve(window.DashFirebase), { once:true });
+  });
+}
+function atualizarStatusDashLogin(){
+  const status = $('dashLoginStatus');
+  if(!status) return;
+  if(dashUsuarioAtual){
+    status.textContent = `Conectado como ${dashUsuarioAtual.email}`;
+    $('dashLoginForm').style.display = 'none';
+    $('btnDashEntrar').style.display = 'none';
+    $('btnDashSair').style.display = 'inline-flex';
+  }else{
+    status.textContent = 'Não conectado.';
+    $('dashLoginForm').style.display = 'block';
+    $('btnDashEntrar').style.display = 'inline-flex';
+    $('btnDashSair').style.display = 'none';
+  }
+}
+(async ()=>{
+  dashFirebase = await obterDashFirebase();
+  dashFirebase.aoMudarLogin(usuario=>{
+    dashUsuarioAtual = usuario;
+    atualizarStatusDashLogin();
+  });
+})();
+$('btnDashEntrar').onclick = async ()=>{
+  const email = $('dashEmailInput').value.trim();
+  const senha = $('dashSenhaInput').value;
+  if(!email || !senha){ alert('Preencha e-mail e senha.'); return; }
+  const btn = $('btnDashEntrar');
+  btn.disabled = true;
+  btn.textContent = 'Entrando...';
+  try{
+    if(!dashFirebase) dashFirebase = await obterDashFirebase();
+    await dashFirebase.entrar(email, senha);
+    $('dashSenhaInput').value = '';
+  }catch(err){
+    alert('Não consegui entrar: ' + (err.message || 'verifique e-mail e senha.'));
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+};
+$('btnDashSair').onclick = async ()=>{
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  await dashFirebase.sair();
+};
+
+// Ao sair do campo NF, busca a Observação dessa nota no dashboard (agendamentosManuais/{nf}) e
+// preenche o campo Observações — só se ele ainda estiver vazio, pra nunca sobrescrever algo que
+// ela já tenha digitado. Aceita "192233-1" (com sufixo de viagem) ou só "192233".
+$('fNF').addEventListener('blur', async ()=>{
+  const nfDigitado = $('fNF').value.trim();
+  const statusEl = $('nfObsStatus');
+  if(!nfDigitado){ statusEl.style.display = 'none'; return; }
+  const nfBase = nfDigitado.split('-')[0];
+  statusEl.style.display = 'block';
+  if(!dashUsuarioAtual){
+    statusEl.textContent = 'Conecte-se com o dashboard (aba Exportar) pra puxar a Observação automaticamente.';
+    return;
+  }
+  statusEl.textContent = 'Buscando observação dessa NF no dashboard…';
+  try{
+    if(!dashFirebase) dashFirebase = await obterDashFirebase();
+    const observacao = await dashFirebase.buscarObservacaoAgendamento(nfBase);
+    if(!observacao){
+      statusEl.textContent = 'Nenhuma observação encontrada no dashboard pra essa NF.';
+    }else if($('fObs').value.trim()){
+      statusEl.textContent = 'Achei uma observação no dashboard pra essa NF, mas o campo Observações abaixo já tinha algo escrito (não sobrescrevi).';
+    }else{
+      $('fObs').value = observacao;
+      statusEl.textContent = '✓ Observação puxada do dashboard — pode editar à vontade no campo abaixo.';
+    }
+  }catch(err){
+    console.error('Falha ao buscar observação da NF no dashboard', err);
+    statusEl.textContent = 'Não consegui buscar agora (sem internet, ou sem permissão pra essa NF).';
+  }
+});
+
 document.querySelectorAll('#mainNav button').forEach(b=>{
   b.onclick = ()=>{
     document.querySelectorAll('#mainNav button').forEach(x=>x.classList.remove('active'));
@@ -2097,6 +2268,7 @@ async function exportarExcel(){
     .slice()
     .sort((a,b)=> (b.data||'').localeCompare(a.data||''))
     .map(e=>({
+      'NF': e.nf || '',
       'Tipo': labelTipo(e.tipo),
       'Cliente': e.cliente || '',
       'Endereço': e.endereco || '',
@@ -2109,7 +2281,7 @@ async function exportarExcel(){
     }));
   const ws = XLSX.utils.json_to_sheet(linhas);
   ws['!cols'] = [
-    { wch: 14 }, { wch: 24 }, { wch: 34 }, { wch: 11 },
+    { wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 34 }, { wch: 11 },
     { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 12 }, { wch: 36 }
   ];
   const wb = XLSX.utils.book_new();
@@ -2129,6 +2301,7 @@ $('btnExportar').onclick = exportarExcel;
 // normalizados (minúsculo, sem acento) pra aceitar tanto um arquivo exportado daqui quanto uma
 // planilha própria com nomes de coluna parecidos.
 const IMPORT_ALIASES = {
+  nf: ['nf', 'numero da nf', 'nota fiscal'],
   tipo: ['tipo'],
   cliente: ['cliente', 'nome', 'nome do cliente'],
   endereco: ['endereco', 'local de entrega', 'local'],
@@ -2218,6 +2391,7 @@ function processarLinhasImportadas(linhasBrutas){
 
     const payload = {
       tipo: converterTipoImportado(linha.tipo) || 'sem_tratativa',
+      nf: (linha.nf || '').toString().trim(),
       cliente, endereco, data,
       hora: (linha.hora || '').toString().trim(),
       motivo: (linha.motivo || '').toString().trim(),
@@ -2359,6 +2533,7 @@ async function atualizarArquivoExcel(){
       .slice()
       .sort((a,b)=> (b.data||'').localeCompare(a.data||''))
       .map(e=>({
+        'NF': e.nf || '',
         'Tipo': labelTipo(e.tipo),
         'Cliente': e.cliente || '',
         'Endereço': e.endereco || '',
@@ -2380,7 +2555,7 @@ async function atualizarArquivoExcel(){
     const wb = XLSX.utils.book_new();
     const wsRegistros = XLSX.utils.json_to_sheet(linhasRegistros);
     wsRegistros['!cols'] = [
-      { wch: 14 }, { wch: 24 }, { wch: 34 }, { wch: 11 },
+      { wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 34 }, { wch: 11 },
       { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 12 }, { wch: 36 }
     ];
     XLSX.utils.book_append_sheet(wb, wsRegistros, 'Registros');
