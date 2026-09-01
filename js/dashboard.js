@@ -2890,9 +2890,12 @@ const Dashboard = (() => {
     );
   }
 
+  // Rótulos alinhados aos mini-cards de "Situação de agendamento" (renomeados 2026-09-01, pedido
+  // do usuário: "Pedidos Aguard. Fatur. S/C Agendamento" -> "Pedidos Sem/Com Agendamento") — pra
+  // não ter um texto no card e outro na tela que abre ao clicar nele.
   const PEDIDOS_NAO_FATURADOS_TITULO_POR_CATEGORIA = {
-    'sem-agendamento': 'Pedidos Aguard. Faturamento — S/ Agendamento (Entrega Direta)',
-    'com-agendamento': 'Pedidos Aguard. Faturamento — C/ Agendamento'
+    'sem-agendamento': 'Pedidos Sem Agendamento (Entrega Direta)',
+    'com-agendamento': 'Pedidos Com Agendamento'
   };
 
   /** No-op se a tela não estiver visível — mesmo padrão de renderRegistroDinamico/renderLeadTime. */
