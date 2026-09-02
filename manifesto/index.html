@@ -1486,7 +1486,15 @@ function renderLista(){
     }
     return true;
   });
-  grupos.sort((a,b)=> (b.principal.data||'').localeCompare(a.principal.data||''));
+  // Notas que se repetem (mais de 1 ocorrência) ficam no topo (pedido do usuário, 2026-09-02) --
+  // dentro de cada bloco (repetidas / não repetidas), continua ordenado da mais recente pra mais
+  // antiga, como já era.
+  grupos.sort((a,b)=>{
+    const repeteA = a.ocorrencias.length>1 ? 1 : 0;
+    const repeteB = b.ocorrencias.length>1 ? 1 : 0;
+    if(repeteA !== repeteB) return repeteB - repeteA;
+    return (b.principal.data||'').localeCompare(a.principal.data||'');
+  });
   if(grupos.length===0){
     wrap.innerHTML = `
       <div class="empty">
@@ -2051,7 +2059,13 @@ $('btnAdd').onclick = abrirModal;
 $('btnClose').onclick = fecharModal;
 $('overlay').onclick = (ev)=>{ if(ev.target.id==='overlay') fecharModal(); };
 $('btnSalvar').onclick = salvar;
-$('busca').oninput = render;
+// Buscar sempre precisa dar resultado, mesmo com um card de Tipo (Recusa/Reentrega/...) ainda
+// clicado/ativo de antes (pedido do usuário, 2026-09-02) -- digitar algo na busca solta esse
+// filtro de Tipo sozinho, pra nunca esconder silenciosamente o que ela está procurando.
+$('busca').oninput = () => {
+  if($('busca').value.trim() && filtroTipo !== 'todos') filtroTipo = 'todos';
+  render();
+};
 $('etiquetaClose').onclick = fecharEtiqueta;
 $('etiquetaOverlay').onclick = (ev)=>{ if(ev.target.id==='etiquetaOverlay') fecharEtiqueta(); };
 $('etiquetaImprimirBtn').onclick = ()=> window.print();
