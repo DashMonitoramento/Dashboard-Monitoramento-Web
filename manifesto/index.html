@@ -348,6 +348,7 @@
     align-items:center;
     justify-content:space-between;
   }
+  .historico-semnf{ font-size:11px; color:var(--ink-faint); font-style:italic; }
   .historico-contagem{
     font-size:12px;
     color:var(--ink-soft);
@@ -1503,17 +1504,17 @@ function renderLista(){
     sel.onchange = ()=> trocarTipoInline(sel.dataset.id, sel.value, sel);
   });
 }
-// Aba "Histórico" (pedido do usuário, 2026-09-02): em vez de cartão por cartão, agrupa por NF
-// pra ela ver de uma vez quantas vezes cada nota apareceu e com qual Data/Motivo em cada uma --
-// só entra aqui quem tem NF preenchida (registros antigos sem NF continuam em Todos/Pendente/
-// Resolvido normalmente, só não aparecem agrupados aqui). Respeita o campo de busca (NF ou
-// cliente) e o filtro de Tipo dos cartões de cima, igual a lista normal.
+// Aba "Histórico" (pedido do usuário, 2026-09-02): em vez de cartão por cartão, agrupa as
+// notas pra ela ver de uma vez quantas vezes cada uma apareceu e com qual Data/Motivo em cada
+// vez. Agrupa por NF quando ela existe; notas lançadas ANTES da NF virar obrigatória (sem NF
+// preenchida) agrupam por Cliente em vez de sumirem daqui -- ela pediu explicitamente que o que
+// já tem apareça também (2026-09-02, ajuste depois do primeiro lançamento). Respeita o campo de
+// busca (NF ou cliente) e o filtro de Tipo dos cartões de cima, igual a lista normal.
 function renderHistorico(){
   const busca = normalizarTexto($('busca').value);
   const wrap = $('lista');
   wrap.innerHTML = '';
-  const comNf = entries.filter(e=>{
-    if(!e.nf) return false;
+  const filtradas = entries.filter(e=>{
     if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
     if(busca){
       const alvo = normalizarTexto((e.nf || '') + ' ' + (e.cliente || ''));
@@ -1521,30 +1522,35 @@ function renderHistorico(){
     }
     return true;
   });
-  if(comNf.length===0){
+  if(filtradas.length===0){
     wrap.innerHTML = `
       <div class="empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        <p>Nenhuma nota com NF preenchida por aqui ainda.</p>
+        <p>Nenhum registro por aqui ainda.</p>
       </div>`;
     return;
   }
   const grupos = new Map();
-  comNf.forEach(e=>{
-    if(!grupos.has(e.nf)) grupos.set(e.nf, []);
-    grupos.get(e.nf).push(e);
+  filtradas.forEach(e=>{
+    const chave = e.nf ? ('nf:' + e.nf) : ('cliente:' + normalizarTexto(e.cliente));
+    if(!grupos.has(chave)) grupos.set(chave, { nf: e.nf || '', cliente: e.cliente, ocorrencias: [] });
+    grupos.get(chave).ocorrencias.push(e);
   });
-  const listaGrupos = Array.from(grupos.entries()).map(([nf, ocorrencias]) => {
-    ocorrencias.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
-    return { nf, ocorrencias, maisRecente: ocorrencias[0].data || '' };
+  const listaGrupos = Array.from(grupos.values()).map(g=>{
+    g.ocorrencias.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
+    g.maisRecente = g.ocorrencias[0].data || '';
+    return g;
   });
   listaGrupos.sort((a,b)=> b.maisRecente.localeCompare(a.maisRecente));
-  listaGrupos.forEach(({ nf, ocorrencias }) => {
+  listaGrupos.forEach(({ nf, cliente, ocorrencias }) => {
     const div = document.createElement('div');
     div.className = 'item historico-grupo';
+    const titulo = nf
+      ? `<span class="item-nf">NF ${escapeHtml(nf)}</span>`
+      : `<span>${escapeHtml(cliente)}</span> <span class="historico-semnf">(sem NF)</span>`;
     div.innerHTML = `
       <div class="historico-grupo-header">
-        <span class="item-nf">NF ${escapeHtml(nf)}</span>
+        ${titulo}
         <span class="historico-contagem">${ocorrencias.length} ocorrência${ocorrencias.length>1?'s':''}</span>
       </div>
       ${ocorrencias.map(e => `
