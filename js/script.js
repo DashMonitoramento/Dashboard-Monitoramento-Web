@@ -511,16 +511,23 @@ function bindGerenciarUsuarios() {
     }
     lista.innerHTML = usuarios.map(u => {
       const ehSuperAdmin = Dashboard.isSuperAdminEmailAgendamento(u.email);
-      const marcado = ehSuperAdmin || u.podeEditarAgendamento;
+      const marcadoAgendamento = ehSuperAdmin || u.podeEditarAgendamento;
+      const marcadoManifesto = ehSuperAdmin || u.podeEditarManifesto;
       return `<div class="usuario-row${ehSuperAdmin ? ' usuario-row--super-admin' : ''}" data-uid="${escapeAttrLocal(u.uid)}">
         <div>
           <div class="usuario-row__nome">${escapeAttrLocal(u.nome)}</div>
           <div class="usuario-row__email">${escapeAttrLocal(u.email)}</div>
         </div>
-        <label class="usuario-row__toggle">
-          <input type="checkbox" class="usuario-row__checkbox" ${marcado ? 'checked' : ''} ${ehSuperAdmin ? 'disabled' : ''}>
-          Pode editar agendamentos
-        </label>
+        <div class="usuario-row__toggles">
+          <label class="usuario-row__toggle">
+            <input type="checkbox" class="usuario-row__checkbox" data-permissao="agendamento" ${marcadoAgendamento ? 'checked' : ''} ${ehSuperAdmin ? 'disabled' : ''}>
+            Pode editar agendamentos
+          </label>
+          <label class="usuario-row__toggle">
+            <input type="checkbox" class="usuario-row__checkbox" data-permissao="manifesto" ${marcadoManifesto ? 'checked' : ''} ${ehSuperAdmin ? 'disabled' : ''}>
+            Pode editar o Manifesto
+          </label>
+        </div>
       </div>`;
     }).join('');
   }
@@ -548,11 +555,17 @@ function bindGerenciarUsuarios() {
     const linha = checkbox.closest('.usuario-row');
     const uid = linha.dataset.uid;
     const pode = checkbox.checked;
+    const permissao = checkbox.dataset.permissao; // 'agendamento' ou 'manifesto'
     checkbox.disabled = true;
     try {
       const fb = await waitFirebaseReady();
-      await fb.definirPermissaoEdicaoAgendamento(uid, pode);
-      Utils.showToast(pode ? 'Usuário habilitado a editar agendamentos.' : 'Edição de agendamento removida desse usuário.', 'success', 2500);
+      if (permissao === 'manifesto') {
+        await fb.definirPermissaoEdicaoManifesto(uid, pode);
+        Utils.showToast(pode ? 'Usuário habilitado a editar o Manifesto.' : 'Edição do Manifesto removida desse usuário.', 'success', 2500);
+      } else {
+        await fb.definirPermissaoEdicaoAgendamento(uid, pode);
+        Utils.showToast(pode ? 'Usuário habilitado a editar agendamentos.' : 'Edição de agendamento removida desse usuário.', 'success', 2500);
+      }
     } catch (err) {
       console.error(err);
       checkbox.checked = !pode; // reverte, já que a gravação falhou
