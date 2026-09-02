@@ -7,6 +7,14 @@
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
 <link rel="stylesheet" href="css/style.css?v=20260902a">
+<!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
+     2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FF7A1A">
+<link rel="apple-touch-icon" href="assets/img/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
 </head>
 <body>
 
@@ -1335,5 +1343,13 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/charts.js?v=20260901d"></script>
 <script src="js/dashboard.js?v=20260901d"></script>
 <script src="js/script.js?v=20260902a"></script>
+<script>
+  // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
+  // guarda nada em cache de propósito (ver sw.js), então não tem risco de mostrar tela antiga
+  // depois de uma atualização.
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+</script>
 </body>
 </html>
