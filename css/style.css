@@ -869,6 +869,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 .usuario-row__nome { font-weight: 700; font-size: 13.5px; }
 .usuario-row__email { font-size: 12px; color: var(--text-secondary); }
+.usuario-row__toggles { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .usuario-row__toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .usuario-row__toggle input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--color-blue); }
 .usuario-row--super-admin .usuario-row__toggle { color: var(--text-secondary); cursor: default; }
