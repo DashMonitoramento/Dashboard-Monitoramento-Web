@@ -237,6 +237,12 @@
     justify-content:space-between;
     gap:10px;
   }
+  .item-top-left{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+  }
   .tag{
     display:inline-flex;
     align-items:center;
@@ -374,6 +380,22 @@
     min-width:0;
     overflow-wrap:break-word;
   }
+  /* Badge "Nx" + histórico embutido nos cards de Todos/Pendente/Resolvido, quando a mesma NF
+     repete (pedido do usuário, 2026-09-02) -- reaproveita .historico-linha/.historico-data/
+     .historico-motivo de cima, só que dentro do próprio card em vez de na aba Histórico. */
+  .item-badge-repeticao{
+    border:1px solid var(--line);
+    background:var(--surface-soft);
+    color:var(--ink-soft);
+    border-radius:999px;
+    padding:2px 9px;
+    font-size:11px;
+    font-weight:600;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    cursor:pointer;
+  }
+  .item-badge-repeticao:hover{ border-color:var(--brand); color:var(--brand); }
+  .historico-inline{ margin-top:2px; }
   .btn-sm{
     border:1px solid var(--line);
     background:var(--surface);
@@ -962,7 +984,7 @@
     <div class="controls">
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="busca" placeholder="Buscar por cliente ou endereço">
+        <input type="text" id="busca" placeholder="Buscar por NF ou cliente">
       </div>
     </div>
     <div class="lista" id="lista"></div>
@@ -1034,6 +1056,18 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Baixar planilha (.xlsx)
       </button>
+    </div>
+
+    <div class="export-card">
+      <h2>Verificar entregues na Base Bluesoft</h2>
+      <p class="hint">Confere a NF de cada nota pendente na Base Bluesoft do dashboard -- as que já
+        estiverem "Entregue" são movidas sozinhas pra Resolvido, marcadas com "Entregue na Base
+        Bluesoft". Isso já roda sozinho uma vez quando você entra; use o botão se quiser forçar
+        de novo no meio do dia.</p>
+      <p class="export-last" id="bluesoftStatusInfo">Ainda não verificado nesta sessão.</p>
+      <div class="modal-actions" style="margin-top:0;">
+        <button class="btn-primary" id="btnVerificarBluesoft" style="flex:none; padding:8px 14px; font-size:12.5px;">Verificar agora</button>
+      </div>
     </div>
 
     <div class="export-card">
@@ -1344,6 +1378,11 @@ let filtroStatus = 'todos';
 // Id do registro cuja Observação está em edição inline na lista (pedido do usuário, 2026-09-01)
 // — mesmo padrão de "clique pra editar" já usado no dashboard principal, só 1 por vez.
 let obsEditandoId = null;
+// Quais grupos (por NF) estão com o histórico embutido expandido na lista principal (pedido do
+// usuário, 2026-09-02) -- chave é a NF (ou "id:<id>" pra registro sem NF, embora esses nunca
+// tenham mais de 1 ocorrência mesmo). Guardado à parte de `entries` pra sobreviver aos
+// re-renders disparados pelo Firestore.
+let historicoExpandido = new Set();
 let estoqueIniciado = false; // declarado aqui em cima para nunca ser lido antes de existir
 let fotoThumbUrl = null;
 const $ = (id) => document.getElementById(id);
@@ -1413,12 +1452,30 @@ function renderTabsStatus(){
     wrap.appendChild(b);
   });
 }
+// Consolida ocorrências da MESMA nota (mesma NF) num grupo só -- pedido do usuário, 2026-09-02.
+// Sem NF (registro antigo), cada uma vira seu próprio grupo de 1 (não consolida, não tem uma
+// chave confiável pra isso). "principal" = ocorrência mais recente (maior data) -- é ela que
+// define tipo/status exibido e é o alvo de Editar/Marcar resolvido/Excluir/inline.
+function agruparPorNota(lista){
+  const grupos = new Map();
+  lista.forEach(e=>{
+    const chave = e.nf || ('id:' + e.id);
+    if(!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(e);
+  });
+  return Array.from(grupos.values()).map(ocorrencias=>{
+    const ordenadas = ocorrencias.slice().sort((a,b)=> (b.data||'').localeCompare(a.data||''));
+    return { principal: ordenadas[0], ocorrencias: ordenadas };
+  });
+}
 function renderLista(){
   if(filtroStatus==='historico'){ renderHistorico(); return; }
   const busca = normalizarTexto($('busca').value);
   const wrap = $('lista');
   wrap.innerHTML = '';
-  let filtrado = entries.filter(e=>{
+  // Filtro de Tipo/Status/busca usa a ocorrência PRINCIPAL (mais recente) do grupo -- é o
+  // "estado atual" dessa nota que decide se ela aparece em Pendente/Resolvido etc.
+  let grupos = agruparPorNota(entries).filter(({ principal: e })=>{
     if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
     if(filtroStatus!=='todos' && e.status!==filtroStatus) return false;
     if(busca){
@@ -1429,8 +1486,8 @@ function renderLista(){
     }
     return true;
   });
-  filtrado.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
-  if(filtrado.length===0){
+  grupos.sort((a,b)=> (b.principal.data||'').localeCompare(a.principal.data||''));
+  if(grupos.length===0){
     wrap.innerHTML = `
       <div class="empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
@@ -1438,7 +1495,7 @@ function renderLista(){
       </div>`;
     return;
   }
-  filtrado.forEach(e=>{
+  grupos.forEach(({ principal: e, ocorrencias })=>{
     const div = document.createElement('div');
     div.className = 'item';
     const horaTxt = e.hora ? ' · ' + e.hora : '';
@@ -1470,9 +1527,28 @@ function renderLista(){
          <button class="btn-sm" data-act="editar" data-id="${e.id}">Editar</button>
          <button class="btn-sm danger" data-act="excluir" data-id="${e.id}">Excluir</button>`
       : `${e.tipo!=='sem_tratativa' ? `<button class="btn-sm" data-act="etiqueta" data-id="${e.id}">Gerar etiqueta</button>` : ''}`;
+    // Badge "Nx" + histórico expansível embutido no card (pedido do usuário, 2026-09-02) -- só
+    // aparece quando essa NF tem mais de uma ocorrência. Estado de expandido/recolhido fica em
+    // `historicoExpandido` (Set), sobrevive a re-renders normais (não é resetado aqui).
+    const chaveGrupo = e.nf || ('id:' + e.id);
+    const expandido = historicoExpandido.has(chaveGrupo);
+    const badgeHtml = ocorrencias.length>1
+      ? `<button type="button" class="item-badge-repeticao" data-chave="${escapeHtml(chaveGrupo)}" title="Essa nota já apareceu ${ocorrencias.length} vezes">${ocorrencias.length}× ${expandido?'▲':'▼'}</button>`
+      : '';
+    const historicoHtml = (ocorrencias.length>1 && expandido)
+      ? `<div class="historico-inline">${ocorrencias.slice(1).map(o => `
+          <div class="historico-linha">
+            <span class="historico-data">${fmtData(o.data)}</span>
+            <span class="tag ${o.tipo}">${labelTipo(o.tipo)}</span>
+            <span class="historico-motivo">${o.motivo ? escapeHtml(o.motivo) : '—'}</span>
+          </div>`).join('')}</div>`
+      : '';
     div.innerHTML = `
       <div class="item-top">
-        ${tipoHtml}
+        <div class="item-top-left">
+          ${tipoHtml}
+          ${badgeHtml}
+        </div>
         <span class="status-chip ${e.status}">${labelStatus(e.status)}</span>
       </div>
       <div class="item-cliente">${escapeHtml(e.cliente)}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
@@ -1481,7 +1557,9 @@ function renderLista(){
         <span>${fmtData(e.data)}${horaTxt}</span>
         ${e.motivo ? `<span>· ${escapeHtml(e.motivo)}</span>` : ''}
         ${e.localizacao ? `<span>· ${escapeHtml(e.localizacao)}</span>` : ''}
+        ${e.motivoResolucao ? `<span>· ${escapeHtml(e.motivoResolucao)}</span>` : ''}
       </div>
+      ${historicoHtml}
       ${obsHtml}
       <div class="item-actions">${acoesHtml}</div>`;
     wrap.appendChild(div);
@@ -1498,6 +1576,14 @@ function renderLista(){
       else if(act==='obs-editar'){ obsEditandoId = id; renderLista(); focarObsInput(id); }
       else if(act==='obs-cancelar'){ obsEditandoId = null; renderLista(); }
       else if(act==='obs-salvar') salvarObsInline(id);
+    };
+  });
+  wrap.querySelectorAll('.item-badge-repeticao').forEach(btn=>{
+    btn.onclick = ()=>{
+      const chave = btn.dataset.chave;
+      if(historicoExpandido.has(chave)) historicoExpandido.delete(chave);
+      else historicoExpandido.add(chave);
+      renderLista();
     };
   });
   wrap.querySelectorAll('select.item-tipo-select').forEach(sel=>{
@@ -1769,6 +1855,71 @@ function renderSugestoesCliente(){
 $('fCliente').addEventListener('focus', () => { garantirClientesCarregados(); renderSugestoesCliente(); });
 $('fCliente').addEventListener('input', renderSugestoesCliente);
 $('fCliente').addEventListener('blur', () => setTimeout(() => { $('clienteSugestoes').classList.remove('aberta'); }, 150));
+
+/* ---------- verificação automática de entregues na Base Bluesoft (pedido do usuário, 2026-09-02) ----------
+   Mesmo arquivo que o dashboard principal usa (assets/data/sample-data-bluesoft.csv, colunas "NF"
+   e "Status Bluesoft") -- ~20MB, só é buscado por quem tem permissão de editar (só ela consegue
+   escrever a mudança mesmo, pelas regras do Firestore; e assim quem só "alimenta" pelo celular
+   nunca baixa esse arquivo grande à toa). Cacheado em memória depois do primeiro carregamento. */
+let statusBluesoftCache = null;
+let verificacaoBluesoftFeita = false;
+async function carregarStatusBluesoft(){
+  if(statusBluesoftCache) return statusBluesoftCache;
+  const resp = await fetch('../assets/data/sample-data-bluesoft.csv');
+  const texto = await resp.text();
+  const mapa = new Map(); // NF sem sufixo de viagem -> Set de status normalizados encontrados
+  const linhas = texto.split(/\r?\n/);
+  for(let i=1;i<linhas.length;i++){
+    const linha = linhas[i];
+    if(!linha) continue;
+    const campos = linha.split(';');
+    const nfCompleta = (campos[0] || '').trim();
+    const status = (campos[1] || '').trim();
+    if(!nfCompleta) continue;
+    const nfBase = nfCompleta.split('-')[0];
+    if(!mapa.has(nfBase)) mapa.set(nfBase, new Set());
+    mapa.get(nfBase).add(normalizarTexto(status));
+  }
+  statusBluesoftCache = mapa;
+  return mapa;
+}
+// Transfere pra Resolvido sozinho quando a Base Bluesoft já mostra "Entregue" pra essa NF --
+// roda 1x sozinho ao entrar (ver assinarRegistros, dentro de aoLogar) e também sob demanda pelo
+// botão "Verificar agora" na aba Exportar (aí `mostrarStatus` fica true pra atualizar o texto
+// da tela). Compara pela NF sem sufixo de viagem (a mesma NF pode ter mais de uma viagem/linha
+// na Base Bluesoft; qualquer uma delas com "Entregue" já conta).
+async function verificarEntreguesNaBaseBluesoft(mostrarStatus){
+  if(!podeEditarManifestoAtual) return;
+  const statusEl = $('bluesoftStatusInfo');
+  try{
+    if(mostrarStatus && statusEl) statusEl.textContent = 'Verificando na Base Bluesoft…';
+    const mapa = await carregarStatusBluesoft();
+    if(!dashFirebase) dashFirebase = await obterDashFirebase();
+    const candidatos = entries.filter(e => e.nf && e.status !== 'resolvido');
+    let atualizados = 0;
+    for(const e of candidatos){
+      const statusesDaNf = mapa.get(e.nf.split('-')[0]);
+      if(statusesDaNf && statusesDaNf.has('entregue')){
+        await dashFirebase.atualizarRegistro(e.id, {
+          status: 'resolvido',
+          motivoResolucao: 'Entregue na Base Bluesoft',
+          updatedAt: Date.now()
+        });
+        atualizados++;
+      }
+    }
+    if(mostrarStatus && statusEl){
+      statusEl.textContent = atualizados > 0
+        ? `${atualizados} nota(s) marcada(s) como Resolvido (Entregue na Base Bluesoft) -- ${new Date().toLocaleTimeString('pt-BR')}.`
+        : `Nenhuma nota pendente apareceu como Entregue na Base Bluesoft -- ${new Date().toLocaleTimeString('pt-BR')}.`;
+    }
+  }catch(err){
+    console.error('Falha ao verificar status na Base Bluesoft', err);
+    if(mostrarStatus && statusEl) statusEl.textContent = 'Não consegui verificar agora (sem internet?).';
+  }
+}
+$('btnVerificarBluesoft').onclick = () => verificarEntreguesNaBaseBluesoft(true);
+
 // NF virou obrigatória (pedido do usuário, 2026-09-02) e é um identificador muito mais preciso
 // que Cliente+Endereço (que inclusive saiu do formulário) -- por isso a checagem de duplicada
 // agora usa tipo+data+NF em vez de tipo+data+cliente+endereço. Isso continua permitindo a MESMA
@@ -1944,11 +2095,18 @@ async function aoLogar(usuario){
   cancelarAssinaturaRegistros = dashFirebase.assinarRegistros(lista=>{
     entries = lista;
     render();
+    // Só na 1ª vez que os registros chegam nesta sessão (não a cada mudança do Firestore,
+    // senão buscaria os 20MB da Base Bluesoft de novo a cada escrita de qualquer aparelho).
+    if(podeEditarManifestoAtual && !verificacaoBluesoftFeita){
+      verificacaoBluesoftFeita = true;
+      verificarEntreguesNaBaseBluesoft(false);
+    }
   });
 }
 function aoDeslogar(){
   dashUsuarioAtual = null;
   podeEditarManifestoAtual = false;
+  verificacaoBluesoftFeita = false;
   entries = [];
   if(cancelarAssinaturaRegistros){ cancelarAssinaturaRegistros(); cancelarAssinaturaRegistros = null; }
   $('userStatus').style.display = 'none';
