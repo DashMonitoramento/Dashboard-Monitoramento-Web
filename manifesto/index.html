@@ -85,6 +85,15 @@
     align-items:center;
     gap:12px;
   }
+  .user-status{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    color:var(--ink-soft);
+    white-space:nowrap;
+    padding-top:6px;
+  }
   .stamp{
     width:46px;height:46px;
     border-radius:50%;
@@ -840,6 +849,31 @@
 </style>
 </head>
 <body>
+<!-- Login obrigatório (pedido do usuário, 2026-09-02): os registros agora ficam numa coleção
+     compartilhada no Firestore, então sem saber quem está usando não dá pra aplicar a permissão
+     de edição nem as regras de segurança do Firestore. Fica visível (classe "open" já na marcação,
+     sem esperar JS) até window.DashFirebase confirmar um usuário logado -- não tem botão de
+     fechar/clicar fora, de propósito (ver bloco de autenticação no script). -->
+<div class="overlay open" id="authOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Entrar</h2>
+    </div>
+    <p class="hint">Entre com a mesma conta do dashboard pra usar o Manifesto — os registros agora são compartilhados entre todos os aparelhos.</p>
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" id="authEmailInput" placeholder="seu e-mail" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="authSenhaInput" placeholder="sua senha" autocomplete="current-password">
+    </div>
+    <p class="hint" id="authErro" style="display:none; color:var(--recusa);"></p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="btnAuthEntrar">Entrar</button>
+    </div>
+  </div>
+</div>
 <div class="wrap">
   <header>
     <div class="brand">
@@ -849,12 +883,16 @@
         <p class="subtitle">Controle de recusas, reentregas e agendamentos</p>
       </div>
     </div>
+    <div class="user-status" id="userStatus" style="display:none;">
+      <span id="userStatusEmail"></span>
+      <button type="button" class="btn-sm" id="btnAuthSair">Sair</button>
+    </div>
   </header>
   <div class="main-nav" id="mainNav">
     <button type="button" class="active" data-view="registros">Registros</button>
     <button type="button" data-view="estoque">Estoque 3D</button>
-    <button type="button" data-view="exportar">Exportar</button>
-    <button type="button" data-view="importar">Importar</button>
+    <button type="button" data-view="exportar" id="navExportar">Exportar</button>
+    <button type="button" data-view="importar" id="navImportar">Importar</button>
   </div>
   <div id="viewRegistros">
     <div class="stats" id="stats"></div>
@@ -937,46 +975,8 @@
     </div>
 
     <div class="export-card">
-      <h2>Conectar com o Dashboard</h2>
-      <p class="hint">Entre com a mesma conta do dashboard pra puxar automaticamente a Observação das notas que já exigem agendamento, a partir do Número da NF (campo novo no cadastro).</p>
-      <div id="dashLoginForm">
-        <div class="export-field">
-          <label>E-mail</label>
-          <input type="email" id="dashEmailInput" placeholder="mesmo e-mail do dashboard" autocomplete="username">
-        </div>
-        <div class="export-field">
-          <label>Senha</label>
-          <input type="password" id="dashSenhaInput" placeholder="mesma senha do dashboard" autocomplete="current-password">
-        </div>
-      </div>
-      <p class="export-last" id="dashLoginStatus">Não conectado.</p>
-      <div class="modal-actions" style="margin-top:0;">
-        <button class="btn-primary" id="btnDashEntrar" style="flex:none; padding:8px 14px; font-size:12.5px;">Entrar</button>
-        <button class="btn-sm" id="btnDashSair" style="display:none;">Sair</button>
-      </div>
-    </div>
-
-    <div class="export-card">
-      <h2>Sincronização automática</h2>
-      <p class="hint">Faz cada aparelho (celular, computador) mandar os registros e itens de estoque pra uma central única, assim que salvar. Configure uma vez só — <a href="#" id="linkComoConfigurarSync">como configurar</a>.</p>
-      <div class="export-field">
-        <label>Link da central (Web App do Google Sheets)</label>
-        <input type="text" id="syncUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-      </div>
-      <div class="export-field">
-        <label>Token (senha combinada com a central)</label>
-        <input type="password" id="syncTokenInput" placeholder="Mesmo valor configurado no Apps Script">
-      </div>
-      <p class="export-last" id="syncStatusInfo">Sincronização não configurada neste aparelho.</p>
-      <div class="modal-actions" style="margin-top:0;">
-        <button class="btn-sm" id="btnSalvarConfigSync">Salvar configuração</button>
-        <button class="btn-sm" id="btnSincronizarAgora">Sincronizar agora</button>
-      </div>
-    </div>
-
-    <div class="export-card">
       <h2>Atualizar arquivo Excel neste computador</h2>
-      <p class="hint" id="excelHint">Puxa tudo que estiver na central (de todos os aparelhos) e grava direto no seu arquivo .xlsx, sem precisar baixar e substituir manualmente. Feche o arquivo no Excel antes de atualizar.</p>
+      <p class="hint" id="excelHint">Grava direto no seu arquivo .xlsx tudo que estiver na lista de Registros agora (já sincronizada em tempo real entre os aparelhos), sem precisar baixar e substituir manualmente. Feche o arquivo no Excel antes de atualizar.</p>
       <p class="export-last" id="excelStatusInfo">Nenhum arquivo selecionado.</p>
       <div class="modal-actions" style="margin-top:0;">
         <button class="btn-sm" id="btnSelecionarExcel">Selecionar arquivo Excel</button>
@@ -1129,19 +1129,25 @@
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- Conexão com o Firebase do dashboard principal (pedido do usuário, 2026-09-01: puxar a
-     Observação das notas que já exigem agendamento, a partir do Número da NF). Mesmo projeto/
-     config de ../js/firebase-init.js — mesma conta de login. Só leitura (getDoc de 1 documento
-     em agendamentosManuais/{nf}), nunca escreve nada nessa coleção a partir daqui. Isolado no
-     bloco de módulo ES logo abaixo (import), exposto via window.DashFirebase + evento
-     'dash-firebase-ready', mesmo padrão de window.Firebase/'firebase-ready' do dashboard. -->
+<!-- Conexão com o Firebase do dashboard principal. Mesmo projeto/config de ../js/firebase-init.js
+     — mesma conta de login. Isolado no bloco de módulo ES logo abaixo (import), exposto via
+     window.DashFirebase + evento 'dash-firebase-ready', mesmo padrão de window.Firebase/
+     'firebase-ready' do dashboard. Desde 2026-09-02 essa conexão deixou de ser opcional: os
+     registros do Manifesto agora vivem na coleção 'manifestoRegistros' (Firestore), não mais só
+     em localStorage — sync em tempo real entre todos os aparelhos, via onSnapshot. Login virou
+     obrigatório pra usar o app (ver #authOverlay), já que sem usuário logado não tem como saber
+     quem tem permissão de editar (campo 'podeEditarManifesto' em users/{uid}, igual ao já
+     existente 'podeEditarAgendamento' do dashboard) nem as regras de segurança do Firestore
+     liberariam a leitura/escrita. -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
     getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
     setPersistence, browserLocalPersistence
   } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot
+  } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBjNQAQOahpl3Wy6zWiWcnUHgTmJTAUnVE",
@@ -1166,11 +1172,54 @@
     return snap.exists() ? (snap.data().observacao || '') : '';
   }
 
+  const REGISTROS_COLECAO = 'manifestoRegistros';
+
+  /** Assina a coleção inteira em tempo real — dispara `callback(lista)` na hora e de novo
+   * sempre que qualquer aparelho criar/editar/excluir um registro. Devolve a função pra cancelar
+   * a assinatura (não usada hoje, já que a página fica aberta o tempo todo, mas é o padrão certo
+   * do onSnapshot). Substitui o antigo localStorage['manifesto:entries'] como fonte dos dados. */
+  function assinarRegistros(callback, aoFalhar){
+    return onSnapshot(
+      collection(db, REGISTROS_COLECAO),
+      snapshot => callback(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
+      err => { console.error('Falha ao sincronizar registros do Manifesto', err); if(aoFalhar) aoFalhar(err); }
+    );
+  }
+  async function criarRegistro(id, payload){
+    const usuario = auth.currentUser;
+    await setDoc(doc(db, REGISTROS_COLECAO, id), {
+      ...payload,
+      criadoPorUid: usuario ? usuario.uid : '',
+      criadoPorEmail: usuario ? usuario.email : ''
+    });
+  }
+  async function atualizarRegistro(id, campos){
+    await updateDoc(doc(db, REGISTROS_COLECAO, id), campos);
+  }
+  async function excluirRegistro(id){
+    await deleteDoc(doc(db, REGISTROS_COLECAO, id));
+  }
+
+  /** Verifica se o usuário logado agora pode editar/excluir registros existentes do Manifesto
+   * (super admin sempre pode; os demais só se habilitados pelo modal "Gerenciar usuários" no
+   * dashboard principal — mesmo padrão de podeEditarAgendamento). Sem essa permissão o usuário
+   * ainda consegue criar registros novos ("alimentar"), só não edita os existentes. */
+  const SUPER_ADMIN_EMAIL = 'thiago.barbosadaterrinha@gmail.com';
+  async function getMinhaPermissaoEdicaoManifesto(){
+    const usuario = auth.currentUser;
+    if(!usuario) return false;
+    if(usuario.email === SUPER_ADMIN_EMAIL) return true;
+    const snap = await getDoc(doc(db, 'users', usuario.uid));
+    return snap.exists() ? !!snap.data().podeEditarManifesto : false;
+  }
+
   window.DashFirebase = {
     entrar: (email, senha) => signInWithEmailAndPassword(auth, email, senha),
     sair: () => signOut(auth),
     aoMudarLogin: (cb) => onAuthStateChanged(auth, cb),
-    buscarObservacaoAgendamento
+    buscarObservacaoAgendamento,
+    assinarRegistros, criarRegistro, atualizarRegistro, excluirRegistro,
+    getMinhaPermissaoEdicaoManifesto
   };
   window.dispatchEvent(new Event('dash-firebase-ready'));
 </script>
@@ -1228,7 +1277,6 @@
   })();
 </script>
 <script>
-const STORE_KEY = 'manifesto:entries';
 let entries = [];
 let editId = null;
 let tipoAtual = 'recusa';
@@ -1240,108 +1288,13 @@ let obsEditandoId = null;
 let estoqueIniciado = false; // declarado aqui em cima para nunca ser lido antes de existir
 let fotoThumbUrl = null;
 const $ = (id) => document.getElementById(id);
-/* ---------- sincronização automática (central via Google Sheets) ---------- */
-const SYNC_URL_KEY = 'manifesto:syncUrl';
-const SYNC_TOKEN_KEY = 'manifesto:syncToken';
-const SYNC_QUEUE_KEY = 'manifesto:syncQueue';
-const SYNC_LAST_KEY = 'manifesto:syncLast';
-let syncUrl = localStorage.getItem(SYNC_URL_KEY) || '';
-let syncToken = localStorage.getItem(SYNC_TOKEN_KEY) || '';
-let syncQueue = [];
-let syncEmAndamento = false;
-try{
-  const rawFila = localStorage.getItem(SYNC_QUEUE_KEY);
-  const parsedFila = rawFila ? JSON.parse(rawFila) : [];
-  syncQueue = Array.isArray(parsedFila) ? parsedFila : [];
-}catch(e){
-  syncQueue = [];
-}
-function salvarFilaSync(){
-  try{ localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(syncQueue)); }
-  catch(e){ console.error('Falha ao salvar fila de sincronização', e); }
-}
-function enfileirarSync(tipo, dado){
-  if(!syncUrl) return; // sincronização não configurada neste aparelho — segue só local
-  syncQueue.push({ tipo, dado, tentativas: 0 });
-  salvarFilaSync();
-  atualizarStatusSync();
-  sincronizarFila();
-}
-async function sincronizarFila(){
-  if(syncEmAndamento || !syncUrl || syncQueue.length === 0) return;
-  syncEmAndamento = true;
-  try{
-    while(syncQueue.length > 0){
-      const item = syncQueue[0];
-      try{
-        const resp = await fetch(syncUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS no Apps Script
-          body: JSON.stringify({ token: syncToken, tipo: item.tipo, dado: item.dado })
-        });
-        const resultado = await resp.json().catch(()=> ({ok:false, erro:'resposta inválida'}));
-        if(!resultado.ok) throw new Error(resultado.erro || 'falha desconhecida na central');
-        syncQueue.shift();
-        salvarFilaSync();
-        localStorage.setItem(SYNC_LAST_KEY, String(Date.now()));
-      }catch(err){
-        item.tentativas = (item.tentativas || 0) + 1;
-        salvarFilaSync();
-        console.warn('Sincronização pendente (sem internet ou central indisponível):', err.message || err);
-        break; // para no primeiro erro; tenta de novo depois (offline/central fora do ar)
-      }
-    }
-  }finally{
-    syncEmAndamento = false;
-    atualizarStatusSync();
-  }
-}
-function atualizarStatusSync(){
-  const el = $('syncStatusInfo');
-  if(!el) return;
-  if(!syncUrl){
-    el.textContent = 'Sincronização não configurada neste aparelho.';
-    return;
-  }
-  const ultima = localStorage.getItem(SYNC_LAST_KEY);
-  const ultimaTxt = ultima ? new Date(Number(ultima)).toLocaleString('pt-BR') : 'nunca';
-  const pendentes = syncQueue.length;
-  el.textContent = pendentes > 0
-    ? `${pendentes} item(ns) pendente(s) — última sincronização: ${ultimaTxt}`
-    : `Tudo sincronizado — última sincronização: ${ultimaTxt}`;
-}
-function carregarConfigSync(){
-  if($('syncUrlInput')) $('syncUrlInput').value = syncUrl;
-  if($('syncTokenInput')) $('syncTokenInput').value = syncToken;
-  atualizarStatusSync();
-}
-function salvarConfigSync(){
-  syncUrl = $('syncUrlInput').value.trim();
-  syncToken = $('syncTokenInput').value.trim();
-  localStorage.setItem(SYNC_URL_KEY, syncUrl);
-  localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
-  atualizarStatusSync();
-  sincronizarFila();
-}
-async function loadEntries(){
-  try{
-    const raw = localStorage.getItem(STORE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    entries = Array.isArray(parsed) ? parsed : [];
-  }catch(e){
-    console.error('Dados de registros corrompidos, reiniciando lista.', e);
-    entries = [];
-  }
-  render();
-}
-async function saveEntries(){
-  try{
-    localStorage.setItem(STORE_KEY, JSON.stringify(entries));
-  }catch(e){
-    console.error('Falha ao salvar', e);
-    alert('Não foi possível salvar. O armazenamento do navegador pode estar cheio ou bloqueado.');
-  }
-}
+// Permissão de editar/excluir registros existentes (super admin sempre tem; os demais só se
+// habilitados no modal "Gerenciar usuários" do dashboard principal — campo podeEditarManifesto).
+// Sem essa permissão ainda dá pra criar registros novos ("alimentar"), só não edita os já
+// existentes. Checado 1x no login (ver bloco de autenticação, mais abaixo) e usado só pra
+// decidir o que a INTERFACE mostra — a proteção de verdade são as regras do Firestore.
+let podeEditarManifestoAtual = false;
+let cancelarAssinaturaRegistros = null;
 function uid(){
   return 'id' + Date.now() + Math.random().toString(36).slice(2,7);
 }
@@ -1425,21 +1378,36 @@ function renderLista(){
     div.className = 'item';
     const horaTxt = e.hora ? ' · ' + e.hora : '';
     const emEdicaoObs = obsEditandoId === e.id;
-    const obsHtml = emEdicaoObs
+    // Sem permissão de editar (usuário só "alimenta"), Tipo/Observação ficam só leitura e as
+    // ações que mudam o registro somem — só resta "Gerar etiqueta" (não altera nada) e criar
+    // registros novos pelo "+" (pedido do usuário, 2026-09-02, junto da migração pro Firestore).
+    const obsHtml = !podeEditarManifestoAtual
+      ? (e.obs ? `<div class="item-obs">${escapeHtml(e.obs)}</div>` : '')
+      : emEdicaoObs
       ? `<textarea class="item-obs-input" id="obsInput_${e.id}" placeholder="Observação (opcional)">${escapeHtml(e.obs)}</textarea>
          <div class="item-obs-actions">
            <button class="btn-sm" data-act="obs-cancelar" data-id="${e.id}">Cancelar</button>
            <button class="btn-sm success" data-act="obs-salvar" data-id="${e.id}">Salvar observação</button>
          </div>`
       : `<button type="button" class="item-obs item-obs-btn${e.obs ? '' : ' item-obs-btn--vazio'}" data-act="obs-editar" data-id="${e.id}">${e.obs ? escapeHtml(e.obs) : '+ Adicionar observação'}</button>`;
-    div.innerHTML = `
-      <div class="item-top">
-        <select class="item-tipo-select ${e.tipo}" data-id="${e.id}" title="Mudar o tipo dessa nota">
+    const tipoHtml = podeEditarManifestoAtual
+      ? `<select class="item-tipo-select ${e.tipo}" data-id="${e.id}" title="Mudar o tipo dessa nota">
           <option value="recusa" ${e.tipo==='recusa'?'selected':''}>Recusa</option>
           <option value="reentrega" ${e.tipo==='reentrega'?'selected':''}>Reentrega</option>
           <option value="agendamento" ${e.tipo==='agendamento'?'selected':''}>Agendamento</option>
           <option value="sem_tratativa" ${e.tipo==='sem_tratativa'?'selected':''}>Sem tratativa</option>
-        </select>
+        </select>`
+      : `<span class="tag ${e.tipo}">${labelTipo(e.tipo)}</span>`;
+    const acoesHtml = podeEditarManifestoAtual
+      ? `${e.tipo==='sem_tratativa' ? `<button class="btn-sm success" data-act="tratar" data-id="${e.id}">Tratar agora</button>` : ''}
+         ${e.tipo!=='sem_tratativa' && e.status!=='resolvido' ? `<button class="btn-sm success" data-act="resolver" data-id="${e.id}">Marcar resolvido</button>` : ''}
+         ${e.tipo!=='sem_tratativa' ? `<button class="btn-sm" data-act="etiqueta" data-id="${e.id}">Gerar etiqueta</button>` : ''}
+         <button class="btn-sm" data-act="editar" data-id="${e.id}">Editar</button>
+         <button class="btn-sm danger" data-act="excluir" data-id="${e.id}">Excluir</button>`
+      : `${e.tipo!=='sem_tratativa' ? `<button class="btn-sm" data-act="etiqueta" data-id="${e.id}">Gerar etiqueta</button>` : ''}`;
+    div.innerHTML = `
+      <div class="item-top">
+        ${tipoHtml}
         <span class="status-chip ${e.status}">${labelStatus(e.status)}</span>
       </div>
       <div class="item-cliente">${escapeHtml(e.cliente)}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
@@ -1449,13 +1417,7 @@ function renderLista(){
         ${e.motivo ? `<span>· ${escapeHtml(e.motivo)}</span>` : ''}
       </div>
       ${obsHtml}
-      <div class="item-actions">
-        ${e.tipo==='sem_tratativa' ? `<button class="btn-sm success" data-act="tratar" data-id="${e.id}">Tratar agora</button>` : ''}
-        ${e.tipo!=='sem_tratativa' && e.status!=='resolvido' ? `<button class="btn-sm success" data-act="resolver" data-id="${e.id}">Marcar resolvido</button>` : ''}
-        ${e.tipo!=='sem_tratativa' ? `<button class="btn-sm" data-act="etiqueta" data-id="${e.id}">Gerar etiqueta</button>` : ''}
-        <button class="btn-sm" data-act="editar" data-id="${e.id}">Editar</button>
-        <button class="btn-sm danger" data-act="excluir" data-id="${e.id}">Excluir</button>
-      </div>`;
+      <div class="item-actions">${acoesHtml}</div>`;
     wrap.appendChild(div);
   });
   wrap.querySelectorAll('button[data-act]').forEach(btn=>{
@@ -1486,11 +1448,11 @@ async function salvarObsInline(id){
   const el = $('obsInput_'+id);
   const idx = entries.findIndex(x=>x.id===id);
   if(!el || idx<0) return;
-  entries[idx] = { ...entries[idx], obs: el.value.trim(), updatedAt: Date.now() };
-  await saveEntries();
-  enfileirarSync('registro', entries[idx]);
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  await dashFirebase.atualizarRegistro(id, { obs: el.value.trim(), updatedAt: Date.now() });
   obsEditandoId = null;
-  render();
+  // Sem render() explícito aqui -- assinarRegistros() já re-renderiza sozinho assim que o
+  // Firestore confirmar a escrita (o SDK ecoa a mudança local quase instantaneamente).
 }
 // Troca rápida de Tipo direto na lista (pedido do usuário, 2026-09-01) — mesma checagem de
 // duplicada de salvar(), pra não deixar uma nota virar cópia de outra que já existe.
@@ -1505,10 +1467,8 @@ async function trocarTipoInline(id, novoTipo, selEl){
     if(selEl) selEl.value = tipoAntigo;
     return;
   }
-  entries[idx] = { ...entries[idx], tipo: novoTipo, updatedAt: Date.now() };
-  await saveEntries();
-  enfileirarSync('registro', entries[idx]);
-  render();
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  await dashFirebase.atualizarRegistro(id, { tipo: novoTipo, updatedAt: Date.now() });
 }
 function escapeHtml(s){
   const d = document.createElement('div');
@@ -1530,20 +1490,14 @@ function render(){
 }
 async function marcarResolvido(id){
   const e = entries.find(x=>x.id===id);
-  if(e){
-    e.status = 'resolvido';
-    e.updatedAt = Date.now();
-    await saveEntries();
-    enfileirarSync('registro', e);
-    render();
-  }
+  if(!e) return;
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  await dashFirebase.atualizarRegistro(id, { status: 'resolvido', updatedAt: Date.now() });
 }
 async function excluir(id){
-  if(!confirm('Excluir esta nota? Ela também será removida da central e dos outros aparelhos sincronizados.')) return;
-  entries = entries.filter(x=>x.id!==id);
-  await saveEntries();
-  enfileirarSync('excluir_registro', { id });
-  render();
+  if(!confirm('Excluir esta nota? Ela também será removida dos outros aparelhos.')) return;
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  await dashFirebase.excluirRegistro(id);
 }
 function selecionarTipo(t){
   tipoAtual = t;
@@ -1661,23 +1615,25 @@ async function salvar(){
     return;
   }
   $('formErrDup').style.display = 'none';
-  let entradaFinal;
+  // Editar uma nota já existente exige permissão (podeEditarManifesto) -- na prática o botão
+  // "Editar"/"Tratar agora" já fica escondido sem ela (renderLista), então isso aqui é só uma
+  // segunda trava; a proteção de verdade são as regras do Firestore.
+  if(editId && !podeEditarManifestoAtual){
+    alert('Você não tem permissão para editar notas já existentes -- fale com quem administra o dashboard.');
+    return;
+  }
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
   if(editId){
-    const idx = entries.findIndex(x=>x.id===editId);
-    entries[idx] = { ...entries[idx], ...payload, updatedAt: Date.now() };
-    entradaFinal = entries[idx];
+    payload.updatedAt = Date.now();
+    await dashFirebase.atualizarRegistro(editId, payload);
   }else{
-    payload.id = uid();
+    const novoId = uid();
     payload.createdAt = Date.now();
     payload.updatedAt = Date.now();
     payload.exportedAt = null;
-    entries.push(payload);
-    entradaFinal = payload;
+    await dashFirebase.criarRegistro(novoId, payload);
   }
-  await saveEntries();
-  enfileirarSync('registro', entradaFinal);
   fecharModal();
-  render();
 }
 function toBase64(file){
   return new Promise((resolve, reject)=>{
@@ -1753,13 +1709,15 @@ $('busca').oninput = render;
 $('etiquetaClose').onclick = fecharEtiqueta;
 $('etiquetaOverlay').onclick = (ev)=>{ if(ev.target.id==='etiquetaOverlay') fecharEtiqueta(); };
 $('etiquetaImprimirBtn').onclick = ()=> window.print();
-loadEntries();
 
-/* ---------- conexão com o Firebase do dashboard (puxar Observação por NF) ---------- */
+/* ---------- autenticação obrigatória + assinatura em tempo real dos registros ---------- */
 // window.DashFirebase é criado por um <script type="module"> separado, no <head> (import ES,
 // carrega em paralelo/depois do parsing) — pode não estar pronto ainda quando este script
 // (clássico, roda inline) chega aqui, por isso espera o evento 'dash-firebase-ready' (mesmo
-// padrão já usado pro window.Firebase do dashboard principal).
+// padrão já usado pro window.Firebase do dashboard principal). Desde 2026-09-02 o login deixou
+// de ser opcional (era só pra puxar Observação por NF): sem usuário logado o Firestore recusa
+// ler/escrever manifestoRegistros, então #authOverlay fica bloqueando a tela até aoMudarLogin
+// disparar com um usuário — não tem mais localStorage como fonte dos registros.
 let dashFirebase = null;
 let dashUsuarioAtual = null;
 function obterDashFirebase(){
@@ -1768,64 +1726,83 @@ function obterDashFirebase(){
     window.addEventListener('dash-firebase-ready', ()=> resolve(window.DashFirebase), { once:true });
   });
 }
-function atualizarStatusDashLogin(){
-  const status = $('dashLoginStatus');
-  if(!status) return;
-  if(dashUsuarioAtual){
-    status.textContent = `Conectado como ${dashUsuarioAtual.email}`;
-    $('dashLoginForm').style.display = 'none';
-    $('btnDashEntrar').style.display = 'none';
-    $('btnDashSair').style.display = 'inline-flex';
-  }else{
-    status.textContent = 'Não conectado.';
-    $('dashLoginForm').style.display = 'block';
-    $('btnDashEntrar').style.display = 'inline-flex';
-    $('btnDashSair').style.display = 'none';
+function atualizarNavPermissao(){
+  $('navExportar').style.display = podeEditarManifestoAtual ? '' : 'none';
+  $('navImportar').style.display = podeEditarManifestoAtual ? '' : 'none';
+  // Se a aba escondida era a que estava aberta (ex: perdeu a permissão com a tela já em
+  // Exportar), volta pra Registros pra não deixar uma tela inacessível aberta.
+  const botaoAtivo = document.querySelector('#mainNav button.active');
+  const abaAtual = botaoAtivo ? botaoAtivo.dataset.view : null;
+  if(!podeEditarManifestoAtual && (abaAtual==='exportar' || abaAtual==='importar')){
+    document.querySelector('#mainNav button[data-view="registros"]').click();
   }
+}
+async function aoLogar(usuario){
+  dashUsuarioAtual = usuario;
+  $('authOverlay').classList.remove('open');
+  $('userStatus').style.display = 'flex';
+  $('userStatusEmail').textContent = usuario.email;
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  podeEditarManifestoAtual = await dashFirebase.getMinhaPermissaoEdicaoManifesto().catch(()=>false);
+  atualizarNavPermissao();
+  if(cancelarAssinaturaRegistros) cancelarAssinaturaRegistros();
+  cancelarAssinaturaRegistros = dashFirebase.assinarRegistros(lista=>{
+    entries = lista;
+    render();
+  });
+}
+function aoDeslogar(){
+  dashUsuarioAtual = null;
+  podeEditarManifestoAtual = false;
+  entries = [];
+  if(cancelarAssinaturaRegistros){ cancelarAssinaturaRegistros(); cancelarAssinaturaRegistros = null; }
+  $('userStatus').style.display = 'none';
+  $('authOverlay').classList.add('open');
+  render();
 }
 (async ()=>{
   dashFirebase = await obterDashFirebase();
   dashFirebase.aoMudarLogin(usuario=>{
-    dashUsuarioAtual = usuario;
-    atualizarStatusDashLogin();
+    if(usuario) aoLogar(usuario); else aoDeslogar();
   });
 })();
-$('btnDashEntrar').onclick = async ()=>{
-  const email = $('dashEmailInput').value.trim();
-  const senha = $('dashSenhaInput').value;
-  if(!email || !senha){ alert('Preencha e-mail e senha.'); return; }
-  const btn = $('btnDashEntrar');
+$('btnAuthEntrar').onclick = async ()=>{
+  const email = $('authEmailInput').value.trim();
+  const senha = $('authSenhaInput').value;
+  const erroEl = $('authErro');
+  erroEl.style.display = 'none';
+  if(!email || !senha){ erroEl.textContent = 'Preencha e-mail e senha.'; erroEl.style.display = 'block'; return; }
+  const btn = $('btnAuthEntrar');
   btn.disabled = true;
   btn.textContent = 'Entrando...';
   try{
     if(!dashFirebase) dashFirebase = await obterDashFirebase();
     await dashFirebase.entrar(email, senha);
-    $('dashSenhaInput').value = '';
+    $('authSenhaInput').value = '';
   }catch(err){
-    alert('Não consegui entrar: ' + (err.message || 'verifique e-mail e senha.'));
+    erroEl.textContent = 'Não consegui entrar: ' + (err.message || 'verifique e-mail e senha.');
+    erroEl.style.display = 'block';
   }finally{
     btn.disabled = false;
     btn.textContent = 'Entrar';
   }
 };
-$('btnDashSair').onclick = async ()=>{
+$('authSenhaInput').addEventListener('keydown', ev=>{ if(ev.key==='Enter') $('btnAuthEntrar').click(); });
+$('btnAuthSair').onclick = async ()=>{
   if(!dashFirebase) dashFirebase = await obterDashFirebase();
   await dashFirebase.sair();
 };
 
 // Ao sair do campo NF, busca a Observação dessa nota no dashboard (agendamentosManuais/{nf}) e
 // preenche o campo Observações — só se ele ainda estiver vazio, pra nunca sobrescrever algo que
-// ela já tenha digitado. Aceita "192233-1" (com sufixo de viagem) ou só "192233".
+// ela já tenha digitado. Aceita "192233-1" (com sufixo de viagem) ou só "192233". Login já é
+// obrigatório pra usar o app inteiro, então não precisa mais checar se está conectada.
 $('fNF').addEventListener('blur', async ()=>{
   const nfDigitado = $('fNF').value.trim();
   const statusEl = $('nfObsStatus');
   if(!nfDigitado){ statusEl.style.display = 'none'; return; }
   const nfBase = nfDigitado.split('-')[0];
   statusEl.style.display = 'block';
-  if(!dashUsuarioAtual){
-    statusEl.textContent = 'Conecte-se com o dashboard (aba Exportar) pra puxar a Observação automaticamente.';
-    return;
-  }
   statusEl.textContent = 'Buscando observação dessa NF no dashboard…';
   try{
     if(!dashFirebase) dashFirebase = await obterDashFirebase();
@@ -1855,7 +1832,6 @@ document.querySelectorAll('#mainNav button').forEach(b=>{
     $('viewImportar').style.display = v==='importar' ? 'block' : 'none';
     if(v==='exportar'){
       atualizarContagemExport();
-      carregarConfigSync();
       atualizarStatusExcel();
     }
     if(v==='importar') resetarImportar();
@@ -2201,28 +2177,23 @@ async function salvarProduto(){
     minimo: $('pMinimo').value === '' ? null : Number($('pMinimo').value),
     obs: $('pObs').value.trim()
   };
-  let produtoFinal;
   if(editProdutoId){
     const idx = estoqueItens.findIndex(x=>x.id===editProdutoId);
     estoqueItens[idx] = { ...estoqueItens[idx], ...payload, updatedAt: Date.now() };
-    produtoFinal = estoqueItens[idx];
   }else{
     payload.id = uid();
     payload.createdAt = Date.now();
     payload.updatedAt = Date.now();
     estoqueItens.push(payload);
-    produtoFinal = payload;
   }
   await saveEstoqueItens();
-  enfileirarSync('produto', produtoFinal);
   fecharModalProduto();
   refreshEstoqueData();
 }
 async function excluirProduto(id){
-  if(!confirm('Excluir este item de estoque? Ele também será removido da central e dos outros aparelhos sincronizados.')) return;
+  if(!confirm('Excluir este item de estoque?')) return;
   estoqueItens = estoqueItens.filter(x=>x.id!==id);
   await saveEstoqueItens();
-  enfileirarSync('excluir_produto', { id });
   fecharInfo3D();
   refreshEstoqueData();
 }
@@ -2295,9 +2266,12 @@ async function exportarExcel(){
   const hoje = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `manifesto-registros-${hoje}.xlsx`);
   const agora = Date.now();
-  dados.forEach(e=>{ e.exportedAt = agora; });
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  await Promise.all(dados.map(e=>{
+    e.exportedAt = agora;
+    return dashFirebase.atualizarRegistro(e.id, { exportedAt: agora });
+  }));
   localStorage.setItem(LAST_EXPORT_KEY, String(agora));
-  await saveEntries();
   atualizarContagemExport();
 }
 $('btnExportar').onclick = exportarExcel;
@@ -2444,18 +2418,23 @@ function mostrarPreviewImportacao(nomeArquivo, validas, problemas){
 
 async function confirmarImportacao(){
   if(importLinhas.length === 0) return;
+  if(!podeEditarManifestoAtual){
+    alert('Você não tem permissão para importar registros -- fale com quem administra o dashboard.');
+    return;
+  }
   const btn = $('btnConfirmarImportar');
   btn.disabled = true;
   btn.textContent = 'Importando...';
-  const novas = importLinhas.map(payload => {
-    const registro = { ...payload, id: uid(), createdAt: Date.now(), updatedAt: Date.now(), exportedAt: null };
-    entries.push(registro);
-    return registro;
-  });
-  await saveEntries();
-  novas.forEach(registro => enfileirarSync('registro', registro));
-  const total = novas.length;
-  render();
+  if(!dashFirebase) dashFirebase = await obterDashFirebase();
+  // Sequencial (não Promise.all) de propósito -- uma planilha grande não sobrecarrega o
+  // Firestore de uma vez só, e dá pra mostrar progresso no botão enquanto importa.
+  let total = 0;
+  for(const payload of importLinhas){
+    const registro = { ...payload, createdAt: Date.now(), updatedAt: Date.now(), exportedAt: null };
+    await dashFirebase.criarRegistro(uid(), registro);
+    total++;
+    btn.textContent = `Importando... (${total}/${importLinhas.length})`;
+  }
   resetarImportar();
   alert(`${total} registro(s) importado(s) com sucesso.`);
 }
@@ -2518,24 +2497,17 @@ async function selecionarArquivoExcel(){
     if(err.name !== 'AbortError') console.error('Falha ao selecionar arquivo', err);
   }
 }
-async function buscarDadosCentral(){
-  if(!syncUrl) throw new Error('Configure o link da central primeiro.');
-  const url = syncUrl + (syncUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(syncToken) + '&tipo=todos';
-  const resp = await fetch(url);
-  const dados = await resp.json();
-  if(!dados.ok) throw new Error(dados.erro || 'central recusou o pedido');
-  return dados;
-}
 async function atualizarArquivoExcel(){
   if(!suportaArquivoLocal) return;
   if(!arquivoExcelHandle){
     atualizarStatusExcel('Selecione o arquivo primeiro.');
     return;
   }
-  atualizarStatusExcel('Buscando dados da central…');
+  atualizarStatusExcel('Atualizando arquivo…');
   try{
-    const dados = await buscarDadosCentral();
-    const linhasRegistros = (dados.registros || [])
+    // Fonte agora é o array `entries` em memória (sempre atualizado em tempo real pelo
+    // Firestore via assinarRegistros) -- não depende mais de nenhuma central externa.
+    const linhasRegistros = entries
       .slice()
       .sort((a,b)=> (b.data||'').localeCompare(a.data||''))
       .map(e=>({
@@ -2550,7 +2522,7 @@ async function atualizarArquivoExcel(){
         'Status': labelStatus(e.status),
         'Observações': e.obs || ''
       }));
-    const linhasEstoque = (dados.produtos || []).map(p=>({
+    const linhasEstoque = estoqueItens.map(p=>({
       'Produto': p.nome || '',
       'Quantidade': p.quantidade,
       'Unidade': p.unidade || '',
@@ -2578,19 +2550,9 @@ async function atualizarArquivoExcel(){
     atualizarStatusExcel('Não foi possível atualizar: ' + (err.message || err) + ' (o arquivo está fechado no Excel?)');
   }
 }
-$('btnSalvarConfigSync').onclick = salvarConfigSync;
-$('btnSincronizarAgora').onclick = sincronizarFila;
-$('linkComoConfigurarSync').onclick = (ev)=>{
-  ev.preventDefault();
-  alert('Como configurar a central (uma vez só):\n\n1. Crie uma planilha em branco no Google Sheets.\n2. Menu Extensões > Apps Script.\n3. Apague o conteúdo e cole o código que o Claude te passou.\n4. Vá em Configurações do projeto (ícone de engrenagem) > Propriedades do script > adicione uma propriedade "TOKEN" com uma senha longa, só sua.\n5. Clique em Implantar > Nova implantação > tipo "App da Web".\n6. Executar como: Eu. Quem pode acessar: Qualquer pessoa.\n7. Implantar e copie o link gerado.\n8. Cole esse link em "Link da central" aqui no app, e a mesma senha do passo 4 em "Token".\n9. Repita só os passos 8 e 9 (colar link e token) em cada celular/computador que for usar o Manifesto.');
-};
 configurarSecaoExcel();
 $('btnSelecionarExcel').onclick = selecionarArquivoExcel;
 $('btnAtualizarExcel').onclick = atualizarArquivoExcel;
-carregarConfigSync();
-sincronizarFila();
-window.addEventListener('online', sincronizarFila);
-setInterval(sincronizarFila, 30000);
 </script>
 </body>
 </html>
