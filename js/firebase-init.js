@@ -61,7 +61,8 @@ async function createUser(email, password, nome) {
     nome,
     email,
     criadoEm: serverTimestamp(),
-    podeEditarAgendamento: false
+    podeEditarAgendamento: false,
+    podeEditarManifesto: false
   }).catch(e => console.warn('Perfil não salvo no Firestore (login funciona normalmente):', e.code || e.message));
   return credential;
 }
@@ -164,7 +165,8 @@ async function getUsuarios() {
       uid: docSnap.id,
       nome: d.nome || d.email || docSnap.id,
       email: d.email || '',
-      podeEditarAgendamento: !!d.podeEditarAgendamento
+      podeEditarAgendamento: !!d.podeEditarAgendamento,
+      podeEditarManifesto: !!d.podeEditarManifesto
     });
   });
   return lista;
@@ -173,6 +175,14 @@ async function getUsuarios() {
 /** Habilita/desabilita a edição de agendamento de um usuário específico. */
 async function definirPermissaoEdicaoAgendamento(uid, pode) {
   await updateDoc(doc(db, 'users', uid), { podeEditarAgendamento: !!pode });
+}
+
+/** Habilita/desabilita a edição do Manifesto (Controle de Entregas) de um usuário específico —
+ * mesma ideia de definirPermissaoEdicaoAgendamento acima, campo separado. Quem não tem essa
+ * permissão ainda pode ABRIR o Manifesto e criar notas novas ("alimentar"), só não edita/exclui
+ * as existentes nem exporta/importa — ver manifesto/index.html. */
+async function definirPermissaoEdicaoManifesto(uid, pode) {
+  await updateDoc(doc(db, 'users', uid), { podeEditarManifesto: !!pode });
 }
 
 /** Verifica se o usuário logado agora tem permissão de editar agendamento (chamado 1x no
@@ -187,6 +197,7 @@ async function getMinhaPermissaoEdicaoAgendamento() {
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
-  getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento
+  getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
+  definirPermissaoEdicaoManifesto
 };
 window.dispatchEvent(new Event('firebase-ready'));
