@@ -342,6 +342,37 @@
     gap:8px;
     margin-top:2px;
   }
+  /* Aba "Histórico" -- um cartão por NF, com uma linha por ocorrência (Data/Tipo/Motivo). */
+  .historico-grupo-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .historico-contagem{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  .historico-linha{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:6px 0;
+    border-top:1px solid var(--line);
+    font-size:13px;
+  }
+  .historico-data{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    color:var(--ink-soft);
+    white-space:nowrap;
+    min-width:72px;
+  }
+  .historico-motivo{
+    color:var(--ink);
+    flex:1;
+    min-width:0;
+    overflow-wrap:break-word;
+  }
   .btn-sm{
     border:1px solid var(--line);
     background:var(--surface);
@@ -488,6 +519,32 @@
   .field input:focus, .field select:focus, .field textarea:focus{ outline:none; border-color:var(--line-strong); }
   .field-row{ display:flex; gap:10px; }
   .field-row .field{ flex:1; }
+  /* Autocomplete do campo Cliente, puxando os nomes já cadastrados na Base Bluesoft (pedido do
+     usuário, 2026-09-02) -- lista flutuante logo abaixo do campo, mesmo padrão visual do resto
+     do formulário. */
+  .autocomplete-wrap{ position:relative; }
+  .autocomplete-lista{
+    display:none;
+    position:absolute;
+    left:0; right:0; top:calc(100% + 2px);
+    max-height:220px;
+    overflow-y:auto;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    box-shadow:0 8px 24px rgba(0,0,0,.18);
+    z-index:5;
+  }
+  .autocomplete-lista.aberta{ display:block; }
+  .autocomplete-item{
+    padding:9px 11px;
+    font-size:13.5px;
+    cursor:pointer;
+    border-bottom:1px solid var(--line);
+  }
+  .autocomplete-item:last-child{ border-bottom:none; }
+  .autocomplete-item:hover, .autocomplete-item.ativa{ background:var(--surface-soft); }
+  .autocomplete-vazio{ padding:9px 11px; font-size:13px; color:var(--ink-faint); }
   .tipo-toggle{
     display:grid;
     grid-template-columns:repeat(2,1fr);
@@ -1033,17 +1090,14 @@
       </div>
     </div>
     <div class="field">
-      <label>Número da NF (opcional)</label>
+      <label>Número da NF</label>
       <input type="text" id="fNF" placeholder="Ex: 192233-1" inputmode="numeric">
       <p class="hint" id="nfObsStatus" style="margin-top:4px; display:none;"></p>
     </div>
-    <div class="field">
+    <div class="field autocomplete-wrap">
       <label>Cliente / destinatário</label>
-      <input type="text" id="fCliente" placeholder="Nome do cliente">
-    </div>
-    <div class="field">
-      <label>Endereço</label>
-      <input type="text" id="fEndereco" placeholder="Rua, número, bairro">
+      <input type="text" id="fCliente" placeholder="Digite o nome do cliente" autocomplete="off">
+      <div class="autocomplete-lista" id="clienteSugestoes"></div>
     </div>
     <div class="field-row">
       <div class="field">
@@ -1060,8 +1114,8 @@
       <input type="text" id="fMotivo" placeholder="Ex: ausente, endereço errado, recusou receber">
     </div>
     <div class="field">
-      <label>Localização (opcional)</label>
-      <input type="text" id="fLocalizacao" placeholder="Ex: Rua A - Prateleira 3, Doca 2">
+      <label>Localização</label>
+      <select id="fLocalizacao"></select>
     </div>
     <div class="field">
       <label>Status</label>
@@ -1075,7 +1129,7 @@
       <label>Observações</label>
       <textarea id="fObs" placeholder="Detalhes adicionais"></textarea>
     </div>
-    <p class="err" id="formErr">Preencha cliente, endereço e data.</p>
+    <p class="err" id="formErr">Preencha NF, cliente, data e localização.</p>
     <div class="alert-duplicada" id="formErrDup">⚠️ <span id="formErrDupTexto">Essa nota já foi lançada.</span></div>
     <div class="modal-actions">
       <button class="btn-primary" id="btnSalvar">Salvar registro</button>
@@ -1340,10 +1394,13 @@ function renderTabsStatus(){
   // Pedido do usuário (2026-09-01): removida a aba "Cancelado" do filtro rápido -- notas com
   // esse status continuam existindo e aparecem normalmente em "Todos", só não tem mais atalho
   // próprio pra filtrar só elas (o campo Status no formulário de edição não foi tocado).
+  // "Histórico" (pedido do usuário, 2026-09-02) não é um filtro de status normal -- em vez de
+  // filtrar a MESMA lista de cartões, troca pra uma visão agrupada por NF (ver renderHistorico).
   const tabs = [
     {v:'todos', l:'Todos'},
     {v:'pendente', l:'Pendente'},
-    {v:'resolvido', l:'Resolvido'}
+    {v:'resolvido', l:'Resolvido'},
+    {v:'historico', l:'Histórico'}
   ];
   const wrap = $('tabsStatus');
   wrap.innerHTML = '';
@@ -1356,14 +1413,17 @@ function renderTabsStatus(){
   });
 }
 function renderLista(){
-  const busca = $('busca').value.trim().toLowerCase();
+  if(filtroStatus==='historico'){ renderHistorico(); return; }
+  const busca = normalizarTexto($('busca').value);
   const wrap = $('lista');
   wrap.innerHTML = '';
   let filtrado = entries.filter(e=>{
     if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
     if(filtroStatus!=='todos' && e.status!==filtroStatus) return false;
     if(busca){
-      const alvo = (e.cliente+' '+e.endereco).toLowerCase();
+      // Busca por número de nota ou cliente (pedido do usuário, 2026-09-02) -- endereço saiu
+      // da busca junto com o campo, que também saiu do formulário.
+      const alvo = normalizarTexto((e.nf || '') + ' ' + (e.cliente || ''));
       if(!alvo.includes(busca)) return false;
     }
     return true;
@@ -1415,10 +1475,11 @@ function renderLista(){
         <span class="status-chip ${e.status}">${labelStatus(e.status)}</span>
       </div>
       <div class="item-cliente">${escapeHtml(e.cliente)}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
-      <div class="item-endereco">${escapeHtml(e.endereco)}</div>
+      ${e.endereco ? `<div class="item-endereco">${escapeHtml(e.endereco)}</div>` : ''}
       <div class="item-meta">
         <span>${fmtData(e.data)}${horaTxt}</span>
         ${e.motivo ? `<span>· ${escapeHtml(e.motivo)}</span>` : ''}
+        ${e.localizacao ? `<span>· ${escapeHtml(e.localizacao)}</span>` : ''}
       </div>
       ${obsHtml}
       <div class="item-actions">${acoesHtml}</div>`;
@@ -1440,6 +1501,61 @@ function renderLista(){
   });
   wrap.querySelectorAll('select.item-tipo-select').forEach(sel=>{
     sel.onchange = ()=> trocarTipoInline(sel.dataset.id, sel.value, sel);
+  });
+}
+// Aba "Histórico" (pedido do usuário, 2026-09-02): em vez de cartão por cartão, agrupa por NF
+// pra ela ver de uma vez quantas vezes cada nota apareceu e com qual Data/Motivo em cada uma --
+// só entra aqui quem tem NF preenchida (registros antigos sem NF continuam em Todos/Pendente/
+// Resolvido normalmente, só não aparecem agrupados aqui). Respeita o campo de busca (NF ou
+// cliente) e o filtro de Tipo dos cartões de cima, igual a lista normal.
+function renderHistorico(){
+  const busca = normalizarTexto($('busca').value);
+  const wrap = $('lista');
+  wrap.innerHTML = '';
+  const comNf = entries.filter(e=>{
+    if(!e.nf) return false;
+    if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
+    if(busca){
+      const alvo = normalizarTexto((e.nf || '') + ' ' + (e.cliente || ''));
+      if(!alvo.includes(busca)) return false;
+    }
+    return true;
+  });
+  if(comNf.length===0){
+    wrap.innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <p>Nenhuma nota com NF preenchida por aqui ainda.</p>
+      </div>`;
+    return;
+  }
+  const grupos = new Map();
+  comNf.forEach(e=>{
+    if(!grupos.has(e.nf)) grupos.set(e.nf, []);
+    grupos.get(e.nf).push(e);
+  });
+  const listaGrupos = Array.from(grupos.entries()).map(([nf, ocorrencias]) => {
+    ocorrencias.sort((a,b)=> (b.data||'').localeCompare(a.data||''));
+    return { nf, ocorrencias, maisRecente: ocorrencias[0].data || '' };
+  });
+  listaGrupos.sort((a,b)=> b.maisRecente.localeCompare(a.maisRecente));
+  listaGrupos.forEach(({ nf, ocorrencias }) => {
+    const div = document.createElement('div');
+    div.className = 'item historico-grupo';
+    div.innerHTML = `
+      <div class="historico-grupo-header">
+        <span class="item-nf">NF ${escapeHtml(nf)}</span>
+        <span class="historico-contagem">${ocorrencias.length} ocorrência${ocorrencias.length>1?'s':''}</span>
+      </div>
+      ${ocorrencias.map(e => `
+        <div class="historico-linha">
+          <span class="historico-data">${fmtData(e.data)}</span>
+          <span class="tag ${e.tipo}">${labelTipo(e.tipo)}</span>
+          <span class="historico-motivo">${e.motivo ? escapeHtml(e.motivo) : '—'}</span>
+        </div>
+      `).join('')}
+    `;
+    wrap.appendChild(div);
   });
 }
 function focarObsInput(id){
@@ -1516,7 +1632,7 @@ function abrirModal(){
   $('fNF').value = '';
   $('nfObsStatus').style.display = 'none';
   $('fCliente').value = '';
-  $('fEndereco').value = '';
+  $('clienteSugestoes').classList.remove('aberta');
   $('fData').value = new Date().toISOString().slice(0,10);
   $('fHora').value = '';
   $('fMotivo').value = '';
@@ -1532,6 +1648,7 @@ function abrirModal(){
   $('inputFoto').value = '';
   selecionarTipo('recusa');
   $('overlay').classList.add('open');
+  garantirClientesCarregados();
 }
 function abrirEdicao(id){
   const e = entries.find(x=>x.id===id);
@@ -1541,7 +1658,7 @@ function abrirEdicao(id){
   $('fNF').value = e.nf || '';
   $('nfObsStatus').style.display = 'none';
   $('fCliente').value = e.cliente;
-  $('fEndereco').value = e.endereco;
+  $('clienteSugestoes').classList.remove('aberta');
   $('fData').value = e.data;
   $('fHora').value = e.hora || '';
   $('fMotivo').value = e.motivo || '';
@@ -1557,6 +1674,7 @@ function abrirEdicao(id){
   $('inputFoto').value = '';
   selecionarTipo(e.tipo);
   $('overlay').classList.add('open');
+  garantirClientesCarregados();
 }
 function fecharModal(){
   $('overlay').classList.remove('open');
@@ -1568,7 +1686,7 @@ function abrirEtiqueta(id){
   $('etiquetaImprimir').innerHTML = `
     <div class="etq-tipo etq-${e.tipo}">${labelTipo(e.tipo)}</div>
     <div class="etq-row"><span class="etq-label">Cliente</span><span class="etq-value">${escapeHtml(e.cliente)}</span></div>
-    <div class="etq-row"><span class="etq-label">Endereço</span><span class="etq-value">${escapeHtml(e.endereco)}</span></div>
+    ${e.endereco ? `<div class="etq-row"><span class="etq-label">Endereço</span><span class="etq-value">${escapeHtml(e.endereco)}</span></div>` : ''}
     <div class="etq-row"><span class="etq-label">Data</span><span class="etq-value">${fmtData(e.data)}${horaTxt}</span></div>
     ${e.localizacao ? `<div class="etq-row"><span class="etq-label">Localização</span><span class="etq-value">${escapeHtml(e.localizacao)}</span></div>` : ''}
     ${e.motivo ? `<div class="etq-row"><span class="etq-label">Motivo</span><span class="etq-value">${escapeHtml(e.motivo)}</span></div>` : ''}
@@ -1582,20 +1700,89 @@ function fecharEtiqueta(){
 function normalizarTexto(s){
   return (s || '').toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
+/* ---------- Localiza\u00e7\u00e3o: caixas fixas BOX 01 a BOX 27 (pedido do usu\u00e1rio, 2026-09-02) ---------- */
+const LOCALIZACOES_BOX = Array.from({ length: 27 }, (_, i) => 'BOX ' + String(i + 1).padStart(2, '0'));
+function popularLocalizacoes(){
+  const sel = $('fLocalizacao');
+  sel.innerHTML = '<option value="">Selecione...</option>' +
+    LOCALIZACOES_BOX.map(b => `<option value="${b}">${b}</option>`).join('');
+}
+popularLocalizacoes();
+/* ---------- autocomplete do campo Cliente (nomes j\u00e1 cadastrados na Base Bluesoft) ----------
+   Mesmo arquivo que o dashboard principal usa (assets/data/sample-data-clientes.csv, coluna
+   "Cliente") -- assim a lista de nomes fica sempre em dia sozinha, sem precisar gerar/manter
+   nada separado s\u00f3 pra c\u00e1. Carregado sob demanda (ao abrir o formul\u00e1rio) e mantido em mem\u00f3ria
+   pelo resto da sess\u00e3o; se falhar (sem internet etc.), o campo continua funcionando como texto
+   livre normalmente, s\u00f3 sem sugest\u00e3o. */
+let clientesConhecidos = null;
+let carregandoClientes = false;
+async function garantirClientesCarregados(){
+  if(clientesConhecidos || carregandoClientes) return;
+  carregandoClientes = true;
+  try{
+    const resp = await fetch('../assets/data/sample-data-clientes.csv');
+    const texto = await resp.text();
+    const nomes = new Set();
+    texto.split(/\r?\n/).forEach((linha, i) => {
+      if(i === 0 || !linha) return; // pula cabe\u00e7alho e linhas vazias
+      const nome = linha.split(';')[0].trim();
+      if(nome) nomes.add(nome);
+    });
+    clientesConhecidos = Array.from(nomes).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }catch(err){
+    console.error('Falha ao carregar lista de clientes da Base Bluesoft', err);
+    clientesConhecidos = [];
+  }finally{
+    carregandoClientes = false;
+  }
+}
+function renderSugestoesCliente(){
+  const wrap = $('clienteSugestoes');
+  const digitado = normalizarTexto($('fCliente').value);
+  if(digitado.length < 2){ wrap.classList.remove('aberta'); wrap.innerHTML = ''; return; }
+  if(carregandoClientes || !clientesConhecidos){
+    wrap.innerHTML = '<div class="autocomplete-vazio">Carregando lista de clientes\u2026</div>';
+    wrap.classList.add('aberta');
+    return;
+  }
+  const encontrados = clientesConhecidos.filter(nome => normalizarTexto(nome).includes(digitado)).slice(0, 8);
+  if(encontrados.length === 0){
+    wrap.innerHTML = '<div class="autocomplete-vazio">Nenhum cliente encontrado \u2014 pode digitar manualmente.</div>';
+  }else{
+    wrap.innerHTML = encontrados.map((nome, i) => `<div class="autocomplete-item" data-i="${i}">${escapeHtml(nome)}</div>`).join('');
+    wrap.querySelectorAll('.autocomplete-item').forEach(el => {
+      el.onclick = () => {
+        $('fCliente').value = encontrados[Number(el.dataset.i)];
+        wrap.classList.remove('aberta');
+        wrap.innerHTML = '';
+      };
+    });
+  }
+  wrap.classList.add('aberta');
+}
+$('fCliente').addEventListener('focus', () => { garantirClientesCarregados(); renderSugestoesCliente(); });
+$('fCliente').addEventListener('input', renderSugestoesCliente);
+$('fCliente').addEventListener('blur', () => setTimeout(() => { $('clienteSugestoes').classList.remove('aberta'); }, 150));
+// NF virou obrigatória (pedido do usuário, 2026-09-02) e é um identificador muito mais preciso
+// que Cliente+Endereço (que inclusive saiu do formulário) -- por isso a checagem de duplicada
+// agora usa tipo+data+NF em vez de tipo+data+cliente+endereço. Isso continua permitindo a MESMA
+// NF aparecer de novo em datas diferentes (ela quer ver esse histórico na aba "Histórico"), só
+// bloqueia lançar tipo+NF+data repetidos sem querer.
 function encontrarNotaDuplicada(payload, ignorarId){
   return entries.find(x =>
     x.id !== ignorarId &&
     x.tipo === payload.tipo &&
     x.data === payload.data &&
-    normalizarTexto(x.cliente) === normalizarTexto(payload.cliente) &&
-    normalizarTexto(x.endereco) === normalizarTexto(payload.endereco)
+    normalizarTexto(x.nf) === normalizarTexto(payload.nf) &&
+    payload.nf
   );
 }
 async function salvar(){
+  const nf = $('fNF').value.trim();
   const cliente = $('fCliente').value.trim();
-  const endereco = $('fEndereco').value.trim();
   const data = $('fData').value;
-  if(!cliente || !endereco || !data){
+  const localizacao = $('fLocalizacao').value;
+  if(!nf || !cliente || !data || !localizacao){
     $('formErrDup').style.display = 'none';
     $('formErr').style.display = 'block';
     return;
@@ -1603,11 +1790,10 @@ async function salvar(){
   $('formErr').style.display = 'none';
   const payload = {
     tipo: tipoAtual,
-    nf: $('fNF').value.trim(),
-    cliente, endereco, data,
+    nf, cliente, data,
     hora: $('fHora').value,
     motivo: $('fMotivo').value.trim(),
-    localizacao: $('fLocalizacao').value.trim(),
+    localizacao,
     status: $('fStatus').value,
     obs: $('fObs').value.trim()
   };
@@ -1667,7 +1853,7 @@ async function processarFoto(file){
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } },
-            { type: 'text', text: 'Esta é uma foto de um canhoto, nota de entrega, comprovante ou anotação sobre uma entrega. Extraia as informações e responda APENAS com um JSON valido, sem markdown e sem texto adicional, exatamente neste formato: {"tipo":"sem_tratativa","cliente":"","endereco":"","data":"' + hoje + '","hora":"","motivo":"","obs":""}. O campo tipo deve ser um destes valores: recusa, reentrega, agendamento ou sem_tratativa. Use recusa apenas se a foto deixar claro que o cliente recusou o recebimento. Use reentrega apenas se ficar claro que é uma nova tentativa de entrega. Use agendamento apenas se houver uma data/hora futura combinada. Se não for possível identificar com certeza se é recusa ou reentrega, use sem_tratativa. O campo data deve estar no formato AAAA-MM-DD, use ' + hoje + ' se nenhuma data estiver visivel. O campo hora no formato HH:MM ou vazio. Deixe campos vazios como string vazia quando a informacao nao estiver visivel na foto.' }
+            { type: 'text', text: 'Esta é uma foto de um canhoto, nota de entrega, comprovante ou anotação sobre uma entrega. Extraia as informações e responda APENAS com um JSON valido, sem markdown e sem texto adicional, exatamente neste formato: {"tipo":"sem_tratativa","cliente":"","data":"' + hoje + '","hora":"","motivo":"","obs":""}. O campo tipo deve ser um destes valores: recusa, reentrega, agendamento ou sem_tratativa. Use recusa apenas se a foto deixar claro que o cliente recusou o recebimento. Use reentrega apenas se ficar claro que é uma nova tentativa de entrega. Use agendamento apenas se houver uma data/hora futura combinada. Se não for possível identificar com certeza se é recusa ou reentrega, use sem_tratativa. O campo data deve estar no formato AAAA-MM-DD, use ' + hoje + ' se nenhuma data estiver visivel. O campo hora no formato HH:MM ou vazio. Deixe campos vazios como string vazia quando a informacao nao estiver visivel na foto.' }
           ]
         }]
       })
@@ -1679,7 +1865,6 @@ async function processarFoto(file){
     const parsed = JSON.parse(clean);
     selecionarTipo(['recusa','reentrega','agendamento','sem_tratativa'].includes(parsed.tipo) ? parsed.tipo : 'sem_tratativa');
     $('fCliente').value = parsed.cliente || '';
-    $('fEndereco').value = parsed.endereco || '';
     $('fData').value = parsed.data || hoje;
     $('fHora').value = parsed.hora || '';
     $('fMotivo').value = parsed.motivo || '';
@@ -2365,11 +2550,14 @@ function processarLinhasImportadas(linhasBrutas){
       if(campo) linha[campo] = linhaBruta[headerOriginal];
     });
 
+    // Endereço não é mais obrigatório aqui (saiu do formulário manual também, 2026-09-02) --
+    // se a planilha dela tiver essa coluna com dado, continua sendo importado e guardado
+    // normalmente, só não é mais exigido pra linha ser considerada válida.
     const cliente = (linha.cliente || '').toString().trim();
     const endereco = (linha.endereco || '').toString().trim();
     const data = converterDataImportada(linha.data);
-    if(!cliente || !endereco || !data){
-      problemas.push({ linha: numeroLinha, motivo: 'faltando Cliente, Endereço ou Data válida (aceita AAAA-MM-DD ou DD/MM/AAAA)' });
+    if(!cliente || !data){
+      problemas.push({ linha: numeroLinha, motivo: 'faltando Cliente ou Data válida (aceita AAAA-MM-DD ou DD/MM/AAAA)' });
       return;
     }
 
@@ -2384,14 +2572,16 @@ function processarLinhasImportadas(linhasBrutas){
       obs: (linha.obs || '').toString().trim()
     };
 
+    // Duplicada por tipo+NF+data (mesmo critério de encontrarNotaDuplicada, ver acima) -- só
+    // compara quando a linha tem NF preenchida, pra não marcar várias linhas sem NF como
+    // duplicadas umas das outras à toa.
     const duplicadaExistente = encontrarNotaDuplicada(payload, null);
-    const duplicadaNoArquivo = validas.find(x =>
+    const duplicadaNoArquivo = payload.nf && validas.find(x =>
       x.tipo===payload.tipo && x.data===payload.data &&
-      normalizarTexto(x.cliente)===normalizarTexto(payload.cliente) &&
-      normalizarTexto(x.endereco)===normalizarTexto(payload.endereco)
+      normalizarTexto(x.nf)===normalizarTexto(payload.nf)
     );
     if(duplicadaExistente || duplicadaNoArquivo){
-      problemas.push({ linha: numeroLinha, motivo: 'já existe uma nota igual (mesmo tipo/cliente/endereço/data) — ignorada' });
+      problemas.push({ linha: numeroLinha, motivo: 'já existe uma nota igual (mesmo tipo/NF/data) — ignorada' });
       return;
     }
 
