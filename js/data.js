@@ -1968,13 +1968,28 @@ const DataStore = (() => {
       if (agendamento && agendamento.length && !agendamento.includes(r.necessitaAgendamento ? 'Sim' : 'Não')) return false;
 
       if (busca) {
-        const needle = busca.toLowerCase();
-        // Inclui os campos das colunas ocultas por padrão (Filial, Código Cliente, Telefone,
-        // N° Pedido Ecommerce, N° Fatura) — decisão do usuário (2026-08-22): mesmo escondidas
-        // da tabela, a busca (rápida ou "Pesquisar na tabela", que usam o mesmo filtro) precisa
-        // achar uma nota por esses dados.
-        const haystack = `${r.nf} ${r.cliente} ${r.transportadora} ${r.motorista} ${r.vendedor} ${r.cidade} ${r.situacao} ${r.filial} ${r.codigoCliente} ${r.telefone} ${r.numeroPedidoEcommerce} ${r.numeroFatura}`.toLowerCase();
-        if (!haystack.includes(needle)) return false;
+        const needle = busca.trim().toLowerCase();
+        // Pedido do usuário (2026-09-03): quando a busca é só um número de nota (só dígitos,
+        // com ou sem o sufixo "-N"), ela quer achar EXATAMENTE aquela nota — não qualquer
+        // registro cujo Telefone/Código Cliente/N° Pedido Ecommerce/N° Fatura contenha esses
+        // dígitos como substring por coincidência (bug real reportado: buscar "162314" trazia
+        // 4 notas sem relação nenhuma entre si, só a última era a nota 162314-1 de verdade).
+        // Sem achar, cai no "return false" abaixo pra TODOS os registros -> tabela mostra vazia
+        // ("nenhum registro encontrado"), como ela pediu.
+        const soNumeroDeNota = /^\d+(-\d+)?$/.test(needle);
+        if (soNumeroDeNota) {
+          const nfCompleto = String(r.nf || '').toLowerCase();
+          const nfBase = nfCompleto.split('-')[0];
+          if (nfCompleto !== needle && nfBase !== needle) return false;
+        } else {
+          // Inclui os campos das colunas ocultas por padrão (Filial, Código Cliente, Telefone,
+          // N° Pedido Ecommerce, N° Fatura) — decisão do usuário (2026-08-22): mesmo escondidas
+          // da tabela, a busca (rápida ou "Pesquisar na tabela", que usam o mesmo filtro) precisa
+          // achar uma nota por esses dados. Só entra aqui quando a busca NÃO é um número de nota
+          // puro (nome de cliente/motorista/etc. continuam com a busca ampla de sempre).
+          const haystack = `${r.nf} ${r.cliente} ${r.transportadora} ${r.motorista} ${r.vendedor} ${r.cidade} ${r.situacao} ${r.filial} ${r.codigoCliente} ${r.telefone} ${r.numeroPedidoEcommerce} ${r.numeroFatura}`.toLowerCase();
+          if (!haystack.includes(needle)) return false;
+        }
       }
       return true;
     });
