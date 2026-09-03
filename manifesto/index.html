@@ -280,6 +280,7 @@
     color:var(--ink-faint);
     font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   }
+  .item-cliente--vazio{ color:var(--ink-faint); font-style:italic; font-weight:500; }
   .item-endereco{
     font-size:13px;
     color:var(--ink-soft);
@@ -1140,7 +1141,7 @@
       <p class="hint" id="nfObsStatus" style="margin-top:4px; display:none;"></p>
     </div>
     <div class="field autocomplete-wrap">
-      <label>Cliente / destinatário</label>
+      <label>Cliente / destinatário (opcional — preenche sozinho pela NF)</label>
       <input type="text" id="fCliente" placeholder="Digite o nome do cliente" autocomplete="off">
       <div class="autocomplete-lista" id="clienteSugestoes"></div>
     </div>
@@ -1174,7 +1175,7 @@
       <label>Observações</label>
       <textarea id="fObs" placeholder="Detalhes adicionais"></textarea>
     </div>
-    <p class="err" id="formErr">Preencha NF, cliente, data e localização.</p>
+    <p class="err" id="formErr">Preencha NF, data e localização.</p>
     <div class="alert-duplicada" id="formErrDup">⚠️ <span id="formErrDupTexto">Essa nota já foi lançada.</span></div>
     <div class="modal-actions">
       <button class="btn-primary" id="btnSalvar">Salvar registro</button>
@@ -1569,7 +1570,7 @@ function renderLista(){
         </div>
         <span class="status-chip ${e.status}">${labelStatus(e.status)}</span>
       </div>
-      <div class="item-cliente">${escapeHtml(e.cliente)}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
+      <div class="item-cliente">${e.cliente ? escapeHtml(e.cliente) : '<span class="item-cliente--vazio">Cliente não identificado</span>'}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
       ${e.endereco ? `<div class="item-endereco">${escapeHtml(e.endereco)}</div>` : ''}
       <div class="item-meta">
         <span>${fmtData(e.data)}${horaTxt}</span>
@@ -1874,18 +1875,22 @@ $('fCliente').addEventListener('focus', () => { garantirClientesCarregados(); re
 $('fCliente').addEventListener('input', renderSugestoesCliente);
 $('fCliente').addEventListener('blur', () => setTimeout(() => { $('clienteSugestoes').classList.remove('aberta'); }, 150));
 
-/* ---------- verificação automática de entregues na Base Bluesoft (pedido do usuário, 2026-09-02) ----------
-   Mesmo arquivo que o dashboard principal usa (assets/data/sample-data-bluesoft.csv, colunas "NF"
-   e "Status Bluesoft") -- ~20MB, só é buscado por quem tem permissão de editar (só ela consegue
-   escrever a mudança mesmo, pelas regras do Firestore; e assim quem só "alimenta" pelo celular
-   nunca baixa esse arquivo grande à toa). Cacheado em memória depois do primeiro carregamento. */
-let statusBluesoftCache = null;
+/* ---------- dados da Base Bluesoft (status de entrega + cliente por NF) ----------
+   Mesmo arquivo que o dashboard principal usa (assets/data/sample-data-bluesoft.csv, colunas
+   "NF"/"Status Bluesoft"/"Cliente") -- ~20MB. Um fetch só, cacheado em memória, alimenta DOIS
+   usos independentes: (1) verificarEntreguesNaBaseBluesoft (só pra quem tem permissão de
+   editar, é quem consegue escrever a mudança de status mesmo, ver regras do Firestore) e (2)
+   buscarClienteNaBaseBluesoft (pedido do usuário, 2026-09-03 -- preencher Cliente sozinho pela
+   NF, disponível pra QUALQUER usuário logado, já que é só leitura de um arquivo estático). Só
+   baixa o arquivo de verdade na primeira vez que alguma das duas funções for chamada. */
+let dadosBluesoftCache = null;
 let verificacaoBluesoftFeita = false;
-async function carregarStatusBluesoft(){
-  if(statusBluesoftCache) return statusBluesoftCache;
+async function carregarDadosBluesoft(){
+  if(dadosBluesoftCache) return dadosBluesoftCache;
   const resp = await fetch('../assets/data/sample-data-bluesoft.csv');
   const texto = await resp.text();
-  const mapa = new Map(); // NF sem sufixo de viagem -> Set de status normalizados encontrados
+  const statusPorNf = new Map(); // NF sem sufixo de viagem -> Set de status normalizados
+  const clientePorNf = new Map(); // NF sem sufixo de viagem -> nome do cliente/destinatário
   const linhas = texto.split(/\r?\n/);
   for(let i=1;i<linhas.length;i++){
     const linha = linhas[i];
@@ -1893,13 +1898,25 @@ async function carregarStatusBluesoft(){
     const campos = linha.split(';');
     const nfCompleta = (campos[0] || '').trim();
     const status = (campos[1] || '').trim();
+    const cliente = (campos[2] || '').trim();
     if(!nfCompleta) continue;
     const nfBase = nfCompleta.split('-')[0];
-    if(!mapa.has(nfBase)) mapa.set(nfBase, new Set());
-    mapa.get(nfBase).add(normalizarTexto(status));
+    if(status){
+      if(!statusPorNf.has(nfBase)) statusPorNf.set(nfBase, new Set());
+      statusPorNf.get(nfBase).add(normalizarTexto(status));
+    }
+    if(cliente && !clientePorNf.has(nfBase)) clientePorNf.set(nfBase, cliente);
   }
-  statusBluesoftCache = mapa;
-  return mapa;
+  dadosBluesoftCache = { statusPorNf, clientePorNf };
+  return dadosBluesoftCache;
+}
+// Preenche o campo Cliente sozinho a partir da NF (pedido do usuário, 2026-09-03: ela quer
+// importar planilhas que não têm coluna de Cliente, só NF) -- usada no blur do campo NF do
+// formulário e na importação de planilha (ver processarLinhasImportadas). Devolve '' se a NF
+// não for encontrada na Base Bluesoft (deixa o campo livre pra preencher na mão).
+async function buscarClienteNaBaseBluesoft(nfBase){
+  const dados = await carregarDadosBluesoft();
+  return dados.clientePorNf.get(nfBase) || '';
 }
 // Transfere pra Resolvido sozinho quando a Base Bluesoft já mostra "Entregue" pra essa NF --
 // roda 1x sozinho ao entrar (ver assinarRegistros, dentro de aoLogar) e também sob demanda pelo
@@ -1911,12 +1928,12 @@ async function verificarEntreguesNaBaseBluesoft(mostrarStatus){
   const statusEl = $('bluesoftStatusInfo');
   try{
     if(mostrarStatus && statusEl) statusEl.textContent = 'Verificando na Base Bluesoft…';
-    const mapa = await carregarStatusBluesoft();
+    const { statusPorNf } = await carregarDadosBluesoft();
     if(!dashFirebase) dashFirebase = await obterDashFirebase();
     const candidatos = entries.filter(e => e.nf && e.status !== 'resolvido');
     let atualizados = 0;
     for(const e of candidatos){
-      const statusesDaNf = mapa.get(e.nf.split('-')[0]);
+      const statusesDaNf = statusPorNf.get(e.nf.split('-')[0]);
       if(statusesDaNf && statusesDaNf.has('entregue')){
         await dashFirebase.atualizarRegistro(e.id, {
           status: 'resolvido',
@@ -2004,10 +2021,13 @@ function encontrarNotaDuplicada(payload, ignorarId){
 }
 async function salvar(){
   const nf = $('fNF').value.trim();
+  // Cliente deixou de ser obrigatório (pedido do usuário, 2026-09-03) -- ela quer importar
+  // planilhas que só têm a NF, sem coluna de cliente, e o campo já se preenche sozinho pela NF
+  // quando a Base Bluesoft conhece a nota (ver blur de #fNF). Fica em branco quando não acha.
   const cliente = $('fCliente').value.trim();
   const data = $('fData').value;
   const localizacao = $('fLocalizacao').value;
-  if(!nf || !cliente || !data || !localizacao){
+  if(!nf || !data || !localizacao){
     $('formErrDup').style.display = 'none';
     $('formErr').style.display = 'block';
     return;
@@ -2224,28 +2244,50 @@ $('btnAuthSair').onclick = async ()=>{
 // preenche o campo Observações — só se ele ainda estiver vazio, pra nunca sobrescrever algo que
 // ela já tenha digitado. Aceita "192233-1" (com sufixo de viagem) ou só "192233". Login já é
 // obrigatório pra usar o app inteiro, então não precisa mais checar se está conectada.
+// Ao sair do campo NF, tenta preencher sozinho: Observação (Firestore, agendamentosManuais, já
+// existia) e Cliente (Base Bluesoft, pedido do usuário, 2026-09-03 -- Cliente deixou de ser
+// obrigatório no formulário, e agora é preenchido automaticamente pela NF quando possível). Os
+// dois só preenchem se o campo já não tiver algo digitado -- nunca sobrescreve o que ela já
+// escreveu à mão.
 $('fNF').addEventListener('blur', async ()=>{
   const nfDigitado = $('fNF').value.trim();
   const statusEl = $('nfObsStatus');
   if(!nfDigitado){ statusEl.style.display = 'none'; return; }
   const nfBase = nfDigitado.split('-')[0];
   statusEl.style.display = 'block';
-  statusEl.textContent = 'Buscando observação dessa NF no dashboard…';
+  statusEl.textContent = 'Buscando informações dessa NF…';
+  const mensagens = [];
+
   try{
     if(!dashFirebase) dashFirebase = await obterDashFirebase();
     const observacao = await dashFirebase.buscarObservacaoAgendamento(nfBase);
-    if(!observacao){
-      statusEl.textContent = 'Nenhuma observação encontrada no dashboard pra essa NF.';
-    }else if($('fObs').value.trim()){
-      statusEl.textContent = 'Achei uma observação no dashboard pra essa NF, mas o campo Observações abaixo já tinha algo escrito (não sobrescrevi).';
-    }else{
+    if(observacao && !$('fObs').value.trim()){
       $('fObs').value = observacao;
-      statusEl.textContent = '✓ Observação puxada do dashboard — pode editar à vontade no campo abaixo.';
+      mensagens.push('✓ Observação puxada do dashboard.');
+    }else if(observacao){
+      mensagens.push('Achei observação no dashboard, mas o campo já tinha algo (não sobrescrevi).');
     }
   }catch(err){
     console.error('Falha ao buscar observação da NF no dashboard', err);
-    statusEl.textContent = 'Não consegui buscar agora (sem internet, ou sem permissão pra essa NF).';
+    mensagens.push('Não consegui buscar a observação agora (sem internet, ou sem permissão pra essa NF).');
   }
+
+  if(!$('fCliente').value.trim()){
+    try{
+      const cliente = await buscarClienteNaBaseBluesoft(nfBase);
+      if(cliente){
+        $('fCliente').value = cliente;
+        mensagens.push('✓ Cliente preenchido automaticamente pela NF.');
+      }else{
+        mensagens.push('Não achei o cliente dessa NF na Base Bluesoft — pode digitar manualmente.');
+      }
+    }catch(err){
+      console.error('Falha ao buscar cliente da NF na Base Bluesoft', err);
+      mensagens.push('Não consegui buscar o cliente agora.');
+    }
+  }
+
+  statusEl.textContent = mensagens.join(' ');
 });
 
 document.querySelectorAll('#mainNav button').forEach(b=>{
@@ -2737,10 +2779,16 @@ function mapearCabecalhoImportado(headerRaw){
   return null;
 }
 
+// Só chega aqui como Date (não texto) quando vem de uma célula de data DE VERDADE num .xlsx
+// (tipo já definido no arquivo) — desde que lerArquivoImportado passou a ler com `raw:true`
+// (2026-09-03), uma data de CSV (texto puro, sem tipo de célula) chega como STRING mesmo, cai
+// no branch de baixo, que já é DD/MM/AAAA (padrão brasileiro) em vez do SheetJS tentar advinhar
+// e errar pro padrão americano MM/DD/AAAA.
 function converterDataImportada(valor){
   if(valor instanceof Date && !isNaN(valor)){
-    // XLSX (cellDates:true) sempre entrega datas de planilha/CSV ancoradas em UTC — usar getters
-    // locais aqui perderia um dia sempre que o fuso do navegador estiver atrás de UTC (ex.: Brasil).
+    // XLSX (cellDates:true) sempre entrega datas de célula-tipo-data ancoradas em UTC — usar
+    // getters locais aqui perderia um dia sempre que o fuso do navegador estiver atrás de UTC
+    // (ex.: Brasil).
     const y = valor.getUTCFullYear(), m = String(valor.getUTCMonth()+1).padStart(2,'0'), d = String(valor.getUTCDate()).padStart(2,'0');
     return `${y}-${m}-${d}`;
   }
@@ -2764,46 +2812,69 @@ function converterStatusImportado(valor){
   return ['pendente','resolvido','cancelado'].includes(v) ? v : null;
 }
 
+// `raw:true` (achado + corrigido 2026-09-03, testando a importação sem coluna de Cliente): sem
+// isso, o SheetJS tenta "adivinhar" datas em texto puro de CSV (não tem como saber o formato de
+// uma célula de CSV, é só texto) e lê no padrão americano MM/DD/AAAA -- "02/09/2026" (2 de
+// setembro) virava 9 de fevereiro, silenciosamente errado sempre que o dia for ≤12 (ambíguo com
+// o mês). Com raw:true, uma data de CSV chega como TEXTO puro ("02/09/2026"), e quem decide o
+// formato é converterDataImportada (regra brasileira DD/MM/AAAA, ver abaixo) -- confirmado que
+// não quebra datas de verdade vindas de .xlsx (continuam chegando como objeto Date, só que
+// cellDates:true ainda funciona pra essas porque a célula já tem o tipo certo no arquivo).
 async function lerArquivoImportado(file){
   const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type:'array', cellDates:true });
+  const wb = XLSX.read(buffer, { type:'array', cellDates:true, raw:true });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws, { defval:'' });
+  return XLSX.utils.sheet_to_json(ws, { defval:'', raw:true });
 }
 
 // Mesma validação/checagem de duplicada de salvar() (ver acima) — importar precisa se comportar
 // igual a lançar cada linha manualmente, só que em lote. Duplicada existente (já em `entries`) OU
 // duplicada dentro do próprio arquivo (planilha com a mesma nota repetida) são ambas ignoradas.
-function processarLinhasImportadas(linhasBrutas){
+// Cliente não é mais obrigatório aqui (pedido do usuário, 2026-09-03: ela quer importar
+// planilhas que não têm coluna de Cliente, só NF) -- por isso virou async: se alguma linha tiver
+// NF mas não Cliente, busca 1x só (não por linha) na Base Bluesoft antes de processar tudo.
+async function processarLinhasImportadas(linhasBrutas){
   const validas = [];
   const problemas = [];
+
+  const linhaMapeada = (linhaBruta) => {
+    const linha = {};
+    Object.keys(linhaBruta).forEach(headerOriginal => {
+      const campo = mapearCabecalhoImportado(headerOriginal);
+      if(campo) linha[campo] = linhaBruta[headerOriginal];
+    });
+    return linha;
+  };
+  const precisaBuscarCliente = linhasBrutas.some(linhaBruta => {
+    const linha = linhaMapeada(linhaBruta);
+    return !(linha.cliente || '').toString().trim() && (linha.nf || '').toString().trim();
+  });
+  const dadosBluesoft = precisaBuscarCliente ? await carregarDadosBluesoft().catch(() => null) : null;
 
   linhasBrutas.forEach((linhaBruta, i) => {
     const numeroLinha = i + 2; // +1 pelo cabeçalho, +1 porque planilha começa em 1
     const valoresBrutos = Object.values(linhaBruta);
     if(valoresBrutos.every(v => v==='' || v==null)) return; // linha em branco, ignora sem avisar
 
-    const linha = {};
-    Object.keys(linhaBruta).forEach(headerOriginal => {
-      const campo = mapearCabecalhoImportado(headerOriginal);
-      if(campo) linha[campo] = linhaBruta[headerOriginal];
-    });
+    const linha = linhaMapeada(linhaBruta);
 
-    // Endereço não é mais obrigatório aqui (saiu do formulário manual também, 2026-09-02) --
-    // se a planilha dela tiver essa coluna com dado, continua sendo importado e guardado
-    // normalmente, só não é mais exigido pra linha ser considerada válida.
-    const cliente = (linha.cliente || '').toString().trim();
+    // Endereço e Cliente não são mais obrigatórios aqui (saíram do formulário manual também,
+    // 2026-09-02/03) -- se a planilha tiver essas colunas com dado, continuam importados
+    // normalmente, só não são mais exigidos pra linha ser considerada válida. Cliente vazio
+    // tenta a Base Bluesoft pela NF (acima); sem achar, fica em branco mesmo.
+    const nf = (linha.nf || '').toString().trim();
+    let cliente = (linha.cliente || '').toString().trim();
+    if(!cliente && nf && dadosBluesoft) cliente = dadosBluesoft.clientePorNf.get(nf.split('-')[0]) || '';
     const endereco = (linha.endereco || '').toString().trim();
     const data = converterDataImportada(linha.data);
-    if(!cliente || !data){
-      problemas.push({ linha: numeroLinha, motivo: 'faltando Cliente ou Data válida (aceita AAAA-MM-DD ou DD/MM/AAAA)' });
+    if(!data){
+      problemas.push({ linha: numeroLinha, motivo: 'faltando Data válida (aceita AAAA-MM-DD ou DD/MM/AAAA)' });
       return;
     }
 
     const payload = {
       tipo: converterTipoImportado(linha.tipo) || 'sem_tratativa',
-      nf: (linha.nf || '').toString().trim(),
-      cliente, endereco, data,
+      nf, cliente, endereco, data,
       hora: (linha.hora || '').toString().trim(),
       motivo: (linha.motivo || '').toString().trim(),
       localizacao: (linha.localizacao || '').toString().trim(),
@@ -2877,13 +2948,17 @@ $('inputImportar').onchange = async (ev) => {
   const file = ev.target.files[0];
   if(!file) return;
   try{
+    $('importArquivoInfo').textContent = 'Lendo planilha…';
     const linhasBrutas = await lerArquivoImportado(file);
     if(linhasBrutas.length === 0){
       alert('Não encontrei nenhuma linha nesse arquivo.');
       resetarImportar();
       return;
     }
-    const { validas, problemas } = processarLinhasImportadas(linhasBrutas);
+    // Pode demorar alguns segundos aqui se a planilha não tiver Cliente em alguma linha com NF
+    // (busca o cliente na Base Bluesoft, ~20MB, ver processarLinhasImportadas).
+    $('importArquivoInfo').textContent = 'Processando linhas…';
+    const { validas, problemas } = await processarLinhasImportadas(linhasBrutas);
     mostrarPreviewImportacao(file.name, validas, problemas);
   }catch(err){
     console.error('Falha ao ler arquivo de importação', err);
