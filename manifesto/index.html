@@ -1060,11 +1060,11 @@
     </div>
 
     <div class="export-card">
-      <h2>Verificar entregues na Base Bluesoft</h2>
+      <h2>Verificar status na Base Bluesoft</h2>
       <p class="hint">Confere a NF de cada nota pendente na Base Bluesoft do dashboard -- as que já
-        estiverem "Entregue" são movidas sozinhas pra Resolvido, marcadas com "Entregue na Base
-        Bluesoft". Isso já roda sozinho uma vez quando você entra; use o botão se quiser forçar
-        de novo no meio do dia.</p>
+        estiverem Entregue, Reentrega, Devolução ou Cancelado são movidas sozinhas pra Resolvido
+        (só "Em Aberto" continua pendente/sem tratativa). Isso já roda sozinho uma vez quando você
+        entra e depois de cada importação; use o botão se quiser forçar de novo no meio do dia.</p>
       <p class="export-last" id="bluesoftStatusInfo">Ainda não verificado nesta sessão.</p>
       <div class="modal-actions" style="margin-top:0;">
         <button class="btn-primary" id="btnVerificarBluesoft" style="flex:none; padding:8px 14px; font-size:12.5px;">Verificar agora</button>
@@ -1426,7 +1426,15 @@ function renderStats(){
   const wrap = $('stats');
   wrap.innerHTML = '';
   tipos.forEach(t=>{
-    const total = entries.filter(e=>e.tipo===t).length;
+    // "Sem tratativa" só conta quem realmente ainda não tem status nenhum resolvido (pedido do
+    // usuário, 2026-09-03) -- diferente dos outros 3 cards (Recusa/Reentrega/Agendamento, que
+    // contam TODAS as notas daquele tipo, resolvidas ou não), esse aqui some da contagem assim
+    // que a nota é resolvida (seja pela Base Bluesoft ou manualmente) -- senão fica com um
+    // número inflado de notas importadas que já foram tratadas, só que nunca tiveram o campo
+    // Tipo trocado de "Sem tratativa" pra outra coisa.
+    const total = t==='sem_tratativa'
+      ? entries.filter(e=>e.tipo===t && e.status==='pendente').length
+      : entries.filter(e=>e.tipo===t).length;
     const pend = entries.filter(e=>e.tipo===t && e.status==='pendente').length;
     const card = document.createElement('div');
     card.className = 'stat-card' + (filtroTipo===t ? ' active' : '');
@@ -1923,6 +1931,18 @@ async function buscarClienteNaBaseBluesoft(nfBase){
 // botão "Verificar agora" na aba Exportar (aí `mostrarStatus` fica true pra atualizar o texto
 // da tela). Compara pela NF sem sufixo de viagem (a mesma NF pode ter mais de uma viagem/linha
 // na Base Bluesoft; qualquer uma delas com "Entregue" já conta).
+// Quais status da Base Bluesoft contam como "resolvido" pro Manifesto (pedido do usuário,
+// 2026-09-03: antes só "Entregue" resolvia; agora Reentrega/Devolução/Cancelado também --
+// "Em Aberto" é o ÚNICO status que continua contando como pendente/sem tratativa de verdade).
+// Ordem da lista = prioridade pra escolher UM rótulo quando a NF tem mais de uma viagem/linha
+// com status diferentes na Bluesoft (ex.: uma viagem Cancelado, outra Reentrega) -- o mais
+// conclusivo primeiro.
+const STATUS_BLUESOFT_RESOLVE = [
+  { chave: 'entregue', rotulo: 'Entregue' },
+  { chave: 'devolucao', rotulo: 'Devolução' },
+  { chave: 'cancelado', rotulo: 'Cancelado' },
+  { chave: 'reentrega', rotulo: 'Reentrega' }
+];
 async function verificarEntreguesNaBaseBluesoft(mostrarStatus){
   if(!podeEditarManifestoAtual) return;
   const statusEl = $('bluesoftStatusInfo');
@@ -1934,10 +1954,12 @@ async function verificarEntreguesNaBaseBluesoft(mostrarStatus){
     let atualizados = 0;
     for(const e of candidatos){
       const statusesDaNf = statusPorNf.get(e.nf.split('-')[0]);
-      if(statusesDaNf && statusesDaNf.has('entregue')){
+      if(!statusesDaNf) continue;
+      const encontrado = STATUS_BLUESOFT_RESOLVE.find(s => statusesDaNf.has(s.chave));
+      if(encontrado){
         await dashFirebase.atualizarRegistro(e.id, {
           status: 'resolvido',
-          motivoResolucao: 'Entregue na Base Bluesoft',
+          motivoResolucao: `${encontrado.rotulo} na Base Bluesoft`,
           updatedAt: Date.now()
         });
         atualizados++;
@@ -1945,8 +1967,8 @@ async function verificarEntreguesNaBaseBluesoft(mostrarStatus){
     }
     if(mostrarStatus && statusEl){
       statusEl.textContent = atualizados > 0
-        ? `${atualizados} nota(s) marcada(s) como Resolvido (Entregue na Base Bluesoft) -- ${new Date().toLocaleTimeString('pt-BR')}.`
-        : `Nenhuma nota pendente apareceu como Entregue na Base Bluesoft -- ${new Date().toLocaleTimeString('pt-BR')}.`;
+        ? `${atualizados} nota(s) marcada(s) como Resolvido pela Base Bluesoft -- ${new Date().toLocaleTimeString('pt-BR')}.`
+        : `Nenhuma nota pendente teve status conclusivo na Base Bluesoft -- ${new Date().toLocaleTimeString('pt-BR')}.`;
     }
   }catch(err){
     console.error('Falha ao verificar status na Base Bluesoft', err);
