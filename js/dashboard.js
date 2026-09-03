@@ -739,15 +739,37 @@ const Dashboard = (() => {
     return fundo ? { fundo } : null;
   }
 
-  async function exportarRegistros(filename, records) {
+  /** `colunas` é opcional -- default `tableColumns()` (16 colunas fixas), usado pelas
+   * exportações que não têm seletor de coluna (detalhe de KPI, Registro Dinâmico). Os botões
+   * ligados à tabela "Registros detalhados" (Exportar Excel e Enviar Relatório) passam as
+   * colunas VISÍVEIS agora (ver colunasVisiveisTabelaPrincipal) — pedido do usuário
+   * (2026-09-03): cada setor esconde/mostra colunas antes de exportar, e o Excel tem que sair
+   * exatamente com esse recorte, sem trazer coluna oculta nem sumir com uma marcada. */
+  async function exportarRegistros(filename, records, colunas) {
     if (!records.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
-    await Utils.exportToStyledExcel(filename, 'Entregas', tableColumns(), records, colorirCelulaExportacao);
+    const colunasFinal = colunas || tableColumns();
+    if (!colunasFinal.length) {
+      Utils.showToast('Nenhuma coluna visível para exportar — mostre pelo menos uma coluna na tabela.', 'warning');
+      return;
+    }
+    await Utils.exportToStyledExcel(filename, 'Entregas', colunasFinal, records, colorirCelulaExportacao);
     Utils.showToast(`${records.length} registros exportados para Excel.`, 'success');
+  }
+
+  /** Mesmas colunas mostradas agora em #data-table (respeitando os botões de mostrar/ocultar
+   * coluna, `colunasOcultas`), na mesma ordem -- usada pelas exportações que devem bater
+   * exatamente com o que está na tela (Exportar Excel e Enviar Relatório da tabela principal). */
+  function colunasVisiveisTabelaPrincipal() {
+    return colunasTabelaPrincipal().filter(c => !colunasOcultas.has(c.field));
   }
 
   function bindActionButtons() {
     document.getElementById('btn-export-csv').addEventListener('click', () => {
-      exportarRegistros(nomeArquivoExportacao(), aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()));
+      exportarRegistros(
+        nomeArquivoExportacao(),
+        aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()),
+        colunasVisiveisTabelaPrincipal()
+      );
     });
 
     document.getElementById('btn-export-csv-detail').addEventListener('click', () => {
@@ -3809,7 +3831,11 @@ const Dashboard = (() => {
 
     document.getElementById('btn-confirmar-relatorio').addEventListener('click', async () => {
       const mensagem = document.getElementById('relatorio-mensagem').value;
-      await exportarRegistros(nomeArquivoExportacao(), aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()));
+      await exportarRegistros(
+        nomeArquivoExportacao(),
+        aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()),
+        colunasVisiveisTabelaPrincipal()
+      );
       if (relatorioCanalSelecionado === 'whatsapp') {
         const numero = document.getElementById('relatorio-whatsapp-numero').value.replace(/\D/g, '');
         window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`, '_blank', 'noopener');
