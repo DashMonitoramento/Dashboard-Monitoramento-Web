@@ -2940,7 +2940,14 @@ async function confirmarImportacao(){
     btn.textContent = `Importando... (${total}/${importLinhas.length})`;
   }
   resetarImportar();
-  alert(`${total} registro(s) importado(s) com sucesso.`);
+  alert(`${total} registro(s) importado(s) com sucesso. Verificando na Base Bluesoft quais já foram entregues…`);
+  // Notas importadas em lote costumam vir sem tratativa definida (tipo "Sem tratativa"), mas
+  // boa parte já foi entregue de verdade -- pedido do usuário (2026-09-03), roda a mesma
+  // verificação do botão "Verificar agora" (aba Exportar) automaticamente depois de importar,
+  // sem precisar lembrar de clicar. Não travado (sem await) -- ela já pode seguir usando o app
+  // enquanto isso roda por fora; quando terminar, os cards que já eram "Entregue" na Bluesoft
+  // já aparecem como Resolvido sozinhos.
+  verificarEntreguesNaBaseBluesoft(true);
 }
 
 $('btnSelecionarImportar').onclick = () => $('inputImportar').click();
