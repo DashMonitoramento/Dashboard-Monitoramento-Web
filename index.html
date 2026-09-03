@@ -560,42 +560,42 @@ Segue anexo o relatório atualizado.</textarea>
                  mais "notas primeiro, pedidos depois", então NÃO reordenar automaticamente numa
                  futura adição; encaixar o tile novo na posição certa dessa lista à mão. -->
             <div class="agendamento-cards">
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-agendado" style="--kpi-accent:#2563EB" title="Ver notas agendadas">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-agendado" style="--kpi-accent:#2563EB" title="NFs Agendadas">
                 <span class="kpi-card__label">Agendado</span>
                 <span class="kpi-card__value" id="agendamento-tile-agendado-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-agendado-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-vencido" style="--kpi-accent:#DC2626" title="Ver notas com agendamento vencido">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-vencido" style="--kpi-accent:#DC2626" title="NFs aguardando confirmação de entrega">
                 <span class="kpi-card__label">Agendamento Vencido</span>
                 <span class="kpi-card__value" id="agendamento-tile-vencido-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-vencido-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-nao-faturado" style="--kpi-accent:#14B8A6" title="Ver pedidos com data de agendamento marcada, ainda sem nota fiscal">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-nao-faturado" style="--kpi-accent:#14B8A6" title="NF agendada mas não foi faturada">
                 <span class="kpi-card__label">Agendado Não Faturado</span>
                 <span class="kpi-card__value" id="agendamento-tile-nao-faturado-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-nao-faturado-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-reagendar" style="--kpi-accent:#DC2626" title="Ver notas para reagendar">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-reagendar" style="--kpi-accent:#DC2626" title="Agendamento Perdido e precisa Reagendar">
                 <span class="kpi-card__label">Reagendar</span>
                 <span class="kpi-card__value" id="agendamento-tile-reagendar-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-reagendar-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-devolucao-terrinha" style="--kpi-accent:#0EA5E9" title="Ver notas de devolução para Terrinha">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-devolucao-terrinha" style="--kpi-accent:#0EA5E9" title="O Cliente Recusou e vai voltar para Terrinha">
                 <span class="kpi-card__label">Devolução para Terrinha</span>
                 <span class="kpi-card__value" id="agendamento-tile-devolucao-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-devolucao-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="sem-roteiro" style="--kpi-accent:#EAB308" title="Ver pedidos sem roteiro e sem agendamento">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="sem-roteiro" style="--kpi-accent:#EAB308" title="Não foi Roteirizado e nem Agendado.">
                 <span class="kpi-card__label">Sem roteiro/ sem agendamento</span>
                 <span class="kpi-card__value" id="agendamento-tile-sem-etapa-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-sem-etapa-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-okker" style="--kpi-accent:#8B5CF6" title="Ver notas Okker">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-okker" style="--kpi-accent:#8B5CF6" title="Cliente que exige agendamento, mas é Okker e pode seguir sem agenda">
                 <span class="kpi-card__label">Okker</span>
                 <span class="kpi-card__value" id="agendamento-tile-okker-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-okker-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-aguardando-agendamento" data-detail="aguardando" style="--kpi-accent:#64748B" title="Ver notas aguardando agendamento">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-aguardando-agendamento" data-detail="aguardando" style="--kpi-accent:#64748B" title="Agendamento Pendente">
                 <span class="kpi-card__label">Aguardando Agendamento</span>
                 <span class="kpi-card__value" id="aguardando-agendamento-quantidade">0</span>
                 <span class="kpi-card__subvalue" id="aguardando-agendamento-valor">R$ 0,00</span>
@@ -604,12 +604,12 @@ Segue anexo o relatório atualizado.</textarea>
                    (2026-09-03) — o card "Pedidos Com Agendamento" abaixo continua mostrando o
                    outro lado do split; o total combinado segue no KPI "Pedido Aguard.
                    Faturamento" lá no topo. -->
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-aguardando-confirmacao" style="--kpi-accent:#FF7A1A" title="Ver notas aguardando confirmação">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-aguardando-confirmacao" style="--kpi-accent:#FF7A1A" title="Aguardando confirmação do cliente">
                 <span class="kpi-card__label">Aguardando Confirmação</span>
                 <span class="kpi-card__value" id="agendamento-tile-aguardando-confirmacao-count">0</span>
                 <span class="kpi-card__subvalue" id="agendamento-tile-aguardando-confirmacao-valor">R$ 0,00</span>
               </article>
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-pedidos-nao-faturados-com-agendamento" style="--kpi-accent:#0EA5E9" title="Ver pedidos aguardando faturamento">
+              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-pedidos-nao-faturados-com-agendamento" style="--kpi-accent:#0EA5E9" title="Pedidos agendados mas ainda não foi faturado">
                 <span class="kpi-card__label">Pedidos Com Agendamento</span>
                 <span class="kpi-card__value" id="pedidos-nao-faturados-com-agendamento-quantidade">0</span>
                 <span class="kpi-card__subvalue" id="pedidos-nao-faturados-com-agendamento-valor">R$ 0,00</span>
