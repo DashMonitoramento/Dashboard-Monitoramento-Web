@@ -1250,7 +1250,7 @@
     setPersistence, browserLocalPersistence
   } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot
+    getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, writeBatch
   } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -1303,6 +1303,23 @@
   async function excluirRegistro(id){
     await deleteDoc(doc(db, REGISTROS_COLECAO, id));
   }
+  // Atualiza VÁRIOS registros de uma vez só, num commit em lote só -- diferente de chamar
+  // atualizarRegistro em sequência (1 escrita por registro), que dispara 1 evento do
+  // onSnapshot POR ESCRITA -- e cada evento refaz a lista inteira (renderLista), inclusive
+  // fechando o <select> de Tipo bem na hora que alguém está tentando escolher uma opção
+  // (achado + corrigido 2026-09-03: ela reportou o menu de Tipo "abrindo e fechando sozinho"
+  // logo depois de importar uma planilha grande, exatamente quando a verificação automática da
+  // Base Bluesoft estava resolvendo várias notas em sequência ao mesmo tempo). Limite de 500
+  // operações por lote do Firestore -- fatia em pedaços se precisar.
+  async function atualizarRegistrosEmLote(atualizacoes){
+    const TAMANHO_MAX_LOTE = 400;
+    for(let i=0; i<atualizacoes.length; i+=TAMANHO_MAX_LOTE){
+      const pedaco = atualizacoes.slice(i, i+TAMANHO_MAX_LOTE);
+      const lote = writeBatch(db);
+      pedaco.forEach(({ id, campos }) => lote.update(doc(db, REGISTROS_COLECAO, id), campos));
+      await lote.commit();
+    }
+  }
 
   /** Verifica se o usuário logado agora pode editar/excluir registros existentes do Manifesto
    * (super admin sempre pode; os demais só se habilitados pelo modal "Gerenciar usuários" no
@@ -1322,7 +1339,7 @@
     sair: () => signOut(auth),
     aoMudarLogin: (cb) => onAuthStateChanged(auth, cb),
     buscarObservacaoAgendamento,
-    assinarRegistros, criarRegistro, atualizarRegistro, excluirRegistro,
+    assinarRegistros, criarRegistro, atualizarRegistro, atualizarRegistrosEmLote, excluirRegistro,
     getMinhaPermissaoEdicaoManifesto
   };
   window.dispatchEvent(new Event('dash-firebase-ready'));
@@ -1951,23 +1968,24 @@ async function verificarEntreguesNaBaseBluesoft(mostrarStatus){
     const { statusPorNf } = await carregarDadosBluesoft();
     if(!dashFirebase) dashFirebase = await obterDashFirebase();
     const candidatos = entries.filter(e => e.nf && e.status !== 'resolvido');
-    let atualizados = 0;
+    const atualizacoes = [];
     for(const e of candidatos){
       const statusesDaNf = statusPorNf.get(e.nf.split('-')[0]);
       if(!statusesDaNf) continue;
       const encontrado = STATUS_BLUESOFT_RESOLVE.find(s => statusesDaNf.has(s.chave));
       if(encontrado){
-        await dashFirebase.atualizarRegistro(e.id, {
-          status: 'resolvido',
-          motivoResolucao: `${encontrado.rotulo} na Base Bluesoft`,
-          updatedAt: Date.now()
+        atualizacoes.push({
+          id: e.id,
+          campos: { status: 'resolvido', motivoResolucao: `${encontrado.rotulo} na Base Bluesoft`, updatedAt: Date.now() }
         });
-        atualizados++;
       }
     }
+    // 1 (ou poucos) commit(s) em lote, não 1 escrita por nota (pedido do usuário, 2026-09-03) --
+    // ver comentário de atualizarRegistrosEmLote no módulo Firebase pra causa raiz do bug.
+    if(atualizacoes.length > 0) await dashFirebase.atualizarRegistrosEmLote(atualizacoes);
     if(mostrarStatus && statusEl){
-      statusEl.textContent = atualizados > 0
-        ? `${atualizados} nota(s) marcada(s) como Resolvido pela Base Bluesoft -- ${new Date().toLocaleTimeString('pt-BR')}.`
+      statusEl.textContent = atualizacoes.length > 0
+        ? `${atualizacoes.length} nota(s) marcada(s) como Resolvido pela Base Bluesoft -- ${new Date().toLocaleTimeString('pt-BR')}.`
         : `Nenhuma nota pendente teve status conclusivo na Base Bluesoft -- ${new Date().toLocaleTimeString('pt-BR')}.`;
     }
   }catch(err){
