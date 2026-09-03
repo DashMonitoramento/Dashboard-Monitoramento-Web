@@ -1922,6 +1922,29 @@ const DataStore = (() => {
   // 2026-08-18) não deve casar com o filtro de Status por acidente.
   const AGENDAMENTO_ETAPAS_ESPECIFICAS_FILTRO = ['Agendado', 'Aguardando Confirmação', 'Reagendar', 'Okker', 'Devolução para Terrinha'];
 
+  // Só faz sentido usar a Data de Faturamento (quando a nota foi originalmente faturada) como
+  // referência de mês/período quando a nota já está REALMENTE concluída — entregue, cancelada
+  // ou devolvida. Pra qualquer outra situação (Em aberto, Reentrega, Aguardando agendamento,
+  // Reagendar, Recusa, Em rota...) a nota ainda está em andamento: usar a Data de Faturamento
+  // faria uma nota faturada há meses, mas que segue sendo reentregue até hoje, ficar "presa" no
+  // mês da fatura original em vez do mês em que ela de fato está pendente (bug real reportado
+  // 2026-09-03, NF 150-2 — faturada em 14/07, reentregada em 22/07/19/08, e ainda "Em aberto"
+  // em 01-02/09 — contava como aberta em julho, não em setembro).
+  const SITUACOES_FATURAMENTO_CONCLUIDO = ['Entregue', 'Cancelado', 'Devolução'];
+
+  /** Data de referência usada em TODO filtro/agrupamento por Período/Mês/Ano — getFilteredRecords
+   * e getAvailableYears aqui, e o Registro Dinâmico (dataEfetivaRegistroDinamico, dashboard.js).
+   * Nota concluída: prioriza Data de Faturamento (decisão do usuário, 2026-08-17), com a
+   * tentativa Bluesoft mais recente/Data de Coleta como reserva. Nota ainda em andamento:
+   * prioriza a tentativa Bluesoft mais recente (reflete o mês real da pendência), só caindo pra
+   * Data de Faturamento como último recurso se nem isso existir. */
+  function dataReferenciaPeriodo(r) {
+    const concluida = SITUACOES_FATURAMENTO_CONCLUIDO.includes(r.situacao);
+    return concluida
+      ? (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao)
+      : (r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataFaturamento || r.dataAgendamento || r.dataEmissao);
+  }
+
   function getFilteredRecords() {
     const {
       dataInicio, dataFim, mes, ano,
@@ -1930,13 +1953,7 @@ const DataStore = (() => {
     } = filters;
 
     return rawRecords.filter(r => {
-      // Prioriza Data de Faturamento (decisão do usuário, 2026-08-17): uma nota pode ser
-      // coletada num mês e faturada só no seguinte — o filtro de Período/Mês/Ano (e por
-      // consequência o relatório exportado de "Registros detalhados") passou a contar pelo mês
-      // de faturamento nesses casos. Sem faturamento na Base BI (notas só-Bluesoft), usa a
-      // tentativa MAIS RECENTE da Bluesoft — não a mais antiga (essa é r.dataEntrega/"Data
-      // Coleta", que continua por critério antigo pro card "Total geral de notas").
-      const ref = r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao;
+      const ref = dataReferenciaPeriodo(r);
 
       if (dataInicio && ref && ref < dataInicio) return false;
       if (dataFim && ref && ref > dataFim) return false;
@@ -2102,7 +2119,7 @@ const DataStore = (() => {
 
   function getAvailableYears() {
     const years = rawRecords
-      .map(r => (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao))
+      .map(dataReferenciaPeriodo)
       .filter(Boolean)
       .map(d => d.getFullYear());
     return Utils.uniqueSorted(years).sort((a, b) => b - a);
@@ -2157,7 +2174,7 @@ const DataStore = (() => {
     loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual,
-    getRecords, getFilteredRecords, getLastUpdated,
+    getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
     getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
