@@ -423,31 +423,20 @@ async function loadInitialData() {
   }
 }
 
-async function refreshData() {
-  Loading.show('Atualizando dados...');
-  try {
-    await DataStore.loadFromUrl(`${DEFAULT_DATA_URL}?t=${Date.now()}`, DEFAULT_DATA_FORMAT);
-    await loadBluesoftDataSilently(true);
-    await loadClientesDataSilently(true);
-    await loadAgendamentosDataSilently(true);
-    await loadMotivosDataSilently(true);
-    await loadRetornoDataSilently(true);
-    await loadFaturamentoDataSilently(true);
-    await loadRegioesDataSilently(true);
-    await loadLeadTimeDataSilently(true);
-    await loadFeriadosDataSilently(true);
-    await loadPedidosNaoFaturadosDataSilently(true);
-    loadCanhotosIndexSilently(true); // fora do await — ver comentário em loadInitialData
-    await loadAgendamentosManuaisSilently();
-    await loadPermissaoEdicaoAgendamentoSilently();
-    Dashboard.renderAll();
-    Utils.showToast('Dados atualizados com sucesso.', 'success');
-  } catch (err) {
-    console.error(err);
-    Utils.showToast(err.message || 'Falha ao atualizar os dados.', 'error');
-  } finally {
-    Loading.hide();
-  }
+/** "Atualizar dados" força uma navegação de página nova de verdade (mesma coisa que o botão
+ * de atualizar do próprio navegador, que ela confirmou sempre funcionar) em vez de só re-buscar
+ * os CSVs em memória via fetch — a versão anterior (fetch com cache:'no-store' + `?t=`) já
+ * buscava os arquivos certos, mas se a aba ficou aberta desde ANTES do deploy mais recente do
+ * próprio dashboard.js/script.js, ela continuava rodando o código JS antigo (só um reload de
+ * página real busca o `index.html`/scripts atuais) — o clique nunca refletia correções de
+ * código publicadas depois que a aba foi aberta, só os dados. Um `?_r=` novo a cada clique
+ * garante que o navegador (e o CDN do GitHub Pages) tratem como uma URL nunca vista, sem
+ * depender de revalidação condicional. O login (sessionStorage) sobrevive ao reload.
+ */
+function refreshData() {
+  const url = new URL(window.location.href);
+  url.searchParams.set('_r', Date.now());
+  window.location.href = url.toString();
 }
 
 async function loadDataFromFile(file) {
