@@ -1071,6 +1071,16 @@
     </div>
 
     <div class="export-card">
+      <h2>Diagnóstico: NF possivelmente no campo errado</h2>
+      <p class="hint">Registros com o campo NF vazio, mas o Cliente preenchido só com números --
+        provavelmente o número da nota caiu no campo errado (comum em dados reimportados de uma
+        planilha antiga). "Corrigir" abre a nota já com o número movido pro campo NF certo, pra
+        você digitar o cliente de verdade e salvar.</p>
+      <p class="export-last" id="diagnosticoNfResumo">Ainda não verificado.</p>
+      <div id="diagnosticoNfLista" class="estoque-lista"></div>
+    </div>
+
+    <div class="export-card">
       <h2>Atualizar arquivo Excel neste computador</h2>
       <p class="hint" id="excelHint">Grava direto no seu arquivo .xlsx tudo que estiver na lista de Registros agora (já sincronizada em tempo real entre os aparelhos), sem precisar baixar e substituir manualmente. Feche o arquivo no Excel antes de atualizar.</p>
       <p class="export-last" id="excelStatusInfo">Nenhum arquivo selecionado.</p>
@@ -1705,7 +1715,7 @@ function render(){
   renderStats();
   renderTabsStatus();
   renderLista();
-  if($('viewExportar').style.display !== 'none') atualizarContagemExport();
+  if($('viewExportar').style.display !== 'none'){ atualizarContagemExport(); renderDiagnosticoNf(); }
   if($('viewEstoque').style.display !== 'none' && estoqueIniciado) refreshEstoqueData();
 }
 async function marcarResolvido(id){
@@ -1927,6 +1937,56 @@ async function verificarEntreguesNaBaseBluesoft(mostrarStatus){
   }
 }
 $('btnVerificarBluesoft').onclick = () => verificarEntreguesNaBaseBluesoft(true);
+
+/* ---------- diagnóstico: NF possivelmente no campo Cliente por engano ----------
+   Ela achou um caso onde a mesma nota virou 2 grupos separados na aba Histórico: um com NF
+   preenchida certinha, outro "(sem NF)" onde o número da nota tinha caído no campo Cliente (bem
+   provável que tenha vindo da reimportação da planilha antiga, de antes da NF virar
+   obrigatória). Como eu não tenho acesso direto aos dados reais do Firestore daqui, essa
+   ferramenta deixa ELA achar e corrigir esses casos, direto no app (pedido dela, 2026-09-02). */
+function renderDiagnosticoNf(){
+  const resumo = $('diagnosticoNfResumo');
+  const lista = $('diagnosticoNfLista');
+  if(!resumo || !lista) return;
+  const suspeitos = entries.filter(e => !e.nf && /^\d+$/.test((e.cliente || '').trim()));
+  resumo.textContent = suspeitos.length > 0
+    ? `${suspeitos.length} registro(s) com Cliente só numérico e NF vazia.`
+    : 'Nenhum registro suspeito encontrado.';
+  lista.innerHTML = suspeitos.map(e => {
+    const numero = e.cliente.trim();
+    // Já existe outra nota com essa NF de verdade (como no caso que ela achou, NF 192554) --
+    // "Corrigir" ia esbarrar no aviso de duplicada (mesmo tipo+NF+data), então nem oferece: a
+    // saída aqui é excluir a que está errada, já que a informação certa já está na outra.
+    const jaExisteComEssaNf = entries.some(x => x.id !== e.id && x.nf === numero);
+    const acao = jaExisteComEssaNf
+      ? `<button class="btn-sm danger" data-excluir-id="${e.id}">Excluir (já existe NF ${escapeHtml(numero)})</button>`
+      : `<button class="btn-sm" data-corrigir-id="${e.id}" data-corrigir-numero="${escapeHtml(numero)}">Corrigir</button>`;
+    return `
+    <div class="estoque-item-row">
+      <div class="estoque-item-info">
+        <div class="estoque-item-nome">${escapeHtml(e.cliente)}</div>
+        <div class="estoque-item-meta">${fmtData(e.data)} · ${labelTipo(e.tipo)}${e.motivo ? ' · ' + escapeHtml(e.motivo) : ''}</div>
+      </div>
+      ${acao}
+    </div>`;
+  }).join('');
+  lista.querySelectorAll('button[data-corrigir-id]').forEach(btn=>{
+    btn.onclick = () => corrigirSuspeitaNf(btn.dataset.corrigirId, btn.dataset.corrigirNumero);
+  });
+  lista.querySelectorAll('button[data-excluir-id]').forEach(btn=>{
+    btn.onclick = () => excluir(btn.dataset.excluirId);
+  });
+}
+// Abre a nota já em edição, com o número movido pro campo NF e o Cliente limpo pronto pra ela
+// digitar (com autocomplete) o nome de verdade -- reaproveita abrirEdicao()/salvar() e a
+// validação que já existe (não deixa salvar sem Cliente), não precisa de nenhuma escrita nova.
+function corrigirSuspeitaNf(id, numero){
+  document.querySelector('#mainNav button[data-view="registros"]').click();
+  abrirEdicao(id);
+  $('fNF').value = numero;
+  $('fCliente').value = '';
+  $('fCliente').focus();
+}
 
 // NF virou obrigatória (pedido do usuário, 2026-09-02) e é um identificador muito mais preciso
 // que Cliente+Endereço (que inclusive saiu do formulário) -- por isso a checagem de duplicada
@@ -2200,6 +2260,7 @@ document.querySelectorAll('#mainNav button').forEach(b=>{
     if(v==='exportar'){
       atualizarContagemExport();
       atualizarStatusExcel();
+      renderDiagnosticoNf();
     }
     if(v==='importar') resetarImportar();
     $('btnAddProduto').style.display = (v==='estoque' && modo3d==='produtos') ? 'flex' : 'none';
