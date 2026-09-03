@@ -1454,6 +1454,13 @@ function labelStatus(s){
   return s==='pendente' ? 'Pendente' : s==='resolvido' ? 'Resolvido' : 'Cancelado';
 }
 function renderStats(){
+  // Conta pelo ESTADO ATUAL de cada nota (a ocorrência mais recente por NF, mesmo critério de
+  // agruparPorNota/renderLista) -- não pelas ocorrências cruas (achado + corrigido 2026-09-03:
+  // uma NF com uma ocorrência antiga já Resolvida mas uma mais recente ainda Pendente contava
+  // como "1" no card "Já tratado", só que clicar no card não mostrava nada, porque a lista
+  // filtra pelo estado da ocorrência mais recente -- o número do card tem que bater SEMPRE
+  // com o que aparece ao clicar nele).
+  const grupos = agruparPorNota(entries).map(g => g.principal);
   const tipos = ['recusa','reentrega','agendamento','sem_tratativa'];
   const wrap = $('stats');
   wrap.innerHTML = '';
@@ -1465,9 +1472,9 @@ function renderStats(){
     // número inflado de notas importadas que já foram tratadas, só que nunca tiveram o campo
     // Tipo trocado de "Sem tratativa" pra outra coisa.
     const total = t==='sem_tratativa'
-      ? entries.filter(e=>e.tipo===t && e.status==='pendente').length
-      : entries.filter(e=>e.tipo===t).length;
-    const pend = entries.filter(e=>e.tipo===t && e.status==='pendente').length;
+      ? grupos.filter(e=>e.tipo===t && e.status==='pendente').length
+      : grupos.filter(e=>e.tipo===t).length;
+    const pend = grupos.filter(e=>e.tipo===t && e.status==='pendente').length;
     const card = document.createElement('div');
     card.className = 'stat-card' + (filtroTipo===t ? ' active' : '');
     card.dataset.tipo = t;
@@ -1486,7 +1493,7 @@ function renderStats(){
   // Usa o filtro especial 'ja_tratado' (não é um valor de `tipo` de verdade -- tratado à parte
   // em renderLista()/renderHistorico(), que filtram por status==='resolvido' nesse caso em vez
   // de por tipo).
-  const totalTratado = entries.filter(e=>e.status==='resolvido').length;
+  const totalTratado = grupos.filter(e=>e.status==='resolvido').length;
   const cardTratado = document.createElement('div');
   cardTratado.className = 'stat-card' + (filtroTipo==='ja_tratado' ? ' active' : '');
   cardTratado.dataset.tipo = 'ja_tratado';
