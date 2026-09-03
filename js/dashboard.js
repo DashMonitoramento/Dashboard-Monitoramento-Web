@@ -1285,12 +1285,15 @@ const Dashboard = (() => {
    * REGISTRO DINÂMICO — consolida as notas filtradas por Data de Faturamento (2026-08-18)
    * ============================================================ */
 
-  /** Data usada pra agrupar o Registro Dinâmico: Data de Faturamento, com Data de Coleta como
-   * reserva quando a de Faturamento está em branco na planilha (decisão do usuário,
-   * 2026-08-23 — ela vai investigar por que essas notas não têm Faturamento preenchido, mas
-   * não quer que elas fiquem de fora desta tela enquanto isso). */
+  /** Data usada pra agrupar o Registro Dinâmico — mesma referência de período usada em todo o
+   * resto do dashboard (DataStore.dataReferenciaPeriodo, data.js): Data de Faturamento só pra
+   * notas já concluídas (Entregue/Cancelado/Devolução), com Data de Coleta/tentativa Bluesoft
+   * mais recente como reserva; uma nota ainda em andamento (Em aberto/Reentrega/etc.) usa a
+   * tentativa mais recente, não a Data de Faturamento original (ver decisão do usuário,
+   * 2026-08-23, sobre não deixar notas sem Faturamento de fora + o fix de 2026-09-03 pra notas
+   * faturadas há meses mas ainda reentregando até hoje). */
   function dataEfetivaRegistroDinamico(r) {
-    return r.dataFaturamento || r.dataEntrega;
+    return DataStore.dataReferenciaPeriodo(r);
   }
 
   /** Agrupa os registros (já filtrados) por dia de dataEfetivaRegistroDinamico. Notas sem
