@@ -600,19 +600,10 @@ Segue anexo o relatório atualizado.</textarea>
                 <span class="kpi-card__value" id="aguardando-agendamento-quantidade">0</span>
                 <span class="kpi-card__subvalue" id="aguardando-agendamento-valor">R$ 0,00</span>
               </article>
-              <!-- Split "Pedidos Aguardando Faturamento" em Sem/Com agendamento (pedido do
-                   usuário, 2026-08-29) — a planilha ganhou o valor "Entrega Direta" na coluna
-                   "Data agendamento" (aba "Pedido Não Faturados (Emissão)"): pedidos assim
-                   saem direto, sem precisar de agendamento; qualquer outro valor (data real,
-                   Aguardando Confirmação, Sem Roteiro) significa que ainda depende de
-                   agendamento. Substituem o quadrado único de antes (o total combinado virou
-                   o KPI "Pedido Aguard. Faturamento" lá no topo, ver kpi-grid acima). Rótulos
-                   encurtados (2026-09-01, pedido do usuário) — "Pedidos Sem/Com Agendamento". -->
-              <article class="kpi-card kpi-card--mini kpi-card--clickable" id="tile-pedidos-nao-faturados-sem-agendamento" style="--kpi-accent:#0EA5E9" title="Ver pedidos aguardando faturamento">
-                <span class="kpi-card__label">Pedidos Sem Agendamento</span>
-                <span class="kpi-card__value" id="pedidos-nao-faturados-sem-agendamento-quantidade">0</span>
-                <span class="kpi-card__subvalue" id="pedidos-nao-faturados-sem-agendamento-valor">R$ 0,00</span>
-              </article>
+              <!-- "Pedidos Sem Agendamento" (split Entrega Direta) removido a pedido da usuária
+                   (2026-09-03) — o card "Pedidos Com Agendamento" abaixo continua mostrando o
+                   outro lado do split; o total combinado segue no KPI "Pedido Aguard.
+                   Faturamento" lá no topo. -->
               <article class="kpi-card kpi-card--mini kpi-card--clickable" data-detail="agendamento-aguardando-confirmacao" style="--kpi-accent:#FF7A1A" title="Ver notas aguardando confirmação">
                 <span class="kpi-card__label">Aguardando Confirmação</span>
                 <span class="kpi-card__value" id="agendamento-tile-aguardando-confirmacao-count">0</span>
@@ -1341,7 +1332,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260903a"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260903a"></script>
+<script src="js/dashboard.js?v=20260903b"></script>
 <script src="js/script.js?v=20260902a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
