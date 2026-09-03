@@ -155,6 +155,11 @@ const FIELD_ALIASES = {
     'data de agendamento', 'data do agendamento'
   ],
   dataFaturamento: ['data faturamento'],
+  // Coluna própria da Base Bluesoft (2026-09-03) -- nome de cabeçalho diferente de propósito
+  // ("data faturamento bluesoft" vs "data faturamento" da planilha de Faturamento/Base BI), pra
+  // dar pra comparar as duas datas em applyFaturamentoEnrichment em vez de uma sempre sobrescrever
+  // a outra cegamente. Ver decisão do usuário no comentário dessa função.
+  dataFaturamentoBluesoft: ['data faturamento bluesoft'],
   dataEntrega: ['data entrega', 'dt. entrega nf'],
   // Campos novos da Base Bluesoft (relatório de Lead Time, 2026-08-22): "Data Criacao" e
   // "Data Entrega NF" são nomes de coluna só do CSV gerado por essa extração — de propósito
@@ -750,6 +755,7 @@ const DataStore = (() => {
       // Categoria (coluna Z, opcional — CSVs antigos sem essa coluna ficam com '', que não
       // sobrescreve nada em applyBluesoftEnrichment).
       const categoriaTransporteRaw = pickField(row, headerIndex, 'categoriaTransporte') || '';
+      const dataFaturamentoBluesoftRaw = pickField(row, headerIndex, 'dataFaturamentoBluesoft') || '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -765,6 +771,7 @@ const DataStore = (() => {
         viagem: viagemRaw,
         dataCriacao: dataCriacaoRaw,
         dataEntregaNF: dataEntregaNFRaw,
+        dataFaturamentoBluesoft: dataFaturamentoBluesoftRaw,
         filial: filialRaw,
         codigoCliente: codigoClienteRaw,
         telefone: telefoneRaw,
@@ -894,6 +901,7 @@ const DataStore = (() => {
       r.viagem = info.viagem || '';
       if (info.dataCriacao) r.dataCriacao = Utils.parseDate(info.dataCriacao);
       if (info.dataEntregaNF) r.dataEntregaNF = Utils.parseDate(info.dataEntregaNF);
+      if (info.dataFaturamentoBluesoft) r.dataFaturamentoBluesoft = Utils.parseDate(info.dataFaturamentoBluesoft);
       if (info.filial) r.filial = info.filial;
       if (info.codigoCliente) r.codigoCliente = info.codigoCliente;
       if (info.telefone) r.telefone = info.telefone;
@@ -940,6 +948,7 @@ const DataStore = (() => {
         dataEmissao: null,
         dataAgendamento: null,
         dataFaturamento: null,
+        dataFaturamentoBluesoft: Utils.parseDate(info.dataFaturamentoBluesoft),
         dataEntrega: dataColeta,
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
         dataUltimaTentativaBluesoft: bluesoftDataColetaMaisRecentePorBaseNF.get(baseNf) || null,
@@ -1760,12 +1769,24 @@ const DataStore = (() => {
   /** Sobrescreve r.dataFaturamento com o valor da Base BI (fonte dedicada e mais confiável pra
    * esse campo especificamente — antes ele só vinha, de forma inconsistente, de outras
    * planilhas). Só sobrescreve quando a Base BI TEM a informação; sem ela, mantém o que já
-   * existia (ex.: notas só-Bluesoft, cobertas só por Data de Coleta). */
+   * existia (ex.: notas só-Bluesoft, cobertas só por Data de Coleta).
+   *
+   * Exceção adicionada em 2026-09-03: se a Base Bluesoft já tem uma Data Faturamento própria
+   * (r.dataFaturamentoBluesoft, coluna "Data Faturamento Bluesoft" — ver indexBluesoftRows/
+   * applyBluesoftEnrichment) MAIS RECENTE que a da planilha de Faturamento, a da Bluesoft
+   * vence. Achado com o usuário: NF 13102, Base Bluesoft já atualizada com 02/09/2026, mas a
+   * planilha de Faturamento (só reimportada de vez em quando) ainda com um 02/06/2026 antigo —
+   * a nota "voltava no tempo" no Registro Dinâmico (agrupado por essa data). Continua igual a
+   * antes pras notas que não têm Data Faturamento na Bluesoft, ou cuja planilha de Faturamento
+   * já está tão ou mais recente. */
   function applyFaturamentoEnrichment() {
     if (faturamentoPorNF.size === 0) return;
     for (const r of rawRecords) {
-      const dataFaturamento = faturamentoPorNF.get(r.nf.split('-')[0]);
-      if (dataFaturamento) r.dataFaturamento = dataFaturamento;
+      const dataFaturamentoPlanilha = faturamentoPorNF.get(r.nf.split('-')[0]);
+      if (!dataFaturamentoPlanilha) continue;
+      r.dataFaturamento = (r.dataFaturamentoBluesoft && r.dataFaturamentoBluesoft > dataFaturamentoPlanilha)
+        ? r.dataFaturamentoBluesoft
+        : dataFaturamentoPlanilha;
     }
   }
 
