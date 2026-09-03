@@ -133,7 +133,7 @@
     margin-bottom:18px;
   }
   @media (min-width:480px){
-    .stats{ grid-template-columns:repeat(4,1fr); }
+    .stats{ grid-template-columns:repeat(5,1fr); }
   }
   .stat-card{
     background:rgba(23,35,59,0.88);
@@ -181,6 +181,12 @@
   .stat-card[data-tipo="sem_tratativa"]{ --stat-accent:var(--semtrat); background:var(--semtrat-bg); border-color:var(--semtrat); }
   .stat-card[data-tipo="sem_tratativa"] .stat-label,
   .stat-card[data-tipo="sem_tratativa"] .stat-num{ color:var(--semtrat); }
+  /* "Já tratado" (pedido do usuário, 2026-09-03) -- mesma cor de "Resolvido" (.status-chip.
+     resolvido/.tag resolvido em outros lugares do app), pra reforçar visualmente que é sobre
+     status, não mais um Tipo como os 4 cards ao lado. */
+  .stat-card[data-tipo="ja_tratado"]{ --stat-accent:var(--resolvido); background:var(--resolvido-bg); border-color:var(--resolvido); }
+  .stat-card[data-tipo="ja_tratado"] .stat-label,
+  .stat-card[data-tipo="ja_tratado"] .stat-num{ color:var(--resolvido); }
   /* ---------- controls ---------- */
   .controls{
     display:flex;
@@ -1465,6 +1471,23 @@ function renderStats(){
     card.onclick = ()=>{ filtroTipo = filtroTipo===t ? 'todos' : t; render(); };
     wrap.appendChild(card);
   });
+  // "Já tratado" (pedido do usuário, 2026-09-03): card à parte, não é um Tipo -- junta toda
+  // nota Resolvida, de QUALQUER Tipo (Recusa/Reentrega/Agendamento/Sem tratativa), num lugar só
+  // pra bater o olho rápido no que já foi finalizado (seja pela Base Bluesoft ou manualmente).
+  // Usa o filtro especial 'ja_tratado' (não é um valor de `tipo` de verdade -- tratado à parte
+  // em renderLista()/renderHistorico(), que filtram por status==='resolvido' nesse caso em vez
+  // de por tipo).
+  const totalTratado = entries.filter(e=>e.status==='resolvido').length;
+  const cardTratado = document.createElement('div');
+  cardTratado.className = 'stat-card' + (filtroTipo==='ja_tratado' ? ' active' : '');
+  cardTratado.dataset.tipo = 'ja_tratado';
+  cardTratado.innerHTML = `
+    <div class="stat-label">Já tratado</div>
+    <div class="stat-row">
+      <span class="stat-num">${totalTratado}</span>
+    </div>`;
+  cardTratado.onclick = ()=>{ filtroTipo = filtroTipo==='ja_tratado' ? 'todos' : 'ja_tratado'; render(); };
+  wrap.appendChild(cardTratado);
 }
 function renderTabsStatus(){
   // Pedido do usuário (2026-09-01): removida a aba "Cancelado" do filtro rápido -- notas com
@@ -1512,7 +1535,10 @@ function renderLista(){
   // Filtro de Tipo/Status/busca usa a ocorrência PRINCIPAL (mais recente) do grupo -- é o
   // "estado atual" dessa nota que decide se ela aparece em Pendente/Resolvido etc.
   let grupos = agruparPorNota(entries).filter(({ principal: e })=>{
-    if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
+    // "ja_tratado" é o filtro especial do card "Já tratado" (pedido do usuário, 2026-09-03) --
+    // não é um Tipo de verdade, filtra por Status ao invés de por Tipo.
+    if(filtroTipo==='ja_tratado'){ if(e.status!=='resolvido') return false; }
+    else if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
     if(filtroStatus!=='todos' && e.status!==filtroStatus) return false;
     if(busca){
       // Busca por número de nota ou cliente (pedido do usuário, 2026-09-02) -- endereço saiu
@@ -1645,7 +1671,8 @@ function renderHistorico(){
   const wrap = $('lista');
   wrap.innerHTML = '';
   const filtradas = entries.filter(e=>{
-    if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
+    if(filtroTipo==='ja_tratado'){ if(e.status!=='resolvido') return false; }
+    else if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
     if(busca){
       const alvo = normalizarTexto((e.nf || '') + ' ' + (e.cliente || ''));
       if(!alvo.includes(busca)) return false;
