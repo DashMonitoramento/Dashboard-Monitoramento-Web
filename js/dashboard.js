@@ -2854,12 +2854,11 @@ const Dashboard = (() => {
     // lado da pizza (pedido do usuário, 2026-08-28) — o rótulo do card já diz o que conta.
     if (elQtd) elQtd.textContent = Utils.formatNumber(stats.quantidade);
 
-    // Split "Sem agendamento" (Entrega Direta) vs "Com agendamento" (qualquer outro valor da
-    // coluna) — pedido do usuário (2026-08-29), depois que a planilha ganhou o valor "Entrega
-    // Direta": esses pedidos saem direto, sem passar pela etapa de agendamento; os demais
-    // (data real, Aguardando Confirmação, Sem Roteiro) ainda dependem dela.
+    // "Com agendamento" (qualquer valor diferente de "Entrega Direta" na coluna) — pedido do
+    // usuário (2026-08-29). O split "Sem agendamento" (Entrega Direta) que existia ao lado foi
+    // removido a pedido da usuária (2026-09-03); esses pedidos continuam contando no total
+    // combinado acima, só não têm mais um card próprio.
     const pedidos = DataStore.getPedidosNaoFaturados();
-    const semAgendamento = pedidos.filter(p => p.statusAgendamento === 'Entrega Direta');
     const comAgendamento = pedidos.filter(p => p.statusAgendamento !== 'Entrega Direta');
     const setTile = (prefixo, lista) => {
       const elQtdSplit = document.getElementById(`${prefixo}-quantidade`);
@@ -2867,7 +2866,6 @@ const Dashboard = (() => {
       if (elQtdSplit) elQtdSplit.textContent = Utils.formatNumber(lista.length);
       if (elValorSplit) elValorSplit.textContent = Utils.formatCurrency(Utils.sum(lista, p => p.valorPedido));
     };
-    setTile('pedidos-nao-faturados-sem-agendamento', semAgendamento);
     setTile('pedidos-nao-faturados-com-agendamento', comAgendamento);
   }
 
@@ -2898,9 +2896,7 @@ const Dashboard = (() => {
    * — mesmo critério exato do card, pra nunca divergir dele. */
   function pedidosNaoFaturadosFiltrados() {
     let lista = DataStore.getPedidosNaoFaturados();
-    if (pedidosNaoFaturadosCategoria === 'sem-agendamento') {
-      lista = lista.filter(p => p.statusAgendamento === 'Entrega Direta');
-    } else if (pedidosNaoFaturadosCategoria === 'com-agendamento') {
+    if (pedidosNaoFaturadosCategoria === 'com-agendamento') {
       lista = lista.filter(p => p.statusAgendamento !== 'Entrega Direta');
     }
     if (!pedidosNaoFaturadosBusca) return lista;
@@ -2912,11 +2908,11 @@ const Dashboard = (() => {
     );
   }
 
-  // Rótulos alinhados aos mini-cards de "Situação de agendamento" (renomeados 2026-09-01, pedido
-  // do usuário: "Pedidos Aguard. Fatur. S/C Agendamento" -> "Pedidos Sem/Com Agendamento") — pra
-  // não ter um texto no card e outro na tela que abre ao clicar nele.
+  // Rótulo alinhado ao mini-card de "Situação de agendamento" (renomeado 2026-09-01, pedido
+  // do usuário: "Pedidos Aguard. Fatur. C/ Agendamento" -> "Pedidos Com Agendamento") — pra
+  // não ter um texto no card e outro na tela que abre ao clicar nele. O par "Sem Agendamento"
+  // foi removido a pedido da usuária (2026-09-03).
   const PEDIDOS_NAO_FATURADOS_TITULO_POR_CATEGORIA = {
-    'sem-agendamento': 'Pedidos Sem Agendamento (Entrega Direta)',
     'com-agendamento': 'Pedidos Com Agendamento'
   };
 
@@ -2936,8 +2932,8 @@ const Dashboard = (() => {
   /** Abre a tela de detalhe (mesmo "jeito" do status-detail-view, pedido do usuário
    * 2026-08-28) — fecha qualquer outra tela alternativa aberta antes, pra nunca ter duas
    * visíveis ao mesmo tempo (mesma exclusividade mútua de mostrarViewMapaRegioes/openStatusDetail).
-   * `categoria` (opcional): 'sem-agendamento'/'com-agendamento' quando veio de um dos 2
-   * quadrados de split, ou null/undefined quando veio do card combinado do topo (mostra tudo) —
+   * `categoria` (opcional): 'com-agendamento' quando veio do quadrado de split, ou
+   * null/undefined quando veio do card combinado do topo (mostra tudo) —
    * ver pedidosNaoFaturadosFiltrados/PEDIDOS_NAO_FATURADOS_TITULO_POR_CATEGORIA. */
   function abrirPedidosNaoFaturadosView(categoria = null) {
     closeStatusDetail();
@@ -3029,13 +3025,11 @@ const Dashboard = (() => {
   }
 
   function bindPedidosNaoFaturadosView() {
-    // KPI de topo (total combinado) abre tudo; os 2 quadrados de split (Sem/Com agendamento,
-    // dentro da pizza "Situação de agendamento") agora filtram pra mostrar só a categoria
-    // certa — pedido do usuário (2026-08-29): "S/ Agendamento" tem que mostrar só "Entrega
-    // Direta", não a lista inteira.
+    // KPI de topo (total combinado) abre tudo; o quadrado de split "Com Agendamento" (dentro
+    // de "Situação de agendamento") filtra pra mostrar só essa categoria. O par "Sem
+    // Agendamento" foi removido a pedido da usuária (2026-09-03).
     const gatilhos = {
       'tile-pedidos-nao-faturados': null,
-      'tile-pedidos-nao-faturados-sem-agendamento': 'sem-agendamento',
       'tile-pedidos-nao-faturados-com-agendamento': 'com-agendamento'
     };
     Object.entries(gatilhos).forEach(([id, categoria]) => {
