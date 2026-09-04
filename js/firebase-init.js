@@ -366,7 +366,7 @@ function assinarStatusCarga(callback, aoFalhar) {
  * EM_SEPARACAO/SEPARADO. Sobrescreve o doc atual (nunca duplica, nunca deixa o motorista em
  * 2 status ao mesmo tempo, já que é sempre o MESMO documento `statusCarga/{placa}`) e grava a
  * transição no histórico no mesmo lote. */
-async function definirStatusCarga(placaBruta, novoStatus) {
+async function definirStatusCarga(placaBruta, novoStatus, rota) {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
   const placa = normalizarPlaca(placaBruta);
@@ -375,8 +375,13 @@ async function definirStatusCarga(placaBruta, novoStatus) {
   const statusAnterior = snapAtual.exists() ? snapAtual.data().status : null;
 
   const lote = writeBatch(db);
+  // Rota vem da Base Bluesoft (pedido da usuária, 2026-09-04: "essa informação vai ser
+  // inserida da mesma forma que as informações de Separações são") -- js/dashboard.js já
+  // busca o valor certo (mais recente pra essa placa) antes de chamar esta função; aqui só
+  // grava junto do MESMO documento de status, pra ficar disponível tanto no painel quanto no
+  // app do motorista sem precisar de outra leitura.
   lote.set(refAtual, {
-    placa, status: novoStatus, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    placa, status: novoStatus, rota: rota || '', atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistorico, {
