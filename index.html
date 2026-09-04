@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260902a">
+<link rel="stylesheet" href="css/style.css?v=20260904a">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -136,6 +136,44 @@
     <p class="modal-card__hint">Marque quem, além de você, pode preencher a data e o status de agendamento das notas, e/ou editar os registros do Manifesto (Controle de Entregas).</p>
     <div id="lista-usuarios" class="usuarios-lista">
       <p class="usuarios-lista__carregando">Carregando usuários...</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: CADASTRAR MOTORISTA (Controle de Cargas, 2026-09-04) ===================== -->
+<div id="modal-cadastrar-motorista" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h2 class="modal-card__title">Cadastrar motorista</h2>
+      <button id="btn-fechar-modal-cadastrar-motorista" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <p class="modal-card__hint">Placa já cadastrada atualiza os dados desse motorista, em vez de criar um novo.</p>
+    <div class="field">
+      <label for="cadastrar-motorista-nome">Nome</label>
+      <input type="text" id="cadastrar-motorista-nome" placeholder="Nome do motorista">
+    </div>
+    <div class="field">
+      <label for="cadastrar-motorista-placa">Placa</label>
+      <input type="text" id="cadastrar-motorista-placa" placeholder="Ex: ABC1D23">
+    </div>
+    <div class="field">
+      <label for="cadastrar-motorista-veiculo">Veículo</label>
+      <input type="text" id="cadastrar-motorista-veiculo" placeholder="Ex: VUC - 2.7 TONS">
+    </div>
+    <div class="field">
+      <label for="cadastrar-motorista-rodizio">Rodízio</label>
+      <select id="cadastrar-motorista-rodizio">
+        <option value="">Sem rodízio</option>
+        <option value="Segunda-feira">Segunda-feira</option>
+        <option value="Terça-feira">Terça-feira</option>
+        <option value="Quarta-feira">Quarta-feira</option>
+        <option value="Quinta-feira">Quinta-feira</option>
+        <option value="Sexta-feira">Sexta-feira</option>
+      </select>
+    </div>
+    <p class="login-error" id="cadastrar-motorista-erro" role="alert" hidden></p>
+    <div class="modal-actions">
+      <button id="btn-salvar-cadastrar-motorista" class="btn btn--primary">Salvar</button>
     </div>
   </div>
 </div>
@@ -441,6 +479,10 @@ Segue anexo o relatório atualizado.</textarea>
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="ocorrencias" title="Ocorrências do Dia">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
           <span class="nav-label">Ocorrências do Dia</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="cargas" title="Controle de Cargas e Motoristas">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
+          <span class="nav-label">Controle de Cargas</span>
         </button>
         <!-- App "Manifesto" (2026-09-01): página própria em manifesto/index.html, app de página
              única com dados no localStorage do navegador (não integra com DataStore/Firestore
@@ -1318,6 +1360,54 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
       </section>
 
+      <!-- ===================== Controle de Cargas e Disponibilidade de Motoristas (2026-09-04) ====================
+           Tempo real via Firestore (onSnapshot), mesmo padrão do Manifesto — não usa DataStore/CSV. ============ -->
+      <section id="cargas-view" class="table-card" aria-label="Controle de Cargas e Disponibilidade de Motoristas" hidden>
+        <div class="table-card__header">
+          <h2 class="chart-card__title">🚚 Controle de Cargas e Disponibilidade de Motoristas</h2>
+          <div class="table-actions">
+            <button id="cargas-btn-cadastrar" class="btn" hidden>+ Cadastrar motorista</button>
+            <button id="cargas-btn-sincronizar" class="btn" hidden>🔄 Sincronizar planilha</button>
+          </div>
+        </div>
+        <p class="chart-card__hint" id="cargas-sincronizar-status" hidden></p>
+
+        <div class="cargas-cards">
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="NAO_INICIADA" style="--kpi-accent:#DC2626" title="Ver motoristas com separação não iniciada">
+            <span class="kpi-card__label">Separação Não Iniciada</span>
+            <span class="kpi-card__value" id="cargas-count-nao-iniciada">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="EM_SEPARACAO" style="--kpi-accent:#EAB308" title="Ver motoristas com separação em andamento">
+            <span class="kpi-card__label">Separação Iniciada</span>
+            <span class="kpi-card__value" id="cargas-count-em-separacao">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="SEPARADO" style="--kpi-accent:#16A34A" title="Ver motoristas com mercadoria separada, prontos pra carregar">
+            <span class="kpi-card__label">Separado</span>
+            <span class="kpi-card__value" id="cargas-count-separado">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="DISPONIVEL" style="--kpi-accent:#2563EB" title="Ver motoristas que avisaram disponibilidade">
+            <span class="kpi-card__label">Motoristas Disponíveis</span>
+            <span class="kpi-card__value" id="cargas-count-disponiveis">0</span>
+          </article>
+        </div>
+
+        <div class="cargas-adicionar">
+          <div class="cargas-autocomplete">
+            <input type="text" id="cargas-busca-motorista" placeholder="Buscar motorista por nome ou placa...">
+            <div id="cargas-sugestoes" class="cargas-sugestoes"></div>
+          </div>
+          <select id="cargas-select-status">
+            <option value="NAO_INICIADA">Separação Não Iniciada</option>
+            <option value="EM_SEPARACAO">Separação Iniciada</option>
+            <option value="SEPARADO">Separado</option>
+          </select>
+          <button id="cargas-btn-adicionar" class="btn btn--primary" disabled>Adicionar</button>
+        </div>
+
+        <h3 class="cargas-lista-titulo" id="cargas-lista-titulo">Selecione um card acima pra ver a lista</h3>
+        <div id="cargas-lista"></div>
+      </section>
+
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
         Dashboard de Entregas · Da Terrinha Alimentos — dados atualizados automaticamente a partir da planilha.
       </footer>
@@ -1328,12 +1418,12 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260902a"></script>
+<script type="module" src="js/firebase-init.js?v=20260904a"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260903c"></script>
+<script src="js/data.js?v=20260904a"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260903c"></script>
-<script src="js/script.js?v=20260903a"></script>
+<script src="js/dashboard.js?v=20260904a"></script>
+<script src="js/script.js?v=20260904a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
   // guarda nada em cache de propósito (ver sw.js), então não tem risco de mostrar tela antiga
