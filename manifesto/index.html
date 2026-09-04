@@ -2132,9 +2132,10 @@ function corrigirSuspeitaNf(id, numero){
 /* ---------- excluir em massa: notas sem Cliente identificado ----------
    Pedido da usuária (2026-09-04): apagar de vez todo registro com Cliente em branco (mesmo
    critério exato usado pra mostrar "Cliente não identificado" na lista, ver item-cliente--vazio
-   acima). Mostra a contagem real antes de qualquer clique, pra ela nunca excluir "no escuro". */
+   acima -- .trim() extra aqui pra também pegar um Cliente só com espaço em branco). Mostra a
+   contagem real antes de qualquer clique, pra ela nunca excluir "no escuro". */
 function registrosSemClienteIdentificado(){
-  return entries.filter(e => !e.cliente);
+  return entries.filter(e => !((e.cliente || '').toString().trim()));
 }
 function renderLimpezaClienteVazio(){
   const resumo = $('limpezaClienteResumo');
@@ -2144,16 +2145,30 @@ function renderLimpezaClienteVazio(){
   resumo.textContent = qtd > 0
     ? `${qtd} registro(s) sem Cliente identificado.`
     : 'Nenhum registro sem Cliente identificado.';
-  btn.disabled = qtd === 0;
+  // NÃO desabilita o botão quando qtd===0 aqui -- esse número vem do último render() e pode
+  // estar momentaneamente desatualizado (ex.: 1º snapshot do Firestore ainda local/em cache,
+  // antes do servidor confirmar os dados mais recentes -- comportamento normal do SDK). Um botão
+  // desabilitado por engano bloqueia o clique sem dar nenhum feedback pra ela (bug real
+  // reportado 2026-09-04: card mostrava 0 mesmo com notas "Cliente não identificado" visíveis
+  // na lista logo abaixo). O clique sempre recalcula a lista na hora (ver abaixo), então mesmo
+  // com esse resumo desatualizado o botão continua funcionando corretamente.
 }
 $('btnLimparClienteVazio').onclick = async () => {
   if(!podeEditarManifestoAtual) return;
-  const alvos = registrosSemClienteIdentificado();
-  if(!alvos.length) return;
-  const ok = confirm(`Excluir ${alvos.length} registro(s) sem Cliente identificado? Essa ação não pode ser desfeita e vale pra todos os aparelhos.`);
-  if(!ok) return;
   const btn = $('btnLimparClienteVazio');
   const resumo = $('limpezaClienteResumo');
+  // Recalcula na hora do clique (não confia no texto já exibido, que pode estar um passo
+  // atrás -- ver comentário em renderLimpezaClienteVazio) -- assim o clique sempre reflete o
+  // estado mais atual de `entries`, e dá pra ela um retorno explícito mesmo se realmente não
+  // achar nada agora, em vez de o botão simplesmente não fazer nada visível.
+  const alvos = registrosSemClienteIdentificado();
+  if(!alvos.length){
+    alert('Nenhum registro sem Cliente identificado encontrado agora.');
+    renderLimpezaClienteVazio();
+    return;
+  }
+  const ok = confirm(`Excluir ${alvos.length} registro(s) sem Cliente identificado? Essa ação não pode ser desfeita e vale pra todos os aparelhos.`);
+  if(!ok) return;
   btn.disabled = true;
   resumo.textContent = 'Excluindo…';
   try{
@@ -2163,6 +2178,7 @@ $('btnLimparClienteVazio').onclick = async () => {
   }catch(err){
     console.error('Falha ao excluir registros sem Cliente identificado', err);
     resumo.textContent = 'Não consegui excluir agora (sem internet?).';
+  }finally{
     btn.disabled = false;
   }
 };
