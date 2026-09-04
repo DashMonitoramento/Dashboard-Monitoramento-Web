@@ -4004,6 +4004,7 @@ const Dashboard = (() => {
       console.warn('Não consegui verificar permissões do Controle de Cargas:', err.message);
     }
     renderControleCargasAcoesGlobais();
+    cargasPopularSelectRotas();
 
     fb.assinarMotoristas((lista) => {
       cargasMotoristas = new Map(lista.filter(m => m.ativo !== false).map(m => [m.id, m]));
@@ -4035,6 +4036,22 @@ const Dashboard = (() => {
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
     if (btnCadastrar) btnCadastrar.hidden = !cargasPodeEditar;
     if (btnSincronizar) btnSincronizar.hidden = !cargasPodeEditar;
+  }
+
+  /** Pedido da usuária, 2026-09-04: "as opções tem na planilha Base do Monitoramento -
+   * consolidado na aba Base Bluesoft" -- em vez de texto livre, o campo Rota da barra
+   * "Adicionar" vira um <select> com as rotas que já existem de verdade nos dados da Base
+   * Bluesoft (mesma coluna `r.rota` usada no painel de Lead Time), pra ela só escolher, nunca
+   * digitar errado. Populado 1x quando o Controle de Cargas é aberto (dado da Base Bluesoft já
+   * carregado no boot da página; "Atualizar dados" recarrega a página inteira, então uma nova
+   * abertura já pega a lista atualizada sozinha). */
+  function cargasPopularSelectRotas() {
+    const select = document.getElementById('cargas-input-rota');
+    if (!select) return;
+    const rotas = Array.from(new Set(DataStore.getRecords().map(r => r.rota).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    select.innerHTML = '<option value="">Rota (opcional)</option>'
+      + rotas.map(r => `<option value="${escapeAttr(r)}">${escapeAttr(r)}</option>`).join('');
   }
 
   function renderControleCargasCards() {
