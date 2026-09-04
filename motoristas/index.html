@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0F172A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Motoristas">
+<link rel="apple-touch-icon" href="../assets/img/icon-motoristas-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Painel do Motorista — Da Terrinha Alimentos</title>
+<link rel="icon" href="../assets/img/icon-motoristas-192.png">
+<style>
+:root{
+  --bg:#0F172A;
+  --surface:#17233B;
+  --surface-soft:#1C2A47;
+  --ink:#EDF1F7;
+  --ink-soft:#9AACC7;
+  --ink-faint:#64748B;
+  --line:#29365A;
+  --brand:#FF7A1A;
+  --brand-dark:#E86A0C;
+  --sucesso:#16A34A;
+  --sucesso-bg:rgba(22,163,74,.16);
+  --alerta:#EAB308;
+  --alerta-bg:rgba(234,179,8,.16);
+  --erro:#DC2626;
+  --erro-bg:rgba(220,38,38,.16);
+  --azul:#2563EB;
+}
+*,*::before,*::after{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  min-height:100vh; -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit; cursor:pointer;}
+input{font-family:inherit;}
+h1,h2,h3,p{margin:0;}
+#app{max-width:520px; margin:0 auto; padding:16px 16px 40px; min-height:100vh;}
+
+.carregando{
+  position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; background:var(--bg); z-index:50;
+}
+.spinner{width:38px; height:38px; border:3px solid var(--line); border-top-color:var(--brand); border-radius:50%; animation:girar 0.8s linear infinite;}
+@keyframes girar{to{transform:rotate(360deg);}}
+.carregando p{color:var(--ink-soft); font-size:14px;}
+
+.app-header{display:flex; align-items:center; gap:12px; padding:8px 0 18px;}
+.app-header__logo{width:48px; height:48px; border-radius:12px; flex:none;}
+.app-header h1{font-size:16.5px; font-weight:800;}
+.app-header p{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+
+.btn-cta{
+  display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+  background:linear-gradient(135deg, var(--brand), var(--brand-dark)); color:#fff; border:none;
+  border-radius:16px; padding:18px 16px; font-size:16.5px; font-weight:800;
+  box-shadow:0 8px 20px rgba(255,122,26,.28); margin-bottom:22px;
+}
+.btn-cta:active{transform:scale(.98);}
+
+.status-section{margin-bottom:20px;}
+.status-section h2{
+  display:flex; align-items:center; justify-content:space-between; font-size:14.5px; font-weight:700;
+  color:var(--ink-soft); padding-bottom:8px; border-bottom:1px solid var(--line); margin-bottom:10px;
+}
+.status-section h2 .contagem{
+  background:var(--surface-soft); color:var(--ink); border-radius:999px; padding:2px 10px; font-size:13px; font-weight:800;
+}
+.status-card{
+  background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:8px;
+}
+.status-card__nome{font-weight:700; font-size:14.5px;}
+.status-card__meta{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+.vazio{color:var(--ink-faint); font-size:13.5px; font-style:italic; padding:6px 2px;}
+
+.tela{display:none;}
+.tela.ativa{display:block;}
+.tela-voltar{
+  display:inline-flex; align-items:center; gap:6px; background:none; border:none; color:var(--ink-soft);
+  font-size:14px; font-weight:600; padding:8px 0; margin-bottom:10px;
+}
+.tela-titulo{font-size:19px; font-weight:800; margin-bottom:6px;}
+.tela-subtitulo{font-size:13.5px; color:var(--ink-soft); margin-bottom:22px; line-height:1.5;}
+
+.campo-placa{
+  width:100%; padding:18px 16px; font-size:26px; font-weight:800; letter-spacing:3px; text-align:center;
+  text-transform:uppercase; background:var(--surface); border:2px solid var(--line); border-radius:14px;
+  color:var(--ink); margin-bottom:18px;
+}
+.campo-placa::placeholder{color:var(--ink-faint); letter-spacing:normal; font-weight:600; font-size:16px;}
+.campo-placa:focus{outline:none; border-color:var(--brand);}
+
+.btn-primario{
+  width:100%; background:linear-gradient(135deg, var(--brand), var(--brand-dark)); color:#fff; border:none;
+  border-radius:14px; padding:16px; font-size:16px; font-weight:800;
+}
+.btn-primario:disabled{opacity:.5;}
+.btn-secundario{
+  width:100%; background:var(--surface); color:var(--ink); border:1px solid var(--line);
+  border-radius:14px; padding:14px; font-size:15px; font-weight:700; margin-top:10px;
+}
+
+.card-confirmacao{
+  background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:18px;
+}
+.card-confirmacao__linha{display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px;}
+.card-confirmacao__linha:last-child{border-bottom:none;}
+.card-confirmacao__label{color:var(--ink-soft);}
+.card-confirmacao__valor{font-weight:700; text-align:right;}
+
+.aviso-rodizio{
+  display:flex; align-items:center; gap:8px; background:var(--alerta-bg); color:var(--alerta);
+  border-radius:12px; padding:12px 14px; font-size:13.5px; font-weight:700; margin-bottom:18px;
+}
+
+.tela-resultado{text-align:center; padding-top:30px;}
+.tela-resultado__icone{font-size:56px; margin-bottom:16px;}
+.tela-resultado__titulo{font-size:19px; font-weight:800; margin-bottom:10px;}
+.tela-resultado__texto{font-size:14px; color:var(--ink-soft); line-height:1.6; margin-bottom:22px;}
+.tela-resultado__detalhe{
+  background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:22px; text-align:left;
+}
+.badge-erro{color:var(--erro);}
+.badge-sucesso{color:var(--sucesso);}
+.badge-azul{color:var(--azul);}
+</style>
+</head>
+<body>
+
+<div id="carregando" class="carregando">
+  <div class="spinner"></div>
+  <p>Carregando…</p>
+</div>
+
+<div id="app" style="display:none;">
+
+  <!-- ===================== TELA: HOME ===================== -->
+  <div id="tela-home" class="tela ativa">
+    <header class="app-header">
+      <img src="../assets/img/icon-motoristas-192.png" class="app-header__logo" alt="">
+      <div>
+        <h1>Da Terrinha Alimentos</h1>
+        <p>Painel do Motorista</p>
+      </div>
+    </header>
+
+    <button type="button" id="btn-avisar-disponibilidade" class="btn-cta">📢 Avisar Disponibilidade</button>
+
+    <section class="status-section">
+      <h2>🟢 Separado <span class="contagem" id="contagem-separado">0</span></h2>
+      <div id="lista-separado"><div class="vazio">Nenhum motorista aqui agora.</div></div>
+    </section>
+    <section class="status-section">
+      <h2>🟡 Separação Iniciada <span class="contagem" id="contagem-em-separacao">0</span></h2>
+      <div id="lista-em-separacao"><div class="vazio">Nenhum motorista aqui agora.</div></div>
+    </section>
+    <section class="status-section">
+      <h2>🔴 Separação Não Iniciada <span class="contagem" id="contagem-nao-iniciada">0</span></h2>
+      <div id="lista-nao-iniciada"><div class="vazio">Nenhum motorista aqui agora.</div></div>
+    </section>
+  </div>
+
+  <!-- ===================== TELA: INFORME SUA PLACA ===================== -->
+  <div id="tela-placa" class="tela">
+    <button type="button" class="tela-voltar" data-voltar-home>← Voltar</button>
+    <h2 class="tela-titulo">Informe sua placa</h2>
+    <p class="tela-subtitulo">Não precisa procurar seu nome — só digite a placa do veículo.</p>
+    <input type="text" id="input-placa" class="campo-placa" placeholder="ABC1D23" inputmode="text" maxlength="8" autocomplete="off" autocapitalize="characters">
+    <button type="button" id="btn-continuar-placa" class="btn-primario">CONTINUAR</button>
+  </div>
+
+  <!-- ===================== TELA: PLACA NÃO CADASTRADA ===================== -->
+  <div id="tela-nao-encontrada" class="tela">
+    <div class="tela-resultado">
+      <div class="tela-resultado__icone badge-erro">⚠️</div>
+      <h2 class="tela-resultado__titulo">Placa não cadastrada</h2>
+      <p class="tela-resultado__texto">Verifique os dados ou entre em contato com a equipe de Transportes.</p>
+      <button type="button" class="btn-secundario" data-voltar-placa>Tentar de novo</button>
+    </div>
+  </div>
+
+  <!-- ===================== TELA: JÁ ESTÁ DISPONÍVEL ===================== -->
+  <div id="tela-ja-disponivel" class="tela">
+    <div class="tela-resultado">
+      <div class="tela-resultado__icone badge-azul">ℹ️</div>
+      <h2 class="tela-resultado__titulo">Este veículo já está disponível</h2>
+      <p class="tela-resultado__texto">Disponibilidade informada às <strong id="ja-disponivel-hora"></strong>. A equipe já foi avisada.</p>
+      <button type="button" class="btn-secundario" data-voltar-home>Voltar ao início</button>
+    </div>
+  </div>
+
+  <!-- ===================== TELA: CONFIRMAR DADOS ===================== -->
+  <div id="tela-confirmar" class="tela">
+    <button type="button" class="tela-voltar" data-voltar-placa>← Voltar</button>
+    <h2 class="tela-titulo">Confirme seus dados</h2>
+    <div class="card-confirmacao">
+      <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Motorista</span><span class="card-confirmacao__valor" id="confirmar-nome"></span></div>
+      <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Placa</span><span class="card-confirmacao__valor" id="confirmar-placa"></span></div>
+      <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Veículo</span><span class="card-confirmacao__valor" id="confirmar-veiculo"></span></div>
+      <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Rodízio</span><span class="card-confirmacao__valor" id="confirmar-rodizio"></span></div>
+    </div>
+    <div id="confirmar-aviso-rodizio" class="aviso-rodizio" hidden>⚠️ Atenção: este veículo possui rodízio hoje.</div>
+    <button type="button" id="btn-confirmar-disponibilidade" class="btn-primario">CONFIRMAR DISPONIBILIDADE</button>
+    <button type="button" class="btn-secundario" data-voltar-home>CANCELAR</button>
+  </div>
+
+  <!-- ===================== TELA: SUCESSO ===================== -->
+  <div id="tela-sucesso" class="tela">
+    <div class="tela-resultado">
+      <div class="tela-resultado__icone badge-sucesso">✅</div>
+      <h2 class="tela-resultado__titulo">Disponibilidade informada com sucesso!</h2>
+      <div class="tela-resultado__detalhe">
+        <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Motorista</span><span class="card-confirmacao__valor" id="sucesso-nome"></span></div>
+        <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Placa</span><span class="card-confirmacao__valor" id="sucesso-placa"></span></div>
+        <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Data/hora</span><span class="card-confirmacao__valor" id="sucesso-data"></span></div>
+      </div>
+      <p class="tela-resultado__texto">Sua disponibilidade já foi enviada para a equipe responsável.</p>
+      <button type="button" class="btn-secundario" data-voltar-home>Voltar ao início</button>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  getFirestore, doc, collection, onSnapshot, writeBatch, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBjNQAQOahpl3Wy6zWiWcnUHgTmJTAUnVE",
+  authDomain: "dashboard-terrinha.firebaseapp.com",
+  projectId: "dashboard-terrinha",
+  storageBucket: "dashboard-terrinha.firebasestorage.app",
+  messagingSenderId: "246670092939",
+  appId: "1:246670092939:web:56ba5649779ff3378ac28e",
+  measurementId: "G-0XK76RER2E"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Motorista não faz login com e-mail/senha (pedido explícito da usuária: "não precisa procurar
+// ou digitar seu nome") -- Anonymous Auth mantém `request.auth != null` válido pras mesmas
+// regras de segurança do resto do projeto, sem exigir credencial nenhuma dele. Persistência
+// local (mesma do Manifesto) pra não recriar uma sessão anônima nova a cada visita.
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+const $ = (id) => document.getElementById(id);
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = String(str == null ? '' : str);
+  return d.innerHTML;
+}
+function normalizarPlaca(valor) {
+  return String(valor || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+const DIA_SEMANA_PARA_RODIZIO = ['', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', ''];
+function rodizioEhHoje(rodizio) {
+  return !!rodizio && DIA_SEMANA_PARA_RODIZIO[new Date().getDay()] === rodizio;
+}
+function timestampParaData(ts) {
+  return ts && typeof ts.toDate === 'function' ? ts.toDate() : null;
+}
+
+let motoristas = new Map();
+let statusCarga = new Map();
+let disponibilidade = new Map();
+let placaEmFluxo = null;
+
+function mostrarTela(nome) {
+  document.querySelectorAll('.tela').forEach(t => t.classList.remove('ativa'));
+  $('tela-' + nome).classList.add('ativa');
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+}
+
+function renderListaStatus(status, idLista, idContagem) {
+  const itens = Array.from(statusCarga.values())
+    .filter(s => s.status === status)
+    .sort((a, b) => {
+      const da = timestampParaData(a.atualizadoEm), db_ = timestampParaData(b.atualizadoEm);
+      return (da ? da.getTime() : 0) - (db_ ? db_.getTime() : 0);
+    });
+  $(idContagem).textContent = itens.length;
+  const wrap = $(idLista);
+  wrap.innerHTML = itens.length ? itens.map(item => {
+    const m = motoristas.get(item.id);
+    return `<div class="status-card">
+      <div class="status-card__nome">${escapeHtml(m ? m.nome : item.id)}</div>
+      <div class="status-card__meta">${escapeHtml(item.id)} · ${escapeHtml(m && m.veiculo ? m.veiculo : '—')}</div>
+    </div>`;
+  }).join('') : '<div class="vazio">Nenhum motorista aqui agora.</div>';
+}
+
+function renderListas() {
+  renderListaStatus('SEPARADO', 'lista-separado', 'contagem-separado');
+  renderListaStatus('EM_SEPARACAO', 'lista-em-separacao', 'contagem-em-separacao');
+  renderListaStatus('NAO_INICIADA', 'lista-nao-iniciada', 'contagem-nao-iniciada');
+}
+
+function iniciarApp() {
+  $('carregando').style.display = 'none';
+  $('app').style.display = 'block';
+
+  onSnapshot(collection(db, 'motoristas'), snap => {
+    motoristas = new Map(snap.docs.filter(d => d.data().ativo !== false).map(d => [d.id, { id: d.id, ...d.data() }]));
+    renderListas();
+  }, () => {});
+
+  onSnapshot(collection(db, 'statusCarga'), snap => {
+    statusCarga = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+    renderListas();
+  }, () => {});
+
+  onSnapshot(collection(db, 'disponibilidade'), snap => {
+    disponibilidade = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
+  }, () => {});
+}
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    try { await signInAnonymously(auth); } catch (err) {
+      $('carregando').innerHTML = '<p>Não consegui conectar agora. Verifique sua internet e tente de novo.</p>';
+      console.error('Falha no login anônimo', err);
+    }
+    return; // onAuthStateChanged dispara de novo já autenticado
+  }
+  iniciarApp();
+});
+
+// ---------- fluxo "Avisar Disponibilidade" ----------
+
+$('btn-avisar-disponibilidade').addEventListener('click', () => {
+  $('input-placa').value = '';
+  mostrarTela('placa');
+  setTimeout(() => $('input-placa').focus(), 50);
+});
+
+$('input-placa').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
+$('input-placa').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-continuar-placa').click(); });
+
+$('btn-continuar-placa').addEventListener('click', () => {
+  const placa = normalizarPlaca($('input-placa').value);
+  if (!placa) return;
+
+  const motorista = motoristas.get(placa);
+  if (!motorista) { mostrarTela('nao-encontrada'); return; }
+
+  placaEmFluxo = placa;
+  const disp = disponibilidade.get(placa);
+  if (disp && disp.status === 'DISPONIVEL') {
+    const data = timestampParaData(disp.disponibilizadoEm);
+    $('ja-disponivel-hora').textContent = data ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+    mostrarTela('ja-disponivel');
+    return;
+  }
+
+  $('confirmar-nome').textContent = motorista.nome;
+  $('confirmar-placa').textContent = motorista.placa;
+  $('confirmar-veiculo').textContent = motorista.veiculo || '—';
+  $('confirmar-rodizio').textContent = motorista.rodizio || 'Sem rodízio cadastrado';
+  $('confirmar-aviso-rodizio').hidden = !rodizioEhHoje(motorista.rodizio);
+  mostrarTela('confirmar');
+});
+
+$('btn-confirmar-disponibilidade').addEventListener('click', async () => {
+  if (!placaEmFluxo) return;
+  const btn = $('btn-confirmar-disponibilidade');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  try {
+    const lote = writeBatch(db);
+    lote.set(doc(db, 'disponibilidade', placaEmFluxo), {
+      placa: placaEmFluxo, status: 'DISPONIVEL', disponibilizadoEm: serverTimestamp(), origem: 'motorista'
+    });
+    lote.set(doc(collection(db, 'disponibilidadeHistorico')), {
+      placa: placaEmFluxo, evento: 'disponibilizado', dataHora: serverTimestamp(), origem: 'motorista'
+    });
+    await lote.commit();
+
+    const motorista = motoristas.get(placaEmFluxo);
+    $('sucesso-nome').textContent = motorista ? motorista.nome : placaEmFluxo;
+    $('sucesso-placa').textContent = placaEmFluxo;
+    $('sucesso-data').textContent = new Date().toLocaleString('pt-BR');
+    mostrarTela('sucesso');
+  } catch (err) {
+    console.error('Falha ao registrar disponibilidade', err);
+    alert('Não consegui registrar sua disponibilidade agora. Verifique sua internet e tente de novo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'CONFIRMAR DISPONIBILIDADE';
+  }
+});
+
+document.querySelectorAll('[data-voltar-home]').forEach(b => b.addEventListener('click', () => { placaEmFluxo = null; mostrarTela('home'); }));
+document.querySelectorAll('[data-voltar-placa]').forEach(b => b.addEventListener('click', () => mostrarTela('placa')));
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
