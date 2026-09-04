@@ -184,7 +184,7 @@ async function definirPermissaoEdicaoAgendamento(uid, pode) {
   await updateDoc(doc(db, 'users', uid), { podeEditarAgendamento: !!pode });
 }
 
-/** Habilita/desabilita a edição do Manifesto (Monitoramento) de um usuário específico —
+/** Habilita/desabilita a edição do Manifesto (Controle de Retorno) de um usuário específico —
  * mesma ideia de definirPermissaoEdicaoAgendamento acima, campo separado. Quem não tem essa
  * permissão ainda pode ABRIR o Manifesto e criar notas novas ("alimentar"), só não edita/exclui
  * as existentes nem exporta/importa — ver manifesto/index.html. */
