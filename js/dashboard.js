@@ -3957,26 +3957,6 @@ const Dashboard = (() => {
     return { carro: '', peso: limpo };
   }
 
-  /** Rota (pedido da usuária, 2026-09-04: "a opção de Rota que fica na Base Bluesoft... vai ser
-   * inserida da mesma forma que as informações de Separações são") -- busca por PLACA (mesma
-   * chave já usada pro cruzamento de No-Show/Carregou) a viagem mais recente da Base Bluesoft
-   * pra essa placa e devolve a Rota dela. Chamada no momento de colocar/mover um motorista num
-   * status de separação (não fica salva num lugar à parte -- entra junto no MESMO documento
-   * `statusCarga/{placa}`, pra tanto o painel quanto o app do motorista mostrarem sem precisar
-   * de outra fonte de dados). Só o Site Principal consegue fazer essa busca (só ele carrega a
-   * Base Bluesoft) -- por isso a Rota nunca é escrita pelo app do motorista, só lida por ele. */
-  function cargasBuscarRotaAtual(placaBruta) {
-    const placa = cargasNormalizarPlaca(placaBruta);
-    const registros = DataStore.getRecords().filter(r => r.placa && r.rota && cargasNormalizarPlaca(r.placa) === placa);
-    if (!registros.length) return '';
-    registros.sort((a, b) => {
-      const da = a.dataCriacao ? a.dataCriacao.getTime() : 0;
-      const db_ = b.dataCriacao ? b.dataCriacao.getTime() : 0;
-      return db_ - da;
-    });
-    return registros[0].rota;
-  }
-
   function cargasInicioDoDia(data) {
     const d = new Date(data);
     d.setHours(0, 0, 0, 0);
@@ -4167,8 +4147,11 @@ const Dashboard = (() => {
       const placa = botao.dataset.cargasPlaca;
       botao.disabled = true;
       try {
-        if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', cargasBuscarRotaAtual(placa));
-        else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', cargasBuscarRotaAtual(placa));
+        // Rota é preenchida manualmente só na hora de Adicionar (ver bindControleCargasAutocomplete)
+        // -- aqui, ao só mover de status, mantém a rota que já estava salva nesse documento.
+        const rotaAtual = (cargasStatusCarga.get(placa) || {}).rota || '';
+        if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', rotaAtual);
+        else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual);
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
         else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
       } catch (err) {
@@ -4217,10 +4200,13 @@ const Dashboard = (() => {
     btnAdicionar.addEventListener('click', async () => {
       if (!cargasMotoristaSelecionadoParaAdicionar) return;
       const status = document.getElementById('cargas-select-status').value;
+      const inputRota = document.getElementById('cargas-input-rota');
+      const rota = inputRota ? inputRota.value.trim() : '';
       btnAdicionar.disabled = true;
       try {
-        await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status, cargasBuscarRotaAtual(cargasMotoristaSelecionadoParaAdicionar));
+        await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status, rota);
         input.value = '';
+        if (inputRota) inputRota.value = '';
         cargasMotoristaSelecionadoParaAdicionar = null;
         Utils.showToast('Motorista adicionado.', 'success', 2000);
       } catch (err) {
