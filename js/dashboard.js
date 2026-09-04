@@ -3957,6 +3957,26 @@ const Dashboard = (() => {
     return { carro: '', peso: limpo };
   }
 
+  /** Rota (pedido da usuária, 2026-09-04: "a opção de Rota que fica na Base Bluesoft... vai ser
+   * inserida da mesma forma que as informações de Separações são") -- busca por PLACA (mesma
+   * chave já usada pro cruzamento de No-Show/Carregou) a viagem mais recente da Base Bluesoft
+   * pra essa placa e devolve a Rota dela. Chamada no momento de colocar/mover um motorista num
+   * status de separação (não fica salva num lugar à parte -- entra junto no MESMO documento
+   * `statusCarga/{placa}`, pra tanto o painel quanto o app do motorista mostrarem sem precisar
+   * de outra fonte de dados). Só o Site Principal consegue fazer essa busca (só ele carrega a
+   * Base Bluesoft) -- por isso a Rota nunca é escrita pelo app do motorista, só lida por ele. */
+  function cargasBuscarRotaAtual(placaBruta) {
+    const placa = cargasNormalizarPlaca(placaBruta);
+    const registros = DataStore.getRecords().filter(r => r.placa && r.rota && cargasNormalizarPlaca(r.placa) === placa);
+    if (!registros.length) return '';
+    registros.sort((a, b) => {
+      const da = a.dataCriacao ? a.dataCriacao.getTime() : 0;
+      const db_ = b.dataCriacao ? b.dataCriacao.getTime() : 0;
+      return db_ - da;
+    });
+    return registros[0].rota;
+  }
+
   function cargasInicioDoDia(data) {
     const d = new Date(data);
     d.setHours(0, 0, 0, 0);
@@ -4080,7 +4100,7 @@ const Dashboard = (() => {
     } else {
       itens = Array.from(cargasStatusCarga.values())
         .filter(s => s.status === cargasFiltroAtivo)
-        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm) }));
+        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm), rota: s.rota || '' }));
     }
     // Quem avisou/entrou primeiro aparece primeiro (pedido explícito da usuária).
     itens.sort((a, b) => (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0));
@@ -4100,6 +4120,7 @@ const Dashboard = (() => {
         ? `<span class="cargas-rodizio-destaque">Rodízio: ${escapeAttr(rodizio)}</span>`
         : 'Sem rodízio cadastrado';
       const tempo = item.dataRef ? cargasFormatarTempoDecorrido(item.dataRef) : '';
+      const rotaTexto = item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '';
 
       let acoes = '';
       if (cargasPodeEditar && cargasFiltroAtivo === 'NAO_INICIADA') {
@@ -4118,7 +4139,7 @@ const Dashboard = (() => {
         <div class="cargas-item">
           <div class="cargas-item__info">
             <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}</div>
-            <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}</div>
+            <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
           </div>
           <div class="cargas-item__tempo">${tempo}</div>
           <div class="cargas-item__acoes">${acoes}</div>
@@ -4146,8 +4167,8 @@ const Dashboard = (() => {
       const placa = botao.dataset.cargasPlaca;
       botao.disabled = true;
       try {
-        if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO');
-        else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO');
+        if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', cargasBuscarRotaAtual(placa));
+        else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', cargasBuscarRotaAtual(placa));
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
         else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
       } catch (err) {
@@ -4198,7 +4219,7 @@ const Dashboard = (() => {
       const status = document.getElementById('cargas-select-status').value;
       btnAdicionar.disabled = true;
       try {
-        await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status);
+        await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status, cargasBuscarRotaAtual(cargasMotoristaSelecionadoParaAdicionar));
         input.value = '';
         cargasMotoristaSelecionadoParaAdicionar = null;
         Utils.showToast('Motorista adicionado.', 'success', 2000);
