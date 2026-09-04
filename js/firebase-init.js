@@ -375,11 +375,10 @@ async function definirStatusCarga(placaBruta, novoStatus, rota) {
   const statusAnterior = snapAtual.exists() ? snapAtual.data().status : null;
 
   const lote = writeBatch(db);
-  // Rota vem da Base Bluesoft (pedido da usuária, 2026-09-04: "essa informação vai ser
-  // inserida da mesma forma que as informações de Separações são") -- js/dashboard.js já
-  // busca o valor certo (mais recente pra essa placa) antes de chamar esta função; aqui só
-  // grava junto do MESMO documento de status, pra ficar disponível tanto no painel quanto no
-  // app do motorista sem precisar de outra leitura.
+  // Rota é digitada manualmente pela equipe (pedido da usuária, 2026-09-04: "quero adicionar a
+  // rota manualmente do mesmo jeito que incluo as informações de Separação") -- grava junto do
+  // MESMO documento de status, pra ficar disponível tanto no painel quanto no app do motorista
+  // sem precisar de outra leitura.
   lote.set(refAtual, {
     placa, status: novoStatus, rota: rota || '', atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
