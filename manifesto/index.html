@@ -1661,7 +1661,7 @@ function renderLista(){
         </div>
         <span class="status-chip ${e.status}">${labelStatus(e.status)}</span>
       </div>
-      <div class="item-cliente">${e.cliente ? escapeHtml(e.cliente) : '<span class="item-cliente--vazio">Cliente não identificado</span>'}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
+      <div class="item-cliente">${clienteNaoIdentificado(e.cliente) ? '<span class="item-cliente--vazio">Cliente não identificado</span>' : escapeHtml(e.cliente)}${e.nf ? ` <span class="item-nf">NF ${escapeHtml(e.nf)}</span>` : ''}</div>
       ${e.endereco ? `<div class="item-endereco">${escapeHtml(e.endereco)}</div>` : ''}
       <div class="item-meta">
         <span>${fmtData(e.data)}${horaTxt}</span>
@@ -2130,12 +2130,19 @@ function corrigirSuspeitaNf(id, numero){
 }
 
 /* ---------- excluir em massa: notas sem Cliente identificado ----------
-   Pedido da usuária (2026-09-04): apagar de vez todo registro com Cliente em branco (mesmo
-   critério exato usado pra mostrar "Cliente não identificado" na lista, ver item-cliente--vazio
-   acima -- .trim() extra aqui pra também pegar um Cliente só com espaço em branco). Mostra a
-   contagem real antes de qualquer clique, pra ela nunca excluir "no escuro". */
+   Pedido da usuária (2026-09-04): apagar de vez todo registro com Cliente em branco. Achado
+   depois de ela mandar print da tela de Editar: várias notas (importadas em lote, provavelmente
+   de uma planilha onde alguém digitou esse texto na célula por falta de informação mesmo) têm
+   Cliente PREENCHIDO com o texto literal "Cliente não identificado" -- não vazio de verdade, só
+   parece por coincidência de palavras. `clienteNaoIdentificado()` é a ÚNICA fonte de verdade
+   pra essa checagem, usada tanto aqui quanto na exibição do card na lista (ver item-cliente
+   acima) -- garante que os dois nunca mais divergem, seja qual for o motivo. */
+function clienteNaoIdentificado(cliente){
+  const c = (cliente || '').toString().trim();
+  return !c || normalizarTexto(c) === normalizarTexto('Cliente não identificado');
+}
 function registrosSemClienteIdentificado(){
-  return entries.filter(e => !((e.cliente || '').toString().trim()));
+  return entries.filter(e => clienteNaoIdentificado(e.cliente));
 }
 function renderLimpezaClienteVazio(){
   const resumo = $('limpezaClienteResumo');
