@@ -133,7 +133,7 @@
       <h2 class="modal-card__title">Usuários cadastrados</h2>
       <button id="btn-fechar-modal-usuarios" class="icon-btn" aria-label="Fechar">✕</button>
     </div>
-    <p class="modal-card__hint">Marque quem, além de você, pode preencher a data e o status de agendamento das notas, e/ou editar os registros do Manifesto (Monitoramento), e/ou o Controle de Cargas/disponibilidade de motoristas.</p>
+    <p class="modal-card__hint">Marque quem, além de você, pode preencher a data e o status de agendamento das notas, e/ou editar os registros do Manifesto (Controle de Retorno), e/ou o Controle de Cargas/disponibilidade de motoristas.</p>
     <div id="lista-usuarios" class="usuarios-lista">
       <p class="usuarios-lista__carregando">Carregando usuários...</p>
     </div>
@@ -483,12 +483,12 @@ Segue anexo o relatório atualizado.</textarea>
         <!-- App "Manifesto" (2026-09-01): página própria em manifesto/index.html, app de página
              única com dados no localStorage do navegador (não integra com DataStore/Firestore
              do dashboard) — por isso é um link normal (nova aba), não um data-view. Renomeado
-             "Controle de Entregas" -> "Monitoramento" e reordenado logo após "Ocorrências do
-             Dia" (pedido do usuário, 2026-09-04), pra "Controle de Cargas" e "Painel do
+             "Controle de Entregas" -> "Monitoramento" -> "Controle de Retorno" (2026-09-04) e
+             reordenado logo após "Ocorrências do Dia", pra "Controle de Cargas" e "Painel do
              Motorista" (os 2 menus mais novos) ficarem um depois do outro, sem nada no meio. -->
-        <a href="manifesto/index.html" target="_blank" rel="noopener" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" title="Monitoramento (Manifesto)" style="text-decoration:none;">
-          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
-          <span class="nav-label">Monitoramento</span>
+        <a href="manifesto/index.html" target="_blank" rel="noopener" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" title="Controle de Retorno (Manifesto)" style="text-decoration:none;">
+          <span class="nav-icon">♻️</span>
+          <span class="nav-label">Controle de Retorno</span>
         </a>
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="cargas" title="Controle de Cargas e Motoristas">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
@@ -498,7 +498,7 @@ Segue anexo o relatório atualizado.</textarea>
              separado (Anonymous Auth, sem login) -- link normal (nova aba), mesmo padrão do
              Manifesto acima. -->
         <a href="motoristas/index.html" target="_blank" rel="noopener" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" title="Painel do Motorista" style="text-decoration:none;">
-          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
+          <span class="nav-icon">📲</span>
           <span class="nav-label">Painel do Motorista</span>
         </a>
       </div>
