@@ -167,6 +167,11 @@ const FIELD_ALIASES = {
   // colidir com o campo "coleta" já estabelecido.
   dataCriacao: ['data criacao'],
   dataEntregaNF: ['data entrega nf'],
+  // Placa do veículo da viagem — já vem no CSV da Base Bluesoft (extraído desde sempre), mas
+  // nunca tinha sido lida pra nenhum campo do dashboard até o Controle de Cargas (2026-09-04)
+  // precisar cruzar disponibilidade/motoristas (que já usam a Placa como chave) contra viagens
+  // reais. Mesma lacuna já corrigida antes pra "Data Faturamento Bluesoft".
+  placa: ['placa'],
   // Colunas novas 2026-08-22, exibidas na tabela "Registros detalhados" (ocultas por padrão,
   // ver colunasTabelaPrincipal em dashboard.js).
   filial: ['filial'],
@@ -756,6 +761,7 @@ const DataStore = (() => {
       // sobrescreve nada em applyBluesoftEnrichment).
       const categoriaTransporteRaw = pickField(row, headerIndex, 'categoriaTransporte') || '';
       const dataFaturamentoBluesoftRaw = pickField(row, headerIndex, 'dataFaturamentoBluesoft') || '';
+      const placaRaw = pickField(row, headerIndex, 'placa') || '';
       const candidato = {
         status,
         cliente: pickField(row, headerIndex, 'cliente'),
@@ -772,6 +778,7 @@ const DataStore = (() => {
         dataCriacao: dataCriacaoRaw,
         dataEntregaNF: dataEntregaNFRaw,
         dataFaturamentoBluesoft: dataFaturamentoBluesoftRaw,
+        placa: placaRaw,
         filial: filialRaw,
         codigoCliente: codigoClienteRaw,
         telefone: telefoneRaw,
@@ -902,6 +909,7 @@ const DataStore = (() => {
       if (info.dataCriacao) r.dataCriacao = Utils.parseDate(info.dataCriacao);
       if (info.dataEntregaNF) r.dataEntregaNF = Utils.parseDate(info.dataEntregaNF);
       if (info.dataFaturamentoBluesoft) r.dataFaturamentoBluesoft = Utils.parseDate(info.dataFaturamentoBluesoft);
+      if (info.placa) r.placa = info.placa;
       if (info.filial) r.filial = info.filial;
       if (info.codigoCliente) r.codigoCliente = info.codigoCliente;
       if (info.telefone) r.telefone = info.telefone;
@@ -949,6 +957,7 @@ const DataStore = (() => {
         dataAgendamento: null,
         dataFaturamento: null,
         dataFaturamentoBluesoft: Utils.parseDate(info.dataFaturamentoBluesoft),
+        placa: info.placa || '',
         dataEntrega: dataColeta,
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
         dataUltimaTentativaBluesoft: bluesoftDataColetaMaisRecentePorBaseNF.get(baseNf) || null,
