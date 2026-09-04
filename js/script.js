@@ -502,6 +502,8 @@ function bindGerenciarUsuarios() {
       const ehSuperAdmin = Dashboard.isSuperAdminEmailAgendamento(u.email);
       const marcadoAgendamento = ehSuperAdmin || u.podeEditarAgendamento;
       const marcadoManifesto = ehSuperAdmin || u.podeEditarManifesto;
+      const marcadoCargas = ehSuperAdmin || u.podeEditarCargas;
+      const marcadoDisponibilidade = ehSuperAdmin || u.podeGerenciarDisponibilidade;
       return `<div class="usuario-row${ehSuperAdmin ? ' usuario-row--super-admin' : ''}" data-uid="${escapeAttrLocal(u.uid)}">
         <div>
           <div class="usuario-row__nome">${escapeAttrLocal(u.nome)}</div>
@@ -515,6 +517,14 @@ function bindGerenciarUsuarios() {
           <label class="usuario-row__toggle">
             <input type="checkbox" class="usuario-row__checkbox" data-permissao="manifesto" ${marcadoManifesto ? 'checked' : ''} ${ehSuperAdmin ? 'disabled' : ''}>
             Pode editar o Manifesto
+          </label>
+          <label class="usuario-row__toggle">
+            <input type="checkbox" class="usuario-row__checkbox" data-permissao="cargas" ${marcadoCargas ? 'checked' : ''} ${ehSuperAdmin ? 'disabled' : ''}>
+            Pode editar Controle de Cargas
+          </label>
+          <label class="usuario-row__toggle">
+            <input type="checkbox" class="usuario-row__checkbox" data-permissao="disponibilidade" ${marcadoDisponibilidade ? 'checked' : ''} ${ehSuperAdmin ? 'disabled' : ''}>
+            Pode gerenciar disponibilidade de motoristas
           </label>
         </div>
       </div>`;
@@ -544,13 +554,19 @@ function bindGerenciarUsuarios() {
     const linha = checkbox.closest('.usuario-row');
     const uid = linha.dataset.uid;
     const pode = checkbox.checked;
-    const permissao = checkbox.dataset.permissao; // 'agendamento' ou 'manifesto'
+    const permissao = checkbox.dataset.permissao; // 'agendamento' | 'manifesto' | 'cargas' | 'disponibilidade'
     checkbox.disabled = true;
     try {
       const fb = await waitFirebaseReady();
       if (permissao === 'manifesto') {
         await fb.definirPermissaoEdicaoManifesto(uid, pode);
         Utils.showToast(pode ? 'Usuário habilitado a editar o Manifesto.' : 'Edição do Manifesto removida desse usuário.', 'success', 2500);
+      } else if (permissao === 'cargas') {
+        await fb.definirPermissaoEdicaoCargas(uid, pode);
+        Utils.showToast(pode ? 'Usuário habilitado a editar o Controle de Cargas.' : 'Edição do Controle de Cargas removida desse usuário.', 'success', 2500);
+      } else if (permissao === 'disponibilidade') {
+        await fb.definirPermissaoGerenciarDisponibilidade(uid, pode);
+        Utils.showToast(pode ? 'Usuário habilitado a gerenciar disponibilidade de motoristas.' : 'Gerenciar disponibilidade removido desse usuário.', 'success', 2500);
       } else {
         await fb.definirPermissaoEdicaoAgendamento(uid, pode);
         Utils.showToast(pode ? 'Usuário habilitado a editar agendamentos.' : 'Edição de agendamento removida desse usuário.', 'success', 2500);
