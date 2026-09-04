@@ -330,6 +330,23 @@ const Dashboard = (() => {
   // assets/data/canhotos-index.json (gerado por scripts/gerar-indice-canhotos.ps1).
   let canhotosIndex = new Map();
 
+  // Controle de Cargas e Disponibilidade de Motoristas (2026-09-04) — estado em memória
+  // alimentado pelos 3 onSnapshot do Firestore (motoristas/statusCarga/disponibilidade), ver
+  // inicializarControleCargas(). Cada Map é substituído inteiro a cada evento; toda renderização
+  // usa os 3 juntos, então nunca fica dessincronizado entre si (mesmo padrão já usado no resto
+  // do dashboard pra evitar o tipo de bug já visto no Manifesto: contagem calculada de um jeito,
+  // lista mostrada calculada de outro).
+  let cargasMotoristas = new Map(); // placa normalizada -> {placa, nome, veiculo, rodizio, ativo}
+  let cargasStatusCarga = new Map(); // placa -> {id(=placa), status, atualizadoEm, alteradoPorEmail}
+  let cargasDisponibilidade = new Map(); // placa -> {id(=placa), status, disponibilizadoEm, ...}
+  let cargasFiltroAtivo = null;
+  let cargasMotoristaSelecionadoParaAdicionar = null;
+  let cargasInicializado = false;
+  let cargasDashFirebase = null;
+  let cargasPodeEditar = false;
+  let cargasPodeGerenciarDisponibilidade = false;
+  let cargasUltimaVerificacaoNoShow = '';
+
   // Colunas que começam OCULTAS por padrão na tabela "Registros detalhados" — decisão do
   // usuário (2026-08-22): campos novos, úteis pra consulta pontual, mas que não deveriam
   // poluir a tabela por padrão (ainda buscáveis mesmo ocultos, ver haystack em data.js).
@@ -373,6 +390,7 @@ const Dashboard = (() => {
     bindPedidosNaoFaturadosView();
     bindMapaRegioesMensagens();
     bindLeadTimePedidos();
+    bindControleCargas();
     createCharts();
     DataStore.onChange(render);
   }
@@ -433,6 +451,7 @@ const Dashboard = (() => {
     // KPIs/gráficos escondidos via CSS (.modo-tabela-foco) e o filtro extra de
     // aplicarFiltroOcorrenciasDoDia por cima.
     const barraOcorrencias = document.getElementById('ocorrencias-periodo-bar');
+    const cargasView = document.getElementById('cargas-view');
 
     main.hidden = view !== 'registros' && view !== 'ocorrencias';
     main.classList.toggle('modo-tabela-foco', view === 'ocorrencias');
@@ -442,6 +461,7 @@ const Dashboard = (() => {
     dinamico.hidden = view !== 'dinamico';
     if (leadtimePedidos) leadtimePedidos.hidden = view !== 'leadtime-pedidos';
     if (pedidosNaoFaturados) pedidosNaoFaturados.hidden = true;
+    if (cargasView) cargasView.hidden = view !== 'cargas';
     atualizarBotaoIrInicio();
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
@@ -462,6 +482,9 @@ const Dashboard = (() => {
     } else if (view === 'leadtime-pedidos') {
       renderLeadTimePedidos();
       if (leadtimePedidos) leadtimePedidos.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (view === 'cargas') {
+      inicializarControleCargas();
+      if (cargasView) cargasView.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       // 'registros' e 'ocorrencias' entram aqui — entrar/sair do modo muda quais registros a
       // tabela mostra (aplicarFiltroOcorrenciasDoDia), então precisa redesenhar mesmo sem
@@ -3900,6 +3923,394 @@ const Dashboard = (() => {
     if (urls.length > 1) {
       Utils.showToast(`NF ${nf}: ${urls.length} arquivos encontrados — abrindo o primeiro.`, 'info', 5000);
     }
+  }
+
+  /* ============================================================
+   * CONTROLE DE CARGAS E DISPONIBILIDADE DE MOTORISTAS (2026-09-04)
+   * ------------------------------------------------------------
+   * Tempo real via Firestore (onSnapshot em motoristas/statusCarga/disponibilidade — ver
+   * js/firebase-init.js), independente de DataStore/CSV, mesmo padrão do Manifesto. A única
+   * ponte com o resto do dashboard é o cruzamento contra a Base Bluesoft (DataStore.getRecords,
+   * campo r.placa) pra decidir Carregou/No-Show — ver verificarNoShowDisponibilidade.
+   * ============================================================ */
+
+  function cargasNormalizarTexto(s) {
+    return (s || '').toString().trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+  function cargasNormalizarPlaca(valor) {
+    return String(valor || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+  const CARGAS_DIA_SEMANA_PARA_RODIZIO = ['', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', ''];
+  function cargasRodizioEhHoje(rodizio) {
+    return !!rodizio && CARGAS_DIA_SEMANA_PARA_RODIZIO[new Date().getDay()] === rodizio;
+  }
+  function cargasInicioDoDia(data) {
+    const d = new Date(data);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  /** "Há X min"/"Há Xh Ymin"/"Há X dia(s)" — sempre calculado na hora da renderização a partir
+   * do timestamp gravado, nunca guardado como texto (pedido explícito da usuária). */
+  function cargasFormatarTempoDecorrido(data) {
+    if (!data) return '';
+    const minutos = Math.max(0, Math.floor((Date.now() - data.getTime()) / 60000));
+    if (minutos < 1) return 'Agora mesmo';
+    if (minutos < 60) return `Há ${minutos} min`;
+    const horas = Math.floor(minutos / 60);
+    if (horas < 24) {
+      const min = minutos % 60;
+      return min > 0 ? `Há ${horas}h ${min}min` : `Há ${horas}h`;
+    }
+    const dias = Math.floor(horas / 24);
+    return `Há ${dias} dia${dias > 1 ? 's' : ''}`;
+  }
+  function cargasTimestampParaData(ts) {
+    return ts && typeof ts.toDate === 'function' ? ts.toDate() : null;
+  }
+
+  async function cargasWaitFirebaseReady() {
+    return new Promise((resolve) => {
+      if (window.Firebase) return resolve(window.Firebase);
+      window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+    });
+  }
+
+  /** Só assina os 3 onSnapshot na PRIMEIRA vez que ela abre essa tela — evita 3 listeners em
+   * tempo real rodando a sessão inteira pra quem nunca usa esse módulo. */
+  async function inicializarControleCargas() {
+    if (cargasInicializado) return;
+    cargasInicializado = true;
+    const fb = await cargasWaitFirebaseReady();
+    cargasDashFirebase = fb;
+
+    try {
+      const permissoes = await fb.getMinhasPermissoesCargas();
+      cargasPodeEditar = !!permissoes.podeEditarCargas;
+      cargasPodeGerenciarDisponibilidade = !!permissoes.podeGerenciarDisponibilidade;
+    } catch (err) {
+      console.warn('Não consegui verificar permissões do Controle de Cargas:', err.message);
+    }
+    renderControleCargasAcoesGlobais();
+
+    fb.assinarMotoristas((lista) => {
+      cargasMotoristas = new Map(lista.filter(m => m.ativo !== false).map(m => [m.id, m]));
+      renderControleCargasCards();
+      renderControleCargasLista();
+    }, (err) => Utils.showToast('Falha ao sincronizar motoristas: ' + err.message, 'error'));
+
+    fb.assinarStatusCarga((lista) => {
+      cargasStatusCarga = new Map(lista.map(s => [s.id, s]));
+      renderControleCargasCards();
+      renderControleCargasLista();
+    }, (err) => Utils.showToast('Falha ao sincronizar status de carga: ' + err.message, 'error'));
+
+    fb.assinarDisponibilidade((lista) => {
+      cargasDisponibilidade = new Map(lista.map(d => [d.id, d]));
+      renderControleCargasCards();
+      renderControleCargasLista();
+      verificarNoShowDisponibilidade();
+    }, (err) => Utils.showToast('Falha ao sincronizar disponibilidade: ' + err.message, 'error'));
+
+    // "Há X minutos" precisa avançar mesmo sem nenhum evento novo do Firestore.
+    setInterval(() => {
+      if (cargasFiltroAtivo && !document.getElementById('cargas-view').hidden) renderControleCargasLista();
+    }, 60000);
+  }
+
+  function renderControleCargasAcoesGlobais() {
+    const btnCadastrar = document.getElementById('cargas-btn-cadastrar');
+    const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
+    if (btnCadastrar) btnCadastrar.hidden = !cargasPodeEditar;
+    if (btnSincronizar) btnSincronizar.hidden = !cargasPodeEditar;
+  }
+
+  function renderControleCargasCards() {
+    const contagem = { NAO_INICIADA: 0, EM_SEPARACAO: 0, SEPARADO: 0, DISPONIVEL: 0 };
+    cargasStatusCarga.forEach(s => { if (contagem[s.status] !== undefined) contagem[s.status]++; });
+    cargasDisponibilidade.forEach(d => { if (d.status === 'DISPONIVEL') contagem.DISPONIVEL++; });
+    const mapaIds = {
+      NAO_INICIADA: 'cargas-count-nao-iniciada', EM_SEPARACAO: 'cargas-count-em-separacao',
+      SEPARADO: 'cargas-count-separado', DISPONIVEL: 'cargas-count-disponiveis'
+    };
+    Object.entries(mapaIds).forEach(([chave, id]) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = Utils.formatNumber(contagem[chave]);
+    });
+  }
+
+  const CARGAS_LABEL_FILTRO = {
+    NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada',
+    SEPARADO: 'Separado', DISPONIVEL: 'Motoristas Disponíveis'
+  };
+
+  function renderControleCargasLista() {
+    const wrap = document.getElementById('cargas-lista');
+    const titulo = document.getElementById('cargas-lista-titulo');
+    if (!wrap || !titulo) return;
+
+    document.querySelectorAll('#cargas-view [data-cargas-filtro]').forEach(card => {
+      card.classList.toggle('selecionado', card.dataset.cargasFiltro === cargasFiltroAtivo);
+    });
+
+    if (!cargasFiltroAtivo) {
+      titulo.textContent = 'Selecione um card acima pra ver a lista';
+      wrap.innerHTML = '';
+      return;
+    }
+    titulo.textContent = CARGAS_LABEL_FILTRO[cargasFiltroAtivo] || '';
+
+    let itens;
+    if (cargasFiltroAtivo === 'DISPONIVEL') {
+      itens = Array.from(cargasDisponibilidade.values())
+        .filter(d => d.status === 'DISPONIVEL')
+        .map(d => ({ placa: d.id, dataRef: cargasTimestampParaData(d.disponibilizadoEm) }));
+    } else {
+      itens = Array.from(cargasStatusCarga.values())
+        .filter(s => s.status === cargasFiltroAtivo)
+        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm) }));
+    }
+    // Quem avisou/entrou primeiro aparece primeiro (pedido explícito da usuária).
+    itens.sort((a, b) => (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0));
+
+    if (!itens.length) {
+      wrap.innerHTML = '<div class="cargas-vazio">Nenhum motorista aqui agora.</div>';
+      return;
+    }
+
+    wrap.innerHTML = itens.map(item => {
+      const motorista = cargasMotoristas.get(item.placa);
+      const nome = motorista ? motorista.nome : '(motorista não encontrado no cadastro)';
+      const veiculo = motorista && motorista.veiculo ? motorista.veiculo : '—';
+      const rodizio = motorista ? motorista.rodizio : '';
+      const badgeRodizio = cargasRodizioEhHoje(rodizio) ? '<span class="cargas-badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
+      const rodizioTexto = rodizio ? `Rodízio: ${escapeAttr(rodizio)}` : 'Sem rodízio cadastrado';
+      const tempo = item.dataRef ? cargasFormatarTempoDecorrido(item.dataRef) : '';
+
+      let acoes = '';
+      if (cargasPodeEditar && cargasFiltroAtivo === 'NAO_INICIADA') {
+        acoes = `<button class="btn btn--primary" data-cargas-acao="iniciar" data-cargas-placa="${escapeAttr(item.placa)}">Iniciar Separação</button>
+                 <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
+      } else if (cargasPodeEditar && cargasFiltroAtivo === 'EM_SEPARACAO') {
+        acoes = `<button class="btn btn--primary" data-cargas-acao="separar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Separado</button>
+                 <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
+      } else if (cargasPodeEditar && cargasFiltroAtivo === 'SEPARADO') {
+        acoes = `<button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
+      } else if (cargasPodeGerenciarDisponibilidade && cargasFiltroAtivo === 'DISPONIVEL') {
+        acoes = `<button class="btn" data-cargas-acao="encerrar-disponibilidade" data-cargas-placa="${escapeAttr(item.placa)}">Retirar da lista</button>`;
+      }
+
+      return `
+        <div class="cargas-item">
+          <div class="cargas-item__info">
+            <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}</div>
+            <div class="cargas-item__meta">${escapeAttr(item.placa)} · ${escapeAttr(veiculo)} · ${rodizioTexto}</div>
+          </div>
+          <div class="cargas-item__tempo">${tempo}</div>
+          <div class="cargas-item__acoes">${acoes}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function bindControleCargasCards() {
+    document.querySelectorAll('#cargas-view [data-cargas-filtro]').forEach(card => {
+      card.addEventListener('click', () => {
+        const filtro = card.dataset.cargasFiltro;
+        cargasFiltroAtivo = cargasFiltroAtivo === filtro ? null : filtro;
+        renderControleCargasLista();
+      });
+    });
+  }
+
+  function bindControleCargasAcoes() {
+    const wrap = document.getElementById('cargas-lista');
+    if (!wrap) return;
+    wrap.addEventListener('click', async (e) => {
+      const botao = e.target.closest('[data-cargas-acao]');
+      if (!botao) return;
+      const acao = botao.dataset.cargasAcao;
+      const placa = botao.dataset.cargasPlaca;
+      botao.disabled = true;
+      try {
+        if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO');
+        else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO');
+        else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
+        else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao atualizar.', 'error');
+        botao.disabled = false;
+      }
+      // Sem re-render manual aqui de propósito — o onSnapshot correspondente já dispara sozinho
+      // assim que o Firestore confirmar a escrita (mesmo padrão real-time do resto do módulo).
+    });
+  }
+
+  function bindControleCargasAutocomplete() {
+    const input = document.getElementById('cargas-busca-motorista');
+    const sugestoes = document.getElementById('cargas-sugestoes');
+    const btnAdicionar = document.getElementById('cargas-btn-adicionar');
+    if (!input || !sugestoes || !btnAdicionar) return;
+
+    function renderSugestoes() {
+      const termo = cargasNormalizarTexto(input.value);
+      cargasMotoristaSelecionadoParaAdicionar = null;
+      btnAdicionar.disabled = true;
+      if (!termo) { sugestoes.classList.remove('aberta'); return; }
+      const candidatos = Array.from(cargasMotoristas.values())
+        .filter(m => cargasNormalizarTexto(m.nome).includes(termo) || m.placa.toLowerCase().includes(termo))
+        .slice(0, 8);
+      sugestoes.innerHTML = candidatos.length
+        ? candidatos.map(m => `<div class="cargas-sugestao-item" data-placa="${escapeAttr(m.placa)}"><span>${escapeAttr(m.nome)}</span><span class="cargas-sugestao-item__placa">${escapeAttr(m.placa)}</span></div>`).join('')
+        : '<div class="cargas-sugestao-vazia">Nenhum motorista encontrado.</div>';
+      sugestoes.classList.add('aberta');
+    }
+
+    input.addEventListener('input', renderSugestoes);
+    input.addEventListener('focus', renderSugestoes);
+    input.addEventListener('blur', () => setTimeout(() => sugestoes.classList.remove('aberta'), 150));
+    sugestoes.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('[data-placa]');
+      if (!item) return;
+      const motorista = cargasMotoristas.get(item.dataset.placa);
+      if (!motorista) return;
+      cargasMotoristaSelecionadoParaAdicionar = motorista.placa;
+      input.value = `${motorista.nome} — ${motorista.placa}`;
+      btnAdicionar.disabled = false;
+      sugestoes.classList.remove('aberta');
+    });
+
+    btnAdicionar.addEventListener('click', async () => {
+      if (!cargasMotoristaSelecionadoParaAdicionar) return;
+      const status = document.getElementById('cargas-select-status').value;
+      btnAdicionar.disabled = true;
+      try {
+        await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status);
+        input.value = '';
+        cargasMotoristaSelecionadoParaAdicionar = null;
+        Utils.showToast('Motorista adicionado.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao adicionar.', 'error');
+        btnAdicionar.disabled = false;
+      }
+    });
+  }
+
+  function bindModalCadastrarMotorista() {
+    const modal = document.getElementById('modal-cadastrar-motorista');
+    const btnAbrir = document.getElementById('cargas-btn-cadastrar');
+    const btnFechar = document.getElementById('btn-fechar-modal-cadastrar-motorista');
+    const btnSalvar = document.getElementById('btn-salvar-cadastrar-motorista');
+    const erro = document.getElementById('cadastrar-motorista-erro');
+    if (!modal || !btnAbrir) return;
+
+    btnAbrir.addEventListener('click', () => {
+      ['cadastrar-motorista-nome', 'cadastrar-motorista-placa', 'cadastrar-motorista-veiculo'].forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('cadastrar-motorista-rodizio').value = '';
+      erro.hidden = true;
+      modal.hidden = false;
+      document.getElementById('cadastrar-motorista-nome').focus();
+    });
+    btnFechar.addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+    btnSalvar.addEventListener('click', async () => {
+      const nome = document.getElementById('cadastrar-motorista-nome').value.trim();
+      const placa = document.getElementById('cadastrar-motorista-placa').value.trim();
+      const veiculo = document.getElementById('cadastrar-motorista-veiculo').value.trim();
+      const rodizio = document.getElementById('cadastrar-motorista-rodizio').value;
+      if (!nome || !placa) {
+        erro.textContent = 'Nome e Placa são obrigatórios.';
+        erro.hidden = false;
+        return;
+      }
+      erro.hidden = true;
+      btnSalvar.disabled = true;
+      try {
+        const resultado = await cargasDashFirebase.cadastrarMotorista({ nome, placa, veiculo, rodizio });
+        Utils.showToast(resultado.criado ? 'Motorista cadastrado.' : 'Motorista atualizado.', 'success', 2500);
+        modal.hidden = true;
+      } catch (err) {
+        erro.textContent = err.message || 'Falha ao salvar.';
+        erro.hidden = false;
+      } finally {
+        btnSalvar.disabled = false;
+      }
+    });
+  }
+
+  async function sincronizarCadastroMotoristas() {
+    const statusEl = document.getElementById('cargas-sincronizar-status');
+    const btn = document.getElementById('cargas-btn-sincronizar');
+    btn.disabled = true;
+    statusEl.hidden = false;
+    statusEl.textContent = 'Sincronizando com a planilha...';
+    try {
+      const resp = await fetch('assets/data/sample-data-motoristas.csv?t=' + Date.now(), { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`Não consegui buscar o arquivo (HTTP ${resp.status}).`);
+      const texto = await resp.text();
+      const linhas = texto.split(/\r?\n/).slice(1).filter(Boolean).map(linha => {
+        const [nome, rodizio, veiculo, placa] = linha.split(';');
+        return { nome, rodizio, veiculo, placa };
+      });
+      const resultado = await cargasDashFirebase.sincronizarMotoristas(linhas);
+      statusEl.textContent = `Sincronizado: ${resultado.total} motorista(s) na planilha (${resultado.novos} novo(s), ${resultado.inativados} marcado(s) como inativo) — ${new Date().toLocaleTimeString('pt-BR')}.`;
+    } catch (err) {
+      statusEl.textContent = 'Falha ao sincronizar: ' + (err.message || err);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  /** "Quando você vê o nome do motorista na Base Bluesoft é porque ele já carregou... se passar
+   * a data de hoje e ele não tiver carregado, precisa dar o retorno NO-SHOW" (pedido da
+   * usuária, 2026-09-04) — base do indicador futuro de motoristas que avisam disponível e não
+   * aparecem. Cruza por PLACA (não por nome — mais confiável, já é a chave principal de todo o
+   * resto do módulo) contra DataStore.getRecords() (só o Site Principal tem a Base Bluesoft
+   * carregada; o app do motorista não). Roda sozinha sempre que a disponibilidade muda E toda
+   * vez que essa tela é aberta (cobre o caso de "o dia virou" sem nenhum evento novo do
+   * Firestore). Não decide nada se a Base Bluesoft ainda não carregou (getRecords vazio). */
+  async function verificarNoShowDisponibilidade() {
+    if (!cargasDashFirebase) return;
+    const pendentes = Array.from(cargasDisponibilidade.values()).filter(d => d.status === 'DISPONIVEL' && d.disponibilizadoEm);
+    if (!pendentes.length) return;
+    const registros = DataStore.getRecords();
+    if (!registros.length) return;
+
+    const hoje = cargasInicioDoDia(new Date());
+    const atualizacoes = [];
+    pendentes.forEach(d => {
+      const placa = d.id;
+      const diaDisponivel = cargasTimestampParaData(d.disponibilizadoEm);
+      if (!diaDisponivel) return;
+      const inicioDiaDisponivel = cargasInicioDoDia(diaDisponivel);
+      const viagem = registros.find(r => r.placa && r.dataCriacao &&
+        cargasNormalizarPlaca(r.placa) === placa && r.dataCriacao >= inicioDiaDisponivel);
+      if (viagem) {
+        atualizacoes.push({ placa, novoStatus: 'CARREGOU', referencia: viagem.nf });
+      } else if (inicioDiaDisponivel < hoje) {
+        atualizacoes.push({ placa, novoStatus: 'NO_SHOW' });
+      }
+    });
+    if (!atualizacoes.length) return;
+
+    // Evita reenviar repetidamente a MESMA decisão a cada re-render (onSnapshot/60s tick) —
+    // só tenta de novo se o conjunto de mudanças pendentes for diferente do que já tentei.
+    const chave = atualizacoes.map(a => `${a.placa}:${a.novoStatus}`).sort().join('|');
+    if (chave === cargasUltimaVerificacaoNoShow) return;
+    cargasUltimaVerificacaoNoShow = chave;
+    try {
+      await cargasDashFirebase.atualizarDisponibilidadesEmLote(atualizacoes);
+    } catch (err) {
+      console.error('Falha ao verificar Carregou/No-Show', err);
+    }
+  }
+
+  function bindControleCargas() {
+    bindControleCargasCards();
+    bindControleCargasAcoes();
+    bindControleCargasAutocomplete();
+    bindModalCadastrarMotorista();
+    const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
+    if (btnSincronizar) btnSincronizar.addEventListener('click', sincronizarCadastroMotoristas);
   }
 
   return {
