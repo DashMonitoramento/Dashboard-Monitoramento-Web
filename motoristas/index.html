@@ -378,11 +378,12 @@ function renderListaStatus(status, idLista, idContagem, idBusca) {
       const rodizioTexto = rodizio
         ? `<span class="status-card__rodizio-destaque">Rodízio: ${escapeHtml(rodizio)}</span>`
         : 'Sem rodízio cadastrado';
+      const rotaTexto = item.rota ? ` · Rota: ${escapeHtml(item.rota)}` : '';
       const tempo = formatarTempoDecorrido(timestampParaData(item.atualizadoEm));
       return `<div class="status-card">
         <div class="status-card__info">
           <div class="status-card__nome">${escapeHtml(nome)}${badgeRodizio}</div>
-          <div class="status-card__meta">Placa: ${escapeHtml(item.id)} · Carro: ${escapeHtml(carro || '—')} · Peso: ${escapeHtml(peso || '—')} · ${rodizioTexto}</div>
+          <div class="status-card__meta">Placa: ${escapeHtml(item.id)} · Carro: ${escapeHtml(carro || '—')} · Peso: ${escapeHtml(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
         </div>
         <div class="status-card__tempo">${tempo}</div>
       </div>`;
