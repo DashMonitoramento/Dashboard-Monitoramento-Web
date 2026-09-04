@@ -3944,6 +3944,19 @@ const Dashboard = (() => {
   function cargasRodizioEhHoje(rodizio) {
     return !!rodizio && CARGAS_DIA_SEMANA_PARA_RODIZIO[new Date().getDay()] === rodizio;
   }
+  /** A planilha guarda "Carro" e "Peso" juntos num campo só (ex.: "FIORINO- 600", "VUC - 2.7
+   * TONS", "3/4 - 3.5 TONS") -- pedido da usuária (2026-09-04): mostrar separado, com rótulo
+   * próprio pra cada um. Divide no primeiro hífen com conteúdo dos dois lados; "3/4" (nome de
+   * veículo real, não tem hífen) e casos sem hífen nenhum (ex.: "4.500 TONS", sem nome de
+   * veículo na planilha) caem no fallback -- carro fica vazio, peso é o texto inteiro. */
+  function cargasParseVeiculo(texto) {
+    const limpo = String(texto || '').trim();
+    if (!limpo) return { carro: '', peso: '' };
+    const m = limpo.match(/^(.*?)\s*-\s*(.+)$/);
+    if (m && m[1].trim()) return { carro: m[1].trim(), peso: m[2].trim() };
+    return { carro: '', peso: limpo };
+  }
+
   function cargasInicioDoDia(data) {
     const d = new Date(data);
     d.setHours(0, 0, 0, 0);
@@ -4080,10 +4093,12 @@ const Dashboard = (() => {
     wrap.innerHTML = itens.map(item => {
       const motorista = cargasMotoristas.get(item.placa);
       const nome = motorista ? motorista.nome : '(motorista não encontrado no cadastro)';
-      const veiculo = motorista && motorista.veiculo ? motorista.veiculo : '—';
+      const { carro, peso } = cargasParseVeiculo(motorista && motorista.veiculo);
       const rodizio = motorista ? motorista.rodizio : '';
       const badgeRodizio = cargasRodizioEhHoje(rodizio) ? '<span class="cargas-badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
-      const rodizioTexto = rodizio ? `Rodízio: ${escapeAttr(rodizio)}` : 'Sem rodízio cadastrado';
+      const rodizioTexto = rodizio
+        ? `<span class="cargas-rodizio-destaque">Rodízio: ${escapeAttr(rodizio)}</span>`
+        : 'Sem rodízio cadastrado';
       const tempo = item.dataRef ? cargasFormatarTempoDecorrido(item.dataRef) : '';
 
       let acoes = '';
@@ -4103,7 +4118,7 @@ const Dashboard = (() => {
         <div class="cargas-item">
           <div class="cargas-item__info">
             <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}</div>
-            <div class="cargas-item__meta">${escapeAttr(item.placa)} · ${escapeAttr(veiculo)} · ${rodizioTexto}</div>
+            <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}</div>
           </div>
           <div class="cargas-item__tempo">${tempo}</div>
           <div class="cargas-item__acoes">${acoes}</div>
