@@ -1085,6 +1085,17 @@
     </div>
 
     <div class="export-card">
+      <h2>Excluir notas sem Cliente identificado</h2>
+      <p class="hint">Remove de vez todos os registros cujo Cliente está em branco (aparecem na
+        lista como "Cliente não identificado"). Ação definitiva -- some dos outros aparelhos
+        também, sem desfazer.</p>
+      <p class="export-last" id="limpezaClienteResumo">Ainda não verificado.</p>
+      <div class="modal-actions" style="margin-top:0;">
+        <button class="btn-sm danger" id="btnLimparClienteVazio">Excluir agora</button>
+      </div>
+    </div>
+
+    <div class="export-card">
       <h2>Diagnóstico: NF possivelmente no campo errado</h2>
       <p class="hint">Registros com o campo NF vazio, mas o Cliente preenchido só com números --
         provavelmente o número da nota caiu no campo errado (comum em dados reimportados de uma
@@ -1334,6 +1345,18 @@
       await lote.commit();
     }
   }
+  // Mesmo padrão em lote de atualizarRegistrosEmLote acima, só que apagando em vez de
+  // atualizando -- usado pela limpeza em massa "Excluir notas sem Cliente identificado"
+  // (pedido da usuária, 2026-09-04).
+  async function excluirRegistrosEmLote(ids){
+    const TAMANHO_MAX_LOTE = 400;
+    for(let i=0; i<ids.length; i+=TAMANHO_MAX_LOTE){
+      const pedaco = ids.slice(i, i+TAMANHO_MAX_LOTE);
+      const lote = writeBatch(db);
+      pedaco.forEach(id => lote.delete(doc(db, REGISTROS_COLECAO, id)));
+      await lote.commit();
+    }
+  }
 
   /** Verifica se o usuário logado agora pode editar/excluir registros existentes do Manifesto
    * (super admin sempre pode; os demais só se habilitados pelo modal "Gerenciar usuários" no
@@ -1354,7 +1377,7 @@
     aoMudarLogin: (cb) => onAuthStateChanged(auth, cb),
     buscarObservacaoAgendamento,
     assinarRegistros, criarRegistro, atualizarRegistro, atualizarRegistrosEmLote, excluirRegistro,
-    getMinhaPermissaoEdicaoManifesto
+    excluirRegistrosEmLote, getMinhaPermissaoEdicaoManifesto
   };
   window.dispatchEvent(new Event('dash-firebase-ready'));
 </script>
@@ -1789,7 +1812,7 @@ function render(){
   renderStats();
   renderTabsStatus();
   renderLista();
-  if($('viewExportar').style.display !== 'none'){ atualizarContagemExport(); renderDiagnosticoNf(); }
+  if($('viewExportar').style.display !== 'none'){ atualizarContagemExport(); renderDiagnosticoNf(); renderLimpezaClienteVazio(); }
   if($('viewEstoque').style.display !== 'none' && estoqueIniciado) refreshEstoqueData();
 }
 async function marcarResolvido(id){
@@ -2106,6 +2129,44 @@ function corrigirSuspeitaNf(id, numero){
   $('fCliente').focus();
 }
 
+/* ---------- excluir em massa: notas sem Cliente identificado ----------
+   Pedido da usuária (2026-09-04): apagar de vez todo registro com Cliente em branco (mesmo
+   critério exato usado pra mostrar "Cliente não identificado" na lista, ver item-cliente--vazio
+   acima). Mostra a contagem real antes de qualquer clique, pra ela nunca excluir "no escuro". */
+function registrosSemClienteIdentificado(){
+  return entries.filter(e => !e.cliente);
+}
+function renderLimpezaClienteVazio(){
+  const resumo = $('limpezaClienteResumo');
+  const btn = $('btnLimparClienteVazio');
+  if(!resumo || !btn) return;
+  const qtd = registrosSemClienteIdentificado().length;
+  resumo.textContent = qtd > 0
+    ? `${qtd} registro(s) sem Cliente identificado.`
+    : 'Nenhum registro sem Cliente identificado.';
+  btn.disabled = qtd === 0;
+}
+$('btnLimparClienteVazio').onclick = async () => {
+  if(!podeEditarManifestoAtual) return;
+  const alvos = registrosSemClienteIdentificado();
+  if(!alvos.length) return;
+  const ok = confirm(`Excluir ${alvos.length} registro(s) sem Cliente identificado? Essa ação não pode ser desfeita e vale pra todos os aparelhos.`);
+  if(!ok) return;
+  const btn = $('btnLimparClienteVazio');
+  const resumo = $('limpezaClienteResumo');
+  btn.disabled = true;
+  resumo.textContent = 'Excluindo…';
+  try{
+    if(!dashFirebase) dashFirebase = await obterDashFirebase();
+    await dashFirebase.excluirRegistrosEmLote(alvos.map(e => e.id));
+    resumo.textContent = `${alvos.length} registro(s) excluído(s) -- ${new Date().toLocaleTimeString('pt-BR')}.`;
+  }catch(err){
+    console.error('Falha ao excluir registros sem Cliente identificado', err);
+    resumo.textContent = 'Não consegui excluir agora (sem internet?).';
+    btn.disabled = false;
+  }
+};
+
 // NF virou obrigatória (pedido do usuário, 2026-09-02) e é um identificador muito mais preciso
 // que Cliente+Endereço (que inclusive saiu do formulário) -- por isso a checagem de duplicada
 // agora usa tipo+data+NF em vez de tipo+data+cliente+endereço. Isso continua permitindo a MESMA
@@ -2407,6 +2468,7 @@ document.querySelectorAll('#mainNav button').forEach(b=>{
       atualizarContagemExport();
       atualizarStatusExcel();
       renderDiagnosticoNf();
+      renderLimpezaClienteVazio();
     }
     if(v==='importar') resetarImportar();
     $('btnAddProduto').style.display = (v==='estoque' && modo3d==='produtos') ? 'flex' : 'none';
