@@ -94,10 +94,18 @@ h1,h2,h3,p{margin:0;}
 }
 .busca-placa::placeholder{color:var(--ink-faint); text-transform:none;}
 .status-card{
+  display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px;
   background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:8px;
 }
-.status-card__nome{font-weight:700; font-size:14.5px;}
+.status-card__info{flex:1 1 180px; min-width:160px;}
+.status-card__nome{font-weight:700; font-size:14.5px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
 .status-card__meta{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+.status-card__tempo{font-size:12.5px; color:var(--ink-soft); white-space:nowrap; margin-left:auto;}
+.status-card__rodizio-destaque{font-weight:700; color:var(--brand);}
+.status-card__badge-rodizio-hoje{
+  display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+  color:#fff; background:var(--alerta); border-radius:999px; padding:2px 9px;
+}
 .vazio{color:var(--ink-faint); font-size:13.5px; font-style:italic; padding:6px 2px;}
 
 .tela{display:none;}
@@ -302,6 +310,30 @@ function rodizioEhHoje(rodizio) {
 function timestampParaData(ts) {
   return ts && typeof ts.toDate === 'function' ? ts.toDate() : null;
 }
+/** Mesmo split de "Carro"/"Peso" usado no painel administrativo (js/dashboard.js,
+ * cargasParseVeiculo) -- app autocontido, sem módulo compartilhado, por isso copiado aqui. */
+function parseVeiculo(texto) {
+  const limpo = String(texto || '').trim();
+  if (!limpo) return { carro: '', peso: '' };
+  const m = limpo.match(/^(.*?)\s*-\s*(.+)$/);
+  if (m && m[1].trim()) return { carro: m[1].trim(), peso: m[2].trim() };
+  return { carro: '', peso: limpo };
+}
+/** "Há X min"/"Há Xh Ymin"/"Há X dia(s)" -- mesma lógica do painel administrativo
+ * (cargasFormatarTempoDecorrido), copiada aqui pelo mesmo motivo acima. */
+function formatarTempoDecorrido(data) {
+  if (!data) return '';
+  const minutos = Math.max(0, Math.floor((Date.now() - data.getTime()) / 60000));
+  if (minutos < 1) return 'Agora mesmo';
+  if (minutos < 60) return `Há ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) {
+    const min = minutos % 60;
+    return min > 0 ? `Há ${horas}h ${min}min` : `Há ${horas}h`;
+  }
+  const dias = Math.floor(horas / 24);
+  return `Há ${dias} dia${dias > 1 ? 's' : ''}`;
+}
 
 let motoristas = new Map();
 let statusCarga = new Map();
@@ -339,9 +371,20 @@ function renderListaStatus(status, idLista, idContagem, idBusca) {
   } else {
     wrap.innerHTML = itensFiltrados.map(item => {
       const m = motoristas.get(item.id);
+      const nome = m ? m.nome : item.id;
+      const { carro, peso } = parseVeiculo(m && m.veiculo);
+      const rodizio = m ? m.rodizio : '';
+      const badgeRodizio = rodizioEhHoje(rodizio) ? '<span class="status-card__badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
+      const rodizioTexto = rodizio
+        ? `<span class="status-card__rodizio-destaque">Rodízio: ${escapeHtml(rodizio)}</span>`
+        : 'Sem rodízio cadastrado';
+      const tempo = formatarTempoDecorrido(timestampParaData(item.atualizadoEm));
       return `<div class="status-card">
-        <div class="status-card__nome">${escapeHtml(m ? m.nome : item.id)}</div>
-        <div class="status-card__meta">${escapeHtml(item.id)} · ${escapeHtml(m && m.veiculo ? m.veiculo : '—')}</div>
+        <div class="status-card__info">
+          <div class="status-card__nome">${escapeHtml(nome)}${badgeRodizio}</div>
+          <div class="status-card__meta">Placa: ${escapeHtml(item.id)} · Carro: ${escapeHtml(carro || '—')} · Peso: ${escapeHtml(peso || '—')} · ${rodizioTexto}</div>
+        </div>
+        <div class="status-card__tempo">${tempo}</div>
       </div>`;
     }).join('');
   }
