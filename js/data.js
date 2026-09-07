@@ -1954,6 +1954,21 @@ const DataStore = (() => {
       : (r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataFaturamento || r.dataAgendamento || r.dataEmissao);
   }
 
+  /** "Em Trânsito" no filtro de Status da barra lateral (pedido do usuário, 2026-09-07: "no meio
+   * das notas em aberto está aparecendo as notas Em Trânsito, precisa aparecer apenas o que está
+   * em aberto... pode criar um Status de Em Trânsito no menu Status"). Não é um valor real de
+   * r.situacao (que continua só "Em aberto") -- é o mesmo recorte já usado só pra EXIBIÇÃO na
+   * coluna "Status" da tabela (ver statusExibicaoLabel em dashboard.js, pedido do usuário de
+   * 2026-08-26): nota Em Aberto cuja última tentativa já está dentro do prazo do Lead Time
+   * (r.prazoStatus === 'DENTRO_PRAZO') é "a caminho", não "parada sem informação". Antes o
+   * filtro "Em aberto" batia em r.situacao direto, então misturava as duas junto; agora vira um
+   * balde próprio, mutuamente exclusivo com "Em aberto" no filtro (mesma exclusividade que já
+   * existia na exibição da tabela). */
+  function situacaoEfetivaParaFiltroStatus(r) {
+    if (r.situacao === 'Em aberto' && r.status === 'EM_ABERTO' && r.prazoStatus === 'DENTRO_PRAZO') return 'Em Trânsito';
+    return r.situacao;
+  }
+
   function getFilteredRecords() {
     const {
       dataInicio, dataFim, mes, ano,
@@ -1979,7 +1994,7 @@ const DataStore = (() => {
       // ao marcar "Em aberto" no filtro — bug real, 2026-08-18.
       const etapaBate = AGENDAMENTO_ETAPAS_ESPECIFICAS_FILTRO.includes(r.statusAgendamento) &&
         situacaoFiltro && situacaoFiltro.includes(r.statusAgendamento);
-      if (situacaoFiltro && situacaoFiltro.length && !situacaoFiltro.includes(r.situacao) && !etapaBate) return false;
+      if (situacaoFiltro && situacaoFiltro.length && !situacaoFiltro.includes(situacaoEfetivaParaFiltroStatus(r)) && !etapaBate) return false;
       if (transportadora && transportadora.length && !transportadora.includes(r.transportadora)) return false;
       if (tipoTransporte && tipoTransporte.length && !tipoTransporte.includes(r.tipoTransporte)) return false;
       if (motorista && motorista.length && !motorista.includes(r.motorista)) return false;
