@@ -138,6 +138,55 @@ async function salvarAgendamentoManualPedido(numeroPedido, statusAgendamento, da
   });
 }
 
+/** "Valor Descarga Aprovado" (2026-09-08, pedido da usuária: coluna nova na tabela "Registros
+ * detalhados" pro setor de Monitoramento pré-aprovar um valor de descarga por NF). Coleção
+ * PRÓPRIA (não dentro de agendamentosManuais) de propósito: ela pediu uma permissão separada
+ * (podeEditarValorDescarga) pra editar esse campo, e Firestore Rules não fazem bem controle por
+ * CAMPO dentro do mesmo documento — mais simples e mais seguro manter num doc próprio por NF,
+ * com sua própria regra, do mesmo jeito que Controle de Cargas já separa em várias coleções. */
+const VALORES_DESCARGA_COLECAO = 'valoresDescargaAprovados';
+
+/** Busca todos os valores de descarga aprovados. Devolve { [nf]: { valor, atualizadoPorEmail,
+ * atualizadoEm } } — mesmo formato de getAgendamentosManuais(), mais fácil de cruzar em data.js. */
+async function getValoresDescargaAprovados() {
+  const snapshot = await getDocs(collection(db, VALORES_DESCARGA_COLECAO));
+  const porNf = {};
+  snapshot.forEach(docSnap => { porNf[docSnap.id] = docSnap.data(); });
+  return porNf;
+}
+
+/** Grava/atualiza o valor de descarga aprovado de uma NF. `valor` null/'' apaga o valor (volta
+ * a mostrar "Adicionar valor" na tabela) — mesmo padrão de permitir limpar já usado em
+ * salvarObservacaoNota. */
+async function salvarValorDescargaAprovado(nf, valor) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const numero = valor === null || valor === undefined || valor === '' ? null : Number(valor);
+  if (numero !== null && (isNaN(numero) || numero < 0)) throw new Error('Valor inválido.');
+  await setDoc(doc(db, VALORES_DESCARGA_COLECAO, nf), {
+    valor: numero,
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
+/** Grava/atualiza se a entrega dessa NF teve ajudante ('COM_AJUDANTE'/'SEM_AJUDANTE'/'' pra
+ * limpar) — mesma coleção/permissão de salvarValorDescargaAprovado (pedido da usuária,
+ * 2026-09-08: "cria essa coluna do lado de onde vamos colocar o valor" — mesmo time, mesmo
+ * momento de preenchimento, não precisa de outra coleção/regra separada). Ela ainda não tem uma
+ * base de clientes que exigem ajudante — vai montar isso manualmente daqui uns 3 meses,
+ * observando essa coluna preenchida nota a nota. */
+async function salvarAjudanteEntrega(nf, ajudante) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  if (!['', 'COM_AJUDANTE', 'SEM_AJUDANTE'].includes(ajudante)) throw new Error('Valor de ajudante inválido.');
+  await setDoc(doc(db, VALORES_DESCARGA_COLECAO, nf), {
+    ajudante: ajudante || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
 /** Grava só a observação de uma NF (usado pela tela "Notas em aberto", 2026-08-19 — uma nota
  * aberta pode não precisar de agendamento nenhum, então essa tela não mexe em status/data).
  * Usa `{merge: true}` de propósito — diferente de salvarAgendamentoManual acima, que sempre
@@ -173,7 +222,8 @@ async function getUsuarios() {
       podeEditarAgendamento: !!d.podeEditarAgendamento,
       podeEditarManifesto: !!d.podeEditarManifesto,
       podeEditarCargas: !!d.podeEditarCargas,
-      podeGerenciarDisponibilidade: !!d.podeGerenciarDisponibilidade
+      podeGerenciarDisponibilidade: !!d.podeGerenciarDisponibilidade,
+      podeEditarValorDescarga: !!d.podeEditarValorDescarga
     });
   });
   return lista;
@@ -206,6 +256,13 @@ async function definirPermissaoGerenciarDisponibilidade(uid, pode) {
   await updateDoc(doc(db, 'users', uid), { podeGerenciarDisponibilidade: !!pode });
 }
 
+/** Habilita/desabilita editar o "Valor Descarga Aprovado" na tabela "Registros detalhados"
+ * (2026-09-08, pedido da usuária: permissão separada, só pro setor de Monitoramento — nada a
+ * ver com podeEditarAgendamento, mesmo que os dois apareçam na mesma linha da tabela). */
+async function definirPermissaoEdicaoValorDescarga(uid, pode) {
+  await updateDoc(doc(db, 'users', uid), { podeEditarValorDescarga: !!pode });
+}
+
 /** Verifica se o usuário logado agora tem permissão de editar agendamento (chamado 1x no
  * login) — separado de getUsuarios() porque um usuário comum só pode ler o próprio perfil. */
 async function getMinhaPermissaoEdicaoAgendamento() {
@@ -223,6 +280,14 @@ async function getMinhasPermissoesCargas() {
   const snap = await getDoc(doc(db, 'users', usuario.uid));
   const d = snap.exists() ? snap.data() : {};
   return { podeEditarCargas: !!d.podeEditarCargas, podeGerenciarDisponibilidade: !!d.podeGerenciarDisponibilidade };
+}
+
+/** Mesma ideia de getMinhaPermissaoEdicaoAgendamento, pro "Valor Descarga Aprovado". */
+async function getMinhaPermissaoEdicaoValorDescarga() {
+  const usuario = auth.currentUser;
+  if (!usuario) return false;
+  const snap = await getDoc(doc(db, 'users', usuario.uid));
+  return snap.exists() ? !!snap.data().podeEditarValorDescarga : false;
 }
 
 /* ============================================================
@@ -522,8 +587,9 @@ async function atualizarDisponibilidadesEmLote(atualizacoes) {
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
+  getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega,
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
-  definirPermissaoEdicaoManifesto,
+  definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga,
