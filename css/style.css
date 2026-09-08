@@ -1273,6 +1273,8 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table-footer select { padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary); }
 .ajudante-select { padding: 4px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary); font-size: 12.5px; max-width: 100%; }
 .ajudante-select:disabled { opacity: .6; }
+.valor-descarga-inline { width: 100px; padding: 4px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary); font-size: 12.5px; text-align: right; }
+.valor-descarga-inline:disabled { opacity: .6; }
 .pagination { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-secondary); }
 
 /* ---------- 11. Toasts ---------- */
