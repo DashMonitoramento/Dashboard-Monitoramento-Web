@@ -310,6 +310,7 @@ ul { list-style: none; margin: 0; padding: 0; }
 .btn:active { transform: translateY(0); }
 .btn--primary { background: linear-gradient(135deg, var(--color-orange), var(--color-orange-dark)); color: #fff; border-color: transparent; }
 .btn--secondary { background: linear-gradient(135deg, var(--color-blue), var(--color-blue-dark)); color: #fff; border-color: transparent; }
+.btn--danger { background: linear-gradient(135deg, var(--color-danger), #991B1B); color: #fff; border-color: transparent; }
 .btn--block { width: 100%; }
 .btn--ghost { background: transparent; }
 .btn--outline-orange {
@@ -1378,7 +1379,8 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cargas-item__info { flex: 1 1 260px; min-width: 200px; }
 .cargas-item__nome { font-weight: 700; font-size: 14.5px; color: var(--text-primary); }
 .cargas-item__meta { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
-.cargas-item__tempo { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.cargas-item__tempo { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.cargas-item__data { font-weight: 700; color: var(--text-primary); }
 .cargas-item__acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 .cargas-item__acoes .btn { padding: 6px 12px; font-size: 12.5px; }
 .cargas-rodizio-destaque { font-weight: 700; color: var(--color-orange); }
@@ -1387,6 +1389,13 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   color: #fff; background: var(--color-warning); border-radius: 999px; padding: 2px 9px;
   margin-left: 6px; vertical-align: middle;
 }
+.cargas-noshow-ranking {
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.cargas-noshow-ranking__titulo { font-size: 13px; font-weight: 800; color: var(--text-primary); margin: 0 0 8px; }
+.cargas-noshow-ranking__item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; color: var(--text-secondary); }
+.cargas-noshow-ranking__valor { font-weight: 800; color: var(--color-orange); }
 .cargas-vazio { padding: 24px 12px; text-align: center; color: var(--text-secondary); font-size: 14px; }
 
 /* Campo de formulário simples, genérico (label + input/select) — usado no modal "Cadastrar
