@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260908a">
+<link rel="stylesheet" href="css/style.css?v=20260908b">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -843,6 +843,8 @@ Segue anexo o relatório atualizado.</textarea>
                 <th data-field="dataEntrega">Data coleta</th>
                 <th data-field="dataAgendamento">Data agendada</th>
                 <th data-field="observacaoAgendamento">Observação</th>
+                <th data-field="valorDescargaAprovado" class="text-right">Valor Descarga Aprovado</th>
+                <th data-field="ajudanteEntrega">Ajudante</th>
                 <th data-field="filial">Filial</th>
                 <th data-field="codigoCliente">Código Cliente</th>
                 <th data-field="telefone">Telefone</th>
@@ -882,6 +884,17 @@ Segue anexo o relatório atualizado.</textarea>
             <p class="detail-agendamento__hint" id="registros-detalhados-observacao-edicao-hint"></p>
           </div>
           <div class="detail-agendamento__list" id="registros-detalhados-observacao-edicao-list"></div>
+        </div>
+
+        <!-- Edição do "Valor Descarga Aprovado" de UMA nota (2026-09-08, pedido da usuária) —
+             mesmo padrão do painel de Observação acima, painel próprio (permissão separada:
+             podeEditarValorDescarga, só pro setor de Monitoramento). -->
+        <div id="registros-detalhados-valor-descarga-edicao-section" class="detail-agendamento" hidden>
+          <div class="detail-agendamento__header">
+            <h3 class="detail-agendamento__title" id="registros-detalhados-valor-descarga-edicao-titulo">Editar valor descarga aprovado</h3>
+            <p class="detail-agendamento__hint" id="registros-detalhados-valor-descarga-edicao-hint"></p>
+          </div>
+          <div class="detail-agendamento__list" id="registros-detalhados-valor-descarga-edicao-list"></div>
         </div>
       </section>
       </div><!-- /#main-view -->
@@ -1486,12 +1499,12 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260908a"></script>
+<script type="module" src="js/firebase-init.js?v=20260908d"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260907a"></script>
+<script src="js/data.js?v=20260908a"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260908c"></script>
-<script src="js/script.js?v=20260904a"></script>
+<script src="js/dashboard.js?v=20260908d"></script>
+<script src="js/script.js?v=20260908a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
   // guarda nada em cache de propósito (ver sw.js), então não tem risco de mostrar tela antiga
