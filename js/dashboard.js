@@ -4526,13 +4526,19 @@ const Dashboard = (() => {
     const registros = DataStore.getRecords();
     if (!registros.length) return;
 
+    // Usa r.dataEntrega (não r.dataCriacao) — na Base Bluesoft, "Data Entrega" é na prática a
+    // data de COLETA/início de viagem (mesma semântica já documentada pro filtro de Período,
+    // ver "Início de Viagem"), enquanto "Data Criação" é quando a NF foi gerada no sistema,
+    // normalmente dias ANTES do caminhão sair — checado contra o CSV real (2026-09-08): só 1
+    // registro no dia com Data Criação = hoje, contra 1050 com Data Entrega = hoje e "Em
+    // trânsito", confirmando que Data Criação nunca serviria pra decidir isso em tempo real.
     const hoje = cargasInicioDoDia(new Date());
     const fimHoje = fimDoDia(new Date());
     const candidatos = separados.filter(s => {
       const placa = s.id;
-      return registros.some(r => r.placa && r.dataCriacao &&
+      return registros.some(r => r.placa && r.dataEntrega &&
         cargasNormalizarPlaca(r.placa) === placa &&
-        r.dataCriacao >= hoje && r.dataCriacao <= fimHoje &&
+        r.dataEntrega >= hoje && r.dataEntrega <= fimHoje &&
         cargasNormalizarTexto(r.viagem) === 'em transito');
     });
     if (!candidatos.length) return;
