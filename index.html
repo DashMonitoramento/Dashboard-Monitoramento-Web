@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260908b">
+<link rel="stylesheet" href="css/style.css?v=20260908c">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -526,6 +526,10 @@ Segue anexo o relatório atualizado.</textarea>
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="cargas" title="Controle de Cargas e Motoristas">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
           <span class="nav-label">Controle de Cargas</span>
+        </button>
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="despesas-extra" title="Controle de Despesas Extra">
+          <span class="nav-icon">💸</span>
+          <span class="nav-label">Controle de Despesas Extra</span>
         </button>
         <!-- App do motorista (2026-09-04): página própria em motoristas/index.html, PWA
              separado (Anonymous Auth, sem login) -- link normal (nova aba), mesmo padrão do
@@ -1489,6 +1493,72 @@ Segue anexo o relatório atualizado.</textarea>
         <div id="cargas-lista"></div>
       </section>
 
+      <!-- ===================== CONTROLE DE DESPESAS EXTRA (2026-09-08) =====================
+           Reage aos MESMOS filtros globais da tela inicial (Período/Transportadora/etc — ver
+           renderDespesasExtra, chamada de dentro do render() central) — pedido explícito da
+           usuária: "se eu colocar um período ele vai me mostrar o quanto gastei de descarga
+           nesse período". Tabela própria (não reaproveita #data-table — colunas diferentes),
+           mesmo padrão de paginação/ordenação genérico de Pedidos Aguardando Faturamento. -->
+      <section id="despesas-extra-view" class="table-card" aria-label="Controle de Despesas Extra" hidden>
+        <div class="table-card__header">
+          <h2 class="chart-card__title">💸 Controle de Despesas Extra</h2>
+        </div>
+        <p class="chart-card__hint">Segue os filtros da tela inicial (Período, Transportadora, etc.) — mude lá pra ver o recorte diferente aqui.</p>
+
+        <div class="cargas-cards">
+          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#0D9488">
+            <span class="kpi-card__label">Total Valor Descarga Aprovado</span>
+            <span class="kpi-card__value" id="despesas-extra-total-valor">R$ 0,00</span>
+          </article>
+          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#2563EB">
+            <span class="kpi-card__label">Notas com valor aprovado</span>
+            <span class="kpi-card__value" id="despesas-extra-total-notas">0</span>
+          </article>
+        </div>
+
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+          <div style="flex:1 1 260px;" id="despesas-extra-ranking-transportadoras"></div>
+          <div style="flex:1 1 260px;" id="despesas-extra-ranking-motoristas"></div>
+        </div>
+
+        <div class="table-card__header">
+          <div class="table-search" style="margin-left:auto;">
+            🔎 <input type="search" id="despesas-extra-table-search" placeholder="Pesquisar por NF, cliente, motorista...">
+          </div>
+        </div>
+
+        <div class="table-scroll-wrapper">
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+          <div class="table-scroll">
+          <table class="data-table" id="despesas-extra-table">
+            <thead>
+              <tr>
+                <th data-field="nf">NF</th>
+                <th data-field="cliente">Cliente</th>
+                <th data-field="motorista">Motorista</th>
+                <th data-field="transportadora">Transportadora</th>
+                <th data-field="valorNF" class="text-right">Valor da Nota</th>
+                <th data-field="peso" class="text-right">Peso</th>
+                <th data-field="valorDescargaAprovado" class="text-right">Valor Descarga Aprovado</th>
+                <th data-field="qtdAjudante">QTD Ajudante</th>
+              </tr>
+            </thead>
+            <tbody id="despesas-extra-table-body"></tbody>
+          </table>
+          </div>
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
+        </div>
+
+        <div class="table-footer">
+          <span id="despesas-extra-table-info">Nenhum registro</span>
+          <div class="pagination">
+            <button id="despesas-extra-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="despesas-extra-table-page-label">Página 1 de 1</span>
+            <button id="despesas-extra-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
+        </div>
+      </section>
+
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
         Dashboard de Entregas · Da Terrinha Alimentos — dados atualizados automaticamente a partir da planilha.
       </footer>
@@ -1499,11 +1569,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260908d"></script>
+<script type="module" src="js/firebase-init.js?v=20260908e"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260908a"></script>
+<script src="js/data.js?v=20260908b"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260908d"></script>
+<script src="js/dashboard.js?v=20260908e"></script>
 <script src="js/script.js?v=20260908a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
