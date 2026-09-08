@@ -433,6 +433,9 @@ function normalizeRecord(rawRow) {
     // Status de Viagem ("Finalizado"/"Em trânsito"/etc.) — só existe pra registros vindos da
     // Base Bluesoft (ver applyBluesoftEnrichment/removerNotasComViagemFinalizadaMasEmAberto).
     viagem: '',
+    // "Peso Bruto" (2026-09-08) — idem, só existe pra registros vindos da Base Bluesoft. null =
+    // sem dado (CSV antigo sem essa coluna, ou linha sem peso na planilha), não 0.
+    peso: null,
     // Transportadora/Agregado/Próprio Retira/Exportação — desde 2026-08-27 vem da própria
     // coluna "Categoria" da Base Bluesoft (mais completa e atualizada, ver
     // parseCategoriaTransporte/applyBluesoftEnrichment); a aba RETORNO (coluna "Tipo de
@@ -454,6 +457,10 @@ function normalizeRecord(rawRow) {
     // valor"). Ainda não existe uma base de clientes que exigem ajudante — ela vai construir
     // isso manualmente, a partir do preenchimento nota a nota dessa coluna.
     ajudanteEntrega: '',
+    // '' | '1' | '2' | '3' | '4+' — pedido da usuária (2026-09-08), SEPARADO do campo
+    // ajudanteEntrega acima (ela pediu explicitamente pra manter os 2 independentes): esse é só
+    // usado na tela "Controle de Despesas Extra", não em Registros detalhados.
+    qtdAjudante: '',
     reagendar: '',
     // Total de vezes que a nota passou por Reentrega (todas as tentativas, ver
     // applyBluesoftEnrichment) — 0 até a Base Bluesoft enriquecer o registro; fica 0 pra
@@ -756,6 +763,10 @@ const DataStore = (() => {
       // removerNotasComViagemFinalizadaMasEmAberto, mais abaixo.
       const viagemHeader = headerIndex['viagem'];
       const viagemRaw = viagemHeader !== undefined ? String(row[viagemHeader] || '').trim() : '';
+      // "Peso Bruto" (2026-09-08, pedido da usuária pra "Controle de Despesas Extra") — mesmo
+      // padrão de coluna opcional de Viagem acima; CSVs antigos sem essa coluna ficam com ''.
+      const pesoBrutoHeader = headerIndex['peso bruto'];
+      const pesoBrutoRaw = pesoBrutoHeader !== undefined ? String(row[pesoBrutoHeader] || '').trim() : '';
       // Campos do relatório de Lead Time (2026-08-22) — opcionais, CSVs antigos sem essas
       // colunas ficam com '' (Utils.parseDate('') retorna null, não afeta nada).
       const dataCriacaoRaw = pickField(row, headerIndex, 'dataCriacao') || '';
@@ -794,7 +805,8 @@ const DataStore = (() => {
         numeroPedidoEcommerce: numeroPedidoEcommerceRaw,
         numeroFatura: numeroFaturaRaw,
         rota: rotaRaw,
-        categoriaTransporte: categoriaTransporteRaw
+        categoriaTransporte: categoriaTransporteRaw,
+        pesoBruto: pesoBrutoRaw
       };
 
       // Data de coleta mais antiga por NF BASE — calculada aqui, sobre TODAS as linhas brutas,
@@ -915,6 +927,7 @@ const DataStore = (() => {
       // e no card "Total geral de notas", que continuam por critério antigo de propósito).
       r.dataUltimaTentativaBluesoft = bluesoftDataColetaMaisRecentePorBaseNF.get(r.nf.split('-')[0]) || null;
       r.viagem = info.viagem || '';
+      if (info.pesoBruto) r.peso = parseMoney(info.pesoBruto);
       if (info.dataCriacao) r.dataCriacao = Utils.parseDate(info.dataCriacao);
       if (info.dataEntregaNF) r.dataEntregaNF = Utils.parseDate(info.dataEntregaNF);
       if (info.dataFaturamentoBluesoft) r.dataFaturamentoBluesoft = Utils.parseDate(info.dataFaturamentoBluesoft);
@@ -971,6 +984,7 @@ const DataStore = (() => {
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
         dataUltimaTentativaBluesoft: bluesoftDataColetaMaisRecentePorBaseNF.get(baseNf) || null,
         viagem: info.viagem || '',
+        peso: info.pesoBruto ? parseMoney(info.pesoBruto) : null,
         dataCriacao: Utils.parseDate(info.dataCriacao),
         dataEntregaNF: Utils.parseDate(info.dataEntregaNF),
         filial: info.filial || '',
@@ -987,6 +1001,7 @@ const DataStore = (() => {
         observacaoAgendamento: '',
         valorDescargaAprovado: null,
         ajudanteEntrega: '',
+        qtdAjudante: '',
         motivo: '',
         motivoCategoria: '',
         qtdReentregas: bluesoftReentregaOcorrenciasPorBaseNF.get(baseNf) || 0
@@ -2196,13 +2211,13 @@ const DataStore = (() => {
   }
 
   /**
-   * Mescla o "Valor Descarga Aprovado" e o "Ajudante" (mesmo doc por NF, ver comentário em
-   * firebase-init.js sobre por que essa coleção é separada de agendamentosManuais) nos
-   * registros já carregados. `porNf` é { [nf sem sufixo]: { valor, ajudante,
-   * atualizadoPorEmail, atualizadoEm } }. Os 2 campos são checados INDEPENDENTEMENTE (`!==
-   * undefined`, igual observacaoAgendamento em applyAgendamentoManual) — salvar só um deles
-   * (ex.: o select de Ajudante, sem mexer no valor) não pode acabar limpando o outro campo já
-   * preenchido nessa mesma chamada.
+   * Mescla "Valor Descarga Aprovado", "Ajudante" e "QTD Ajudante" (mesmo doc por NF, ver
+   * comentário em firebase-init.js sobre por que essa coleção é separada de
+   * agendamentosManuais) nos registros já carregados. `porNf` é { [nf sem sufixo]: { valor,
+   * ajudante, qtdAjudante, atualizadoPorEmail, atualizadoEm } }. Os 3 campos são checados
+   * INDEPENDENTEMENTE (`!== undefined`, igual observacaoAgendamento em applyAgendamentoManual)
+   * — salvar só um deles (ex.: o select de Ajudante, sem mexer no valor) não pode acabar
+   * limpando os outros já preenchidos nessa mesma chamada.
    */
   function applyValorDescargaAprovado(porNf) {
     if (!porNf) return;
@@ -2211,6 +2226,7 @@ const DataStore = (() => {
       if (!info) continue;
       if (info.valor !== undefined) r.valorDescargaAprovado = info.valor;
       if (info.ajudante !== undefined) r.ajudanteEntrega = info.ajudante;
+      if (info.qtdAjudante !== undefined) r.qtdAjudante = info.qtdAjudante;
     }
     notify();
   }
