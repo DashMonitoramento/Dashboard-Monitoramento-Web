@@ -246,6 +246,7 @@ async function getMinhasPermissoesCargas() {
 const MOTORISTAS_COLECAO = 'motoristas';
 const STATUS_CARGA_COLECAO = 'statusCarga';
 const STATUS_CARGA_HISTORICO_COLECAO = 'statusCargaHistorico';
+const STATUS_CARGA_NO_SHOW_COLECAO = 'statusCargaNoShow';
 const DISPONIBILIDADE_COLECAO = 'disponibilidade';
 const DISPONIBILIDADE_HISTORICO_COLECAO = 'disponibilidadeHistorico';
 
@@ -362,10 +363,11 @@ function assinarStatusCarga(callback, aoFalhar) {
   );
 }
 
-/** Move um motorista (por placa) pra um dos 3 status de separação — NAO_INICIADA/
- * EM_SEPARACAO/SEPARADO. Sobrescreve o doc atual (nunca duplica, nunca deixa o motorista em
- * 2 status ao mesmo tempo, já que é sempre o MESMO documento `statusCarga/{placa}`) e grava a
- * transição no histórico no mesmo lote. */
+/** Move um motorista (por placa) pra um dos status de separação — NAO_INICIADA/EM_SEPARACAO/
+ * SEPARADO/CARREGADO (o último gravado automaticamente por verificarCarregamentoStatusCarga,
+ * dashboard.js, quando a placa aparece "Em Trânsito" na Base Bluesoft no dia). Sobrescreve o doc
+ * atual (nunca duplica, nunca deixa o motorista em 2 status ao mesmo tempo, já que é sempre o
+ * MESMO documento `statusCarga/{placa}`) e grava a transição no histórico no mesmo lote. */
 async function definirStatusCarga(placaBruta, novoStatus, rota) {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
@@ -405,6 +407,45 @@ async function retirarStatusCarga(placaBruta) {
   const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistorico, {
     placa, statusAnterior, statusNovo: null, dataHora: serverTimestamp(), alteradoPorEmail: usuario.email
+  });
+  await lote.commit();
+}
+
+/** Tempo real do histórico de No Show (motorista com carga Separada que não chegou a
+ * carregar) — coleção só de acréscimo, cada doc é 1 ocorrência (ver marcarNoShowStatusCarga). */
+function assinarStatusCargaNoShow(callback, aoFalhar) {
+  return onSnapshot(
+    collection(db, STATUS_CARGA_NO_SHOW_COLECAO),
+    snapshot => callback(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
+    err => { console.error('Falha ao sincronizar histórico de No Show', err); if (aoFalhar) aoFalhar(err); }
+  );
+}
+
+/** Marca No Show (pedido explícito da usuária, 2026-09-08: botão manual no card Separado pra
+ * ela mesma acionar quando o motorista não carregou; `motivo` vem do modal "Motivo do No Show",
+ * mesmo pedido do mesmo dia). Tira o motorista de `statusCarga` (mesma semântica de "retirar" —
+ * o doc não representa mais um status ativo) e grava 1 ocorrência em `statusCargaNoShow` (usada
+ * pelo card "No Show" e pelo ranking de motoristas) + 1 entrada no histórico geral de
+ * transições, tudo no mesmo lote. */
+async function marcarNoShowStatusCarga(placaBruta, motivo) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+  const refAtual = doc(db, STATUS_CARGA_COLECAO, placa);
+  const snapAtual = await getDoc(refAtual);
+  if (!snapAtual.exists()) return;
+  const dadosAtuais = snapAtual.data();
+
+  const lote = writeBatch(db);
+  lote.delete(refAtual);
+  const refNoShow = doc(collection(db, STATUS_CARGA_NO_SHOW_COLECAO));
+  lote.set(refNoShow, {
+    placa, rota: dadosAtuais.rota || '', statusAnterior: dadosAtuais.status, motivo: motivo || '',
+    dataSeparado: dadosAtuais.atualizadoEm || null, marcadoEm: serverTimestamp(), marcadoPorEmail: usuario.email
+  });
+  const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
+  lote.set(refHistorico, {
+    placa, statusAnterior: dadosAtuais.status, statusNovo: 'NO_SHOW', dataHora: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   await lote.commit();
 }
@@ -486,6 +527,7 @@ window.Firebase = {
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga,
+  assinarStatusCargaNoShow, marcarNoShowStatusCarga,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote
 };
 window.dispatchEvent(new Event('firebase-ready'));
