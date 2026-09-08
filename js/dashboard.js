@@ -103,6 +103,21 @@ const Dashboard = (() => {
     colspan: 7
   };
   let pedidosNaoFaturadosBusca = '';
+
+  // "Controle de Despesas Extra" (2026-09-08) — tela própria (não reaproveita #data-table,
+  // colunas diferentes: NF/Cliente/Motorista/Transportadora/Valor NF/Peso/Valor Descarga/QTD
+  // Ajudante), mas usa os MESMOS registros já filtrados pelos filtros globais da barra lateral
+  // (ver renderDespesasExtra, chamada dentro do render() central) — pedido da usuária: os
+  // totais/ranking devem mudar junto quando ela filtra Período/Transportadora/etc. na tela
+  // inicial, sem precisar de filtro próprio duplicado aqui.
+  let despesasExtraTable = createTableState();
+  let despesasExtraBusca = '';
+  const DESPESAS_EXTRA_TABLE_IDS = {
+    tbody: 'despesas-extra-table-body', info: 'despesas-extra-table-info',
+    pageLabel: 'despesas-extra-table-page-label', prev: 'despesas-extra-table-prev',
+    next: 'despesas-extra-table-next', theadSelector: '#despesas-extra-table thead th[data-field]',
+    colspan: 8
+  };
   // Número do pedido em edição (painel abaixo da tabela), ou null se nenhum — pedido do
   // usuário (2026-08-28): clicar no Número do Pedido abre a edição, igual à de "Aguardando
   // agendamento", só que pra um pedido só por vez (não a lista inteira de uma vez).
@@ -393,6 +408,7 @@ const Dashboard = (() => {
     bindObservacaoEdicaoPrincipal();
     bindValorDescargaEdicaoPrincipal();
     bindAjudanteEntregaPrincipal();
+    bindDespesasExtraAcoes();
     bindOcorrenciasDoDia();
     bindStatusDetail();
     bindTableScrollArrows();
@@ -476,6 +492,7 @@ const Dashboard = (() => {
     // aplicarFiltroOcorrenciasDoDia por cima.
     const barraOcorrencias = document.getElementById('ocorrencias-periodo-bar');
     const cargasView = document.getElementById('cargas-view');
+    const despesasExtraView = document.getElementById('despesas-extra-view');
 
     main.hidden = view !== 'registros' && view !== 'ocorrencias';
     main.classList.toggle('modo-tabela-foco', view === 'ocorrencias');
@@ -486,6 +503,7 @@ const Dashboard = (() => {
     if (leadtimePedidos) leadtimePedidos.hidden = view !== 'leadtime-pedidos';
     if (pedidosNaoFaturados) pedidosNaoFaturados.hidden = true;
     if (cargasView) cargasView.hidden = view !== 'cargas';
+    if (despesasExtraView) despesasExtraView.hidden = view !== 'despesas-extra';
     atualizarBotaoIrInicio();
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
@@ -509,6 +527,9 @@ const Dashboard = (() => {
     } else if (view === 'cargas') {
       inicializarControleCargas();
       if (cargasView) cargasView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (view === 'despesas-extra') {
+      renderDespesasExtra(DataStore.getFilteredRecords()); // painel ficava desatualizado até o próximo filtro, mesmo motivo do renderLeadTime() acima
+      if (despesasExtraView) despesasExtraView.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       // 'registros' e 'ocorrencias' entram aqui — entrar/sair do modo muda quais registros a
       // tabela mostra (aplicarFiltroOcorrenciasDoDia), então precisa redesenhar mesmo sem
@@ -2493,6 +2514,7 @@ const Dashboard = (() => {
     renderLeadTime(); // no-op se o painel de Lead Time não estiver no DOM
     renderLeadTimePedidos(); // no-op se a tela "Lead Time de Pedidos e Entregas" não estiver visível
     renderPedidosNaoFaturadosView(); // no-op se a tela "Pedidos Aguardando Faturamento" não estiver visível
+    renderDespesasExtra(records); // no-op se a tela "Controle de Despesas Extra" não estiver visível
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
     atualizarBotaoLimparFiltros();
@@ -3776,6 +3798,173 @@ const Dashboard = (() => {
       } finally {
         select.disabled = false;
       }
+    });
+  }
+
+  /* ============================================================
+   * CONTROLE DE DESPESAS EXTRA (2026-09-08)
+   * ------------------------------------------------------------
+   * Tela própria (data-view="despesas-extra"), NÃO reaproveita #data-table/rowHtml (colunas
+   * diferentes: NF/Cliente/Motorista/Transportadora/Valor NF/Peso/Valor Descarga/QTD Ajudante).
+   * Usa os MESMOS registros já filtrados pelos filtros globais (DataStore.getFilteredRecords())
+   * — pedido explícito da usuária: "se eu colocar um período, vai me mostrar o quanto gastei de
+   * descarga nesse período". Card + ranking somam SEMPRE Valor Descarga Aprovado (confirmado
+   * com ela, 2026-09-08) — QTD Ajudante é só contagem, não entra na conta de R$.
+   * ============================================================ */
+
+  function aplicarBuscaDespesasExtra(records) {
+    if (!despesasExtraBusca) return records;
+    const alvo = despesasExtraBusca.toLowerCase();
+    return records.filter(r =>
+      (r.nf || '').toLowerCase().includes(alvo) ||
+      (r.cliente || '').toLowerCase().includes(alvo) ||
+      (r.motorista || '').toLowerCase().includes(alvo) ||
+      (r.transportadora || '').toLowerCase().includes(alvo));
+  }
+
+  /** Top 5 por soma de Valor Descarga Aprovado — mesmo visual de "Top No Show" do Controle de
+   * Cargas (reaproveita as classes .cargas-noshow-ranking*, genéricas o bastante: título + lista
+   * nome/valor, nada específico de Cargas de verdade). */
+  function renderRankingDespesasExtra(elId, titulo, mapa) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const top = Array.from(mapa.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (!top.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `
+      <div class="cargas-noshow-ranking">
+        <h4 class="cargas-noshow-ranking__titulo">${escapeAttr(titulo)}</h4>
+        ${top.map(([nome, valor]) => `
+          <div class="cargas-noshow-ranking__item">
+            <span>${escapeAttr(nome)}</span>
+            <span class="cargas-noshow-ranking__valor">${Utils.formatCurrency(valor)}</span>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function rowHtmlDespesasExtra(r) {
+    const nfBase = r.nf ? r.nf.split('-')[0] : '';
+    const autorizado = isAutorizadoValorDescarga();
+    const valorCelula = autorizado
+      ? `<input type="number" step="0.01" min="0" class="valor-descarga-inline" data-valor-descarga-nf="${escapeAttr(nfBase)}" value="${r.valorDescargaAprovado != null ? r.valorDescargaAprovado : ''}" placeholder="R$">`
+      : (r.valorDescargaAprovado != null ? escapeAttr(Utils.formatCurrency(r.valorDescargaAprovado)) : '—');
+    const qtdAtual = r.qtdAjudante || '';
+    const qtdCelula = autorizado
+      ? `<select class="ajudante-select" data-qtd-ajudante-nf="${escapeAttr(nfBase)}">
+          <option value=""${qtdAtual === '' ? ' selected' : ''}>—</option>
+          <option value="1"${qtdAtual === '1' ? ' selected' : ''}>1</option>
+          <option value="2"${qtdAtual === '2' ? ' selected' : ''}>2</option>
+          <option value="3"${qtdAtual === '3' ? ' selected' : ''}>3</option>
+          <option value="4+"${qtdAtual === '4+' ? ' selected' : ''}>4+</option>
+        </select>`
+      : (qtdAtual || '—');
+    return `
+      <tr>
+        <td>${escapeAttr(r.nf || '—')}</td>
+        <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
+        <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
+        <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
+        <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
+        <td class="text-right">${r.peso != null ? Utils.formatNumber(r.peso, 2) : '—'}</td>
+        <td class="text-right">${valorCelula}</td>
+        <td>${qtdCelula}</td>
+      </tr>`;
+  }
+
+  /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na view
+   * (mostrarViewMapaRegioes) — no-op se a seção não estiver visível, mesmo padrão de
+   * renderRegistroDinamico/renderLeadTimePedidos. */
+  function renderDespesasExtra(records) {
+    const view = document.getElementById('despesas-extra-view');
+    if (!view || view.hidden) return;
+
+    const registros = aplicarBuscaDespesasExtra(records);
+    const comValor = registros.filter(r => r.valorDescargaAprovado != null);
+    const totalValor = Utils.sum(comValor, r => r.valorDescargaAprovado);
+    document.getElementById('despesas-extra-total-valor').textContent = Utils.formatCurrency(totalValor);
+    document.getElementById('despesas-extra-total-notas').textContent = Utils.formatNumber(comValor.length);
+
+    const porTransportadora = new Map();
+    const porMotorista = new Map();
+    comValor.forEach(r => {
+      const t = r.transportadora || '(sem transportadora)';
+      const m = r.motorista || '(sem motorista)';
+      porTransportadora.set(t, (porTransportadora.get(t) || 0) + r.valorDescargaAprovado);
+      porMotorista.set(m, (porMotorista.get(m) || 0) + r.valorDescargaAprovado);
+    });
+    renderRankingDespesasExtra('despesas-extra-ranking-transportadoras', 'Top Transportadoras — Valor Descarga', porTransportadora);
+    renderRankingDespesasExtra('despesas-extra-ranking-motoristas', 'Top Motoristas — Valor Descarga', porMotorista);
+
+    renderTableGeneric(registros, despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, rowHtmlDespesasExtra);
+  }
+
+  function bindDespesasExtraAcoes() {
+    const tbody = document.getElementById(DESPESAS_EXTRA_TABLE_IDS.tbody);
+    if (!tbody) return;
+
+    bindTableControlsFor(despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, () => aplicarBuscaDespesasExtra(DataStore.getFilteredRecords()), rowHtmlDespesasExtra);
+
+    const searchHandler = Utils.debounce((value) => {
+      despesasExtraBusca = value;
+      despesasExtraTable.page = 1;
+      renderDespesasExtra(DataStore.getFilteredRecords());
+    }, 250);
+    const searchInput = document.getElementById('despesas-extra-table-search');
+    if (searchInput) searchInput.addEventListener('input', (e) => searchHandler(e.target.value));
+
+    tbody.addEventListener('change', async (e) => {
+      const select = e.target.closest('[data-qtd-ajudante-nf]');
+      if (!select) return;
+      const nf = select.dataset.qtdAjudanteNf;
+      const qtd = select.value;
+      select.disabled = true;
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        await fb.salvarQtdAjudante(nf, qtd);
+        // Mesma trava de página de bindAjudanteEntregaPrincipal (ver comentário lá) — evita que
+        // salvar aqui zere table.page da tabela "Registros detalhados" em segundo plano.
+        const paginaAntes = table.page;
+        DataStore.applyValorDescargaAprovado({ [nf]: { qtdAjudante: qtd } });
+        table.page = paginaAntes;
+        Utils.showToast(`NF ${nf}: QTD Ajudante salvo.`, 'success', 2000);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar QTD Ajudante.', 'error', 5000);
+      } finally {
+        select.disabled = false;
+      }
+    });
+
+    // Valor Descarga Aprovado salva ao sair do campo (focusout — diferente de blur, tem bubble,
+    // dá pra delegar no tbody sem listener por linha). Só salva se o texto mudou de verdade
+    // (compara com defaultValue, o valor original renderizado), pra não gravar à toa em todo
+    // clique+tab sem edição nenhuma.
+    tbody.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('[data-valor-descarga-nf]');
+      if (!input) return;
+      const valorTexto = input.value.trim();
+      if (valorTexto === (input.defaultValue || '')) return;
+      const nf = input.dataset.valorDescargaNf;
+      input.disabled = true;
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        const valor = valorTexto === '' ? null : Number(valorTexto);
+        if (valor !== null && (isNaN(valor) || valor < 0)) throw new Error('Valor inválido.');
+        await fb.salvarValorDescargaAprovado(nf, valor);
+        const paginaAntes = table.page;
+        DataStore.applyValorDescargaAprovado({ [nf]: { valor } });
+        table.page = paginaAntes;
+        Utils.showToast(`NF ${nf}: valor descarga aprovado salvo.`, 'success', 2000);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar o valor de descarga.', 'error', 5000);
+        input.disabled = false;
+        return;
+      }
+      input.disabled = false;
     });
   }
 
