@@ -28,6 +28,10 @@ const Dashboard = (() => {
   // (2026-08-30) — mesmo padrão de painel único usado em "Registro Dinâmico"
   // (registroDinamicoObservacaoNf), só que pra tabela inicial.
   let registrosDetalhadosObservacaoNf = null;
+  // "Valor Descarga Aprovado" (2026-09-08) — mesmo padrão de painel único de
+  // registrosDetalhadosObservacaoNf acima, painel PRÓPRIO (não reaproveita o de Observação:
+  // são 2 permissões/campos diferentes, cada um com seu botão/painel na mesma linha da tabela).
+  let registrosDetalhadosValorDescargaNf = null;
   // "Ocorrências do Dia" (2026-08-31): tela nova no "Central de Dados" que é a MESMA tabela
   // "Registros detalhados" (mesmo estado `table`, mesma seleção, mesmo Enviar Ocorrência/Enviar
   // Relatório) só que em tela cheia (KPIs/gráficos escondidos, ver mostrarViewMapaRegioes) e com
@@ -297,6 +301,10 @@ const Dashboard = (() => {
   // firebase-init.js) — os demais veem os mesmos dados, só sem os controles de edição.
   const SUPER_ADMIN_EMAIL_AGENDAMENTO = 'thiago.barbosadaterrinha@gmail.com';
   let podeEditarAgendamentoUsuarioAtual = false;
+  // "Valor Descarga Aprovado" (2026-09-08) — permissão PRÓPRIA, separada de
+  // podeEditarAgendamentoUsuarioAtual (pedido da usuária: só o setor de Monitoramento, não
+  // necessariamente quem já edita agendamento), mesmo padrão de checagem/setter das outras.
+  let podeEditarValorDescargaUsuarioAtual = false;
 
   function isSuperAdminAgendamento() {
     return window.Firebase?.auth?.currentUser?.email === SUPER_ADMIN_EMAIL_AGENDAMENTO;
@@ -307,11 +315,19 @@ const Dashboard = (() => {
   function isAdminAgendamento() {
     return isSuperAdminAgendamento() || podeEditarAgendamentoUsuarioAtual;
   }
+  function isAutorizadoValorDescarga() {
+    return isSuperAdminAgendamento() || podeEditarValorDescargaUsuarioAtual;
+  }
   /** Chamado de fora (script.js) assim que a permissão do usuário logado for lida do
    * Firestore — atualiza a tela de detalhe na hora, caso já esteja aberta. */
   function setPermissaoEdicaoAgendamento(pode) {
     podeEditarAgendamentoUsuarioAtual = !!pode;
     renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
+  }
+  /** Idem, pro "Valor Descarga Aprovado" — atualiza o painel de edição na hora, se já aberto. */
+  function setPermissaoEdicaoValorDescarga(pode) {
+    podeEditarValorDescargaUsuarioAtual = !!pode;
+    renderRegistrosDetalhadosValorDescargaEdicao();
   }
   function formatDateParaInput(date) {
     if (!(date instanceof Date) || isNaN(date)) return '';
@@ -375,6 +391,8 @@ const Dashboard = (() => {
     bindActionButtons();
     bindSelecaoEOcorrencia();
     bindObservacaoEdicaoPrincipal();
+    bindValorDescargaEdicaoPrincipal();
+    bindAjudanteEntregaPrincipal();
     bindOcorrenciasDoDia();
     bindStatusDetail();
     bindTableScrollArrows();
@@ -1210,7 +1228,16 @@ const Dashboard = (() => {
     ];
   }
 
-  /** As 12 colunas realmente exibidas em #data-table (thead/rowHtml) — usadas pelos botões de
+  /** Rótulo de exibição do campo `ajudanteEntrega` ('' | 'COM_AJUDANTE' | 'SEM_AJUDANTE') —
+   * reaproveitado pelo CSV/relatório (colunasTabelaPrincipal) e pelo <select> da tabela
+   * (rowHtml), pra nunca desalinhar o texto entre os dois lugares. */
+  function ajudanteEntregaLabel(valor) {
+    if (valor === 'COM_AJUDANTE') return 'Com Ajudante';
+    if (valor === 'SEM_AJUDANTE') return 'Sem Ajudante';
+    return '—';
+  }
+
+  /** As 14 colunas realmente exibidas em #data-table (thead/rowHtml) — usadas pelos botões de
    * mostrar/ocultar coluna e pelo envio de relatório por WhatsApp/E-mail. Separado de
    * tableColumns() porque aquele array serve pro CSV (15 colunas, inclui Motivo/Categoria/UF
    * separado) e não precisa mudar de comportamento por causa dessa funcionalidade nova. */
@@ -1231,6 +1258,8 @@ const Dashboard = (() => {
       { field: 'dataEntrega', label: 'Data Coleta', value: r => Utils.formatDate(r.dataEntrega) },
       { field: 'dataAgendamento', label: 'Data Agendada', value: r => Utils.formatDate(r.dataAgendamento) },
       { field: 'observacaoAgendamento', label: 'Observação', value: r => r.observacaoAgendamento || '—' },
+      { field: 'valorDescargaAprovado', label: 'Valor Descarga Aprovado', value: r => r.valorDescargaAprovado != null ? Utils.formatCurrency(r.valorDescargaAprovado) : '—' },
+      { field: 'ajudanteEntrega', label: 'Ajudante', value: r => ajudanteEntregaLabel(r.ajudanteEntrega) },
       // Colunas novas 2026-08-22 (Base Bluesoft) — ocultas por padrão (ver colunasOcultasPadrao
       // abaixo), só aparecem se o usuário ligar o botão ou usar a busca (que já cobre esses
       // campos mesmo ocultos, ver getFilteredRecords em data.js).
@@ -3305,7 +3334,31 @@ const Dashboard = (() => {
     const observacaoHtml = observacaoClicavel
       ? `<button type="button" class="nf-link${registrosDetalhadosObservacaoNf === nfBaseObservacao ? ' nf-link--ativo' : ''}" data-observacao-edicao-principal="${escapeAttr(nfBaseObservacao)}">${escapeAttr(r.observacaoAgendamento || 'Adicionar observação')}</button>`
       : escapeAttr(r.observacaoAgendamento || '—');
+    // "Valor Descarga Aprovado" (2026-09-08) — mesmo padrão clicável de Observação acima, painel
+    // próprio (renderRegistrosDetalhadosValorDescargaEdicao), mesma flag observacaoClicavel (só
+    // true na tabela "Registros detalhados", que é onde essa coluna deve aparecer).
+    const nfBaseValorDescarga = nfBaseObservacao;
+    const valorDescargaTexto = r.valorDescargaAprovado != null ? Utils.formatCurrency(r.valorDescargaAprovado) : 'Adicionar valor';
+    const valorDescargaHtml = observacaoClicavel
+      ? `<button type="button" class="nf-link${registrosDetalhadosValorDescargaNf === nfBaseValorDescarga ? ' nf-link--ativo' : ''}" data-valor-descarga-edicao="${escapeAttr(nfBaseValorDescarga)}">${escapeAttr(valorDescargaTexto)}</button>`
+      : escapeAttr(valorDescargaTexto);
+    // "Ajudante" (2026-09-08, pedido da usuária: "cria essa coluna do lado de onde vamos colocar
+    // o valor") — sem painel/botão, um <select> direto na célula (salva sozinho no onChange, ver
+    // bindAjudanteEntregaPrincipal) porque é só uma escolha entre 3 opções fixas, não texto
+    // livre. Mesma permissão de Valor Descarga (isAutorizadoValorDescarga) — quem não tem só vê
+    // o texto. Ela ainda não tem uma base de clientes que exigem ajudante; vai construir isso
+    // manualmente com o tempo, a partir do preenchimento nota a nota dessa coluna.
+    const ajudanteAtual = r.ajudanteEntrega || '';
+    const ajudanteHtml = (observacaoClicavel && isAutorizadoValorDescarga())
+      ? `<select class="ajudante-select" data-ajudante-nf="${escapeAttr(nfBaseValorDescarga)}">
+          <option value=""${ajudanteAtual === '' ? ' selected' : ''}>—</option>
+          <option value="COM_AJUDANTE"${ajudanteAtual === 'COM_AJUDANTE' ? ' selected' : ''}>Com Ajudante</option>
+          <option value="SEM_AJUDANTE"${ajudanteAtual === 'SEM_AJUDANTE' ? ' selected' : ''}>Sem Ajudante</option>
+        </select>`
+      : escapeAttr(ajudanteEntregaLabel(ajudanteAtual));
     const colunasNovasHtml = !incluirColunasNovas ? '' : `
+        <td class="text-right" title="${escapeAttr(valorDescargaTexto)}">${valorDescargaHtml}</td>
+        <td>${ajudanteHtml}</td>
         <td class="truncate" title="${escapeAttr(r.filial)}">${escapeAttr(r.filial || '—')}</td>
         <td>${escapeAttr(r.codigoCliente || '—')}</td>
         <td>${escapeAttr(r.telefone || '—')}</td>
@@ -3485,6 +3538,7 @@ const Dashboard = (() => {
       if (contagem) contagem.textContent = `${Utils.formatNumber(registrosExibidos.length)} ocorrência${registrosExibidos.length === 1 ? '' : 's'} encontrada${registrosExibidos.length === 1 ? '' : 's'}`;
     }
     renderRegistrosDetalhadosObservacaoEdicao();
+    renderRegistrosDetalhadosValorDescargaEdicao();
   }
 
   /** Painel de edição da observação de UMA nota (clicar no botão da coluna "Observação" na
@@ -3593,6 +3647,134 @@ const Dashboard = (() => {
         Utils.showToast(err.message || 'Falha ao salvar a observação.', 'error', 5000);
         botao.disabled = false;
         botao.textContent = 'Salvar';
+      }
+    });
+  }
+
+  /** Painel de edição do "Valor Descarga Aprovado" (2026-09-08) — mesmo padrão de
+   * renderRegistrosDetalhadosObservacaoEdicao acima, permissão separada (isAutorizadoValorDescarga,
+   * não isAdminAgendamento): quem não tem podeEditarValorDescarga vê o valor só de leitura. */
+  function renderRegistrosDetalhadosValorDescargaEdicao() {
+    const section = document.getElementById('registros-detalhados-valor-descarga-edicao-section');
+    if (!section) return;
+    if (!registrosDetalhadosValorDescargaNf) { section.hidden = true; return; }
+    const registro = DataStore.getFilteredRecords().find(r => r.nf.split('-')[0] === registrosDetalhadosValorDescargaNf);
+    if (!registro) { section.hidden = true; registrosDetalhadosValorDescargaNf = null; return; }
+    section.hidden = false;
+
+    const autorizado = isAutorizadoValorDescarga();
+    document.getElementById('registros-detalhados-valor-descarga-edicao-titulo').textContent = `Editar valor descarga aprovado — NF ${registro.nf}`;
+    document.getElementById('registros-detalhados-valor-descarga-edicao-hint').textContent = autorizado
+      ? 'Valor pré-aprovado de descarga pelo setor de Monitoramento — deixe em branco pra remover.'
+      : 'Valor de descarga aprovado da nota (só o setor de Monitoramento pode editar).';
+
+    const list = document.getElementById('registros-detalhados-valor-descarga-edicao-list');
+    const valorAtual = registro.valorDescargaAprovado;
+
+    if (!autorizado) {
+      list.innerHTML = `
+        <div class="observacao-row">
+          <span class="observacao-row__nf">${escapeAttr(registro.nf)}</span>
+          <span class="observacao-row__cliente" title="${escapeAttr(registro.cliente)}">${escapeAttr(registro.cliente)}</span>
+          <span class="observacao-row__somente-leitura">${valorAtual != null ? escapeAttr(Utils.formatCurrency(valorAtual)) : '—'}</span>
+          <span></span>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = `
+      <div class="observacao-row" data-nf="${escapeAttr(registrosDetalhadosValorDescargaNf)}">
+        <span class="observacao-row__nf">${escapeAttr(registro.nf)}</span>
+        <span class="observacao-row__cliente" title="${escapeAttr(registro.cliente)}">${escapeAttr(registro.cliente)}</span>
+        <input type="number" step="0.01" min="0" class="valor-descarga-row__input" placeholder="Valor (R$)" value="${valorAtual != null ? valorAtual : ''}">
+        <button type="button" class="btn valor-descarga-row__salvar">Salvar</button>
+      </div>
+    `;
+  }
+
+  /** Mesmo padrão de abrirEdicaoObservacaoRegistrosDetalhados acima, painel próprio. */
+  function abrirEdicaoValorDescargaRegistrosDetalhados(nfBase) {
+    const vaiFechar = registrosDetalhadosValorDescargaNf === nfBase;
+    registrosDetalhadosValorDescargaNf = vaiFechar ? null : nfBase;
+    if (vaiFechar) {
+      const scrollYAntes = window.scrollY;
+      renderTable(DataStore.getFilteredRecords());
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollYAntes)));
+    } else {
+      renderTable(DataStore.getFilteredRecords());
+      document.getElementById('registros-detalhados-valor-descarga-edicao-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  /** Mesmo padrão de bindObservacaoEdicaoPrincipal acima, painel/coleção/permissão próprios. */
+  function bindValorDescargaEdicaoPrincipal() {
+    document.getElementById(MAIN_TABLE_IDS.tbody).addEventListener('click', (e) => {
+      const botao = e.target.closest('[data-valor-descarga-edicao]');
+      if (botao) abrirEdicaoValorDescargaRegistrosDetalhados(botao.dataset.valorDescargaEdicao);
+    });
+
+    document.getElementById('registros-detalhados-valor-descarga-edicao-list').addEventListener('click', async (e) => {
+      const botao = e.target.closest('.valor-descarga-row__salvar');
+      if (!botao) return;
+      const linha = botao.closest('.observacao-row');
+      const nf = linha.dataset.nf;
+      const valorTexto = linha.querySelector('.valor-descarga-row__input').value.trim();
+
+      botao.disabled = true;
+      botao.textContent = 'Salvando...';
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        const valor = valorTexto === '' ? null : Number(valorTexto);
+        if (valor !== null && (isNaN(valor) || valor < 0)) throw new Error('Valor inválido.');
+        // Mesma trava de página de bindObservacaoEdicaoPrincipal (ver comentário lá) —
+        // applyValorDescargaAprovado chama notify() por baixo, que zeraria table.page sem isso.
+        const paginaAntes = table.page;
+        await fb.salvarValorDescargaAprovado(nf, valor);
+        DataStore.applyValorDescargaAprovado({ [nf]: { valor } });
+        table.page = paginaAntes;
+        Utils.showToast(`NF ${nf}: valor descarga aprovado salvo.`, 'success', 2500);
+        const scrollYAntes = window.scrollY;
+        registrosDetalhadosValorDescargaNf = null;
+        renderTable(DataStore.getFilteredRecords());
+        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, scrollYAntes)));
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar o valor de descarga.', 'error', 5000);
+        botao.disabled = false;
+        botao.textContent = 'Salvar';
+      }
+    });
+  }
+
+  /** Coluna "Ajudante" salva sozinha no onChange do <select> (ver rowHtml) — sem painel, sem
+   * botão de confirmar, diferente de Observação/Valor Descarga (texto livre, precisa de
+   * confirmação explícita). */
+  function bindAjudanteEntregaPrincipal() {
+    document.getElementById(MAIN_TABLE_IDS.tbody).addEventListener('change', async (e) => {
+      const select = e.target.closest('[data-ajudante-nf]');
+      if (!select) return;
+      const nf = select.dataset.ajudanteNf;
+      const ajudante = select.value;
+      select.disabled = true;
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        await fb.salvarAjudanteEntrega(nf, ajudante);
+        // Mesma trava de página de bindObservacaoEdicaoPrincipal (ver comentário lá) —
+        // applyValorDescargaAprovado chama notify() por baixo, que zeraria table.page sem isso.
+        const paginaAntes = table.page;
+        DataStore.applyValorDescargaAprovado({ [nf]: { ajudante } });
+        table.page = paginaAntes;
+        Utils.showToast(`NF ${nf}: ${ajudanteEntregaLabel(ajudante) === '—' ? 'ajudante limpo' : ajudanteEntregaLabel(ajudante)}.`, 'success', 2000);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar o ajudante.', 'error', 5000);
+      } finally {
+        select.disabled = false;
       }
     });
   }
@@ -4587,6 +4769,7 @@ const Dashboard = (() => {
 
   return {
     init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento,
+    setPermissaoEdicaoValorDescarga,
     computarDadosRegioesAoVivo, enviarDadosRegioesParaIframe,
     calcularRegistroDinamico, calcularRegistroDinamicoPorMes, calcularRegistroDinamicoPorTransportadora,
   };
