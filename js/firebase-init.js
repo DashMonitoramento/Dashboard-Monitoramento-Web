@@ -187,6 +187,21 @@ async function salvarAjudanteEntrega(nf, ajudante) {
   }, { merge: true });
 }
 
+/** Grava/atualiza a QUANTIDADE de ajudantes ('1'/'2'/'3'/'4+'/'' pra limpar) — pedido da
+ * usuária, 2026-09-08: campo SEPARADO de `ajudante` acima (aquele é Com/Sem, usado em
+ * "Registros detalhados"; este é a contagem, usado só na tela "Controle de Despesas Extra").
+ * Mesmo doc/coleção/permissão dos outros 2 campos deste grupo. */
+async function salvarQtdAjudante(nf, qtd) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  if (!['', '1', '2', '3', '4+'].includes(qtd)) throw new Error('Quantidade de ajudante inválida.');
+  await setDoc(doc(db, VALORES_DESCARGA_COLECAO, nf), {
+    qtdAjudante: qtd || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
 /** Grava só a observação de uma NF (usado pela tela "Notas em aberto", 2026-08-19 — uma nota
  * aberta pode não precisar de agendamento nenhum, então essa tela não mexe em status/data).
  * Usa `{merge: true}` de propósito — diferente de salvarAgendamentoManual acima, que sempre
@@ -587,7 +602,7 @@ async function atualizarDisponibilidadesEmLote(atualizacoes) {
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
-  getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega,
+  getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega, salvarQtdAjudante,
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
   definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
