@@ -445,6 +445,15 @@ function normalizeRecord(rawRow) {
     necessitaAgendamento: null,
     statusAgendamento: '',
     observacaoAgendamento: '',
+    // Valor pré-aprovado de descarga (Firestore, ver applyValorDescargaAprovado) — pedido do
+    // setor de Monitoramento (2026-09-08), mesma ideia de observacaoAgendamento mas número, não
+    // texto. null = nenhum valor definido ainda (diferente de 0, que é um valor real aprovado).
+    valorDescargaAprovado: null,
+    // 'COM_AJUDANTE' | 'SEM_AJUDANTE' | '' (ainda não preenchido) — mesmo doc/coleção/permissão
+    // de valorDescargaAprovado (pedido da usuária, 2026-09-08: "do lado de onde vamos colocar o
+    // valor"). Ainda não existe uma base de clientes que exigem ajudante — ela vai construir
+    // isso manualmente, a partir do preenchimento nota a nota dessa coluna.
+    ajudanteEntrega: '',
     reagendar: '',
     // Total de vezes que a nota passou por Reentrega (todas as tentativas, ver
     // applyBluesoftEnrichment) — 0 até a Base Bluesoft enriquecer o registro; fica 0 pra
@@ -976,6 +985,8 @@ const DataStore = (() => {
         necessitaAgendamento: info.necessitaAgendamento || false,
         statusAgendamento: '',
         observacaoAgendamento: '',
+        valorDescargaAprovado: null,
+        ajudanteEntrega: '',
         motivo: '',
         motivoCategoria: '',
         qtdReentregas: bluesoftReentregaOcorrenciasPorBaseNF.get(baseNf) || 0
@@ -2184,6 +2195,26 @@ const DataStore = (() => {
     notify();
   }
 
+  /**
+   * Mescla o "Valor Descarga Aprovado" e o "Ajudante" (mesmo doc por NF, ver comentário em
+   * firebase-init.js sobre por que essa coleção é separada de agendamentosManuais) nos
+   * registros já carregados. `porNf` é { [nf sem sufixo]: { valor, ajudante,
+   * atualizadoPorEmail, atualizadoEm } }. Os 2 campos são checados INDEPENDENTEMENTE (`!==
+   * undefined`, igual observacaoAgendamento em applyAgendamentoManual) — salvar só um deles
+   * (ex.: o select de Ajudante, sem mexer no valor) não pode acabar limpando o outro campo já
+   * preenchido nessa mesma chamada.
+   */
+  function applyValorDescargaAprovado(porNf) {
+    if (!porNf) return;
+    for (const r of rawRecords) {
+      const info = porNf[r.nf.split('-')[0]];
+      if (!info) continue;
+      if (info.valor !== undefined) r.valorDescargaAprovado = info.valor;
+      if (info.ajudante !== undefined) r.ajudanteEntrega = info.ajudante;
+    }
+    notify();
+  }
+
   return {
     loadFromUrl, loadFromFile, setRawRows,
     loadBluesoftFromUrl, loadBluesoftFromFile,
@@ -2197,7 +2228,7 @@ const DataStore = (() => {
     loadFeriadosFromUrl,
     loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
-    applyAgendamentoManual,
+    applyAgendamentoManual, applyValorDescargaAprovado,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
