@@ -339,6 +339,10 @@ const Dashboard = (() => {
   let cargasMotoristas = new Map(); // placa normalizada -> {placa, nome, veiculo, rodizio, ativo}
   let cargasStatusCarga = new Map(); // placa -> {id(=placa), status, atualizadoEm, alteradoPorEmail}
   let cargasDisponibilidade = new Map(); // placa -> {id(=placa), status, disponibilizadoEm, ...}
+  // Histórico de No Show (2026-09-08) — coleção só de acréscimo (statusCargaNoShow), 1 doc por
+  // ocorrência; nunca é filtrado por status como os outros 2 Maps, sempre entra inteiro aqui.
+  let cargasNoShowHistorico = new Map();
+  let cargasNoShowPeriodo = 'hoje'; // 'ontem' | 'hoje' | 'semana' | 'mes' — mesmas opções/lógica de periodoOcorrenciasDoDia
   let cargasFiltroAtivo = null;
   let cargasMotoristaSelecionadoParaAdicionar = null;
   let cargasInicializado = false;
@@ -346,6 +350,8 @@ const Dashboard = (() => {
   let cargasPodeEditar = false;
   let cargasPodeGerenciarDisponibilidade = false;
   let cargasUltimaVerificacaoNoShow = '';
+  let cargasUltimaVerificacaoCarregamento = '';
+  let cargasNoShowPlacaAlvo = null; // placa aguardando confirmação no modal "Motivo do No Show"
 
   // Colunas que começam OCULTAS por padrão na tabela "Registros detalhados" — decisão do
   // usuário (2026-08-22): campos novos, úteis pra consulta pontual, mas que não deveriam
@@ -3980,6 +3986,16 @@ const Dashboard = (() => {
   function cargasTimestampParaData(ts) {
     return ts && typeof ts.toDate === 'function' ? ts.toDate() : null;
   }
+  /** Data calendário (ex.: "08/09/2026"), pedido da usuária (2026-09-08) pra aparecer acima do
+   * "Há X dias" nos itens do Controle de Cargas — só formatação, não é um campo novo gravado. */
+  function cargasFormatarData(data) {
+    return data ? data.toLocaleDateString('pt-BR') : '';
+  }
+  /** Minúsculo + sem acento, pra comparar texto vindo da Base Bluesoft (ex.: "Em Trânsito") sem
+   * depender de maiúscula/acentuação exata da planilha. */
+  function cargasNormalizarTexto(texto) {
+    return String(texto || '').normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').toLowerCase().trim();
+  }
 
   async function cargasWaitFirebaseReady() {
     return new Promise((resolve) => {
@@ -3988,7 +4004,7 @@ const Dashboard = (() => {
     });
   }
 
-  /** Só assina os 3 onSnapshot na PRIMEIRA vez que ela abre essa tela — evita 3 listeners em
+  /** Só assina os 4 onSnapshot na PRIMEIRA vez que ela abre essa tela — evita listeners em
    * tempo real rodando a sessão inteira pra quem nunca usa esse módulo. */
   async function inicializarControleCargas() {
     if (cargasInicializado) return;
@@ -4016,7 +4032,14 @@ const Dashboard = (() => {
       cargasStatusCarga = new Map(lista.map(s => [s.id, s]));
       renderControleCargasCards();
       renderControleCargasLista();
+      verificarCarregamentoStatusCarga();
     }, (err) => Utils.showToast('Falha ao sincronizar status de carga: ' + err.message, 'error'));
+
+    fb.assinarStatusCargaNoShow((lista) => {
+      cargasNoShowHistorico = new Map(lista.map(n => [n.id, n]));
+      renderControleCargasCards();
+      renderControleCargasLista();
+    }, (err) => Utils.showToast('Falha ao sincronizar histórico de No Show: ' + err.message, 'error'));
 
     fb.assinarDisponibilidade((lista) => {
       cargasDisponibilidade = new Map(lista.map(d => [d.id, d]));
@@ -4055,32 +4078,48 @@ const Dashboard = (() => {
   }
 
   function renderControleCargasCards() {
-    const contagem = { NAO_INICIADA: 0, EM_SEPARACAO: 0, SEPARADO: 0, DISPONIVEL: 0 };
+    const contagem = { NAO_INICIADA: 0, EM_SEPARACAO: 0, SEPARADO: 0, CARREGADO: 0, DISPONIVEL: 0 };
     cargasStatusCarga.forEach(s => { if (contagem[s.status] !== undefined) contagem[s.status]++; });
     cargasDisponibilidade.forEach(d => { if (d.status === 'DISPONIVEL') contagem.DISPONIVEL++; });
     const mapaIds = {
       NAO_INICIADA: 'cargas-count-nao-iniciada', EM_SEPARACAO: 'cargas-count-em-separacao',
-      SEPARADO: 'cargas-count-separado', DISPONIVEL: 'cargas-count-disponiveis'
+      SEPARADO: 'cargas-count-separado', CARREGADO: 'cargas-count-carregado', DISPONIVEL: 'cargas-count-disponiveis'
     };
     Object.entries(mapaIds).forEach(([chave, id]) => {
       const el = document.getElementById(id);
       if (el) el.textContent = Utils.formatNumber(contagem[chave]);
     });
+
+    // Card "No Show (hoje)" — a contagem do card em si é SEMPRE de hoje (pedido da usuária,
+    // 2026-09-08); clicar no card mostra a lista com filtro de período à parte (ver
+    // bindCargasNoShowPeriodo), sem afetar esse número.
+    const hoje = inicioDoDia(new Date());
+    const fimHoje = fimDoDia(new Date());
+    let noShowHoje = 0;
+    cargasNoShowHistorico.forEach(n => {
+      const data = cargasTimestampParaData(n.marcadoEm);
+      if (data && data >= hoje && data <= fimHoje) noShowHoje++;
+    });
+    const elNoShow = document.getElementById('cargas-count-noshow');
+    if (elNoShow) elNoShow.textContent = Utils.formatNumber(noShowHoje);
   }
 
   const CARGAS_LABEL_FILTRO = {
     NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada',
-    SEPARADO: 'Separado', DISPONIVEL: 'Motoristas Disponíveis'
+    SEPARADO: 'Separado', CARREGADO: 'Carregado', DISPONIVEL: 'Motoristas Disponíveis',
+    NOSHOW: 'No Show'
   };
 
   function renderControleCargasLista() {
     const wrap = document.getElementById('cargas-lista');
     const titulo = document.getElementById('cargas-lista-titulo');
+    const barraNoShow = document.getElementById('cargas-noshow-periodo-bar');
     if (!wrap || !titulo) return;
 
     document.querySelectorAll('#cargas-view [data-cargas-filtro]').forEach(card => {
       card.classList.toggle('selecionado', card.dataset.cargasFiltro === cargasFiltroAtivo);
     });
+    if (barraNoShow) barraNoShow.hidden = cargasFiltroAtivo !== 'NOSHOW';
 
     if (!cargasFiltroAtivo) {
       titulo.textContent = 'Selecione um card acima pra ver a lista';
@@ -4088,6 +4127,11 @@ const Dashboard = (() => {
       return;
     }
     titulo.textContent = CARGAS_LABEL_FILTRO[cargasFiltroAtivo] || '';
+
+    if (cargasFiltroAtivo === 'NOSHOW') {
+      renderControleCargasListaNoShow(wrap);
+      return;
+    }
 
     let itens;
     if (cargasFiltroAtivo === 'DISPONIVEL') {
@@ -4117,6 +4161,9 @@ const Dashboard = (() => {
         ? `<span class="cargas-rodizio-destaque">Rodízio: ${escapeAttr(rodizio)}</span>`
         : 'Sem rodízio cadastrado';
       const tempo = item.dataRef ? cargasFormatarTempoDecorrido(item.dataRef) : '';
+      // Data calendário acima do "Há X dias" (pedido da usuária, 2026-09-08) — mesmo dataRef já
+      // usado pro tempo relativo, só formatado diferente, não é um campo novo.
+      const dataTexto = item.dataRef ? `<div class="cargas-item__data">${cargasFormatarData(item.dataRef)}</div>` : '';
       const rotaTexto = item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '';
 
       let acoes = '';
@@ -4127,7 +4174,10 @@ const Dashboard = (() => {
         acoes = `<button class="btn btn--primary" data-cargas-acao="separar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Separado</button>
                  <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
       } else if (cargasPodeEditar && cargasFiltroAtivo === 'SEPARADO') {
-        acoes = `<button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
+        // Botão "No Show" (pedido da usuária, 2026-09-08) — pra ela mesma acionar manualmente
+        // quando o motorista não carregou; ver marcarNoShowStatusCarga (firebase-init.js).
+        acoes = `<button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>
+                 <button class="btn btn--danger" data-cargas-acao="no-show" data-cargas-placa="${escapeAttr(item.placa)}">No Show</button>`;
       } else if (cargasPodeGerenciarDisponibilidade && cargasFiltroAtivo === 'DISPONIVEL') {
         acoes = `<button class="btn" data-cargas-acao="encerrar-disponibilidade" data-cargas-placa="${escapeAttr(item.placa)}">Retirar da lista</button>`;
       }
@@ -4138,10 +4188,76 @@ const Dashboard = (() => {
             <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}</div>
             <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
           </div>
-          <div class="cargas-item__tempo">${tempo}</div>
+          <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
           <div class="cargas-item__acoes">${acoes}</div>
         </div>`;
     }).join('');
+  }
+
+  /** Lista do card "No Show" — diferente dos outros (não é fila ao vivo, é histórico só de
+   * acréscimo): filtra por período (Ontem/Hoje/Semana/Mês, ver bindCargasNoShowPeriodo) e
+   * mostra mais recente primeiro (inverso da ordem "quem entrou primeiro" das filas ativas). */
+  function renderControleCargasListaNoShow(wrap) {
+    const [inicio, fim] = periodoOcorrenciasDoDia(cargasNoShowPeriodo);
+    const itens = Array.from(cargasNoShowHistorico.values())
+      .map(n => ({
+        placa: n.placa,
+        rota: n.rota || '',
+        motivo: n.motivo || '',
+        dataSeparado: cargasTimestampParaData(n.dataSeparado),
+        marcadoEm: cargasTimestampParaData(n.marcadoEm)
+      }))
+      .filter(item => item.marcadoEm && item.marcadoEm.getTime() >= inicio.getTime() && item.marcadoEm.getTime() <= fim.getTime());
+    itens.sort((a, b) => (b.marcadoEm ? b.marcadoEm.getTime() : 0) - (a.marcadoEm ? a.marcadoEm.getTime() : 0));
+
+    const contagemEl = document.getElementById('cargas-noshow-periodo-contagem');
+    if (contagemEl) contagemEl.textContent = `${Utils.formatNumber(itens.length)} No Show${itens.length === 1 ? '' : 's'} encontrado${itens.length === 1 ? '' : 's'}`;
+
+    if (!itens.length) {
+      wrap.innerHTML = '<div class="cargas-vazio">Nenhum No Show nesse período.</div>';
+      return;
+    }
+
+    // Ranking "quem cancela carga" (pedido da usuária, 2026-09-08) — top 5 motoristas com mais
+    // No Show DENTRO do período escolhido na barra acima (não é um total à parte, some/muda
+    // junto com o filtro de período).
+    const contagemPorPlaca = new Map();
+    itens.forEach(item => contagemPorPlaca.set(item.placa, (contagemPorPlaca.get(item.placa) || 0) + 1));
+    const ranking = Array.from(contagemPorPlaca.entries())
+      .map(([placa, total]) => ({ total, nome: (cargasMotoristas.get(placa) || {}).nome || placa }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+    const rankingHtml = itens.length > 1 ? `
+      <div class="cargas-noshow-ranking">
+        <h4 class="cargas-noshow-ranking__titulo">Top No Show no período</h4>
+        ${ranking.map(r => `
+          <div class="cargas-noshow-ranking__item">
+            <span>${escapeAttr(r.nome)}</span>
+            <span class="cargas-noshow-ranking__valor">${r.total}</span>
+          </div>`).join('')}
+      </div>` : '';
+
+    const listaHtml = itens.map(item => {
+      const motorista = cargasMotoristas.get(item.placa);
+      const nome = motorista ? motorista.nome : '(motorista não encontrado no cadastro)';
+      const rotaTexto = item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '';
+      const separadoTexto = item.dataSeparado ? ` · Separado desde: ${cargasFormatarData(item.dataSeparado)}` : '';
+      const motivoTexto = item.motivo ? ` · Motivo: ${escapeAttr(item.motivo)}` : '';
+      const dataTexto = item.marcadoEm ? `<div class="cargas-item__data">${cargasFormatarData(item.marcadoEm)}</div>` : '';
+      const tempo = item.marcadoEm ? cargasFormatarTempoDecorrido(item.marcadoEm) : '';
+
+      return `
+        <div class="cargas-item">
+          <div class="cargas-item__info">
+            <div class="cargas-item__nome">${escapeAttr(nome)}</div>
+            <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)}${rotaTexto}${separadoTexto}${motivoTexto}</div>
+          </div>
+          <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
+          <div class="cargas-item__acoes"></div>
+        </div>`;
+    }).join('');
+
+    wrap.innerHTML = rankingHtml + listaHtml;
   }
 
   function bindControleCargasCards() {
@@ -4162,6 +4278,9 @@ const Dashboard = (() => {
       if (!botao) return;
       const acao = botao.dataset.cargasAcao;
       const placa = botao.dataset.cargasPlaca;
+      // "No Show" abre o modal de motivo em vez de gravar direto (ver abrirModalNoShowMotivo/
+      // bindModalNoShowMotivo) — a gravação de verdade acontece só quando ela confirma lá.
+      if (acao === 'no-show') { abrirModalNoShowMotivo(placa); return; }
       botao.disabled = true;
       try {
         // Rota é preenchida manualmente só na hora de Adicionar (ver bindControleCargasAutocomplete)
@@ -4276,6 +4395,57 @@ const Dashboard = (() => {
     });
   }
 
+  /** Abre o modal de motivo pra placa clicada (ver bindControleCargasAcoes) — a gravação de
+   * verdade só acontece quando ela confirma dentro do modal (bindModalNoShowMotivo). */
+  function abrirModalNoShowMotivo(placa) {
+    const modal = document.getElementById('modal-noshow-motivo');
+    if (!modal) return;
+    cargasNoShowPlacaAlvo = placa;
+    document.getElementById('noshow-motivo-select').value = '';
+    document.getElementById('noshow-motivo-outro').value = '';
+    document.getElementById('noshow-motivo-outro-campo').hidden = true;
+    document.getElementById('noshow-motivo-erro').hidden = true;
+    modal.hidden = false;
+  }
+
+  /** Modal "Motivo do No Show" (pedido da usuária, 2026-09-08: melhoria sugerida por mim e
+   * aceita por ela — registrar POR QUE o motorista não carregou, não só que não carregou).
+   * Mesmo padrão visual/estrutural de bindModalCadastrarMotorista. */
+  function bindModalNoShowMotivo() {
+    const modal = document.getElementById('modal-noshow-motivo');
+    const btnFechar = document.getElementById('btn-fechar-modal-noshow-motivo');
+    const btnConfirmar = document.getElementById('btn-confirmar-noshow-motivo');
+    const select = document.getElementById('noshow-motivo-select');
+    const campoOutro = document.getElementById('noshow-motivo-outro-campo');
+    const inputOutro = document.getElementById('noshow-motivo-outro');
+    const erro = document.getElementById('noshow-motivo-erro');
+    if (!modal || !btnFechar || !btnConfirmar) return;
+
+    select.addEventListener('change', () => { campoOutro.hidden = select.value !== 'Outro'; });
+    btnFechar.addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+    btnConfirmar.addEventListener('click', async () => {
+      const motivo = select.value === 'Outro' ? inputOutro.value.trim() : select.value;
+      if (!motivo) {
+        erro.textContent = 'Selecione (ou descreva) o motivo.';
+        erro.hidden = false;
+        return;
+      }
+      erro.hidden = true;
+      btnConfirmar.disabled = true;
+      try {
+        await cargasDashFirebase.marcarNoShowStatusCarga(cargasNoShowPlacaAlvo, motivo);
+        modal.hidden = true;
+      } catch (err) {
+        erro.textContent = err.message || 'Falha ao registrar No Show.';
+        erro.hidden = false;
+      } finally {
+        btnConfirmar.disabled = false;
+      }
+    });
+  }
+
   async function sincronizarCadastroMotoristas() {
     const statusEl = document.getElementById('cargas-sincronizar-status');
     const btn = document.getElementById('cargas-btn-sincronizar');
@@ -4343,11 +4513,68 @@ const Dashboard = (() => {
     }
   }
 
+  /** Move automaticamente pra "Carregado" quem está em SEPARADO e tem uma nota da Base Bluesoft
+   * de HOJE com "Status de Viagem" = "Em Trânsito" pra aquela placa (pedido da usuária,
+   * 2026-09-08: "pegar pela placa e a data de hoje, se a placa estiver com Status da Viagem Em
+   * Trânsito ele precisa aparecer no card Carregado e sumir do card Separado"). Roda sempre que
+   * statusCarga muda (ver inicializarControleCargas) — mesma limitação já aceita em
+   * verificarNoShowDisponibilidade: não decide nada se a Base Bluesoft ainda não carregou. */
+  async function verificarCarregamentoStatusCarga() {
+    if (!cargasDashFirebase) return;
+    const separados = Array.from(cargasStatusCarga.values()).filter(s => s.status === 'SEPARADO');
+    if (!separados.length) return;
+    const registros = DataStore.getRecords();
+    if (!registros.length) return;
+
+    const hoje = cargasInicioDoDia(new Date());
+    const fimHoje = fimDoDia(new Date());
+    const candidatos = separados.filter(s => {
+      const placa = s.id;
+      return registros.some(r => r.placa && r.dataCriacao &&
+        cargasNormalizarPlaca(r.placa) === placa &&
+        r.dataCriacao >= hoje && r.dataCriacao <= fimHoje &&
+        cargasNormalizarTexto(r.viagem) === 'em transito');
+    });
+    if (!candidatos.length) return;
+
+    // Mesma trava de reenvio de verificarNoShowDisponibilidade — evita chamar definirStatusCarga
+    // repetidamente pro mesmo motorista a cada re-render sem nenhuma mudança real.
+    const chave = candidatos.map(c => c.id).sort().join('|');
+    if (chave === cargasUltimaVerificacaoCarregamento) return;
+    cargasUltimaVerificacaoCarregamento = chave;
+
+    for (const s of candidatos) {
+      try {
+        await cargasDashFirebase.definirStatusCarga(s.id, 'CARREGADO', s.rota || '');
+      } catch (err) {
+        console.error('Falha ao marcar carregado', s.id, err);
+      }
+    }
+  }
+
+  /** Liga os 4 botões de período (Ontem/Hoje/Semana/Mês) da barra que só aparece quando o card
+   * "No Show" está selecionado — mesmo cálculo de período de periodoOcorrenciasDoDia, mas
+   * completamente independente do modo "Ocorrências do Dia" da tabela principal (ver
+   * bindOcorrenciasDoDia): barra/classe/estado próprios, nenhum dos dois mexe no outro. */
+  function bindCargasNoShowPeriodo() {
+    const barra = document.getElementById('cargas-noshow-periodo-bar');
+    if (!barra) return;
+    barra.querySelectorAll('[data-cargas-noshow-periodo]').forEach(botao => {
+      botao.addEventListener('click', () => {
+        cargasNoShowPeriodo = botao.dataset.cargasNoshowPeriodo;
+        barra.querySelectorAll('[data-cargas-noshow-periodo]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
+        renderControleCargasLista();
+      });
+    });
+  }
+
   function bindControleCargas() {
     bindControleCargasCards();
     bindControleCargasAcoes();
     bindControleCargasAutocomplete();
     bindModalCadastrarMotorista();
+    bindModalNoShowMotivo();
+    bindCargasNoShowPeriodo();
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
     if (btnSincronizar) btnSincronizar.addEventListener('click', sincronizarCadastroMotoristas);
   }
