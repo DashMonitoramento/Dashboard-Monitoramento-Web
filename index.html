@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260904c">
+<link rel="stylesheet" href="css/style.css?v=20260908a">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -174,6 +174,38 @@
     <p class="login-error" id="cadastrar-motorista-erro" role="alert" hidden></p>
     <div class="modal-actions">
       <button id="btn-salvar-cadastrar-motorista" class="btn btn--primary">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: MOTIVO DO NO SHOW (Controle de Cargas, 2026-09-08) =====================
+     Pedido da usuária: registrar POR QUE o motorista não carregou, não só que não carregou —
+     alimenta o "Motivo" mostrado no histórico do card No Show. -->
+<div id="modal-noshow-motivo" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h2 class="modal-card__title">Motivo do No Show</h2>
+      <button id="btn-fechar-modal-noshow-motivo" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <p class="modal-card__hint">Por que esse motorista não carregou?</p>
+    <div class="field">
+      <label for="noshow-motivo-select">Motivo</label>
+      <select id="noshow-motivo-select">
+        <option value="">Selecione...</option>
+        <option value="Sem caminhão disponível">Sem caminhão disponível</option>
+        <option value="Motorista desistiu">Motorista desistiu</option>
+        <option value="Trânsito/atraso">Trânsito/atraso</option>
+        <option value="Problema mecânico">Problema mecânico</option>
+        <option value="Outro">Outro</option>
+      </select>
+    </div>
+    <div class="field" id="noshow-motivo-outro-campo" hidden>
+      <label for="noshow-motivo-outro">Descreva o motivo</label>
+      <input type="text" id="noshow-motivo-outro" placeholder="Motivo">
+    </div>
+    <p class="login-error" id="noshow-motivo-erro" role="alert" hidden></p>
+    <div class="modal-actions">
+      <button id="btn-confirmar-noshow-motivo" class="btn btn--danger">Confirmar No Show</button>
     </div>
   </div>
 </div>
@@ -1396,9 +1428,17 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__label">Separado</span>
             <span class="kpi-card__value" id="cargas-count-separado">0</span>
           </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="CARREGADO" style="--kpi-accent:#0D9488" title="Ver motoristas cuja carga já entrou em trânsito hoje">
+            <span class="kpi-card__label">Carregado</span>
+            <span class="kpi-card__value" id="cargas-count-carregado">0</span>
+          </article>
           <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="DISPONIVEL" style="--kpi-accent:#2563EB" title="Ver motoristas que avisaram disponibilidade">
             <span class="kpi-card__label">Motoristas Disponíveis</span>
             <span class="kpi-card__value" id="cargas-count-disponiveis">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="NOSHOW" style="--kpi-accent:#EA580C" title="Ver histórico de motoristas que não carregaram (No Show)">
+            <span class="kpi-card__label">No Show (hoje)</span>
+            <span class="kpi-card__value" id="cargas-count-noshow">0</span>
           </article>
         </div>
 
@@ -1418,6 +1458,20 @@ Segue anexo o relatório atualizado.</textarea>
           <button id="cargas-btn-adicionar" class="btn btn--primary" disabled>Adicionar</button>
         </div>
 
+        <!-- Barra de período do histórico "No Show" — reaproveita exatamente o mesmo CSS de
+             #ocorrencias-periodo-bar (mesmo visual), só com id/classe própria pra não interferir
+             no modo "Ocorrências do Dia" da tabela principal (ver bindOcorrenciasDoDia). -->
+        <div id="cargas-noshow-periodo-bar" class="ocorrencias-periodo-bar" hidden>
+          <span class="ocorrencias-periodo-bar__label">📋 Histórico de No Show — Período:</span>
+          <div class="ocorrencias-periodo-bar__opcoes">
+            <button type="button" class="ocorrencias-periodo-btn" data-cargas-noshow-periodo="ontem">Ontem</button>
+            <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-cargas-noshow-periodo="hoje">Hoje</button>
+            <button type="button" class="ocorrencias-periodo-btn" data-cargas-noshow-periodo="semana">Semana</button>
+            <button type="button" class="ocorrencias-periodo-btn" data-cargas-noshow-periodo="mes">Mês</button>
+          </div>
+          <span id="cargas-noshow-periodo-contagem" class="ocorrencias-periodo-bar__contagem"></span>
+        </div>
+
         <h3 class="cargas-lista-titulo" id="cargas-lista-titulo">Selecione um card acima pra ver a lista</h3>
         <div id="cargas-lista"></div>
       </section>
@@ -1432,11 +1486,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260904c"></script>
+<script type="module" src="js/firebase-init.js?v=20260908a"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260907a"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260904e"></script>
+<script src="js/dashboard.js?v=20260908a"></script>
 <script src="js/script.js?v=20260904a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
