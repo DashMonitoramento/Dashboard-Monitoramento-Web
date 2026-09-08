@@ -350,7 +350,7 @@ const Dashboard = (() => {
   let cargasPodeEditar = false;
   let cargasPodeGerenciarDisponibilidade = false;
   let cargasUltimaVerificacaoNoShow = '';
-  let cargasUltimaVerificacaoCarregamento = '';
+  let cargasCarregamentoTentativas = new Set(); // placas já tentadas nesta sessão de página (ver verificarCarregamentoStatusCarga)
   let cargasNoShowPlacaAlvo = null; // placa aguardando confirmação no modal "Motivo do No Show"
 
   // Colunas que começam OCULTAS por padrão na tabela "Registros detalhados" — decisão do
@@ -4534,26 +4534,26 @@ const Dashboard = (() => {
     // trânsito", confirmando que Data Criação nunca serviria pra decidir isso em tempo real.
     const hoje = cargasInicioDoDia(new Date());
     const fimHoje = fimDoDia(new Date());
-    const candidatos = separados.filter(s => {
-      const placa = s.id;
-      return registros.some(r => r.placa && r.dataEntrega &&
-        cargasNormalizarPlaca(r.placa) === placa &&
+    // Trava POR PLACA (não por "conjunto inteiro de candidatos" como antes) — pedido dela,
+    // 2026-09-08: o contador de Separado/Carregado ficava oscilando porque a escrita falhava
+    // (sessão sem permissão) e o Firestore desfazia a mudança otimista na tela, o que disparava
+    // o onSnapshot de novo e tentava a MESMA placa outra vez indefinidamente. Marcando a placa
+    // como "já tentada" ANTES de escrever, ela só é tentada 1x por carregamento de página,
+    // sucesso ou falha — se falhar, mostra um aviso visível em vez de ficar tentando calado.
+    const candidatos = separados.filter(s => !cargasCarregamentoTentativas.has(s.id) &&
+      registros.some(r => r.placa && r.dataEntrega &&
+        cargasNormalizarPlaca(r.placa) === s.id &&
         r.dataEntrega >= hoje && r.dataEntrega <= fimHoje &&
-        cargasNormalizarTexto(r.viagem) === 'em transito');
-    });
+        cargasNormalizarTexto(r.viagem) === 'em transito'));
     if (!candidatos.length) return;
 
-    // Mesma trava de reenvio de verificarNoShowDisponibilidade — evita chamar definirStatusCarga
-    // repetidamente pro mesmo motorista a cada re-render sem nenhuma mudança real.
-    const chave = candidatos.map(c => c.id).sort().join('|');
-    if (chave === cargasUltimaVerificacaoCarregamento) return;
-    cargasUltimaVerificacaoCarregamento = chave;
-
     for (const s of candidatos) {
+      cargasCarregamentoTentativas.add(s.id);
       try {
         await cargasDashFirebase.definirStatusCarga(s.id, 'CARREGADO', s.rota || '');
       } catch (err) {
         console.error('Falha ao marcar carregado', s.id, err);
+        Utils.showToast(`Não consegui marcar ${s.id} como Carregado automaticamente (permissão?). Avise o administrador.`, 'error');
       }
     }
   }
