@@ -513,20 +513,20 @@ Segue anexo o relatório atualizado.</textarea>
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
           <span class="nav-label">Ocorrências do Dia</span>
         </button>
-        <!-- App "Manifesto" (2026-09-01): página própria em manifesto/index.html, app de página
-             única com dados no localStorage do navegador (não integra com DataStore/Firestore
-             do dashboard) — por isso é um link normal (nova aba), não um data-view. Renomeado
-             "Controle de Entregas" -> "Monitoramento" -> "Controle de Retorno" (2026-09-04) e
-             reordenado logo após "Ocorrências do Dia", pra "Controle de Cargas" e "Painel do
-             Motorista" (os 2 menus mais novos) ficarem um depois do outro, sem nada no meio. -->
-        <a href="manifesto/index.html" target="_blank" rel="noopener" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" title="Controle de Retorno (Manifesto)" style="text-decoration:none;">
-          <span class="nav-icon">♻️</span>
-          <span class="nav-label">Controle de Retorno</span>
-        </a>
+        <!-- Controle de Cargas reordenado (2026-09-08, pedido da usuária) pra ficar logo após
+             "Ocorrências do Dia", antes do Manifesto/Controle de Retorno. -->
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="cargas" title="Controle de Cargas e Motoristas">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
           <span class="nav-label">Controle de Cargas</span>
         </button>
+        <!-- App "Manifesto" (2026-09-01): página própria em manifesto/index.html, app de página
+             única com dados no localStorage do navegador (não integra com DataStore/Firestore
+             do dashboard) — por isso é um link normal (nova aba), não um data-view. Renomeado
+             "Controle de Entregas" -> "Monitoramento" -> "Controle de Retorno" (2026-09-04). -->
+        <a href="manifesto/index.html" target="_blank" rel="noopener" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" title="Controle de Retorno (Manifesto)" style="text-decoration:none;">
+          <span class="nav-icon">♻️</span>
+          <span class="nav-label">Controle de Retorno</span>
+        </a>
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="despesas-extra" title="Controle de Despesas Extra">
           <span class="nav-icon">💸</span>
           <span class="nav-label">Controle de Despesas Extra</span>
