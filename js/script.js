@@ -407,6 +407,14 @@ function prefetchTodasAsFontes() {
 async function loadInitialData() {
   Loading.show('Carregando dados da planilha...');
   prefetchTodasAsFontes();
+  // A cadeia abaixo chama ~12 fontes em sequência, cada uma terminando em notify() (data.js) ->
+  // render() completo (KPIs+gráficos+tabela) — medido com Playwright contra os dados reais
+  // (2026-09-09): 12 renders somando ~1,17s, TODOS descartados, porque o Dashboard.renderAll()
+  // explícito no fim desta função já refaz o render final sozinho, e nada disso fica visível
+  // no meio do caminho (#boot-overlay cobre a tela inteira até esse ponto). Suspende aqui,
+  // retoma sempre no `finally` (nunca só no caminho de sucesso, pra nunca deixar filtros/edições
+  // depois do boot travados sem re-renderizar caso algo dê errado no meio da cadeia).
+  DataStore.suspenderNotificacoes();
   try {
     await DataStore.loadFromUrl(DEFAULT_DATA_URL, DEFAULT_DATA_FORMAT);
     await loadBluesoftDataSilently(false);
@@ -446,6 +454,10 @@ async function loadInitialData() {
       7000
     );
   } finally {
+    // Sempre retoma (mesmo se algo no meio da cadeia lançar um erro inesperado) — ver
+    // suspenderNotificacoes() acima. Filtros/edições feitas DEPOIS do boot (setFilters,
+    // aplicarAgendamentoManual, etc.) continuam disparando notify()->render() normalmente.
+    DataStore.retomarNotificacoes();
     Loading.hide();
     // Só agora (dados carregados OU erro tratado — nunca deixa preso num spinner pra sempre) o
     // dashboard de verdade fica visível, direto com os números finais, sem o "piscar" de valores
@@ -472,6 +484,9 @@ function refreshData() {
 
 async function loadDataFromFile(file) {
   Loading.show(`Lendo "${file.name}"...`);
+  // Mesmo motivo do loadInitialData acima: DataStore.loadFromFile termina em notify() -> render(),
+  // e o Dashboard.renderAll() logo abaixo já refaz esse render de novo com o resultado final.
+  DataStore.suspenderNotificacoes();
   try {
     await DataStore.loadFromFile(file);
     Dashboard.renderAll();
@@ -480,6 +495,7 @@ async function loadDataFromFile(file) {
     console.error(err);
     Utils.showToast(err.message || 'Falha ao ler o arquivo selecionado.', 'error', 7000);
   } finally {
+    DataStore.retomarNotificacoes();
     Loading.hide();
   }
 }
