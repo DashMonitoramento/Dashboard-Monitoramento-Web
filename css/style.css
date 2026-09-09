@@ -1275,6 +1275,8 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .ajudante-select:disabled { opacity: .6; }
 .valor-descarga-inline { width: 100px; padding: 4px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary); font-size: 12.5px; text-align: right; }
 .valor-descarga-inline:disabled { opacity: .6; }
+.text-orange { color: var(--color-orange); font-weight: 700; }
+.text-danger { color: var(--color-danger); font-weight: 700; }
 .pagination { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-secondary); }
 
 /* ---------- 11. Toasts ---------- */
