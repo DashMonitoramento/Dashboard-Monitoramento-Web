@@ -461,6 +461,10 @@ function normalizeRecord(rawRow) {
     // ajudanteEntrega acima (ela pediu explicitamente pra manter os 2 independentes): esse é só
     // usado na tela "Controle de Despesas Extra", não em Registros detalhados.
     qtdAjudante: '',
+    // '' | 'SIM' | 'NAO' — pedido da usuária (2026-09-08), tela "Controle de Despesas Extra":
+    // este é o campo que de fato responde a intenção original dela ("clientes que exigem
+    // ajudante na entrega"). Mesmo doc/coleção/permissão dos outros campos deste grupo.
+    necessitaAjudante: '',
     reagendar: '',
     // Total de vezes que a nota passou por Reentrega (todas as tentativas, ver
     // applyBluesoftEnrichment) — 0 até a Base Bluesoft enriquecer o registro; fica 0 pra
@@ -1002,6 +1006,7 @@ const DataStore = (() => {
         valorDescargaAprovado: null,
         ajudanteEntrega: '',
         qtdAjudante: '',
+        necessitaAjudante: '',
         motivo: '',
         motivoCategoria: '',
         qtdReentregas: bluesoftReentregaOcorrenciasPorBaseNF.get(baseNf) || 0
@@ -2211,13 +2216,13 @@ const DataStore = (() => {
   }
 
   /**
-   * Mescla "Valor Descarga Aprovado", "Ajudante" e "QTD Ajudante" (mesmo doc por NF, ver
-   * comentário em firebase-init.js sobre por que essa coleção é separada de
+   * Mescla "Valor Descarga Aprovado", "Ajudante", "QTD Ajudante" e "Necessita Ajudante" (mesmo
+   * doc por NF, ver comentário em firebase-init.js sobre por que essa coleção é separada de
    * agendamentosManuais) nos registros já carregados. `porNf` é { [nf sem sufixo]: { valor,
-   * ajudante, qtdAjudante, atualizadoPorEmail, atualizadoEm } }. Os 3 campos são checados
-   * INDEPENDENTEMENTE (`!== undefined`, igual observacaoAgendamento em applyAgendamentoManual)
-   * — salvar só um deles (ex.: o select de Ajudante, sem mexer no valor) não pode acabar
-   * limpando os outros já preenchidos nessa mesma chamada.
+   * ajudante, qtdAjudante, necessitaAjudante, atualizadoPorEmail, atualizadoEm } }. Os 4 campos
+   * são checados INDEPENDENTEMENTE (`!== undefined`, igual observacaoAgendamento em
+   * applyAgendamentoManual) — salvar só um deles não pode acabar limpando os outros já
+   * preenchidos nessa mesma chamada.
    */
   function applyValorDescargaAprovado(porNf) {
     if (!porNf) return;
@@ -2227,6 +2232,7 @@ const DataStore = (() => {
       if (info.valor !== undefined) r.valorDescargaAprovado = info.valor;
       if (info.ajudante !== undefined) r.ajudanteEntrega = info.ajudante;
       if (info.qtdAjudante !== undefined) r.qtdAjudante = info.qtdAjudante;
+      if (info.necessitaAjudante !== undefined) r.necessitaAjudante = info.necessitaAjudante;
     }
     notify();
   }
