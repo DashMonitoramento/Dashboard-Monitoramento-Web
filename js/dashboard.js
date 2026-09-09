@@ -4021,21 +4021,44 @@ const Dashboard = (() => {
    * etc.) não fazem sentido aqui, já que a granularidade é outra.
    * ============================================================ */
 
-  function chavePlacaDia(placa, data) {
-    return `${placa}|${inicioDoDia(data).getTime()}`;
-  }
+  // Tolerância do cruzamento Placa+Data (dias) — pedido implícito descoberto testando com dado
+  // real (2026-09-09): "Data Embarque" (quando o motorista carrega) e "Data Entrega"/coleta
+  // registrada na Base Bluesoft por nota nem sempre são o MESMO dia (ex.: embarque dia 1, nota
+  // mais próxima na Bluesoft registrada dia 30 do mês anterior ou dia 4 do mês seguinte — ~17%
+  // das viagens reais não batiam num cruzamento exato). Busca a data mais PRÓXIMA da mesma
+  // placa dentro dessa janela, em vez de exigir o dia exato.
+  const TOLERANCIA_DIAS_CRUZAMENTO_FRETE = 3;
 
-  /** 1 entrada por Placa+dia (a primeira nota encontrada basta — motorista/transportadora não
-   * mudam dentro da mesma viagem). Reconstruída a cada render, é barato (1 passada sobre os
-   * registros já carregados em memória, sem nenhuma leitura nova). */
-  function construirMapaTransportadoraPorPlacaDia() {
+  /** Todas as datas conhecidas de cada placa (Transportadora/Motorista), pra achar a mais
+   * próxima da Data Embarque na hora de cruzar — reconstruída a cada render, custo é 1 passada
+   * sobre os registros já carregados em memória (sem leitura nova nenhuma). */
+  function construirMapaPorPlacaIndicadorFrete() {
     const mapa = new Map();
     DataStore.getRecords().forEach(r => {
       if (!r.placa || !r.dataEntrega) return;
-      const chave = chavePlacaDia(cargasNormalizarPlaca(r.placa), r.dataEntrega);
-      if (!mapa.has(chave)) mapa.set(chave, { transportadora: r.transportadora || '', motorista: r.motorista || '' });
+      const placa = cargasNormalizarPlaca(r.placa);
+      if (!mapa.has(placa)) mapa.set(placa, []);
+      mapa.get(placa).push({
+        tempo: inicioDoDia(r.dataEntrega).getTime(),
+        transportadora: r.transportadora || '',
+        motorista: r.motorista || ''
+      });
     });
     return mapa;
+  }
+
+  function cruzarPlacaDiaMaisProximo(mapaPorPlaca, placa, dataEmbarque) {
+    const candidatos = mapaPorPlaca.get(placa);
+    if (!candidatos || !candidatos.length) return null;
+    const alvo = inicioDoDia(dataEmbarque).getTime();
+    let melhor = null;
+    let menorDiferenca = Infinity;
+    for (const candidato of candidatos) {
+      const diferenca = Math.abs(candidato.tempo - alvo);
+      if (diferenca < menorDiferenca) { menorDiferenca = diferenca; melhor = candidato; }
+    }
+    const diasDeDiferenca = menorDiferenca / 86400000;
+    return diasDeDiferenca <= TOLERANCIA_DIAS_CRUZAMENTO_FRETE ? melhor : null;
   }
 
   /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na
@@ -4056,9 +4079,9 @@ const Dashboard = (() => {
       return true;
     });
 
-    const mapaCruzamento = construirMapaTransportadoraPorPlacaDia();
+    const mapaPorPlaca = construirMapaPorPlacaIndicadorFrete();
     const itensCruzados = itens.map(item => {
-      const cruzado = mapaCruzamento.get(chavePlacaDia(item.placa, item.dataEmbarque));
+      const cruzado = cruzarPlacaDiaMaisProximo(mapaPorPlaca, item.placa, item.dataEmbarque);
       return { ...item, transportadora: cruzado ? cruzado.transportadora : '', motorista: cruzado ? cruzado.motorista : '' };
     });
 
