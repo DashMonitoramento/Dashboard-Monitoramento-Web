@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260908c">
+<link rel="stylesheet" href="css/style.css?v=20260909a">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1582,27 +1582,38 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
         <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue o filtro de Período da tela inicial — os demais filtros (Transportadora, Motorista etc.) não se aplicam aqui.</p>
 
-        <div class="cargas-cards">
-          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#0D9488">
-            <span class="kpi-card__label">Total Valor Frete</span>
-            <span class="kpi-card__value" id="indicador-frete-total-valor">R$ 0,00</span>
-          </article>
-          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#2563EB">
-            <span class="kpi-card__label">Total Peso (kg)</span>
-            <span class="kpi-card__value" id="indicador-frete-total-peso">0</span>
-          </article>
-          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#EAB308">
-            <span class="kpi-card__label">Frete médio por Kg</span>
-            <span class="kpi-card__value" id="indicador-frete-media-kg">R$ 0,00</span>
-          </article>
-          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#16A34A">
-            <span class="kpi-card__label">Viagens no período</span>
-            <span class="kpi-card__value" id="indicador-frete-total-viagens">0</span>
-          </article>
-          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#7C3AED">
-            <span class="kpi-card__label">Valor Total das NFs</span>
-            <span class="kpi-card__value" id="indicador-frete-total-valor-nfs">R$ 0,00</span>
-          </article>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:stretch; margin-bottom:16px;">
+          <div class="cargas-cards" style="flex:2 1 480px; margin-bottom:0;">
+            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#0D9488">
+              <span class="kpi-card__label">Total Valor Frete</span>
+              <span class="kpi-card__value" id="indicador-frete-total-valor">R$ 0,00</span>
+            </article>
+            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#2563EB">
+              <span class="kpi-card__label">Total Peso (kg)</span>
+              <span class="kpi-card__value" id="indicador-frete-total-peso">0</span>
+            </article>
+            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#EAB308">
+              <span class="kpi-card__label">Frete médio por Kg</span>
+              <span class="kpi-card__value" id="indicador-frete-media-kg">R$ 0,00</span>
+            </article>
+            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#16A34A">
+              <span class="kpi-card__label">Viagens no período</span>
+              <span class="kpi-card__value" id="indicador-frete-total-viagens">0</span>
+            </article>
+            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#7C3AED">
+              <span class="kpi-card__label">Valor Total das NFs</span>
+              <span class="kpi-card__value" id="indicador-frete-total-valor-nfs">R$ 0,00</span>
+            </article>
+            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#FF7A1A">
+              <span class="kpi-card__label">% Frete</span>
+              <span class="kpi-card__value" id="indicador-frete-percentual">0,0%</span>
+            </article>
+          </div>
+          <div class="chart-card" style="flex:1 1 280px; margin-bottom:0;">
+            <div class="chart-card__header"><h2 class="chart-card__title">Cidades com frete mais caro</h2></div>
+            <p class="chart-card__hint">Soma de Valor Frete por Cidade Destino (top 7 + Outros).</p>
+            <div class="chart-root chart-root--donut" id="chart-indicador-frete-regioes"></div>
+          </div>
         </div>
 
         <div class="table-scroll-wrapper">
@@ -1611,16 +1622,15 @@ Segue anexo o relatório atualizado.</textarea>
           <table class="data-table" id="indicador-frete-table">
             <thead>
               <tr>
+                <th>Embarque</th>
                 <th>Placa</th>
                 <th>Data Embarque</th>
-                <th>Embarque</th>
-                <th>Cidade Destino</th>
-                <th>Transportadora</th>
-                <th>Motorista</th>
                 <th class="text-right">Peso</th>
                 <th class="text-right">Volumes</th>
-                <th class="text-right">Valor Frete</th>
                 <th class="text-right">Valor Total NFs</th>
+                <th>Transportadora</th>
+                <th>Motorista</th>
+                <th class="text-right">Valor Frete</th>
                 <th class="text-right">% Frete</th>
                 <th class="text-right">R$/Kg</th>
               </tr>
@@ -1646,7 +1656,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260909c"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260909c"></script>
+<script src="js/dashboard.js?v=20260909d"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
