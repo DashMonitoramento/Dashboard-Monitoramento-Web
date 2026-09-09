@@ -426,10 +426,16 @@ async function loadInitialData() {
     // em paralelo, por fora; o botão de canhoto só fica disponível assim que terminar (raramente
     // é a primeira coisa que ela clica).
     loadCanhotosIndexSilently(false);
-    await loadAgendamentosManuaisSilently();
-    await loadPermissaoEdicaoAgendamentoSilently();
-    await loadValoresDescargaAprovadosSilently();
-    await loadPermissaoEdicaoValorDescargaSilently();
+    // 4 leituras do Firestore INDEPENDENTES entre si (cada uma só mexe no seu próprio campo/
+    // permissão, nenhuma depende do resultado de outra) — rodavam em série sem motivo (2026-09-08,
+    // as 2 últimas foram adicionadas hoje seguindo o padrão das 2 primeiras sem reparar nisso).
+    // Paralelo aqui é puro ganho de latência, mesmo espírito de prefetchTodasAsFontes() acima.
+    await Promise.all([
+      loadAgendamentosManuaisSilently(),
+      loadPermissaoEdicaoAgendamentoSilently(),
+      loadValoresDescargaAprovadosSilently(),
+      loadPermissaoEdicaoValorDescargaSilently()
+    ]);
     Dashboard.renderAll();
     Utils.showToast(`${DataStore.getRecords().length} registros carregados com sucesso.`, 'success');
   } catch (err) {
