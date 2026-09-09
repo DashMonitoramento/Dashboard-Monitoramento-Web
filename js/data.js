@@ -638,6 +638,12 @@ const DataStore = (() => {
   // "Região Comercial" da barra lateral. Só cobre cidades que já tiveram nota (334 no
   // cadastro); cidade fora dessa lista cai no fallback por UF (REGIAO_POR_UF_FALLBACK).
   let regiaoPorCidadeUf = new Map();
+  // "Indicador de Frete" (2026-09-09, pedido da usuária) — lista simples, NÃO indexada por NF
+  // como o resto do dashboard: cada item é 1 VIAGEM (Placa + Data Embarque), preenchida
+  // manualmente por ela olhando o TMS Lincros (frete/pedágio/diária cobrem várias notas juntas,
+  // não uma por vez). Cruzamento com Transportadora/Motorista/NF acontece na hora de exibir
+  // (Dashboard cruza por placa+dia contra getRecords()), não fica guardado aqui.
+  let indicadorFreteRecords = [];
   const listeners = new Set();
   // Suspende notify() durante o carregamento inicial (loadInitialData, script.js) — a cadeia
   // de boot chama ~12 loadXFromUrl/applyX diferentes em sequência, CADA UM terminando com
@@ -1959,6 +1965,53 @@ const DataStore = (() => {
     return Object.entries(NOME_REGIAO_POR_CODIGO).map(([codigo, nome]) => ({ codigo, nome }));
   }
 
+  async function loadIndicadorFreteFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexIndicadorFreteRows(rawRows);
+    notify();
+  }
+
+  async function loadIndicadorFreteFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexIndicadorFreteRows(rawRows);
+    notify();
+  }
+
+  /** Ver comentário de `indicadorFreteRecords` acima. Placa normalizada (maiúscula, só letras/
+   * números) igual ao resto do dashboard, pra casar de forma confiável com r.placa na hora de
+   * cruzar. Linha sem Placa ou sem Data Embarque é ignorada (não dá pra cruzar sem os dois). */
+  function indexIndicadorFreteRows(rawRows) {
+    const lista = [];
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const placaHeader = headerIndex['placa'];
+      const placaRaw = placaHeader !== undefined ? String(row[placaHeader] || '').trim() : '';
+      const placa = placaRaw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!placa) continue;
+      const dataEmbarqueHeader = headerIndex['data embarque'];
+      const dataEmbarque = dataEmbarqueHeader !== undefined ? Utils.parseDate(row[dataEmbarqueHeader]) : null;
+      if (!dataEmbarque) continue;
+      const valorFreteHeader = headerIndex['valor frete calculado'];
+      const pesoHeader = headerIndex['peso'];
+      const volumesHeader = headerIndex['volumes'];
+      const valorNFsHeader = headerIndex['valor total das nfs'];
+      lista.push({
+        placa,
+        dataEmbarque,
+        valorFrete: valorFreteHeader !== undefined ? parseMoney(row[valorFreteHeader]) : 0,
+        peso: pesoHeader !== undefined ? parseMoney(row[pesoHeader]) : 0,
+        volumes: volumesHeader !== undefined ? parseMoney(row[volumesHeader]) : 0,
+        valorTotalNFs: valorNFsHeader !== undefined ? parseMoney(row[valorNFsHeader]) : 0
+      });
+    }
+    indicadorFreteRecords = lista;
+  }
+
+  function getIndicadorFrete() { return indicadorFreteRecords.slice(); }
+
   function getRecords() { return rawRecords.slice(); }
   function getLastUpdated() { return lastUpdated; }
 
@@ -2270,6 +2323,7 @@ const DataStore = (() => {
     loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual, applyValorDescargaAprovado,
+    loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
