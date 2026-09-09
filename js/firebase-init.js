@@ -202,6 +202,20 @@ async function salvarQtdAjudante(nf, qtd) {
   }, { merge: true });
 }
 
+/** Grava/atualiza se essa entrega NECESSITA de ajudante ('SIM'/'NAO'/'' pra limpar) — pedido da
+ * usuária, 2026-09-08: é o campo que de fato responde a intenção original dela ("clientes que
+ * exigem ajudante na entrega"). Mesmo doc/coleção/permissão dos outros campos deste grupo. */
+async function salvarNecessitaAjudante(nf, valor) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  if (!['', 'SIM', 'NAO'].includes(valor)) throw new Error('Valor de "Necessita Ajudante" inválido.');
+  await setDoc(doc(db, VALORES_DESCARGA_COLECAO, nf), {
+    necessitaAjudante: valor || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
 /** Grava só a observação de uma NF (usado pela tela "Notas em aberto", 2026-08-19 — uma nota
  * aberta pode não precisar de agendamento nenhum, então essa tela não mexe em status/data).
  * Usa `{merge: true}` de propósito — diferente de salvarAgendamentoManual acima, que sempre
@@ -602,7 +616,7 @@ async function atualizarDisponibilidadesEmLote(atualizacoes) {
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
-  getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega, salvarQtdAjudante,
+  getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega, salvarQtdAjudante, salvarNecessitaAjudante,
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
   definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
