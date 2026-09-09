@@ -2756,6 +2756,13 @@ const Dashboard = (() => {
     charts.ltpEvolucaoCumprimento = new DashChart(document.getElementById('chart-ltp-evolucao-cumprimento'), {
       type: 'line', labels: [], series: [{ name: '% dentro do Lead Time', data: [], color: ChartPalette[2] }]
     });
+    // "Indicador de Frete" (2026-09-09) — pizza de Valor Frete por Cidade Destino (soma, não
+    // % Frete: pizza representa PARTES DE UM TODO, e uma soma de R$ por região é exatamente
+    // isso; % Frete é uma média/proporção por região, não algo que soma 100% ao empilhar, não
+    // cabe bem numa pizza). Atualizada em renderIndicadorFrete(), não aqui (aqui só cria vazio).
+    charts.indicadorFreteRegioes = new DashChart(document.getElementById('chart-indicador-frete-regioes'), {
+      type: 'pie', labels: [], series: [{ data: [] }], options: { currency: true }
+    });
   }
 
   function renderCharts(records) {
@@ -4082,7 +4089,16 @@ const Dashboard = (() => {
     const mapaPorPlaca = construirMapaPorPlacaIndicadorFrete();
     const itensCruzados = itens.map(item => {
       const cruzado = cruzarPlacaDiaMaisProximo(mapaPorPlaca, item.placa, item.dataEmbarque);
-      return { ...item, transportadora: cruzado ? cruzado.transportadora : '', motorista: cruzado ? cruzado.motorista : '' };
+      return {
+        ...item,
+        transportadora: cruzado ? cruzado.transportadora : '',
+        motorista: cruzado ? cruzado.motorista : '',
+        // Placa some do cruzamento (nenhum registro da Bluesoft achado nem dentro da
+        // tolerância) — pedido da usuária, 2026-09-09: destacar isso na tabela (placa em
+        // vermelho) pra ela conseguir achar/investigar esses casos (normalmente erro de
+        // digitação da placa na própria aba "Indicador de Frete").
+        semCruzamento: !cruzado
+      };
     });
 
     const totalValor = Utils.sum(itensCruzados, i => i.valorFrete);
@@ -4094,11 +4110,38 @@ const Dashboard = (() => {
     document.getElementById('indicador-frete-total-viagens').textContent = Utils.formatNumber(itensCruzados.length);
     const elTotalNFs = document.getElementById('indicador-frete-total-valor-nfs');
     if (elTotalNFs) elTotalNFs.textContent = Utils.formatCurrency(totalValorNFs);
+    // Card "% Frete" (2026-09-09) — % agregada do PERÍODO INTEIRO (soma/soma), não a média das
+    // % linha a linha (que distorceria a favor de viagens pequenas) — mesmo critério de "taxa
+    // efetiva" já usado noutras % agregadas do dashboard.
+    const elPercentual = document.getElementById('indicador-frete-percentual');
+    if (elPercentual) elPercentual.textContent = Utils.formatPercent(totalValorNFs > 0 ? (totalValor / totalValorNFs) * 100 : 0);
+
+    // Pizza "Cidades com frete mais caro" (2026-09-09) — soma de Valor Frete por Cidade
+    // Destino: pizza representa PARTES DE UM TODO, e uma soma de R$ por região é exatamente
+    // isso (as fatias somam o total gasto); % Frete é uma proporção por região (não soma 100%
+    // ao empilhar), não cabe bem numa pizza — por isso a escolha de Valor Frete aqui, não %.
+    // Top 7 + "Outros" (a paleta de cores do dashboard tem 8 cores fixas, ver ChartPalette).
+    if (charts.indicadorFreteRegioes) {
+      const porCidade = new Map();
+      itensCruzados.forEach(i => {
+        const cidade = i.cidadeDestino || '(sem cidade)';
+        porCidade.set(cidade, (porCidade.get(cidade) || 0) + i.valorFrete);
+      });
+      const cidadesOrdenadas = Array.from(porCidade.entries()).sort((a, b) => b[1] - a[1]);
+      const TOP_N_CIDADES_FRETE_CHART = 7;
+      const topCidades = cidadesOrdenadas.slice(0, TOP_N_CIDADES_FRETE_CHART);
+      const outrasCidades = cidadesOrdenadas.slice(TOP_N_CIDADES_FRETE_CHART);
+      const somaOutras = Utils.sum(outrasCidades, ([, valor]) => valor);
+      const labelsChart = topCidades.map(([nome]) => nome);
+      const dataChart = topCidades.map(([, valor]) => valor);
+      if (somaOutras > 0) { labelsChart.push('Outros'); dataChart.push(somaOutras); }
+      charts.indicadorFreteRegioes.update({ labels: labelsChart, series: [{ data: dataChart }] });
+    }
 
     const tbody = document.getElementById('indicador-frete-table-body');
     if (!tbody) return;
     if (!itensCruzados.length) {
-      tbody.innerHTML = '<tr><td colspan="12" class="table-empty">Nenhuma viagem no período selecionado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="table-empty">Nenhuma viagem no período selecionado.</td></tr>';
       return;
     }
     const ordenados = itensCruzados.slice().sort((a, b) => b.dataEmbarque.getTime() - a.dataEmbarque.getTime());
@@ -4108,19 +4151,22 @@ const Dashboard = (() => {
       // pelo Valor Total das NFs, 1 casa decimal — Utils.formatPercent já espera o valor NA
       // ESCALA de porcentagem (ex.: 3.2, não 0.032), por isso o *100 aqui.
       const percentualFrete = i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0;
+      const classePlaca = i.semCruzamento ? ' class="text-danger"' : '';
+      // Ordem das colunas pedida pela usuária, 2026-09-09: Embarque, Placa, Data Embarque,
+      // Peso, Volumes, Valor Total NFs, Transportadora, Motorista, Valor Frete, % Frete, R$/Kg
+      // (Cidade Destino saiu da tabela — agora alimenta só a pizza acima).
       return `
         <tr>
-          <td>${escapeAttr(i.placa)}</td>
-          <td>${Utils.formatDate(i.dataEmbarque)}</td>
           <td>${escapeAttr(i.embarque || '—')}</td>
-          <td class="truncate" title="${escapeAttr(i.cidadeDestino)}">${escapeAttr(i.cidadeDestino || '—')}</td>
-          <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
-          <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
+          <td${classePlaca}>${escapeAttr(i.placa)}</td>
+          <td>${Utils.formatDate(i.dataEmbarque)}</td>
           <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
           <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
-          <td class="text-right">${Utils.formatCurrency(i.valorFrete)}</td>
           <td class="text-right">${Utils.formatCurrency(i.valorTotalNFs)}</td>
-          <td class="text-right">${Utils.formatPercent(percentualFrete)}</td>
+          <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
+          <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
+          <td class="text-right text-orange">${Utils.formatCurrency(i.valorFrete)}</td>
+          <td class="text-right text-orange">${Utils.formatPercent(percentualFrete)}</td>
           <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
         </tr>`;
     }).join('');
