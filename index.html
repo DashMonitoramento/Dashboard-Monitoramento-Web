@@ -1582,8 +1582,17 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
         <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue o filtro de Período da tela inicial — os demais filtros (Transportadora, Motorista etc.) não se aplicam aqui.</p>
 
-        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:stretch; margin-bottom:16px;">
-          <div class="cargas-cards" style="flex:2 1 480px; margin-bottom:0;">
+        <!-- Reaproveita EXATAMENTE o mesmo padrão visual de "Situação de agendamento" (pedido
+             da usuária, 2026-09-09: "cards do tamanho do Agendamento", pizza de um lado sozinha,
+             cards em grid de 2 colunas do outro) — .agendamento-body/.agendamento-cards já
+             existiam pra isso, não precisou CSS novo. -->
+        <div class="agendamento-body" style="margin-bottom:16px;">
+          <div style="flex:1 1 240px; min-width:0;">
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com frete mais caro</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Soma de Valor Frete por Cidade Destino (top 7 + Outros).</p>
+            <div class="chart-root chart-root--donut" id="chart-indicador-frete-regioes"></div>
+          </div>
+          <div class="agendamento-cards">
             <article class="kpi-card kpi-card--mini" style="--kpi-accent:#0D9488">
               <span class="kpi-card__label">Total Valor Frete</span>
               <span class="kpi-card__value" id="indicador-frete-total-valor">R$ 0,00</span>
@@ -1608,11 +1617,6 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="kpi-card__label">% Frete</span>
               <span class="kpi-card__value" id="indicador-frete-percentual">0,0%</span>
             </article>
-          </div>
-          <div class="chart-card" style="flex:1 1 280px; margin-bottom:0;">
-            <div class="chart-card__header"><h2 class="chart-card__title">Cidades com frete mais caro</h2></div>
-            <p class="chart-card__hint">Soma de Valor Frete por Cidade Destino (top 7 + Outros).</p>
-            <div class="chart-root chart-root--donut" id="chart-indicador-frete-regioes"></div>
           </div>
         </div>
 
