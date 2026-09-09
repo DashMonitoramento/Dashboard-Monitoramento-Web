@@ -1994,13 +1994,21 @@ const DataStore = (() => {
       const dataEmbarqueHeader = headerIndex['data embarque'];
       const dataEmbarque = dataEmbarqueHeader !== undefined ? Utils.parseDate(row[dataEmbarqueHeader]) : null;
       if (!dataEmbarque) continue;
+      const embarqueHeader = headerIndex['embarque'];
+      const cidadeDestinoHeader = headerIndex['cidade destino'];
       const valorFreteHeader = headerIndex['valor frete calculado'];
       const pesoHeader = headerIndex['peso'];
       const volumesHeader = headerIndex['volumes'];
-      const valorNFsHeader = headerIndex['valor total das nfs'];
+      // Nome do cabeçalho no CSV é "Valor Total NFs" (sem "das") — ver comentário em
+      // Extrair-IndicadorFrete (atualizar-dados-dashboard.ps1) sobre o descompasso que já
+      // zerou essa coluna uma vez (2026-09-09): o texto aqui tem que bater com o CABEÇALHO DO
+      // CSV, não com o nome da coluna na planilha original dela.
+      const valorNFsHeader = headerIndex['valor total nfs'];
       lista.push({
         placa,
         dataEmbarque,
+        embarque: embarqueHeader !== undefined ? String(row[embarqueHeader] || '').trim() : '',
+        cidadeDestino: cidadeDestinoHeader !== undefined ? String(row[cidadeDestinoHeader] || '').trim() : '',
         valorFrete: valorFreteHeader !== undefined ? parseMoney(row[valorFreteHeader]) : 0,
         peso: pesoHeader !== undefined ? parseMoney(row[pesoHeader]) : 0,
         volumes: volumesHeader !== undefined ? parseMoney(row[volumesHeader]) : 0,
