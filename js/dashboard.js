@@ -116,7 +116,7 @@ const Dashboard = (() => {
     tbody: 'despesas-extra-table-body', info: 'despesas-extra-table-info',
     pageLabel: 'despesas-extra-table-page-label', prev: 'despesas-extra-table-prev',
     next: 'despesas-extra-table-next', theadSelector: '#despesas-extra-table thead th[data-field]',
-    colspan: 8
+    colspan: 9
   };
   // Número do pedido em edição (painel abaixo da tabela), ou null se nenhum — pedido do
   // usuário (2026-08-28): clicar no Número do Pedido abre a edição, igual à de "Aguardando
@@ -3857,6 +3857,14 @@ const Dashboard = (() => {
           <option value="4+"${qtdAtual === '4+' ? ' selected' : ''}>4+</option>
         </select>`
       : (qtdAtual || '—');
+    const necessitaAtual = r.necessitaAjudante || '';
+    const necessitaCelula = autorizado
+      ? `<select class="ajudante-select" data-necessita-ajudante-nf="${escapeAttr(nfBase)}">
+          <option value=""${necessitaAtual === '' ? ' selected' : ''}>—</option>
+          <option value="SIM"${necessitaAtual === 'SIM' ? ' selected' : ''}>Sim</option>
+          <option value="NAO"${necessitaAtual === 'NAO' ? ' selected' : ''}>Não</option>
+        </select>`
+      : (necessitaAtual === 'SIM' ? 'Sim' : necessitaAtual === 'NAO' ? 'Não' : '—');
     return `
       <tr>
         <td>${escapeAttr(r.nf || '—')}</td>
@@ -3867,6 +3875,7 @@ const Dashboard = (() => {
         <td class="text-right">${r.peso != null ? Utils.formatNumber(r.peso, 2) : '—'}</td>
         <td class="text-right">${valorCelula}</td>
         <td>${qtdCelula}</td>
+        <td>${necessitaCelula}</td>
       </tr>`;
   }
 
@@ -3931,6 +3940,31 @@ const Dashboard = (() => {
         Utils.showToast(`NF ${nf}: QTD Ajudante salvo.`, 'success', 2000);
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao salvar QTD Ajudante.', 'error', 5000);
+      } finally {
+        select.disabled = false;
+      }
+    });
+
+    // "Necessita Ajudante" (2026-09-08, pedido da usuária) — mesmo padrão de QTD Ajudante acima,
+    // <select> próprio, salva sozinho no change.
+    tbody.addEventListener('change', async (e) => {
+      const select = e.target.closest('[data-necessita-ajudante-nf]');
+      if (!select) return;
+      const nf = select.dataset.necessitaAjudanteNf;
+      const valor = select.value;
+      select.disabled = true;
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        await fb.salvarNecessitaAjudante(nf, valor);
+        const paginaAntes = table.page;
+        DataStore.applyValorDescargaAprovado({ [nf]: { necessitaAjudante: valor } });
+        table.page = paginaAntes;
+        Utils.showToast(`NF ${nf}: Necessita Ajudante salvo.`, 'success', 2000);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar Necessita Ajudante.', 'error', 5000);
       } finally {
         select.disabled = false;
       }
