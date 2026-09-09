@@ -4064,39 +4064,40 @@ const Dashboard = (() => {
 
     const totalValor = Utils.sum(itensCruzados, i => i.valorFrete);
     const totalPeso = Utils.sum(itensCruzados, i => i.peso);
+    const totalValorNFs = Utils.sum(itensCruzados, i => i.valorTotalNFs);
     document.getElementById('indicador-frete-total-valor').textContent = Utils.formatCurrency(totalValor);
     document.getElementById('indicador-frete-total-peso').textContent = Utils.formatNumber(totalPeso, 0);
     document.getElementById('indicador-frete-media-kg').textContent = Utils.formatCurrency(totalPeso > 0 ? totalValor / totalPeso : 0);
     document.getElementById('indicador-frete-total-viagens').textContent = Utils.formatNumber(itensCruzados.length);
-
-    const porTransportadora = new Map();
-    itensCruzados.forEach(i => {
-      const t = i.transportadora || '(não encontrada pra essa placa/dia)';
-      porTransportadora.set(t, (porTransportadora.get(t) || 0) + i.valorFrete);
-    });
-    // Reaproveita o mesmo renderizador de ranking do Controle de Despesas Extra — genérico
-    // (título + lista nome/valor), não tem nada específico daquela tela.
-    renderRankingDespesasExtra('indicador-frete-ranking-transportadoras', 'Top Transportadoras — Valor Frete', porTransportadora);
+    const elTotalNFs = document.getElementById('indicador-frete-total-valor-nfs');
+    if (elTotalNFs) elTotalNFs.textContent = Utils.formatCurrency(totalValorNFs);
 
     const tbody = document.getElementById('indicador-frete-table-body');
     if (!tbody) return;
     if (!itensCruzados.length) {
-      tbody.innerHTML = '<tr><td colspan="9" class="table-empty">Nenhuma viagem no período selecionado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12" class="table-empty">Nenhuma viagem no período selecionado.</td></tr>';
       return;
     }
     const ordenados = itensCruzados.slice().sort((a, b) => b.dataEmbarque.getTime() - a.dataEmbarque.getTime());
     tbody.innerHTML = ordenados.map(i => {
       const rsPorKg = i.peso > 0 ? i.valorFrete / i.peso : 0;
+      // Percentual do frete (pedido da usuária, 2026-09-09): Valor Frete Calculado dividido
+      // pelo Valor Total das NFs, 1 casa decimal — Utils.formatPercent já espera o valor NA
+      // ESCALA de porcentagem (ex.: 3.2, não 0.032), por isso o *100 aqui.
+      const percentualFrete = i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0;
       return `
         <tr>
           <td>${escapeAttr(i.placa)}</td>
           <td>${Utils.formatDate(i.dataEmbarque)}</td>
+          <td>${escapeAttr(i.embarque || '—')}</td>
+          <td class="truncate" title="${escapeAttr(i.cidadeDestino)}">${escapeAttr(i.cidadeDestino || '—')}</td>
           <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
           <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
           <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
           <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
           <td class="text-right">${Utils.formatCurrency(i.valorFrete)}</td>
           <td class="text-right">${Utils.formatCurrency(i.valorTotalNFs)}</td>
+          <td class="text-right">${Utils.formatPercent(percentualFrete)}</td>
           <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
         </tr>`;
     }).join('');
