@@ -493,6 +493,7 @@ const Dashboard = (() => {
     const barraOcorrencias = document.getElementById('ocorrencias-periodo-bar');
     const cargasView = document.getElementById('cargas-view');
     const despesasExtraView = document.getElementById('despesas-extra-view');
+    const indicadorFreteView = document.getElementById('indicador-frete-view');
 
     main.hidden = view !== 'registros' && view !== 'ocorrencias';
     main.classList.toggle('modo-tabela-foco', view === 'ocorrencias');
@@ -504,6 +505,7 @@ const Dashboard = (() => {
     if (pedidosNaoFaturados) pedidosNaoFaturados.hidden = true;
     if (cargasView) cargasView.hidden = view !== 'cargas';
     if (despesasExtraView) despesasExtraView.hidden = view !== 'despesas-extra';
+    if (indicadorFreteView) indicadorFreteView.hidden = view !== 'indicador-frete';
     atualizarBotaoIrInicio();
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
@@ -530,6 +532,9 @@ const Dashboard = (() => {
     } else if (view === 'despesas-extra') {
       renderDespesasExtra(DataStore.getFilteredRecords()); // painel ficava desatualizado até o próximo filtro, mesmo motivo do renderLeadTime() acima
       if (despesasExtraView) despesasExtraView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (view === 'indicador-frete') {
+      renderIndicadorFrete(); // idem, mesmo motivo do renderLeadTime()/renderDespesasExtra acima
+      if (indicadorFreteView) indicadorFreteView.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       // 'registros' e 'ocorrencias' entram aqui — entrar/sair do modo muda quais registros a
       // tabela mostra (aplicarFiltroOcorrenciasDoDia), então precisa redesenhar mesmo sem
@@ -2515,6 +2520,7 @@ const Dashboard = (() => {
     renderLeadTimePedidos(); // no-op se a tela "Lead Time de Pedidos e Entregas" não estiver visível
     renderPedidosNaoFaturadosView(); // no-op se a tela "Pedidos Aguardando Faturamento" não estiver visível
     renderDespesasExtra(records); // no-op se a tela "Controle de Despesas Extra" não estiver visível
+    renderIndicadorFrete(); // no-op se a tela "Indicador de Frete" não estiver visível
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
     atualizarBotaoLimparFiltros();
@@ -4000,6 +4006,100 @@ const Dashboard = (() => {
       }
       input.disabled = false;
     });
+  }
+
+  /* ============================================================
+   * INDICADOR DE FRETE (2026-09-09)
+   * ------------------------------------------------------------
+   * Diferente de TUDO no resto do dashboard: o dado não é por NF, é por VIAGEM (Placa + Data
+   * Embarque) — ela preenche manualmente essa aba nova na planilha consolidada, a partir do TMS
+   * Lincros (frete/pedágio/diária cobrem várias notas juntas, não uma por vez). Transportadora/
+   * Motorista mostrados aqui são CRUZADOS por Placa + dia de coleta contra os registros já
+   * carregados (DataStore.getRecords()), não vêm da planilha nova — mesma técnica de cruzamento
+   * por placa já usada em Controle de Cargas. Reage só ao filtro de PERÍODO da barra lateral
+   * (dataInicio/dataFim/mes/ano) — os demais filtros globais (Transportadora, Motorista, Status
+   * etc.) não fazem sentido aqui, já que a granularidade é outra.
+   * ============================================================ */
+
+  function chavePlacaDia(placa, data) {
+    return `${placa}|${inicioDoDia(data).getTime()}`;
+  }
+
+  /** 1 entrada por Placa+dia (a primeira nota encontrada basta — motorista/transportadora não
+   * mudam dentro da mesma viagem). Reconstruída a cada render, é barato (1 passada sobre os
+   * registros já carregados em memória, sem nenhuma leitura nova). */
+  function construirMapaTransportadoraPorPlacaDia() {
+    const mapa = new Map();
+    DataStore.getRecords().forEach(r => {
+      if (!r.placa || !r.dataEntrega) return;
+      const chave = chavePlacaDia(cargasNormalizarPlaca(r.placa), r.dataEntrega);
+      if (!mapa.has(chave)) mapa.set(chave, { transportadora: r.transportadora || '', motorista: r.motorista || '' });
+    });
+    return mapa;
+  }
+
+  /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na
+   * view — no-op se a seção não estiver visível, mesmo padrão de renderDespesasExtra. */
+  function renderIndicadorFrete() {
+    const view = document.getElementById('indicador-frete-view');
+    if (!view || view.hidden) return;
+
+    // Só o filtro de Período (ver comentário no topo da seção) — mesma lógica de
+    // getFilteredRecords (data.js), aplicada aqui em cima de item.dataEmbarque.
+    const { dataInicio, dataFim, mes, ano } = DataStore.getFilters();
+    const itens = DataStore.getIndicadorFrete().filter(item => {
+      const ref = item.dataEmbarque;
+      if (dataInicio && ref < dataInicio) return false;
+      if (dataFim && ref > dataFim) return false;
+      if (mes && String(ref.getMonth() + 1) !== String(mes)) return false;
+      if (ano && String(ref.getFullYear()) !== String(ano)) return false;
+      return true;
+    });
+
+    const mapaCruzamento = construirMapaTransportadoraPorPlacaDia();
+    const itensCruzados = itens.map(item => {
+      const cruzado = mapaCruzamento.get(chavePlacaDia(item.placa, item.dataEmbarque));
+      return { ...item, transportadora: cruzado ? cruzado.transportadora : '', motorista: cruzado ? cruzado.motorista : '' };
+    });
+
+    const totalValor = Utils.sum(itensCruzados, i => i.valorFrete);
+    const totalPeso = Utils.sum(itensCruzados, i => i.peso);
+    document.getElementById('indicador-frete-total-valor').textContent = Utils.formatCurrency(totalValor);
+    document.getElementById('indicador-frete-total-peso').textContent = Utils.formatNumber(totalPeso, 0);
+    document.getElementById('indicador-frete-media-kg').textContent = Utils.formatCurrency(totalPeso > 0 ? totalValor / totalPeso : 0);
+    document.getElementById('indicador-frete-total-viagens').textContent = Utils.formatNumber(itensCruzados.length);
+
+    const porTransportadora = new Map();
+    itensCruzados.forEach(i => {
+      const t = i.transportadora || '(não encontrada pra essa placa/dia)';
+      porTransportadora.set(t, (porTransportadora.get(t) || 0) + i.valorFrete);
+    });
+    // Reaproveita o mesmo renderizador de ranking do Controle de Despesas Extra — genérico
+    // (título + lista nome/valor), não tem nada específico daquela tela.
+    renderRankingDespesasExtra('indicador-frete-ranking-transportadoras', 'Top Transportadoras — Valor Frete', porTransportadora);
+
+    const tbody = document.getElementById('indicador-frete-table-body');
+    if (!tbody) return;
+    if (!itensCruzados.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="table-empty">Nenhuma viagem no período selecionado.</td></tr>';
+      return;
+    }
+    const ordenados = itensCruzados.slice().sort((a, b) => b.dataEmbarque.getTime() - a.dataEmbarque.getTime());
+    tbody.innerHTML = ordenados.map(i => {
+      const rsPorKg = i.peso > 0 ? i.valorFrete / i.peso : 0;
+      return `
+        <tr>
+          <td>${escapeAttr(i.placa)}</td>
+          <td>${Utils.formatDate(i.dataEmbarque)}</td>
+          <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
+          <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
+          <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
+          <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
+          <td class="text-right">${Utils.formatCurrency(i.valorFrete)}</td>
+          <td class="text-right">${Utils.formatCurrency(i.valorTotalNFs)}</td>
+          <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
+        </tr>`;
+    }).join('');
   }
 
   /* ============================================================
