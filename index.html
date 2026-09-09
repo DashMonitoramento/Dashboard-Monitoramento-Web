@@ -522,6 +522,13 @@ Segue anexo o relatório atualizado.</textarea>
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
           <span class="nav-label">Controle de Despesas Extra</span>
         </button>
+        <!-- "Indicador de Frete" (2026-09-09): reage só ao filtro de Período da barra lateral
+             (não aos demais, ver renderIndicadorFrete em dashboard.js) — dado vem por VIAGEM
+             (Placa+Data Embarque), preenchido manualmente por ela a partir do TMS Lincros. -->
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="indicador-frete" title="Indicador de Frete">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg></span>
+          <span class="nav-label">Indicador de Frete</span>
+        </button>
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="cargas" title="Controle de Cargas e Motoristas">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
           <span class="nav-label">Controle de Cargas</span>
@@ -1562,6 +1569,64 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
       </section>
 
+      <!-- ===================== INDICADOR DE FRETE (2026-09-09) =====================
+           Dado por VIAGEM (Placa + Data Embarque), não por NF — ela preenche manualmente a
+           partir do TMS Lincros (aba "Indicador de Frete" da planilha consolidada). Reage só
+           ao filtro de PERÍODO da barra lateral (não Transportadora/Motorista/etc — ver
+           renderIndicadorFrete em dashboard.js), já que a granularidade é diferente do resto
+           do dashboard. Transportadora/Motorista exibidos são cruzados por Placa+dia contra os
+           registros já carregados, não vêm da planilha nova. -->
+      <section id="indicador-frete-view" class="table-card" aria-label="Indicador de Frete" hidden>
+        <div class="table-card__header">
+          <h2 class="chart-card__title">📈 Indicador de Frete</h2>
+        </div>
+        <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue o filtro de Período da tela inicial — os demais filtros (Transportadora, Motorista etc.) não se aplicam aqui.</p>
+
+        <div class="cargas-cards">
+          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#0D9488">
+            <span class="kpi-card__label">Total Valor Frete</span>
+            <span class="kpi-card__value" id="indicador-frete-total-valor">R$ 0,00</span>
+          </article>
+          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#2563EB">
+            <span class="kpi-card__label">Total Peso (kg)</span>
+            <span class="kpi-card__value" id="indicador-frete-total-peso">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#EAB308">
+            <span class="kpi-card__label">Frete médio por Kg</span>
+            <span class="kpi-card__value" id="indicador-frete-media-kg">R$ 0,00</span>
+          </article>
+          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#16A34A">
+            <span class="kpi-card__label">Viagens no período</span>
+            <span class="kpi-card__value" id="indicador-frete-total-viagens">0</span>
+          </article>
+        </div>
+
+        <div id="indicador-frete-ranking-transportadoras" style="margin-bottom:16px;"></div>
+
+        <div class="table-scroll-wrapper">
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+          <div class="table-scroll">
+          <table class="data-table" id="indicador-frete-table">
+            <thead>
+              <tr>
+                <th>Placa</th>
+                <th>Data Embarque</th>
+                <th>Transportadora</th>
+                <th>Motorista</th>
+                <th class="text-right">Peso</th>
+                <th class="text-right">Volumes</th>
+                <th class="text-right">Valor Frete</th>
+                <th class="text-right">Valor Total NFs</th>
+                <th class="text-right">R$/Kg</th>
+              </tr>
+            </thead>
+            <tbody id="indicador-frete-table-body"></tbody>
+          </table>
+          </div>
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
+        </div>
+      </section>
+
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
         Dashboard de Entregas · Da Terrinha Alimentos — dados atualizados automaticamente a partir da planilha.
       </footer>
@@ -1574,10 +1639,10 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260908f"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260909a"></script>
+<script src="js/data.js?v=20260909b"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260908f"></script>
-<script src="js/script.js?v=20260909a"></script>
+<script src="js/dashboard.js?v=20260909a"></script>
+<script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
   // guarda nada em cache de propósito (ver sw.js), então não tem risco de mostrar tela antiga
