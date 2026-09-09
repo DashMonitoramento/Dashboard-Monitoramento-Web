@@ -1599,9 +1599,11 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__label">Viagens no período</span>
             <span class="kpi-card__value" id="indicador-frete-total-viagens">0</span>
           </article>
+          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#7C3AED">
+            <span class="kpi-card__label">Valor Total das NFs</span>
+            <span class="kpi-card__value" id="indicador-frete-total-valor-nfs">R$ 0,00</span>
+          </article>
         </div>
-
-        <div id="indicador-frete-ranking-transportadoras" style="margin-bottom:16px;"></div>
 
         <div class="table-scroll-wrapper">
           <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
@@ -1611,12 +1613,15 @@ Segue anexo o relatório atualizado.</textarea>
               <tr>
                 <th>Placa</th>
                 <th>Data Embarque</th>
+                <th>Embarque</th>
+                <th>Cidade Destino</th>
                 <th>Transportadora</th>
                 <th>Motorista</th>
                 <th class="text-right">Peso</th>
                 <th class="text-right">Volumes</th>
                 <th class="text-right">Valor Frete</th>
                 <th class="text-right">Valor Total NFs</th>
+                <th class="text-right">% Frete</th>
                 <th class="text-right">R$/Kg</th>
               </tr>
             </thead>
@@ -1639,9 +1644,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260908f"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260909b"></script>
+<script src="js/data.js?v=20260909c"></script>
 <script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260909a"></script>
+<script src="js/dashboard.js?v=20260909b"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
