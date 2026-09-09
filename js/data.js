@@ -639,6 +639,15 @@ const DataStore = (() => {
   // cadastro); cidade fora dessa lista cai no fallback por UF (REGIAO_POR_UF_FALLBACK).
   let regiaoPorCidadeUf = new Map();
   const listeners = new Set();
+  // Suspende notify() durante o carregamento inicial (loadInitialData, script.js) — a cadeia
+  // de boot chama ~12 loadXFromUrl/applyX diferentes em sequência, CADA UM terminando com
+  // notify() (medido com Playwright, 2026-09-09: 12 renders completos disparados durante o
+  // boot, ~1,17s SOMADOS, todos descartados, porque loadInitialData já faz um
+  // Dashboard.renderAll() explícito assim que a cadeia inteira termina — nenhuma dessas telas
+  // intermediárias chega a ficar visível, o #boot-overlay cobre tudo até esse renderAll() final).
+  // Suspender aqui não muda NENHUM comportamento visível: só corta o trabalho jogado fora.
+  // Fora do boot (ex.: trocar um filtro, arrastar um arquivo novo), notify() continua normal.
+  let notificacoesSuspensas = false;
 
   function emptyFilters() {
     return {
@@ -662,6 +671,7 @@ const DataStore = (() => {
   }
 
   function notify() {
+    if (notificacoesSuspensas) return;
     listeners.forEach(fn => fn(getFilteredRecords()));
   }
 
@@ -669,6 +679,15 @@ const DataStore = (() => {
     listeners.add(fn);
     return () => listeners.delete(fn);
   }
+
+  /** Usado só por loadInitialData/loadDataFromFile (script.js) ao redor de uma sequência de
+   * várias fontes carregadas em cadeia — evita que cada notify() intermediário dispare um
+   * render() completo (KPIs+gráficos+tabela) que vai ser imediatamente jogado fora pelo
+   * Dashboard.renderAll() explícito no fim da cadeia. SEMPRE retomar num `finally` (nunca
+   * condicionar ao caminho de sucesso) — se ficar suspenso por engano, filtros/edições depois
+   * do boot parariam de atualizar a tela. */
+  function suspenderNotificacoes() { notificacoesSuspensas = true; }
+  function retomarNotificacoes() { notificacoesSuspensas = false; }
 
   async function loadFromUrl(url, format = 'csv') {
     const adapter = DataAdapters[format];
@@ -2255,7 +2274,7 @@ const DataStore = (() => {
     setFilters, resetFilters, getFilters,
     getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
     getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
-    onChange
+    onChange, suspenderNotificacoes, retomarNotificacoes
   };
 })();
 
