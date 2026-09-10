@@ -1207,6 +1207,20 @@ ul { list-style: none; margin: 0; padding: 0; }
 .table-search input { border: none; background: transparent; outline: none; color: var(--text-primary); width: 100%; }
 .table-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Filtros duplicados no cabeçalho do Indicador de Frete (2026-09-10, Fase 7) — mesmo espírito
+   visual do .table-search ao lado (fundo sutil, borda, compacto), rótulo pequeno em cima do
+   campo. Reaproveitável se outra tela precisar do mesmo padrão futuramente. */
+.indicador-frete-filtro-cabecalho {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+}
+.indicador-frete-filtro-cabecalho__label { font-size: 10.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; }
+.indicador-frete-filtro-cabecalho__campos { display: flex; align-items: center; gap: 4px; }
+.indicador-frete-filtro-cabecalho select, .indicador-frete-filtro-cabecalho input[type="date"] {
+  font-size: 12px; padding: 5px 6px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary);
+  max-width: 140px;
+}
+
 /* Botões de mostrar/ocultar coluna — ficam onde antes só tinha a borda laranja separando o
    título da tabela; verde brilhante = coluna visível, vermelho brilhante = oculta. */
 .table-column-toggles {
