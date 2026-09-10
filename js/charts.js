@@ -33,7 +33,12 @@ class DashChart {
       // explicitamente (Registro Dinâmico) — as demais telas continuam comparando as séries
       // no mesmo eixo, que é o que faz sentido pra elas (ex.: "Mês atual" x "Mês anterior").
       perSeriesScale: false,
-      emptyMessage: 'Sem dados para os filtros selecionados'
+      emptyMessage: 'Sem dados para os filtros selecionados',
+      // Fatia fina normalmente ganha rótulo + linha-guia por fora (ver _drawThinSliceCallouts) —
+      // opção pra desligar isso num gráfico específico (pedido da usuária, 2026-09-09, pizza do
+      // Indicador de Frete: "não precisa deixar a linha que indica a porcentagem"), sem afetar
+      // os outros gráficos de pizza/rosca que dependem dela pra fatia fina não ficar invisível.
+      hideThinSliceLabels: false
     }, config.options || {});
 
     this._prevSeries = null;
@@ -108,7 +113,38 @@ class DashChart {
         if (!tile) return;
         this.options.onLegendClick(tile.dataset.label);
       });
+
+      // Hover sincronizado pizza <-> quadrado da legenda (pedido da usuária, 2026-09-09:
+      // "quero que brilhe a parte da pizza junto com o card ao passar o mouse em cima") — passar
+      // o mouse no QUADRADO também acende a fatia correspondente no canvas (o caminho inverso,
+      // fatia -> quadrado, está em _onMove). Só tiles de pizza/rosca têm data-index, então isso
+      // não faz nada nos demais tipos de gráfico (legenda de barra/linha não usa .chart-stat-tile).
+      this.legend.addEventListener('mouseover', (e) => {
+        const tile = e.target.closest('.chart-stat-tile[data-index]');
+        if (!tile) return;
+        const idx = Number(tile.dataset.index);
+        if (idx === this._hoverIndex) return;
+        this._hoverIndex = idx;
+        this._setLegendHover(idx);
+        this._draw(1);
+      });
+      this.legend.addEventListener('mouseout', (e) => {
+        const tile = e.target.closest('.chart-stat-tile[data-index]');
+        if (!tile || (e.relatedTarget && tile.contains(e.relatedTarget))) return;
+        this._hoverIndex = -1;
+        this._setLegendHover(-1);
+        this._draw(1);
+      });
     }
+  }
+
+  /** Acende (classe --active) só o quadrado da legenda no índice `idx` (-1 = nenhum) — usado
+   * pelos dois sentidos do hover sincronizado com a pizza/rosca (ver _bindEvents e _onMove). */
+  _setLegendHover(idx) {
+    if (!this.legend) return;
+    this.legend.querySelectorAll('.chart-stat-tile').forEach(el => {
+      el.classList.toggle('chart-stat-tile--active', Number(el.dataset.index) === idx);
+    });
   }
 
   _resize() {
@@ -219,8 +255,8 @@ class DashChart {
       // inconsistente conforme o tamanho do valor (às vezes o número da quantidade ficava
       // "grudado" no valor, às vezes sozinho numa linha) — pedido do usuário (2026-08-26)
       // pra padronizar todos os quadrados no mesmo formato de 3 linhas.
-      this.legend.innerHTML = tiles.map(t => `
-        <div class="chart-stat-tile${clicavel ? ' chart-stat-tile--clickable' : ''}" style="border-color:${t.color}"${clicavel ? ` data-label="${this._escape(t.label)}"` : ''}>
+      this.legend.innerHTML = tiles.map((t, i) => `
+        <div class="chart-stat-tile${clicavel ? ' chart-stat-tile--clickable' : ''}" style="border-color:${t.color}" data-index="${i}"${clicavel ? ` data-label="${this._escape(t.label)}"` : ''}>
           <span class="chart-stat-tile__dot" style="background:${t.color}"></span>
           <div class="chart-stat-tile__text">
             <span class="chart-stat-tile__label">${this._escape(t.label)}</span>
@@ -615,10 +651,12 @@ class DashChart {
     // antes de fixar o raio, porque essas fatias precisam de margem extra na lateral pra não
     // ficarem escondidas atrás de "Entregue"/"Em aberto" como antes.
     let hasThinSlice = false;
-    values.forEach(v => {
-      const slice = (v / total) * Math.PI * 2;
-      if (slice > 0 && slice <= 0.18) hasThinSlice = true;
-    });
+    if (!this.options.hideThinSliceLabels) {
+      values.forEach(v => {
+        const slice = (v / total) * Math.PI * 2;
+        if (slice > 0 && slice <= 0.18) hasThinSlice = true;
+      });
+    }
 
     const depth = 22;
     const margin = hasThinSlice ? 74 : 16;
@@ -653,23 +691,30 @@ class DashChart {
     this._slices = [];
     const bigSlices = [];
     const thinSlices = [];
-    sliceDefs.forEach(s => {
+    sliceDefs.forEach((s, i) => {
+      // Fatia em hover (mouse na própria fatia OU no quadrado correspondente da legenda, ver
+      // _onMove/_setLegendHover) ganha um brilho (shadowBlur) e borda branca — pedido da
+      // usuária, 2026-09-09: "quero que brilhe a parte da pizza junto com o card".
+      const hover = i === this._hoverIndex;
+      ctx.save();
+      if (hover) { ctx.shadowColor = s.color; ctx.shadowBlur = 18; }
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.ellipse(cx, cy, rx, ry, 0, s.start, s.end);
       ctx.closePath();
       ctx.fillStyle = s.color;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,.1)';
-      ctx.lineWidth = 1;
+      ctx.restore();
+      ctx.strokeStyle = hover ? '#fff' : 'rgba(0,0,0,.1)';
+      ctx.lineWidth = hover ? 2 : 1;
       ctx.stroke();
 
       const sw = s.end - s.start;
       const mid = s.start + sw / 2;
       const pct = (s.value / total) * 100;
-      this._slices.push({ start: s.start, end: s.end, color: s.color, label: s.label, value: s.value, cx, cy, rx, ry });
+      this._slices.push({ start: s.start, end: s.end, color: s.color, label: s.label, value: s.value, cx, cy, rx, ry, index: i });
       if (sw > 0.18) bigSlices.push({ mid, pct });
-      else if (s.value > 0) thinSlices.push({ mid, pct, color: s.color });
+      else if (s.value > 0 && !this.options.hideThinSliceLabels) thinSlices.push({ mid, pct, color: s.color });
     });
 
     // 3) porcentagem escrita dentro de cada fatia grande.
@@ -792,6 +837,14 @@ class DashChart {
         if (ang < -Math.PI / 2) ang += Math.PI * 2;
         const slice = slices.find(s => dist <= 1 && ang >= s.start && ang <= s.end);
         if (slice) found = { label: slice.label, lines: [this._fmt(slice.value)], color: slice.color };
+
+        // Sentido fatia -> quadrado do hover sincronizado (ver _bindEvents pro sentido inverso).
+        const hoverIdx = slice ? slice.index : -1;
+        if (hoverIdx !== this._hoverIndex) {
+          this._hoverIndex = hoverIdx;
+          this._setLegendHover(hoverIdx);
+          this._draw(1);
+        }
       }
     }
 
@@ -808,7 +861,14 @@ class DashChart {
     }
   }
 
-  _onLeave() { this.tooltip.classList.remove('chart-tooltip--visible'); }
+  _onLeave() {
+    this.tooltip.classList.remove('chart-tooltip--visible');
+    if (this._hoverIndex !== -1) {
+      this._hoverIndex = -1;
+      this._setLegendHover(-1);
+      this._draw(1);
+    }
+  }
 
   /** `format` (opcional, por série: "currency" ou "number") sobrepõe options.currency —
    * usado quando duas séries no MESMO gráfico representam grandezas diferentes (ver
