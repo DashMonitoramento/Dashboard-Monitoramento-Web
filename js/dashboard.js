@@ -4610,7 +4610,18 @@ const Dashboard = (() => {
   // significado do indicador"). Custo cair é bom (verde); volume/receita crescer é bom (verde).
   const INDICADOR_FRETE_QUEDA_E_BOA = {
     'indicador-frete-total-valor': true, 'indicador-frete-media-kg': true, 'indicador-frete-percentual': true,
-    'indicador-frete-total-peso': false, 'indicador-frete-total-viagens': false, 'indicador-frete-total-valor-nfs': false
+    'indicador-frete-total-peso': false, 'indicador-frete-total-viagens': false, 'indicador-frete-total-valor-nfs': false,
+    // Relatório "Indicador Frete Transportadora" (Fase 5, 2026-09-10) — mesma função genérica
+    // (renderizarComparativoIndicadorFrete), só estendendo o mapa com os ids dele. Frete
+    // Calculado/Cobrado/Diferença/%Diferença são métricas de CUSTO (cair é bom, mesmo raciocínio
+    // já usado em "Total Valor Frete" acima). Embarques Auditados é COBERTURA (crescer é bom —
+    // mais backlog resolvido); Embarques com Divergência é PROBLEMA (crescer é ruim).
+    'indicador-frete-transportadora-total-calculado': true,
+    'indicador-frete-transportadora-total-cobrado': true,
+    'indicador-frete-transportadora-total-dif': true,
+    'indicador-frete-transportadora-percentual-dif': true,
+    'indicador-frete-transportadora-qtd-auditados': false,
+    'indicador-frete-transportadora-qtd-divergencia': true
   };
 
   /** Preenche a linha "▲/▼ X% vs. período anterior" de um KPI card do Indicador de Frete.
@@ -5415,6 +5426,21 @@ const Dashboard = (() => {
     el.value = valorAtual;
   }
 
+  /** Mesmo filtro de Período+Transportadora+UF Destino de renderIndicadorFreteTransportadora,
+   * extraído aqui (Fase 5, 2026-09-10) pra também aplicar num intervalo [inicio, fim] já
+   * resolvido (ver DataStore.calcularPeriodoAnterior) — usado só pra "vs. período anterior". */
+  function obterItensFreteTransportadoraPorIntervalo(inicioRange, fimRange, transportadora) {
+    return DataStore.getIndicadorFreteTransportadora().filter(item => {
+      const ref = item.dataEmbarque || item.dataCriacao;
+      if (!ref) return false;
+      if (inicioRange && ref < inicioRange) return false;
+      if (fimRange && ref > fimRange) return false;
+      if (transportadora && transportadora.length && !transportadora.includes(item.transportadora)) return false;
+      if (indicadorFreteTransportadoraUFSelecionada && item.estadoDestino !== indicadorFreteTransportadoraUFSelecionada) return false;
+      return true;
+    });
+  }
+
   function renderIndicadorFreteTransportadora() {
     const view = document.getElementById('indicador-frete-view');
     if (!view || view.hidden) return;
@@ -5469,6 +5495,36 @@ const Dashboard = (() => {
     setTexto('indicador-frete-transportadora-sub-dif', `sobre ${Utils.formatNumber(qtdAuditados)} embarques auditados`);
     setTexto('indicador-frete-transportadora-sub-pct-dif', `sobre ${Utils.formatNumber(qtdAuditados)} embarques auditados`);
     setTexto('indicador-frete-transportadora-sub-divergencia', qtdAuditados > 0 ? `${Utils.formatPercent(pctDivergencia)} dos auditados` : '—');
+
+    // Comparação "vs. período anterior" (Fase 5, 2026-09-10) — só quando algum filtro de Período
+    // está de fato ativo, mesma decisão/motivo já documentado em DataStore.calcularPeriodoAnterior
+    // e já aplicada no relatório irmão (sem filtro, "atual" seria o histórico inteiro, comparar
+    // isso contra só o mês anterior não faria sentido).
+    const periodoFiltroAtivoTransportadora = !!(dataInicio || dataFim || mes || ano);
+    const itensAnteriorTransportadora = periodoFiltroAtivoTransportadora
+      ? (() => {
+          const janela = DataStore.calcularPeriodoAnterior({ dataInicio, dataFim, mes, ano });
+          return obterItensFreteTransportadoraPorIntervalo(janela.inicio, janela.fim, transportadora);
+        })()
+      : [];
+    const auditadosAnteriorTransportadora = itensAnteriorTransportadora.filter(i => statusAuditoriaFreteTransportadora(i) !== 'aguardando');
+    const temBaseAnteriorGeral = itensAnteriorTransportadora.length > 0;
+    const temBaseAnteriorAuditados = auditadosAnteriorTransportadora.length > 0;
+    const freteCalculadoTotalAnterior = temBaseAnteriorGeral ? Utils.sum(itensAnteriorTransportadora, i => i.freteCalc) : null;
+    const freteCalculadoAuditadosAnterior = temBaseAnteriorAuditados ? Utils.sum(auditadosAnteriorTransportadora, i => i.freteCalc) : null;
+    const freteCobradoTotalAnterior = temBaseAnteriorAuditados ? Utils.sum(auditadosAnteriorTransportadora, i => i.freteTotal) : null;
+    const diferencaTotalAnterior = temBaseAnteriorAuditados ? Utils.sum(auditadosAnteriorTransportadora, i => i.difFrete) : null;
+    const percentualDiferencaAnterior = (temBaseAnteriorAuditados && freteCalculadoAuditadosAnterior > 0) ? (diferencaTotalAnterior / freteCalculadoAuditadosAnterior) * 100 : null;
+    const qtdDivergenciaAnterior = temBaseAnteriorAuditados
+      ? auditadosAnteriorTransportadora.filter(i => { const s = statusAuditoriaFreteTransportadora(i); return s === 'cobrado_maior' || s === 'cobrado_menor'; }).length
+      : null;
+
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-calculado', freteCalculadoTotal, freteCalculadoTotalAnterior);
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-cobrado', freteCobradoTotal, freteCobradoTotalAnterior);
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-dif', diferencaTotal, diferencaTotalAnterior);
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-percentual-dif', percentualDiferenca, percentualDiferencaAnterior, { modo: 'pontosPercentuais' });
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-qtd-auditados', qtdAuditados, temBaseAnteriorAuditados ? auditadosAnteriorTransportadora.length : null);
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-qtd-divergencia', qtdDivergencia, qtdDivergenciaAnterior);
 
     // Segunda linha — resultado da auditoria (2026-09-10, pedido dela: NUNCA compensar cobrado a
     // maior com cobrado a menor, mostrar os dois separados).
