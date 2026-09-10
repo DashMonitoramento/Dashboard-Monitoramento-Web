@@ -1018,17 +1018,40 @@ ul { list-style: none; margin: 0; padding: 0; }
 .indicador-frete-kpi__texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .indicador-frete-kpi .kpi-card__value { font-size: 25px; }
 
+/* Linha "▲/▼ X% vs. período anterior" (2026-09-10) — cor por SIGNIFICADO do indicador, não só
+   pelo sinal da variação (ver INDICADOR_FRETE_QUEDA_E_BOA em dashboard.js), por isso são 2
+   classes genéricas (positivo/negativo) que o JS escolhe, não "sobe"/"desce". Mesmos tokens de
+   cor já usados no resto do site — sem paleta nova. */
+.indicador-frete-kpi__comparativo { font-size: 12px; font-weight: 700; }
+.indicador-frete-kpi__comparativo--positivo { color: var(--color-success); }
+.indicador-frete-kpi__comparativo--negativo { color: var(--color-danger); }
+.indicador-frete-kpi__comparativo--neutro { color: var(--text-secondary); font-weight: 600; }
+
+/* "Eficiência Operacional" (2026-09-10) — cards menores que os 6 principais (Fase 1 do painel
+   gerencial), mesmo componente `.indicador-frete-kpi`, só com altura/fonte reduzidas. */
+.indicador-frete-eficiencia {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px;
+}
+.indicador-frete-kpi--eficiencia { min-height: 0; padding: 12px 14px; gap: 10px; }
+.indicador-frete-kpi--eficiencia .indicador-frete-kpi__icone { width: 34px; height: 34px; }
+.indicador-frete-kpi--eficiencia .indicador-frete-kpi__icone svg { width: 17px; height: 17px; }
+.indicador-frete-kpi--eficiencia .kpi-card__label { font-size: 10.5px; }
+.indicador-frete-kpi--eficiencia .kpi-card__value { font-size: 17px; }
+
 @media (max-width: 1200px) {
   .indicador-frete-painel__cidades, .indicador-frete-painel__kpis { flex-basis: 100%; }
+  .indicador-frete-eficiencia { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 720px) {
   #indicador-frete-view .chart-root--donut { flex-direction: column; }
   #indicador-frete-view .chart-plot-area { flex-basis: auto; width: 100%; }
   .indicador-frete-painel__kpis { grid-template-columns: repeat(2, 1fr); }
+  .indicador-frete-eficiencia { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 480px) {
   .indicador-frete-painel__kpis { grid-template-columns: 1fr; grid-template-rows: none; }
   #indicador-frete-view .chart-legend--tiles { grid-template-columns: 1fr; }
+  .indicador-frete-eficiencia { grid-template-columns: 1fr; }
 }
 
 /* Card com só a imagem "AGENDA" — fica ao lado de "Situação de agendamento" nessa linha, no
