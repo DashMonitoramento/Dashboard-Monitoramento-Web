@@ -2771,6 +2771,7 @@ const Dashboard = (() => {
         // Destino — clicar de novo no mesmo quadrado limpa o filtro (toggle).
         onLegendClick: (label) => {
           indicadorFreteRegiaoSelecionada = indicadorFreteRegiaoSelecionada === label ? null : label;
+          indicadorFreteTable.page = 1;
           renderIndicadorFrete();
         }
       }
@@ -4049,10 +4050,18 @@ const Dashboard = (() => {
   // do top 7) é resolvido contra indicadorFreteCidadesOutras, recalculado a cada render.
   let indicadorFreteRegiaoSelecionada = null;
   let indicadorFreteCidadesOutras = new Set();
-  // Espelha exatamente as linhas exportadas por exportarIndicadorFrete() — sempre o que está
-  // na tela AGORA (já com Período/Transportadora/Motorista/região aplicados), preenchido no
-  // fim de renderIndicadorFrete().
+  // Espelha exatamente as linhas exportadas por exportarIndicadorFrete() — sempre o TOTAL
+  // filtrado (já com Período/Transportadora/Motorista/região aplicados), não só a página atual —
+  // preenchido no fim de renderIndicadorFrete(). renderTableGeneric (2026-09-10) faz a ordenação/
+  // paginação em cima desse array pra desenhar só a página visível.
   let indicadorFreteItensTabela = [];
+  let indicadorFreteTable = Object.assign(createTableState(), { sortField: 'dataEmbarque' });
+  const INDICADOR_FRETE_TABLE_IDS = {
+    tbody: 'indicador-frete-table-body', info: 'indicador-frete-table-info',
+    pageLabel: 'indicador-frete-table-page-label', prev: 'indicador-frete-table-prev',
+    next: 'indicador-frete-table-next', theadSelector: '#indicador-frete-table thead th[data-field]',
+    colspan: 11, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
+  };
 
   // Tolerância do cruzamento Placa+Data (dias) — pedido implícito descoberto testando com dado
   // real (2026-09-09): "Data Embarque" (quando o motorista carrega) e "Data Entrega"/coleta
@@ -4091,7 +4100,78 @@ const Dashboard = (() => {
       if (diferenca < menorDiferenca) { menorDiferenca = diferenca; melhor = candidato; }
     }
     const diasDeDiferenca = menorDiferenca / 86400000;
-    return diasDeDiferenca <= TOLERANCIA_DIAS_CRUZAMENTO_FRETE ? melhor : null;
+    if (diasDeDiferenca > TOLERANCIA_DIAS_CRUZAMENTO_FRETE) return null;
+    // Quantidade de NFs (2026-09-10, estimativa pros cards "Quantidade de NFs"/"Ticket médio por
+    // NF" de Eficiência Operacional — decisão confirmada com a usuária: não existe coluna de
+    // quantidade de notas na aba "Indicador de Frete", só o valor somado, então conta quantos
+    // registros da Bluesoft (1 por NF) caíram no MESMO dia batido acima. É uma aproximação via
+    // cruzamento Placa+dia (mesma técnica/tolerância já usada pra Transportadora/Motorista), não
+    // o número exato de NFs da viagem no TMS Lincros — por isso os cards mostram "≈".
+    const qtdNotas = candidatos.filter(c => c.tempo === melhor.tempo).length;
+    return { ...melhor, qtdNotas };
+  }
+
+  /** Mesmo pipeline (filtro de data + cruzamento por Placa/dia + filtro Transportadora/
+   * Motorista) usado pro período ATUAL em renderIndicadorFrete(), extraído aqui pra também
+   * calcular o período ANTERIOR (comparação "vs. período anterior", 2026-09-10) sem duplicar a
+   * lógica de cruzamento. Diferença: aqui o filtro de data é sempre um intervalo [inicio, fim]
+   * já resolvido (ver DataStore.calcularPeriodoAnterior), nunca mes/ano separados. */
+  function obterItensCruzadosPorIntervalo(inicioRange, fimRange, mapaPorPlaca, transportadora, motorista) {
+    const itens = DataStore.getIndicadorFrete().filter(item => {
+      const ref = item.dataEmbarque;
+      if (inicioRange && ref < inicioRange) return false;
+      if (fimRange && ref > fimRange) return false;
+      return true;
+    });
+    return itens.map(item => {
+      const cruzado = cruzarPlacaDiaMaisProximo(mapaPorPlaca, item.placa, item.dataEmbarque);
+      return {
+        ...item,
+        transportadora: cruzado ? cruzado.transportadora : '',
+        motorista: cruzado ? cruzado.motorista : '',
+        qtdNFsEstimada: cruzado ? cruzado.qtdNotas : 0,
+        semCruzamento: !cruzado
+      };
+    }).filter(item => {
+      if (transportadora && transportadora.length && !transportadora.includes(item.transportadora)) return false;
+      if (motorista && motorista.length && !motorista.includes(item.motorista)) return false;
+      return true;
+    });
+  }
+
+  // "Queda é boa?" por KPI do Indicador de Frete (2026-09-10) — semântico, não dá pra deduzir só
+  // do sinal da variação (pedido explícito da usuária: "a lógica das cores deve considerar o
+  // significado do indicador"). Custo cair é bom (verde); volume/receita crescer é bom (verde).
+  const INDICADOR_FRETE_QUEDA_E_BOA = {
+    'indicador-frete-total-valor': true, 'indicador-frete-media-kg': true, 'indicador-frete-percentual': true,
+    'indicador-frete-total-peso': false, 'indicador-frete-total-viagens': false, 'indicador-frete-total-valor-nfs': false
+  };
+
+  /** Preenche a linha "▲/▼ X% vs. período anterior" de um KPI card do Indicador de Frete.
+   * `anterior === null` = não há base de comparação (sem filtro de período ativo, ou período
+   * anterior sem nenhuma viagem) — mostra "sem dado" em vez de inventar uma % a partir do nada.
+   * `opts.modo === 'pontosPercentuais'` (só usado por "% Frete"): mostra a diferença em pontos
+   * percentuais (atual − anterior), não a variação relativa — é o que o mockup dela pede
+   * ("-2,1 p.p."), já que o indicador em si já É uma porcentagem. */
+  function renderizarComparativoIndicadorFrete(idBase, atual, anterior, opts) {
+    const el = document.getElementById(`${idBase}-comparativo`);
+    if (!el) return;
+    const modo = (opts && opts.modo) || 'relativo';
+    const semBase = anterior === null || anterior === undefined || (modo === 'relativo' && !(anterior > 0));
+    if (semBase) {
+      el.textContent = 'sem dado no período anterior';
+      el.className = 'indicador-frete-kpi__comparativo indicador-frete-kpi__comparativo--neutro';
+      return;
+    }
+    const diff = atual - anterior;
+    const quedaEBoa = INDICADOR_FRETE_QUEDA_E_BOA[idBase];
+    const seta = diff > 0 ? '▲' : diff < 0 ? '▼' : '—';
+    const positivo = diff === 0 ? null : (diff > 0 ? !quedaEBoa : quedaEBoa);
+    const textoValor = modo === 'pontosPercentuais'
+      ? `${Utils.formatNumber(Math.abs(diff), 1)} p.p.`
+      : Utils.formatPercent(Math.abs((diff / anterior) * 100));
+    el.textContent = `${seta} ${textoValor} vs. período anterior`;
+    el.className = `indicador-frete-kpi__comparativo ${positivo === null ? 'indicador-frete-kpi__comparativo--neutro' : positivo ? 'indicador-frete-kpi__comparativo--positivo' : 'indicador-frete-kpi__comparativo--negativo'}`;
   }
 
   /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na
@@ -4123,7 +4203,8 @@ const Dashboard = (() => {
         // tolerância) — pedido da usuária, 2026-09-09: destacar isso na tabela (placa em
         // vermelho) pra ela conseguir achar/investigar esses casos (normalmente erro de
         // digitação da placa na própria aba "Indicador de Frete").
-        semCruzamento: !cruzado
+        semCruzamento: !cruzado,
+        qtdNFsEstimada: cruzado ? cruzado.qtdNotas : 0
       };
       // Transportadora/Motorista da barra lateral (pedido da usuária, 2026-09-09) filtram DEPOIS
       // do cruzamento acima — são campos cruzados, não nativos da planilha de viagens. Viagem sem
@@ -4148,7 +4229,50 @@ const Dashboard = (() => {
     // % linha a linha (que distorceria a favor de viagens pequenas) — mesmo critério de "taxa
     // efetiva" já usado noutras % agregadas do dashboard.
     const elPercentual = document.getElementById('indicador-frete-percentual');
-    if (elPercentual) elPercentual.textContent = Utils.formatPercent(totalValorNFs > 0 ? (totalValor / totalValorNFs) * 100 : 0);
+    const percentualAtual = totalValorNFs > 0 ? (totalValor / totalValorNFs) * 100 : 0;
+    if (elPercentual) elPercentual.textContent = Utils.formatPercent(percentualAtual);
+
+    // Comparação "vs. período anterior" (2026-09-10, pedido da usuária) — só quando algum filtro
+    // de Período está de fato ativo: sem filtro, "atual" seria o histórico INTEIRO, e comparar
+    // isso contra só o mês anterior não faria sentido (decisão documentada em
+    // DataStore.calcularPeriodoAnterior). Reaproveita o MESMO mapaPorPlaca (não período-filtrado)
+    // já construído acima pro cruzamento do período atual.
+    const periodoFiltroAtivo = !!(dataInicio || dataFim || mes || ano);
+    const itensAnteriorCruzados = periodoFiltroAtivo
+      ? (() => {
+          const janela = DataStore.calcularPeriodoAnterior({ dataInicio, dataFim, mes, ano });
+          return obterItensCruzadosPorIntervalo(janela.inicio, janela.fim, mapaPorPlaca, transportadora, motorista);
+        })()
+      : [];
+    const temBaseAnterior = itensAnteriorCruzados.length > 0;
+    const totalValorAnterior = temBaseAnterior ? Utils.sum(itensAnteriorCruzados, i => i.valorFrete) : null;
+    const totalPesoAnterior = temBaseAnterior ? Utils.sum(itensAnteriorCruzados, i => i.peso) : null;
+    const totalValorNFsAnterior = temBaseAnterior ? Utils.sum(itensAnteriorCruzados, i => i.valorTotalNFs) : null;
+    const mediaKgAnterior = temBaseAnterior ? (totalPesoAnterior > 0 ? totalValorAnterior / totalPesoAnterior : 0) : null;
+    const percentualAnterior = temBaseAnterior ? (totalValorNFsAnterior > 0 ? (totalValorAnterior / totalValorNFsAnterior) * 100 : 0) : null;
+
+    renderizarComparativoIndicadorFrete('indicador-frete-total-valor', totalValor, totalValorAnterior);
+    renderizarComparativoIndicadorFrete('indicador-frete-total-peso', totalPeso, totalPesoAnterior);
+    renderizarComparativoIndicadorFrete('indicador-frete-media-kg', totalPeso > 0 ? totalValor / totalPeso : 0, mediaKgAnterior);
+    renderizarComparativoIndicadorFrete('indicador-frete-total-viagens', itensCruzados.length, temBaseAnterior ? itensAnteriorCruzados.length : null);
+    renderizarComparativoIndicadorFrete('indicador-frete-total-valor-nfs', totalValorNFs, totalValorNFsAnterior);
+    renderizarComparativoIndicadorFrete('indicador-frete-percentual', percentualAtual, percentualAnterior, { modo: 'pontosPercentuais' });
+
+    // Linha "Eficiência Operacional" (2026-09-10) — as 4 primeiras são divisões diretas dos
+    // agregados já calculados acima; as 2 últimas dependem de qtdNFsEstimada (ver
+    // cruzarPlacaDiaMaisProximo) e são uma APROXIMAÇÃO via cruzamento com a Base Bluesoft —
+    // decisão confirmada com a usuária (não existe coluna de quantidade de NFs na aba "Indicador
+    // de Frete", só o valor somado) — por isso o "≈" no texto, pra nunca passar exatidão que não
+    // existe.
+    const qtdViagens = itensCruzados.length;
+    const qtdNFsEstimadaTotal = Utils.sum(itensCruzados, i => i.qtdNFsEstimada);
+    const setTextoEfic = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
+    setTextoEfic('indicador-frete-frete-tonelada', Utils.formatCurrency(totalPeso > 0 ? totalValor / (totalPeso / 1000) : 0));
+    setTextoEfic('indicador-frete-custo-medio-viagem', Utils.formatCurrency(qtdViagens > 0 ? totalValor / qtdViagens : 0));
+    setTextoEfic('indicador-frete-peso-medio-viagem', `${Utils.formatNumber(qtdViagens > 0 ? totalPeso / qtdViagens : 0, 0)} kg`);
+    setTextoEfic('indicador-frete-valor-medio-nf-viagem', Utils.formatCurrency(qtdViagens > 0 ? totalValorNFs / qtdViagens : 0));
+    setTextoEfic('indicador-frete-qtd-nfs', qtdNFsEstimadaTotal > 0 ? `≈ ${Utils.formatNumber(qtdNFsEstimadaTotal)}` : '—');
+    setTextoEfic('indicador-frete-ticket-medio-nf', qtdNFsEstimadaTotal > 0 ? `≈ ${Utils.formatCurrency(totalValorNFs / qtdNFsEstimadaTotal)}` : '—');
 
     // Pizza "Cidades com frete mais caro" (2026-09-09) — soma de Valor Frete por Cidade
     // Destino: pizza representa PARTES DE UM TODO, e uma soma de R$ por região é exatamente
@@ -4202,55 +4326,66 @@ const Dashboard = (() => {
         : cidadeDoItem(i) === indicadorFreteRegiaoSelecionada)
       : itensCruzados;
 
-    const tbody = document.getElementById('indicador-frete-table-body');
-    if (!tbody) return;
-    if (!itensTabela.length) {
-      indicadorFreteItensTabela = [];
-      tbody.innerHTML = '<tr><td colspan="11" class="table-empty">Nenhuma viagem no período/filtro selecionado.</td></tr>';
-      return;
-    }
     const ordenados = itensTabela.slice().sort((a, b) => b.dataEmbarque.getTime() - a.dataEmbarque.getTime());
     indicadorFreteItensTabela = ordenados;
-    tbody.innerHTML = ordenados.map(i => {
-      const rsPorKg = i.peso > 0 ? i.valorFrete / i.peso : 0;
-      // Percentual do frete (pedido da usuária, 2026-09-09): Valor Frete Calculado dividido
-      // pelo Valor Total das NFs, 1 casa decimal — Utils.formatPercent já espera o valor NA
-      // ESCALA de porcentagem (ex.: 3.2, não 0.032), por isso o *100 aqui.
-      const percentualFrete = i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0;
-      const classePlaca = i.semCruzamento ? ' class="text-danger"' : '';
-      // Ordem das colunas pedida pela usuária, 2026-09-09: Embarque, Placa, Data Embarque,
-      // Peso, Volumes, Valor Total NFs, Transportadora, Motorista, Valor Frete, % Frete, R$/Kg
-      // (Cidade Destino saiu da tabela — agora alimenta só a pizza acima).
-      return `
-        <tr>
-          <td>${escapeAttr(i.embarque || '—')}</td>
-          <td${classePlaca}>${escapeAttr(i.placa)}</td>
-          <td>${Utils.formatDate(i.dataEmbarque)}</td>
-          <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
-          <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
-          <td class="text-right">${Utils.formatCurrency(i.valorTotalNFs)}</td>
-          <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
-          <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
-          <td class="text-right text-orange">${Utils.formatCurrency(i.valorFrete)}</td>
-          <td class="text-right text-orange">${Utils.formatPercent(percentualFrete)}</td>
-          <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
-        </tr>`;
-    }).join('');
+    // Paginação (2026-09-10) — antes jogava TODAS as viagens no innerHTML de uma vez (ponto real
+    // de performance apontado pela usuária); agora usa o mesmo mecanismo genérico já usado em
+    // "Despesas Extra"/"Registros detalhados" (createTableState/renderTableGeneric/
+    // bindTableControlsFor, ver topo do arquivo) — renderTableGeneric ordena com base em
+    // indicadorFreteTable.sortField/sortDir (padrão: dataEmbarque desc, mesma ordem de sempre) e
+    // só desenha a PÁGINA atual.
+    renderTableGeneric(ordenados, indicadorFreteTable, INDICADOR_FRETE_TABLE_IDS, rowHtmlIndicadorFrete);
+  }
+
+  /** Uma linha da tabela "Detalhamento das Viagens" do Indicador de Frete — extraída de
+   * renderIndicadorFrete() pra servir de rowRenderer pro renderTableGeneric (paginação,
+   * 2026-09-10). */
+  function rowHtmlIndicadorFrete(i) {
+    const rsPorKg = i.peso > 0 ? i.valorFrete / i.peso : 0;
+    // Percentual do frete (pedido da usuária, 2026-09-09): Valor Frete Calculado dividido
+    // pelo Valor Total das NFs, 1 casa decimal — Utils.formatPercent já espera o valor NA
+    // ESCALA de porcentagem (ex.: 3.2, não 0.032), por isso o *100 aqui.
+    const percentualFrete = i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0;
+    const classePlaca = i.semCruzamento ? ' class="text-danger"' : '';
+    // Ordem das colunas pedida pela usuária, 2026-09-09: Embarque, Placa, Data Embarque,
+    // Peso, Volumes, Valor Total NFs, Transportadora, Motorista, Valor Frete, % Frete, R$/Kg
+    // (Cidade Destino saiu da tabela — agora alimenta só a pizza acima).
+    return `
+      <tr>
+        <td>${escapeAttr(i.embarque || '—')}</td>
+        <td${classePlaca}>${escapeAttr(i.placa)}</td>
+        <td>${Utils.formatDate(i.dataEmbarque)}</td>
+        <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
+        <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
+        <td class="text-right">${Utils.formatCurrency(i.valorTotalNFs)}</td>
+        <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
+        <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
+        <td class="text-right text-orange">${Utils.formatCurrency(i.valorFrete)}</td>
+        <td class="text-right text-orange">${Utils.formatPercent(percentualFrete)}</td>
+        <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
+      </tr>`;
   }
 
   /** Botão "Limpar filtro de região" (dentro do chip, HTML gerado a cada render — por isso
-   * delegado no container fixo) e "Exportar Excel" da tela Indicador de Frete. */
+   * delegado no container fixo), "Exportar Excel" e os controles de paginação/ordenação
+   * (prev/next/clique no cabeçalho) da tabela de viagens do Indicador de Frete. */
   function bindIndicadorFreteAcoes() {
     const chip = document.getElementById('indicador-frete-filtro-chip');
     if (chip) {
       chip.addEventListener('click', (e) => {
         if (!e.target.closest('[data-limpar-filtro-regiao]')) return;
         indicadorFreteRegiaoSelecionada = null;
+        indicadorFreteTable.page = 1;
         renderIndicadorFrete();
       });
     }
     const btnExport = document.getElementById('btn-export-indicador-frete');
     if (btnExport) btnExport.addEventListener('click', () => exportarIndicadorFrete());
+
+    // getRecords devolve o TOTAL já filtrado (indicadorFreteItensTabela) — prev/next e clique no
+    // cabeçalho só precisam trocar de página/ordenação, não reprocessar cruzamento (mesmo padrão
+    // de bindDespesasExtraAcoes).
+    bindTableControlsFor(indicadorFreteTable, INDICADOR_FRETE_TABLE_IDS, () => indicadorFreteItensTabela, rowHtmlIndicadorFrete);
   }
 
   /** Exporta exatamente o que está na tabela AGORA (indicadorFreteItensTabela, preenchido no
