@@ -627,18 +627,33 @@ class DashChart {
 
     // Barras posicionadas pelo ÍNDICE no tempo (mesmo stepX das linhas, não o "groupSize" de
     // _drawBars, que é pra categorias discretas sem meio-caminho no eixo).
+    //
+    // Suporta valor NEGATIVO na barra (2026-09-10, "Evolução da Diferença de Frete" — uma
+    // diferença de frete pode ser negativa num bucket, positiva noutro) — zeroY é calculado a
+    // partir do maior valor positivo E do maior valor absoluto negativo juntos, cada lado
+    // ganhando sua fatia proporcional da altura do gráfico. Quando TODOS os valores da série são
+    // ≥0 (caso de sempre, "Evolução do Frete"), lowerRange fica 0 e a fórmula abaixo se reduz
+    // EXATAMENTE à conta antiga (zeroY = base do gráfico, mesmo resultado de antes) — não muda
+    // nada visualmente pros ~15 outros gráficos que já usam barra, só habilita bidirecional pra
+    // quem precisar. `s.colors` (array paralelo a `s.data`, opcional) permite cor por barra —
+    // sem isso, usa `s.color` fixo pra série inteira, igual sempre foi.
     this._hitboxes = [];
     if (seriesBarra.length) {
-      const maxBarra = Math.max(...seriesBarra.flatMap(s => s.data), 1) * 1.15;
+      const todosValores = seriesBarra.flatMap(s => s.data);
+      const maiorPositivo = Math.max(0, ...todosValores) * 1.15 || 1;
+      const maiorNegativoAbs = Math.abs(Math.min(0, ...todosValores)) * 1.15;
+      const alcanceTotal = maiorPositivo + maiorNegativoAbs;
+      const zeroY = padding.top + plotH * (maiorPositivo / alcanceTotal);
       const barWidth = Math.min(stepX * 0.5, 34);
       seriesBarra.forEach(s => {
         s.data.forEach((v, i) => {
           const cx = padding.left + i * stepX;
-          const h = plotH * (v / maxBarra);
+          const h = plotH * (Math.abs(v) / alcanceTotal);
           const x = cx - barWidth / 2;
-          const y = padding.top + plotH - h;
-          this._roundRect(ctx, x, y, barWidth, h, 3, s.color);
-          this._hitboxes.push({ x, y, w: barWidth, h, label: this.labels[i], value: v, color: s.color, series: s.name, format: s.format });
+          const y = v >= 0 ? zeroY - h : zeroY;
+          const cor = (Array.isArray(s.colors) && s.colors[i]) ? s.colors[i] : s.color;
+          this._roundRect(ctx, x, y, barWidth, h, 3, cor);
+          this._hitboxes.push({ x, y, w: barWidth, h, label: this.labels[i], value: v, color: cor, series: s.name, format: s.format });
         });
       });
     }
