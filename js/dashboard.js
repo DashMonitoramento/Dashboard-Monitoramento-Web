@@ -2785,6 +2785,12 @@ const Dashboard = (() => {
       type: 'hbar', labels: [], series: [{ name: 'R$/kg', data: [], color: ChartPalette[3] }],
       options: { currency: true, fullLabels: true }
     });
+    // "Evolução do Frete" (2026-09-10, Fase 3) — tipo 'combo' novo (barra + linhas, cada uma com
+    // sua própria escala, ver _drawCombo em charts.js). Séries/dados vêm de
+    // renderIndicadorFreteEvolucao, não daqui (aqui só cria vazio).
+    charts.indicadorFreteEvolucao = new DashChart(document.getElementById('chart-indicador-frete-evolucao'), {
+      type: 'combo', labels: [], series: []
+    });
   }
 
   function renderCharts(records) {
@@ -4072,6 +4078,64 @@ const Dashboard = (() => {
     colspan: 11, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
   };
 
+  // "Evolução do Frete" (2026-09-10, Fase 3) — granularidade do gráfico combo (Mensal/Semanal/
+  // Diário), ver bindIndicadorFreteAcoes/renderIndicadorFreteEvolucao. Início de semana = SEGUNDA
+  // (convenção BR), não domingo.
+  let indicadorFreteGranularidade = 'mensal';
+  function inicioDaSemanaIndicadorFrete(d) {
+    const dia = d.getDay();
+    const diff = dia === 0 ? -6 : 1 - dia;
+    return inicioDoDia(new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff));
+  }
+  const INDICADOR_FRETE_GRANULARIDADES = {
+    mensal: {
+      chave: d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      inicioBucket: d => new Date(d.getFullYear(), d.getMonth(), 1),
+      label: d => `${Utils.MONTH_NAMES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`
+    },
+    semanal: {
+      chave: d => inicioDaSemanaIndicadorFrete(d).getTime(),
+      inicioBucket: d => inicioDaSemanaIndicadorFrete(d),
+      label: d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    },
+    diario: {
+      chave: d => inicioDoDia(d).getTime(),
+      inicioBucket: d => inicioDoDia(d),
+      label: d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    }
+  };
+
+  /** Agrupa os MESMOS itensCruzados (já filtrados por Período/Transportadora/Motorista) pela
+   * granularidade ativa e atualiza o combo "Evolução do Frete". R$/kg e % Frete são "taxas
+   * efetivas" (soma/soma do bucket), mesmo critério já usado nos cards principais desta tela —
+   * evita distorcer a favor de viagens pequenas dentro do bucket. Só desenha buckets que TÊM
+   * viagem (sem preencher dia/semana/mês vazio com zero) — mesma simplificação já aceita em
+   * outros gráficos de série temporal do dashboard (ver agruparMediaPorMes). */
+  function renderIndicadorFreteEvolucao(itensCruzados) {
+    if (!charts.indicadorFreteEvolucao) return;
+    const def = INDICADOR_FRETE_GRANULARIDADES[indicadorFreteGranularidade];
+    const buckets = new Map();
+    itensCruzados.forEach(i => {
+      const chave = def.chave(i.dataEmbarque);
+      if (!buckets.has(chave)) {
+        buckets.set(chave, { ts: def.inicioBucket(i.dataEmbarque).getTime(), label: def.label(i.dataEmbarque), valor: 0, peso: 0, valorNFs: 0 });
+      }
+      const b = buckets.get(chave);
+      b.valor += i.valorFrete;
+      b.peso += i.peso;
+      b.valorNFs += i.valorTotalNFs;
+    });
+    const ordenados = Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
+    charts.indicadorFreteEvolucao.update({
+      labels: ordenados.map(b => b.label),
+      series: [
+        { name: 'Valor do Frete (R$)', data: ordenados.map(b => b.valor), color: ChartPalette[2], tipo: 'bar', format: 'currency' },
+        { name: 'R$/kg', data: ordenados.map(b => b.peso > 0 ? b.valor / b.peso : 0), color: ChartPalette[1], format: 'currency' },
+        { name: '% Frete', data: ordenados.map(b => b.valorNFs > 0 ? (b.valor / b.valorNFs) * 100 : 0), color: ChartPalette[0], format: 'percent' }
+      ]
+    });
+  }
+
   // Tolerância do cruzamento Placa+Data (dias) — pedido implícito descoberto testando com dado
   // real (2026-09-09): "Data Embarque" (quando o motorista carrega) e "Data Entrega"/coleta
   // registrada na Base Bluesoft por nota nem sempre são o MESMO dia (ex.: embarque dia 1, nota
@@ -4355,6 +4419,10 @@ const Dashboard = (() => {
       charts.indicadorFreteCidadesRsPorKg.update({ labels: labelsRsKg, series: [{ name: 'R$/kg', data: dataRsKg }] });
     }
 
+    // "Evolução do Frete" (2026-09-10, Fase 3) — mesmo itensCruzados (já filtrado), só reagrupa
+    // por tempo na granularidade ativa.
+    renderIndicadorFreteEvolucao(itensCruzados);
+
     // Chip "Filtrando: <cidade> ×" acima da tabela (pedido da usuária, 2026-09-09: clicar num
     // quadrado da pizza mostra só aquela região "abaixo no relatório") — só a TABELA (e a
     // exportação) respeitam essa seleção; cards e pizza continuam somando o período inteiro.
@@ -4435,6 +4503,19 @@ const Dashboard = (() => {
     // cabeçalho só precisam trocar de página/ordenação, não reprocessar cruzamento (mesmo padrão
     // de bindDespesasExtraAcoes).
     bindTableControlsFor(indicadorFreteTable, INDICADOR_FRETE_TABLE_IDS, () => indicadorFreteItensTabela, rowHtmlIndicadorFrete);
+
+    // Toggle Mensal/Semanal/Diário do "Evolução do Frete" (2026-09-10) — mesmo padrão de pílulas
+    // já usado em "Ocorrências do Dia"/"No Show" (bindCargasNoShowPeriodo).
+    const barraGranularidade = document.getElementById('indicador-frete-granularidade-bar');
+    if (barraGranularidade) {
+      barraGranularidade.querySelectorAll('[data-indicador-frete-granularidade]').forEach(botao => {
+        botao.addEventListener('click', () => {
+          indicadorFreteGranularidade = botao.dataset.indicadorFreteGranularidade;
+          barraGranularidade.querySelectorAll('[data-indicador-frete-granularidade]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
+          renderIndicadorFrete();
+        });
+      });
+    }
   }
 
   /** Exporta exatamente o que está na tabela AGORA (indicadorFreteItensTabela, preenchido no
