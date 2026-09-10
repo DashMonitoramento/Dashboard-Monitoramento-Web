@@ -411,6 +411,20 @@ async function loadPermissaoEdicaoValorDescargaSilently() {
   }
 }
 
+/** "Necessita Ajudante" por CLIENTE (2026-09-10) — mesma ideia de
+ * loadValoresDescargaAprovadosSilently, coleção própria (ver applyClienteNecessitaAjudante em
+ * data.js). Opcional: sem Firestore disponível, ninguém herda o padrão do cliente, só quem já
+ * tem valor próprio salvo continua aparecendo normalmente. */
+async function loadClientesNecessitamAjudanteSilently() {
+  try {
+    const fb = await waitFirebaseReady();
+    const porCliente = await fb.getClientesNecessitamAjudante();
+    DataStore.applyClienteNecessitaAjudante(porCliente);
+  } catch (err) {
+    console.warn('Clientes que necessitam ajudante (Firestore) não carregados:', err.message);
+  }
+}
+
 /** Dispara todas as buscas de CSV/JSON em PARALELO, só pra esquentar o cache HTTP do
  * navegador — a cadeia abaixo continua buscando e processando cada fonte na mesma ordem
  * sequencial de sempre (não muda nenhuma lógica de enriquecimento/dependência entre elas),
@@ -469,7 +483,8 @@ async function loadInitialData() {
       loadAgendamentosManuaisSilently(),
       loadPermissaoEdicaoAgendamentoSilently(),
       loadValoresDescargaAprovadosSilently(),
-      loadPermissaoEdicaoValorDescargaSilently()
+      loadPermissaoEdicaoValorDescargaSilently(),
+      loadClientesNecessitamAjudanteSilently()
     ]);
     Dashboard.renderAll();
     Utils.showToast(`${DataStore.getRecords().length} registros carregados com sucesso.`, 'success');
