@@ -644,11 +644,12 @@ const DataStore = (() => {
   // não uma por vez). Cruzamento com Transportadora/Motorista/NF acontece na hora de exibir
   // (Dashboard cruza por placa+dia contra getRecords()), não fica guardado aqui.
   let indicadorFreteRecords = [];
-  // "Indicador Frete Transportadora" (2026-09-10, pedido da usuária) — DIFERENTE do de cima:
-  // aqui é por NOTA (Número+Série), não por viagem — auditoria de Frete Calculado (o que a Da
-  // Terrinha paga) x Frete cobrado pela transportadora. difFrete = frete − freteCalc (positivo =
-  // transportadora cobrou A MAIS do que o calculado; confirmado batendo os números do print
-  // dela). Nativo por Transportadora (sem cruzamento nenhum) — mas não tem Motorista.
+  // "Indicador Frete Transportadora" (2026-09-10, pedido da usuária) — por EMBARQUE (não por
+  // Nota Fiscal: o export real da aba não tem Número/Série, só o id do Embarque). Auditoria de
+  // Frete Calculado (o que a Da Terrinha paga) x Frete cobrado pela transportadora. difFrete
+  // vem PRONTO da planilha (coluna "Diferença de frete" que ela mesma criou e calcula lá, não é
+  // derivado aqui): positivo = transportadora cobrou A MAIS do que o calculado; negativo =
+  // cobrou A MENOS. Nativo por Transportadora (sem cruzamento nenhum) — mas não tem Motorista.
   let indicadorFreteTransportadoraRecords = [];
   const listeners = new Set();
   // Suspende notify() durante o carregamento inicial (loadInitialData, script.js) — a cadeia
@@ -2066,36 +2067,40 @@ const DataStore = (() => {
     notify();
   }
 
-  /** Ver comentário de `indicadorFreteTransportadoraRecords` acima. Linha sem Número é ignorada
-   * (não dá pra identificar a nota sem ele). */
+  /** Ver comentário de `indicadorFreteTransportadoraRecords` acima. Linha sem Embarque é
+   * ignorada (não dá pra identificar o registro sem ele). */
   function indexIndicadorFreteTransportadoraRows(rawRows) {
     const lista = [];
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
-      const numeroHeader = headerIndex['numero'];
-      const numero = numeroHeader !== undefined ? String(row[numeroHeader] || '').trim() : '';
-      if (!numero) continue;
-      const serieHeader = headerIndex['serie'];
-      const emissaoHeader = headerIndex['emissao'];
+      const embarqueHeader = headerIndex['embarque'];
+      const embarque = embarqueHeader !== undefined ? String(row[embarqueHeader] || '').trim() : '';
+      if (!embarque) continue;
+      const dataCriacaoHeader = headerIndex['data criacao'];
       const transportadoraHeader = headerIndex['transportadora'];
-      const origemHeader = headerIndex['origem'];
-      const ufOrigemHeader = headerIndex['uf origem'];
-      const destinoHeader = headerIndex['destino'];
-      const ufDestinoHeader = headerIndex['uf destino'];
-      const freteCalcHeader = headerIndex['frete calc'];
-      const freteHeader = headerIndex['frete'];
-      const difFreteHeader = headerIndex['dif frete'];
+      const freteCalcHeader = headerIndex['valor frete calculado'];
+      const freteTotalHeader = headerIndex['valor total frete'];
+      const estadoDestinoHeader = headerIndex['estado destino'];
+      const pesoHeader = headerIndex['peso'];
+      const volumesHeader = headerIndex['volumes'];
+      const dataEmbarqueHeader = headerIndex['data embarque'];
+      const placaHeader = headerIndex['placa'];
+      const valorDocFiscaisHeader = headerIndex['valor doc fiscais'];
+      const identificadorHeader = headerIndex['identificador'];
+      const difFreteHeader = headerIndex['diferenca frete'];
       lista.push({
-        numero,
-        serie: serieHeader !== undefined ? String(row[serieHeader] || '').trim() : '',
-        emissao: emissaoHeader !== undefined ? Utils.parseDate(row[emissaoHeader]) : null,
+        embarque,
+        dataCriacao: dataCriacaoHeader !== undefined ? Utils.parseDate(row[dataCriacaoHeader]) : null,
         transportadora: transportadoraHeader !== undefined ? String(row[transportadoraHeader] || '').trim() : 'Não informado',
-        origemCidade: origemHeader !== undefined ? String(row[origemHeader] || '').trim() : '',
-        origemUF: ufOrigemHeader !== undefined ? String(row[ufOrigemHeader] || '').trim() : '',
-        destinoCidade: destinoHeader !== undefined ? String(row[destinoHeader] || '').trim() : '',
-        destinoUF: ufDestinoHeader !== undefined ? String(row[ufDestinoHeader] || '').trim() : '',
         freteCalc: freteCalcHeader !== undefined ? parseMoney(row[freteCalcHeader]) : 0,
-        frete: freteHeader !== undefined ? parseMoney(row[freteHeader]) : 0,
+        freteTotal: freteTotalHeader !== undefined ? parseMoney(row[freteTotalHeader]) : 0,
+        estadoDestino: estadoDestinoHeader !== undefined ? String(row[estadoDestinoHeader] || '').trim() : '',
+        peso: pesoHeader !== undefined ? parseMoney(row[pesoHeader]) : 0,
+        volumes: volumesHeader !== undefined ? parseMoney(row[volumesHeader]) : 0,
+        dataEmbarque: dataEmbarqueHeader !== undefined ? Utils.parseDate(row[dataEmbarqueHeader]) : null,
+        placa: placaHeader !== undefined ? String(row[placaHeader] || '').trim() : '',
+        valorDocFiscais: valorDocFiscaisHeader !== undefined ? parseMoney(row[valorDocFiscaisHeader]) : 0,
+        identificador: identificadorHeader !== undefined ? String(row[identificadorHeader] || '').trim() : '',
         difFrete: difFreteHeader !== undefined ? parseMoney(row[difFreteHeader]) : 0
       });
     }
