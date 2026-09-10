@@ -2021,6 +2021,36 @@ Segue anexo o relatório atualizado.</textarea>
           </article>
         </div>
 
+        <!-- "Indicadores de Custo" (Fase 4, 2026-09-10) — SÓ embarques auditados (Frete Total só
+             existe pra eles). R$/tonelada não vira card próprio (é só R$/kg × 1000, decisão do
+             plano) — vira legenda pequena dentro do próprio card de R$/kg. Mesmo componente
+             .indicador-frete-kpi--eficiencia (cards menores) já usado no relatório irmão. -->
+        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#2563EB">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">R$/kg Calculado</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-rskg-calculado">—</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-rskg-calculado-ton"></span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#16A34A">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">R$/kg Cobrado</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-rskg-cobrado">—</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-rskg-cobrado-ton"></span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#7C3AED">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">% Frete sobre NF</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-pct-frete-nf">—</span>
+            </span>
+          </article>
+        </div>
+
         <!-- Fase 2 (2026-09-10) — gráficos. Reaproveita 100% de classes já existentes
              (.indicador-frete-analises/.indicador-frete-analise-card, .ocorrencias-periodo-btn
              pro toggle) — zero CSS novo. Diário/Semanal/Mensal é UM toggle só controlando os 2
@@ -2061,7 +2091,7 @@ Segue anexo o relatório atualizado.</textarea>
              linha do ranking de Transportadoras filtra só a TABELA de detalhamento abaixo (mesmo
              espírito do clique na rosca de Status/pizza de cidades) — o ranking de Embarques não
              tem esse clique (não pedido). -->
-        <h3 class="chart-card__title" style="margin:20px 0 4px;">Rankings</h3>
+        <h3 class="chart-card__title" style="margin:20px 0 4px;">Rankings e Oportunidades</h3>
         <div class="indicador-frete-analises">
           <div class="indicador-frete-analise-card">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
@@ -2110,6 +2140,15 @@ Segue anexo o relatório atualizado.</textarea>
                 <tbody id="indicador-frete-transportadora-ranking-embarques-body"></tbody>
               </table>
             </div>
+          </div>
+          <div class="indicador-frete-analise-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;">
+              <h3 class="chart-card__title" style="margin-bottom:0;">⚠️ Oportunidades de Redução</h3>
+              <span id="indicador-frete-transportadora-oportunidades-contagem" style="font-size:12px; color:var(--text-secondary); font-weight:700; white-space:nowrap;"></span>
+            </div>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Alertas automáticos de embarques/transportadoras fora do padrão. Impacto só aparece quando há valor real ou comparação confiável.</p>
+            <div id="indicador-frete-transportadora-oportunidades-lista" class="indicador-frete-oportunidades-lista"></div>
+            <button type="button" id="indicador-frete-transportadora-oportunidades-ver-todas" class="btn" style="margin-top:10px; align-self:flex-start;" hidden>Ver todas</button>
           </div>
         </div>
 
@@ -2171,7 +2210,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910f"></script>
 <script src="js/charts.js?v=20260910c"></script>
-<script src="js/dashboard.js?v=20260910q"></script>
+<script src="js/dashboard.js?v=20260910r"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
