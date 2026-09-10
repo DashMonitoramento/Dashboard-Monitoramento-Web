@@ -431,6 +431,7 @@ const Dashboard = (() => {
     bindMapaRegioesMensagens();
     bindLeadTimePedidos();
     bindControleCargas();
+    bindIndicadorFreteAcoes();
     createCharts();
     DataStore.onChange(render);
   }
@@ -2761,7 +2762,18 @@ const Dashboard = (() => {
     // isso; % Frete é uma média/proporção por região, não algo que soma 100% ao empilhar, não
     // cabe bem numa pizza). Atualizada em renderIndicadorFrete(), não aqui (aqui só cria vazio).
     charts.indicadorFreteRegioes = new DashChart(document.getElementById('chart-indicador-frete-regioes'), {
-      type: 'pie', labels: [], series: [{ data: [] }], options: { currency: true }
+      type: 'pie', labels: [], series: [{ data: [] }],
+      options: {
+        currency: true,
+        // Pedido da usuária, 2026-09-09: sem linha-guia apontando pra fatia fina nesta pizza.
+        hideThinSliceLabels: true,
+        // Clicar num quadrado da legenda filtra a TABELA (não os cards) por aquela Cidade
+        // Destino — clicar de novo no mesmo quadrado limpa o filtro (toggle).
+        onLegendClick: (label) => {
+          indicadorFreteRegiaoSelecionada = indicadorFreteRegiaoSelecionada === label ? null : label;
+          renderIndicadorFrete();
+        }
+      }
     });
   }
 
@@ -4023,10 +4035,24 @@ const Dashboard = (() => {
    * Lincros (frete/pedágio/diária cobrem várias notas juntas, não uma por vez). Transportadora/
    * Motorista mostrados aqui são CRUZADOS por Placa + dia de coleta contra os registros já
    * carregados (DataStore.getRecords()), não vêm da planilha nova — mesma técnica de cruzamento
-   * por placa já usada em Controle de Cargas. Reage só ao filtro de PERÍODO da barra lateral
-   * (dataInicio/dataFim/mes/ano) — os demais filtros globais (Transportadora, Motorista, Status
-   * etc.) não fazem sentido aqui, já que a granularidade é outra.
+   * por placa já usada em Controle de Cargas. Reage ao filtro de PERÍODO da barra lateral
+   * (dataInicio/dataFim/mes/ano) normalmente (é nativo da planilha de viagens). Transportadora e
+   * Motorista da barra lateral (pedido da usuária, 2026-09-09) TAMBÉM filtram aqui, mas só depois
+   * do cruzamento por placa (são campos cruzados, não nativos desta planilha) — os demais filtros
+   * globais (Status, Situação etc.) não fazem sentido aqui, já que a granularidade é outra.
    * ============================================================ */
+
+  // Cidade Destino selecionada ao clicar num "quadrado" da pizza (null = mostra tudo) — só
+  // filtra a TABELA abaixo (pedido da usuária: "mostrar o resultado apenas dessa região abaixo
+  // no relatório"); os cards e a própria pizza continuam somando o período inteiro, pra dar pra
+  // comparar a região selecionada contra o total. "Outros" (fatia que agrupa o que sobrou fora
+  // do top 7) é resolvido contra indicadorFreteCidadesOutras, recalculado a cada render.
+  let indicadorFreteRegiaoSelecionada = null;
+  let indicadorFreteCidadesOutras = new Set();
+  // Espelha exatamente as linhas exportadas por exportarIndicadorFrete() — sempre o que está
+  // na tela AGORA (já com Período/Transportadora/Motorista/região aplicados), preenchido no
+  // fim de renderIndicadorFrete().
+  let indicadorFreteItensTabela = [];
 
   // Tolerância do cruzamento Placa+Data (dias) — pedido implícito descoberto testando com dado
   // real (2026-09-09): "Data Embarque" (quando o motorista carrega) e "Data Entrega"/coleta
@@ -4074,9 +4100,9 @@ const Dashboard = (() => {
     const view = document.getElementById('indicador-frete-view');
     if (!view || view.hidden) return;
 
-    // Só o filtro de Período (ver comentário no topo da seção) — mesma lógica de
-    // getFilteredRecords (data.js), aplicada aqui em cima de item.dataEmbarque.
-    const { dataInicio, dataFim, mes, ano } = DataStore.getFilters();
+    // Filtro de Período (ver comentário no topo da seção) — mesma lógica de getFilteredRecords
+    // (data.js), aplicada aqui em cima de item.dataEmbarque.
+    const { dataInicio, dataFim, mes, ano, transportadora, motorista } = DataStore.getFilters();
     const itens = DataStore.getIndicadorFrete().filter(item => {
       const ref = item.dataEmbarque;
       if (dataInicio && ref < dataInicio) return false;
@@ -4099,6 +4125,14 @@ const Dashboard = (() => {
         // digitação da placa na própria aba "Indicador de Frete").
         semCruzamento: !cruzado
       };
+      // Transportadora/Motorista da barra lateral (pedido da usuária, 2026-09-09) filtram DEPOIS
+      // do cruzamento acima — são campos cruzados, não nativos da planilha de viagens. Viagem sem
+      // cruzamento (transportadora/motorista vazios) some quando um desses filtros está ativo,
+      // mesmo critério de "não bate com o filtro" usado no resto do dashboard.
+    }).filter(item => {
+      if (transportadora && transportadora.length && !transportadora.includes(item.transportadora)) return false;
+      if (motorista && motorista.length && !motorista.includes(item.motorista)) return false;
+      return true;
     });
 
     const totalValor = Utils.sum(itensCruzados, i => i.valorFrete);
@@ -4121,10 +4155,11 @@ const Dashboard = (() => {
     // isso (as fatias somam o total gasto); % Frete é uma proporção por região (não soma 100%
     // ao empilhar), não cabe bem numa pizza — por isso a escolha de Valor Frete aqui, não %.
     // Top 7 + "Outros" (a paleta de cores do dashboard tem 8 cores fixas, ver ChartPalette).
+    const cidadeDoItem = i => i.cidadeDestino || '(sem cidade)';
     if (charts.indicadorFreteRegioes) {
       const porCidade = new Map();
       itensCruzados.forEach(i => {
-        const cidade = i.cidadeDestino || '(sem cidade)';
+        const cidade = cidadeDoItem(i);
         porCidade.set(cidade, (porCidade.get(cidade) || 0) + i.valorFrete);
       });
       const cidadesOrdenadas = Array.from(porCidade.entries()).sort((a, b) => b[1] - a[1]);
@@ -4136,15 +4171,46 @@ const Dashboard = (() => {
       const dataChart = topCidades.map(([, valor]) => valor);
       if (somaOutras > 0) { labelsChart.push('Outros'); dataChart.push(somaOutras); }
       charts.indicadorFreteRegioes.update({ labels: labelsChart, series: [{ data: dataChart }] });
+      // "Outros" agrupa o que ficou fora do top 7 — pra clicar nesse quadrado e filtrar a
+      // tabela por TODAS essas cidades (não uma cidade literal chamada "Outros").
+      indicadorFreteCidadesOutras = new Set(outrasCidades.map(([nome]) => nome));
+      // Filtro/mudança de período pode fazer a região selecionada sumir da pizza (0 viagens
+      // agora) — limpa sozinho em vez de deixar a tela "presa" filtrando por uma região vazia.
+      const aindaExiste = indicadorFreteRegiaoSelecionada === 'Outros'
+        ? indicadorFreteCidadesOutras.size > 0
+        : labelsChart.includes(indicadorFreteRegiaoSelecionada);
+      if (indicadorFreteRegiaoSelecionada && !aindaExiste) indicadorFreteRegiaoSelecionada = null;
     }
+
+    // Chip "Filtrando: <cidade> ×" acima da tabela (pedido da usuária, 2026-09-09: clicar num
+    // quadrado da pizza mostra só aquela região "abaixo no relatório") — só a TABELA (e a
+    // exportação) respeitam essa seleção; cards e pizza continuam somando o período inteiro.
+    const chip = document.getElementById('indicador-frete-filtro-chip');
+    if (chip) {
+      if (indicadorFreteRegiaoSelecionada) {
+        chip.hidden = false;
+        chip.innerHTML = `Filtrando: <strong>${escapeAttr(indicadorFreteRegiaoSelecionada)}</strong> <button type="button" data-limpar-filtro-regiao aria-label="Limpar filtro de região">✕</button>`;
+      } else {
+        chip.hidden = true;
+        chip.innerHTML = '';
+      }
+    }
+
+    const itensTabela = indicadorFreteRegiaoSelecionada
+      ? itensCruzados.filter(i => indicadorFreteRegiaoSelecionada === 'Outros'
+        ? indicadorFreteCidadesOutras.has(cidadeDoItem(i))
+        : cidadeDoItem(i) === indicadorFreteRegiaoSelecionada)
+      : itensCruzados;
 
     const tbody = document.getElementById('indicador-frete-table-body');
     if (!tbody) return;
-    if (!itensCruzados.length) {
-      tbody.innerHTML = '<tr><td colspan="11" class="table-empty">Nenhuma viagem no período selecionado.</td></tr>';
+    if (!itensTabela.length) {
+      indicadorFreteItensTabela = [];
+      tbody.innerHTML = '<tr><td colspan="11" class="table-empty">Nenhuma viagem no período/filtro selecionado.</td></tr>';
       return;
     }
-    const ordenados = itensCruzados.slice().sort((a, b) => b.dataEmbarque.getTime() - a.dataEmbarque.getTime());
+    const ordenados = itensTabela.slice().sort((a, b) => b.dataEmbarque.getTime() - a.dataEmbarque.getTime());
+    indicadorFreteItensTabela = ordenados;
     tbody.innerHTML = ordenados.map(i => {
       const rsPorKg = i.peso > 0 ? i.valorFrete / i.peso : 0;
       // Percentual do frete (pedido da usuária, 2026-09-09): Valor Frete Calculado dividido
@@ -4170,6 +4236,44 @@ const Dashboard = (() => {
           <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
         </tr>`;
     }).join('');
+  }
+
+  /** Botão "Limpar filtro de região" (dentro do chip, HTML gerado a cada render — por isso
+   * delegado no container fixo) e "Exportar Excel" da tela Indicador de Frete. */
+  function bindIndicadorFreteAcoes() {
+    const chip = document.getElementById('indicador-frete-filtro-chip');
+    if (chip) {
+      chip.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-limpar-filtro-regiao]')) return;
+        indicadorFreteRegiaoSelecionada = null;
+        renderIndicadorFrete();
+      });
+    }
+    const btnExport = document.getElementById('btn-export-indicador-frete');
+    if (btnExport) btnExport.addEventListener('click', () => exportarIndicadorFrete());
+  }
+
+  /** Exporta exatamente o que está na tabela AGORA (indicadorFreteItensTabela, preenchido no
+   * fim de renderIndicadorFrete — já com Período/Transportadora/Motorista/região aplicados). */
+  async function exportarIndicadorFrete() {
+    const itens = indicadorFreteItensTabela;
+    if (!itens.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+    const colunas = [
+      { label: 'Embarque', value: i => i.embarque || '—' },
+      { label: 'Placa', value: i => i.placa },
+      { label: 'Data Embarque', value: i => Utils.formatDate(i.dataEmbarque) },
+      { label: 'Cidade Destino', value: i => i.cidadeDestino || '—' },
+      { label: 'Peso', value: i => i.peso },
+      { label: 'Volumes', value: i => i.volumes },
+      { label: 'Valor Total NFs', value: i => i.valorTotalNFs.toFixed(2).replace('.', ',') },
+      { label: 'Transportadora', value: i => i.transportadora || '—' },
+      { label: 'Motorista', value: i => i.motorista || '—' },
+      { label: 'Valor Frete', value: i => i.valorFrete.toFixed(2).replace('.', ',') },
+      { label: '% Frete', value: i => (i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0).toFixed(1).replace('.', ',') },
+      { label: 'R$/Kg', value: i => (i.peso > 0 ? i.valorFrete / i.peso : 0).toFixed(2).replace('.', ',') }
+    ];
+    await Utils.exportToStyledExcel('indicador-de-frete.xlsx', 'Indicador de Frete', colunas, itens);
+    Utils.showToast(`${itens.length} viagens exportadas para Excel.`, 'success');
   }
 
   /* ============================================================
