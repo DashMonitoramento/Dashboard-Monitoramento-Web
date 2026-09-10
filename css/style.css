@@ -1043,6 +1043,17 @@ ul { list-style: none; margin: 0; padding: 0; }
 }
 #indicador-frete-view .chart-stat-tile { padding: 12px 14px; }
 
+/* "Oportunidades de Redução" (2026-09-10, Fase 5) — lista de alertas automáticos, reaproveita
+   .badge--danger/--warning/--success já existentes (Alto/Médio/Baixo) — sem paleta nova. */
+.indicador-frete-oportunidades-lista { display: flex; flex-direction: column; gap: 8px; }
+.indicador-frete-oportunidade {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt);
+}
+.indicador-frete-oportunidade__pos { font-weight: 800; color: var(--text-secondary); font-size: 12px; flex: 0 0 auto; }
+.indicador-frete-oportunidade__desc { flex: 1; font-size: 12.5px; color: var(--text-primary); min-width: 0; }
+.indicador-frete-oportunidade__impacto { font-size: 12px; font-weight: 700; color: var(--color-danger); white-space: nowrap; flex: 0 0 auto; }
+
 @media (max-width: 1200px) {
   .indicador-frete-kpis-principais { grid-template-columns: repeat(3, 1fr); }
   .indicador-frete-eficiencia { grid-template-columns: repeat(3, 1fr); }
