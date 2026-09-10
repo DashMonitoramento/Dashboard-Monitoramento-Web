@@ -2556,7 +2556,8 @@ const Dashboard = (() => {
 
   function renderAll() {
     populateFilterOptions();
-    popularIndicadorFreteFiltrosCabecalho();
+    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS);
+    popularFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
     render(DataStore.getFilteredRecords());
   }
 
@@ -3864,21 +3865,25 @@ const Dashboard = (() => {
       (r.transportadora || '').toLowerCase().includes(alvo));
   }
 
-  /** Top 5 por soma de Valor Descarga Aprovado — mesmo visual de "Top No Show" do Controle de
-   * Cargas (reaproveita as classes .cargas-noshow-ranking*, genéricas o bastante: título + lista
-   * nome/valor, nada específico de Cargas de verdade). */
-  function renderRankingDespesasExtra(elId, titulo, mapa) {
-    const el = document.getElementById(elId);
+  /** "Controle de Descarga" (2026-09-10) — Top 5 pares Transportadora+Motorista por soma de
+   * Valor Descarga Aprovado. Mesmo cartão de "Top No Show" (.cargas-noshow-ranking*), só que a
+   * linha vira uma grade de 3 colunas (--3col) em vez do par nome/valor original. */
+  function renderControleDescarga(mapaPares) {
+    const el = document.getElementById('despesas-extra-controle-descarga');
     if (!el) return;
-    const top = Array.from(mapa.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const top = Array.from(mapaPares.values()).sort((a, b) => b.valor - a.valor).slice(0, 5);
     if (!top.length) { el.innerHTML = ''; return; }
     el.innerHTML = `
       <div class="cargas-noshow-ranking">
-        <h4 class="cargas-noshow-ranking__titulo">${escapeAttr(titulo)}</h4>
-        ${top.map(([nome, valor]) => `
-          <div class="cargas-noshow-ranking__item">
-            <span>${escapeAttr(nome)}</span>
-            <span class="cargas-noshow-ranking__valor">${Utils.formatCurrency(valor)}</span>
+        <h4 class="cargas-noshow-ranking__titulo">Controle de Descarga</h4>
+        <div class="cargas-noshow-ranking__item cargas-noshow-ranking__item--3col cargas-noshow-ranking__item--cabecalho">
+          <span>Transportadora</span><span>Motorista</span><span>Valor Total</span>
+        </div>
+        ${top.map(p => `
+          <div class="cargas-noshow-ranking__item cargas-noshow-ranking__item--3col">
+            <span class="cargas-noshow-ranking__celula-truncada" title="${escapeAttr(p.transportadora)}">${escapeAttr(p.transportadora)}</span>
+            <span class="cargas-noshow-ranking__celula-truncada" title="${escapeAttr(p.motorista)}">${escapeAttr(p.motorista)}</span>
+            <span class="cargas-noshow-ranking__valor">${Utils.formatCurrency(p.valor)}</span>
           </div>`).join('')}
       </div>`;
   }
@@ -3921,6 +3926,26 @@ const Dashboard = (() => {
       </tr>`;
   }
 
+  /** Exporta exatamente o que está na tabela AGORA (mesmo filtro global + busca própria da tela,
+   * TODOS os registros, não só os que já têm valor aprovado — igual ao que aparece em tela). */
+  async function exportarDespesasExtra() {
+    const registros = aplicarBuscaDespesasExtra(DataStore.getFilteredRecords());
+    if (!registros.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+    const colunas = [
+      { label: 'NF', value: r => r.nf || '—' },
+      { label: 'Cliente', value: r => r.cliente },
+      { label: 'Motorista', value: r => r.motorista },
+      { label: 'Transportadora', value: r => r.transportadora },
+      { label: 'Valor da Nota', value: r => r.valorNF.toFixed(2).replace('.', ',') },
+      { label: 'Peso', value: r => r.peso != null ? r.peso : '' },
+      { label: 'Valor Descarga Aprovado', value: r => r.valorDescargaAprovado != null ? r.valorDescargaAprovado.toFixed(2).replace('.', ',') : '' },
+      { label: 'QTD Ajudante', value: r => r.qtdAjudante || '—' },
+      { label: 'Necessita Ajudante', value: r => r.necessitaAjudante === 'SIM' ? 'Sim' : r.necessitaAjudante === 'NAO' ? 'Não' : '—' }
+    ];
+    await Utils.exportToStyledExcel('controle-despesas-extra.xlsx', 'Despesas Extra', colunas, registros);
+    Utils.showToast(`${registros.length} registros exportados para Excel.`, 'success');
+  }
+
   /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na view
    * (mostrarViewMapaRegioes) — no-op se a seção não estiver visível, mesmo padrão de
    * renderRegistroDinamico/renderLeadTimePedidos. */
@@ -3928,27 +3953,37 @@ const Dashboard = (() => {
     const view = document.getElementById('despesas-extra-view');
     if (!view || view.hidden) return;
 
+    const { dataInicio, dataFim, transportadora, motorista } = DataStore.getFilters();
+    sincronizarFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS, dataInicio, dataFim, transportadora, motorista);
+
     const registros = aplicarBuscaDespesasExtra(records);
     const comValor = registros.filter(r => r.valorDescargaAprovado != null);
     const totalValor = Utils.sum(comValor, r => r.valorDescargaAprovado);
     document.getElementById('despesas-extra-total-valor').textContent = Utils.formatCurrency(totalValor);
     document.getElementById('despesas-extra-total-notas').textContent = Utils.formatNumber(comValor.length);
 
-    const porTransportadora = new Map();
-    const porMotorista = new Map();
+    // "Controle de Descarga" (2026-09-10, pedido da usuária) — antes eram 2 rankings separados
+    // (Top Transportadoras / Top Motoristas, cada um somando por sua própria dimensão); ela
+    // pediu pra virar UM só, agrupado pelo PAR Transportadora+Motorista (ela confirmou com um
+    // exemplo batendo exatamente os valores que já apareciam nos 2 rankings antigos).
+    const porParTransportadoraMotorista = new Map();
     comValor.forEach(r => {
       const t = r.transportadora || '(sem transportadora)';
       const m = r.motorista || '(sem motorista)';
-      porTransportadora.set(t, (porTransportadora.get(t) || 0) + r.valorDescargaAprovado);
-      porMotorista.set(m, (porMotorista.get(m) || 0) + r.valorDescargaAprovado);
+      const chave = `${t}|${m}`;
+      if (!porParTransportadoraMotorista.has(chave)) porParTransportadoraMotorista.set(chave, { transportadora: t, motorista: m, valor: 0 });
+      porParTransportadoraMotorista.get(chave).valor += r.valorDescargaAprovado;
     });
-    renderRankingDespesasExtra('despesas-extra-ranking-transportadoras', 'Top Transportadoras — Valor Descarga', porTransportadora);
-    renderRankingDespesasExtra('despesas-extra-ranking-motoristas', 'Top Motoristas — Valor Descarga', porMotorista);
+    renderControleDescarga(porParTransportadoraMotorista);
 
     renderTableGeneric(registros, despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, rowHtmlDespesasExtra);
   }
 
   function bindDespesasExtraAcoes() {
+    bindFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
+    const btnExport = document.getElementById('btn-export-despesas-extra');
+    if (btnExport) btnExport.addEventListener('click', () => exportarDespesasExtra());
+
     const tbody = document.getElementById(DESPESAS_EXTRA_TABLE_IDS.tbody);
     if (!tbody) return;
 
@@ -4562,7 +4597,7 @@ const Dashboard = (() => {
     // Filtros duplicados no cabeçalho (2026-09-10, Fase 7) — sincroniza os controles do
     // cabeçalho com o estado ATUAL a cada render, então uma mudança feita no menu lateral (ou
     // em qualquer outro lugar) também aparece refletida aqui, sem plumbing de evento extra.
-    sincronizarIndicadorFreteFiltrosCabecalho(dataInicio, dataFim, transportadora, motorista);
+    sincronizarFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS, dataInicio, dataFim, transportadora, motorista);
 
     const itens = DataStore.getIndicadorFrete().filter(item => {
       const ref = item.dataEmbarque;
@@ -4828,8 +4863,12 @@ const Dashboard = (() => {
   }
 
   /* ============================================================
-   * FILTROS DUPLICADOS NO CABEÇALHO (2026-09-10, Fase 7 — última do plano)
+   * FILTROS DUPLICADOS NO CABEÇALHO (2026-09-10) — GENÉRICO
    * ------------------------------------------------------------
+   * Nasceu na Fase 7 do "Indicador de Frete", generalizado aqui (mesmo dia) porque ela pediu o
+   * MESMO padrão em "Controle de Despesas Extra" — em vez de duplicar a lógica, as 3 funções
+   * abaixo recebem um objeto `ids` (dataInicio/dataFim/transportadora/motorista, os 4 ids do
+   * HTML daquela tela) e funcionam pra qualquer tela nova que precisar disso no futuro.
    * Mesma fonte de verdade do menu lateral (DataStore.getFilters/setFilters) — sem estado
    * próprio nem filtro paralelo. Período continua sendo um <input type="date"> pra cada ponta
    * (mesmo componente do menu lateral); Transportadora/Motorista viram <select> de valor ÚNICO
@@ -4837,23 +4876,32 @@ const Dashboard = (() => {
    * pra representar isso fielmente) — ver aviso no comentário do HTML.
    * ============================================================ */
 
+  const INDICADOR_FRETE_FILTROS_CABECALHO_IDS = {
+    dataInicio: 'indicador-frete-filtro-data-inicio', dataFim: 'indicador-frete-filtro-data-fim',
+    transportadora: 'indicador-frete-filtro-transportadora', motorista: 'indicador-frete-filtro-motorista'
+  };
+  const DESPESAS_EXTRA_FILTROS_CABECALHO_IDS = {
+    dataInicio: 'despesas-extra-filtro-data-inicio', dataFim: 'despesas-extra-filtro-data-fim',
+    transportadora: 'despesas-extra-filtro-transportadora', motorista: 'despesas-extra-filtro-motorista'
+  };
+
   function dataParaValorInputDate(d) {
     if (!d) return '';
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  /** Chamada a cada renderIndicadorFrete() — reflete o estado ATUAL do filtro global nos
+  /** Chamada a cada render da tela correspondente — reflete o estado ATUAL do filtro global nos
    * controles do cabeçalho, sem disparar os próprios `change` (só troca `.value`, que não
    * dispara evento). transportadora/motorista mostram "Todos" quando o menu lateral tem 0 ou 2+
    * selecionados (um <select> não representa multi-seleção). */
-  function sincronizarIndicadorFreteFiltrosCabecalho(dataInicio, dataFim, transportadora, motorista) {
-    const elDataInicio = document.getElementById('indicador-frete-filtro-data-inicio');
+  function sincronizarFiltrosCabecalhoEmbutido(ids, dataInicio, dataFim, transportadora, motorista) {
+    const elDataInicio = document.getElementById(ids.dataInicio);
     if (elDataInicio) elDataInicio.value = dataParaValorInputDate(dataInicio);
-    const elDataFim = document.getElementById('indicador-frete-filtro-data-fim');
+    const elDataFim = document.getElementById(ids.dataFim);
     if (elDataFim) elDataFim.value = dataParaValorInputDate(dataFim);
-    const elTransportadora = document.getElementById('indicador-frete-filtro-transportadora');
+    const elTransportadora = document.getElementById(ids.transportadora);
     if (elTransportadora) elTransportadora.value = (transportadora && transportadora.length === 1) ? transportadora[0] : '';
-    const elMotorista = document.getElementById('indicador-frete-filtro-motorista');
+    const elMotorista = document.getElementById(ids.motorista);
     if (elMotorista) elMotorista.value = (motorista && motorista.length === 1) ? motorista[0] : '';
   }
 
@@ -4864,7 +4912,7 @@ const Dashboard = (() => {
    * separado do bindFilterInputs). Reconstrói do zero a cada chamada (não appendChild) — seguro
    * chamar de novo em "Atualizar dados" sem duplicar opção. Preserva a seleção atual quando o
    * nome ainda existe na lista nova (mesmo padrão do <select> de Ano no menu lateral). */
-  function popularIndicadorFreteFiltrosCabecalho() {
+  function popularFiltrosCabecalhoEmbutido(ids) {
     const preencher = (elId, valores) => {
       const el = document.getElementById(elId);
       if (!el) return;
@@ -4873,33 +4921,33 @@ const Dashboard = (() => {
         valores.filter(Boolean).map(v => `<option value="${escapeAttr(v)}">${escapeAttr(v)}</option>`).join('');
       el.value = valorAtual;
     };
-    preencher('indicador-frete-filtro-transportadora', DataStore.getDistinctValues('transportadora'));
-    preencher('indicador-frete-filtro-motorista', DataStore.getDistinctValues('motorista'));
+    preencher(ids.transportadora, DataStore.getDistinctValues('transportadora'));
+    preencher(ids.motorista, DataStore.getDistinctValues('motorista'));
   }
 
   /** Liga os 4 controles do cabeçalho ao MESMO DataStore.setFilters usado pelo menu lateral —
    * chamada uma vez só, no bind (as opções dos <select> chegam depois, via
-   * popularIndicadorFreteFiltrosCabecalho em renderAll()). */
-  function bindIndicadorFreteFiltrosCabecalho() {
-    const elTransportadora = document.getElementById('indicador-frete-filtro-transportadora');
+   * popularFiltrosCabecalhoEmbutido em renderAll()). */
+  function bindFiltrosCabecalhoEmbutido(ids) {
+    const elTransportadora = document.getElementById(ids.transportadora);
     if (elTransportadora) {
       elTransportadora.addEventListener('change', (e) => {
         DataStore.setFilters({ transportadora: e.target.value ? [e.target.value] : [] });
       });
     }
-    const elMotorista = document.getElementById('indicador-frete-filtro-motorista');
+    const elMotorista = document.getElementById(ids.motorista);
     if (elMotorista) {
       elMotorista.addEventListener('change', (e) => {
         DataStore.setFilters({ motorista: e.target.value ? [e.target.value] : [] });
       });
     }
-    const elDataInicio = document.getElementById('indicador-frete-filtro-data-inicio');
+    const elDataInicio = document.getElementById(ids.dataInicio);
     if (elDataInicio) {
       elDataInicio.addEventListener('change', (e) => {
         DataStore.setFilters({ dataInicio: e.target.value ? Utils.parseDate(e.target.value) : null });
       });
     }
-    const elDataFim = document.getElementById('indicador-frete-filtro-data-fim');
+    const elDataFim = document.getElementById(ids.dataFim);
     if (elDataFim) {
       elDataFim.addEventListener('change', (e) => {
         DataStore.setFilters({ dataFim: e.target.value ? Utils.parseDate(e.target.value) : null });
@@ -4971,7 +5019,7 @@ const Dashboard = (() => {
    * delegado no container fixo), "Exportar Excel" e os controles de paginação/ordenação
    * (prev/next/clique no cabeçalho) da tabela de viagens do Indicador de Frete. */
   function bindIndicadorFreteAcoes() {
-    bindIndicadorFreteFiltrosCabecalho();
+    bindFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS);
     bindIndicadorFreteTransportadoraAcoes();
     const chip = document.getElementById('indicador-frete-filtro-chip');
     if (chip) {
