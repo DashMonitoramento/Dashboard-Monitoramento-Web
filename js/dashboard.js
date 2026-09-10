@@ -4075,6 +4075,17 @@ const Dashboard = (() => {
   // (Fase 6, 2026-09-10) — consultado por rowHtmlIndicadorFrete pra montar a coluna
   // "Riscos/Alertas" sem recalcular o motor de oportunidades linha a linha.
   let indicadorFreteAlertasPorViagem = new Map();
+
+  // "Auditoria de Frete por Nota" (2026-09-10) — fonte separada, por NOTA (Número+Série), não
+  // por viagem; ver DataStore.getIndicadorFreteTransportadora().
+  let indicadorFreteTransportadoraItens = [];
+  let indicadorFreteTransportadoraTable = Object.assign(createTableState(), { sortField: 'emissao' });
+  const INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS = {
+    tbody: 'indicador-frete-transportadora-table-body', info: 'indicador-frete-transportadora-table-info',
+    pageLabel: 'indicador-frete-transportadora-table-page-label', prev: 'indicador-frete-transportadora-table-prev',
+    next: 'indicador-frete-transportadora-table-next', theadSelector: '#indicador-frete-transportadora-table thead th[data-field]',
+    colspan: 9, emptyMessage: 'Nenhuma nota no período/filtro selecionado.'
+  };
   let indicadorFreteTable = Object.assign(createTableState(), { sortField: 'dataEmbarque' });
   const INDICADOR_FRETE_TABLE_IDS = {
     tbody: 'indicador-frete-table-body', info: 'indicador-frete-table-info',
@@ -4731,6 +4742,11 @@ const Dashboard = (() => {
     indicadorFreteAlertasPorViagem = construirMapaAlertasPorViagem(oportunidadesReducao);
     renderIndicadorFreteOportunidades(oportunidadesReducao);
 
+    // "Auditoria de Frete por Nota" (2026-09-10) — fonte SEPARADA (por NOTA, não por viagem),
+    // sem cruzamento nenhum com itensCruzados acima; tem seu próprio filtro de Período/
+    // Transportadora dentro da própria função.
+    renderIndicadorFreteTransportadora();
+
     // Chip "Filtrando: <cidade> ×" acima da tabela (pedido da usuária, 2026-09-09: clicar num
     // quadrado da pizza mostra só aquela região "abaixo no relatório") — só a TABELA (e a
     // exportação) respeitam essa seleção; cards e pizza continuam somando o período inteiro.
@@ -4891,11 +4907,72 @@ const Dashboard = (() => {
     }
   }
 
+  /* ============================================================
+   * "AUDITORIA DE FRETE POR NOTA" (2026-09-10, pedido da usuária)
+   * ------------------------------------------------------------
+   * Fonte SEPARADA de tudo mais nesta tela: por NOTA (Número+Série), não por viagem — vem de uma
+   * aba nova ("Indicador Frete Transportadora") que ela ainda vai preencher. Frete Calc. = valor
+   * que a Da Terrinha paga; Frete = valor que a transportadora cobrou; Dif. Frete = Frete −
+   * Frete Calc. (positivo = cobrou a mais, confirmado com ela batendo os números do print).
+   * Nativo por Transportadora (sem cruzamento nenhum) — respeita Período (via Emissão) e
+   * Transportadora dos filtros globais; NÃO tem Motorista nesta fonte.
+   * ============================================================ */
+
+  function rowHtmlIndicadorFreteTransportadora(i) {
+    // Cores pedidas pela usuária (2026-09-10): Número (nº do CTE) e Frete Calc. em laranja
+    // (mesmo tom já usado em Valor Frete/% Frete na tabela de viagens); Dif. Frete sempre em
+    // vermelho (não condicional ao sinal — ela pediu a coluna inteira nessa cor).
+    return `
+      <tr>
+        <td class="text-orange">${escapeAttr(i.numero)}</td>
+        <td>${escapeAttr(i.serie || '—')}</td>
+        <td>${i.emissao ? Utils.formatDate(i.emissao) : '—'}</td>
+        <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora)}</td>
+        <td class="truncate" title="${escapeAttr(i.origemCidade)}${i.origemUF ? '/' + escapeAttr(i.origemUF) : ''}">${escapeAttr(i.origemCidade || '—')}${i.origemUF ? '/' + escapeAttr(i.origemUF) : ''}</td>
+        <td class="truncate" title="${escapeAttr(i.destinoCidade)}${i.destinoUF ? '/' + escapeAttr(i.destinoUF) : ''}">${escapeAttr(i.destinoCidade || '—')}${i.destinoUF ? '/' + escapeAttr(i.destinoUF) : ''}</td>
+        <td class="text-right text-orange">${Utils.formatCurrency(i.freteCalc)}</td>
+        <td class="text-right">${Utils.formatCurrency(i.frete)}</td>
+        <td class="text-right text-danger">${Utils.formatCurrency(i.difFrete)}</td>
+      </tr>`;
+  }
+
+  function renderIndicadorFreteTransportadora() {
+    const view = document.getElementById('indicador-frete-view');
+    if (!view || view.hidden) return;
+    const { dataInicio, dataFim, mes, ano, transportadora } = DataStore.getFilters();
+    const itens = DataStore.getIndicadorFreteTransportadora().filter(item => {
+      const ref = item.emissao;
+      if (!ref) return false;
+      if (dataInicio && ref < dataInicio) return false;
+      if (dataFim && ref > dataFim) return false;
+      if (mes && String(ref.getMonth() + 1) !== String(mes)) return false;
+      if (ano && String(ref.getFullYear()) !== String(ano)) return false;
+      if (transportadora && transportadora.length && !transportadora.includes(item.transportadora)) return false;
+      return true;
+    });
+
+    const totalDif = Utils.sum(itens, i => i.difFrete);
+    const qtdMaior = itens.filter(i => i.difFrete > 0).length;
+    const elTotalDif = document.getElementById('indicador-frete-transportadora-total-dif');
+    if (elTotalDif) elTotalDif.textContent = Utils.formatCurrency(totalDif);
+    const elQtdMaior = document.getElementById('indicador-frete-transportadora-qtd-maior');
+    if (elQtdMaior) elQtdMaior.textContent = Utils.formatNumber(qtdMaior);
+
+    const ordenados = itens.slice().sort((a, b) => (b.emissao ? b.emissao.getTime() : 0) - (a.emissao ? a.emissao.getTime() : 0));
+    indicadorFreteTransportadoraItens = ordenados;
+    renderTableGeneric(ordenados, indicadorFreteTransportadoraTable, INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS, rowHtmlIndicadorFreteTransportadora);
+  }
+
+  function bindIndicadorFreteTransportadoraAcoes() {
+    bindTableControlsFor(indicadorFreteTransportadoraTable, INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS, () => indicadorFreteTransportadoraItens, rowHtmlIndicadorFreteTransportadora);
+  }
+
   /** Botão "Limpar filtro de região" (dentro do chip, HTML gerado a cada render — por isso
    * delegado no container fixo), "Exportar Excel" e os controles de paginação/ordenação
    * (prev/next/clique no cabeçalho) da tabela de viagens do Indicador de Frete. */
   function bindIndicadorFreteAcoes() {
     bindIndicadorFreteFiltrosCabecalho();
+    bindIndicadorFreteTransportadoraAcoes();
     const chip = document.getElementById('indicador-frete-filtro-chip');
     if (chip) {
       chip.addEventListener('click', (e) => {
