@@ -978,6 +978,59 @@ ul { list-style: none; margin: 0; padding: 0; }
    quadrados menores ao lado. */
 .chart-card--agendamento .chart-root--donut { min-height: 260px; }
 
+/* ---------- Indicador de Frete: painel dedicado (2026-09-10) ----------
+   Layout próprio, não mais o .agendamento-body/.agendamento-cards acima — o pedido aqui é mais
+   específico: a PRÓPRIA pizza fica lado a lado com sua legenda (não pizza sozinha + cards à
+   parte), e o lado dos indicadores é um grid 2x3 de cards GRANDES preenchendo a altura toda
+   (reclamação da usuária: sobrava uma área vazia grande embaixo dos cards pequenos de antes).
+   Só CSS/HTML — os IDs dos valores (#indicador-frete-total-valor etc.) continuam os mesmos,
+   renderIndicadorFrete() (dashboard.js) não precisou de nenhuma mudança. */
+.indicador-frete-painel { display: flex; gap: 20px; align-items: stretch; margin: 20px 0 16px; flex-wrap: wrap; }
+.indicador-frete-painel__cidades {
+  flex: 1 1 460px; min-width: 0; display: flex; flex-direction: column;
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 16px;
+}
+/* Por padrão .chart-root empilha em coluna (pizza em cima, legenda embaixo, ver regra genérica
+   no topo deste arquivo) — só nesta tela vira uma linha, pizza + legenda lado a lado, com a
+   legenda forçada em 2 colunas fixas (o grid auto-fit padrão abriria 3+ colunas num painel
+   largo como este). */
+#indicador-frete-view .chart-root--donut { flex-direction: row; align-items: stretch; gap: 16px; flex: 1; min-height: 0; }
+#indicador-frete-view .chart-plot-area { flex: 0 0 44%; min-width: 180px; }
+#indicador-frete-view .chart-legend--tiles {
+  flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr; align-content: center; gap: 10px;
+}
+#indicador-frete-view .chart-stat-tile { padding: 12px 14px; }
+
+.indicador-frete-painel__kpis {
+  flex: 1 1 460px; min-width: 0;
+  display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr);
+  gap: 14px;
+}
+.indicador-frete-kpi { display: flex; flex-direction: row; align-items: center; gap: 14px; min-height: 100px; }
+.indicador-frete-kpi__icone {
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: var(--radius-md);
+  background: var(--kpi-accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.indicador-frete-kpi__icone svg { width: 22px; height: 22px; }
+.indicador-frete-kpi__texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.indicador-frete-kpi .kpi-card__value { font-size: 25px; }
+
+@media (max-width: 1200px) {
+  .indicador-frete-painel__cidades, .indicador-frete-painel__kpis { flex-basis: 100%; }
+}
+@media (max-width: 720px) {
+  #indicador-frete-view .chart-root--donut { flex-direction: column; }
+  #indicador-frete-view .chart-plot-area { flex-basis: auto; width: 100%; }
+  .indicador-frete-painel__kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .indicador-frete-painel__kpis { grid-template-columns: 1fr; grid-template-rows: none; }
+  #indicador-frete-view .chart-legend--tiles { grid-template-columns: 1fr; }
+}
+
 /* Card com só a imagem "AGENDA" — fica ao lado de "Situação de agendamento" nessa linha, no
    1/3 estreito. object-fit:cover preenche o card mantendo o recorte central da foto, sem
    distorcer a proporção. Sem min-height alto de propósito (pedido do usuário, 2026-08-28: a
