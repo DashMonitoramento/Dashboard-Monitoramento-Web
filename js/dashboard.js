@@ -4130,15 +4130,15 @@ const Dashboard = (() => {
   // "Riscos/Alertas" sem recalcular o motor de oportunidades linha a linha.
   let indicadorFreteAlertasPorViagem = new Map();
 
-  // "Auditoria de Frete por Nota" (2026-09-10) — fonte separada, por NOTA (Número+Série), não
-  // por viagem; ver DataStore.getIndicadorFreteTransportadora().
+  // "Auditoria de Frete por Embarque" (2026-09-10) — fonte separada, por EMBARQUE (não por Nota
+  // Fiscal: o export real da aba não tem Número/Série); ver DataStore.getIndicadorFreteTransportadora().
   let indicadorFreteTransportadoraItens = [];
-  let indicadorFreteTransportadoraTable = Object.assign(createTableState(), { sortField: 'emissao' });
+  let indicadorFreteTransportadoraTable = Object.assign(createTableState(), { sortField: 'dataEmbarque' });
   const INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS = {
     tbody: 'indicador-frete-transportadora-table-body', info: 'indicador-frete-transportadora-table-info',
     pageLabel: 'indicador-frete-transportadora-table-page-label', prev: 'indicador-frete-transportadora-table-prev',
     next: 'indicador-frete-transportadora-table-next', theadSelector: '#indicador-frete-transportadora-table thead th[data-field]',
-    colspan: 9, emptyMessage: 'Nenhuma nota no período/filtro selecionado.'
+    colspan: 13, emptyMessage: 'Nenhum embarque no período/filtro selecionado.'
   };
   let indicadorFreteTable = Object.assign(createTableState(), { sortField: 'dataEmbarque' });
   const INDICADOR_FRETE_TABLE_IDS = {
@@ -4977,29 +4977,39 @@ const Dashboard = (() => {
   /* ============================================================
    * "AUDITORIA DE FRETE POR NOTA" (2026-09-10, pedido da usuária)
    * ------------------------------------------------------------
-   * Fonte SEPARADA de tudo mais nesta tela: por NOTA (Número+Série), não por viagem — vem de uma
-   * aba nova ("Indicador Frete Transportadora") que ela ainda vai preencher. Frete Calc. = valor
-   * que a Da Terrinha paga; Frete = valor que a transportadora cobrou; Dif. Frete = Frete −
-   * Frete Calc. (positivo = cobrou a mais, confirmado com ela batendo os números do print).
-   * Nativo por Transportadora (sem cruzamento nenhum) — respeita Período (via Emissão) e
-   * Transportadora dos filtros globais; NÃO tem Motorista nesta fonte.
+   * Fonte SEPARADA de tudo mais nesta tela: por EMBARQUE, não por viagem cruzada — vem da aba
+   * "Indicador Frete Transportadora" (export cru da Lincros; confirmado por leitura direta da
+   * planilha em 2026-09-10 que o print original da usuária era da TELA do sistema, diferente do
+   * export real). Valor Frete Calculado = valor que a Da Terrinha paga; Valor Total Frete = valor
+   * que a transportadora efetivamente cobrou; Diferença de Frete vem PRONTA da planilha (coluna
+   * que ELA MESMA criou lá, não é derivada aqui): positivo = transportadora cobrou A MAIS do que
+   * o calculado (vermelho), negativo = cobrou A MENOS (verde) — confirmado com ela.
+   * Nativo por Transportadora (sem cruzamento nenhum) — respeita Período (via Data Embarque,
+   * caindo para Data de Criação quando a primeira estiver vazia) e Transportadora dos filtros
+   * globais; NÃO tem Motorista nesta fonte.
    * ============================================================ */
 
   function rowHtmlIndicadorFreteTransportadora(i) {
-    // Cores pedidas pela usuária (2026-09-10): Número (nº do CTE) e Frete Calc. em laranja
-    // (mesmo tom já usado em Valor Frete/% Frete na tabela de viagens); Dif. Frete sempre em
-    // vermelho (não condicional ao sinal — ela pediu a coluna inteira nessa cor).
+    // Cor da Diferença de Frete (2026-09-10, pedido explícito da usuária): CONDICIONAL ao sinal
+    // — vermelho quando a transportadora cobrou a mais (positivo), verde quando cobrou a menos
+    // (negativo). Embarque e Frete Calculado em laranja (mesmo tom já usado em Valor Frete/%
+    // Frete na tabela de viagens).
+    const difClasse = i.difFrete > 0 ? 'text-danger' : (i.difFrete < 0 ? 'text-success' : '');
     return `
       <tr>
-        <td class="text-orange">${escapeAttr(i.numero)}</td>
-        <td>${escapeAttr(i.serie || '—')}</td>
-        <td>${i.emissao ? Utils.formatDate(i.emissao) : '—'}</td>
+        <td class="text-orange">${escapeAttr(i.embarque)}</td>
+        <td>${escapeAttr(i.identificador || '—')}</td>
+        <td>${i.dataCriacao ? Utils.formatDate(i.dataCriacao) : '—'}</td>
+        <td>${i.dataEmbarque ? Utils.formatDate(i.dataEmbarque) : '—'}</td>
         <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora)}</td>
-        <td class="truncate" title="${escapeAttr(i.origemCidade)}${i.origemUF ? '/' + escapeAttr(i.origemUF) : ''}">${escapeAttr(i.origemCidade || '—')}${i.origemUF ? '/' + escapeAttr(i.origemUF) : ''}</td>
-        <td class="truncate" title="${escapeAttr(i.destinoCidade)}${i.destinoUF ? '/' + escapeAttr(i.destinoUF) : ''}">${escapeAttr(i.destinoCidade || '—')}${i.destinoUF ? '/' + escapeAttr(i.destinoUF) : ''}</td>
+        <td>${escapeAttr(i.placa || '—')}</td>
+        <td>${escapeAttr(i.estadoDestino || '—')}</td>
+        <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
+        <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
+        <td class="text-right">${Utils.formatCurrency(i.valorDocFiscais)}</td>
         <td class="text-right text-orange">${Utils.formatCurrency(i.freteCalc)}</td>
-        <td class="text-right">${Utils.formatCurrency(i.frete)}</td>
-        <td class="text-right text-danger">${Utils.formatCurrency(i.difFrete)}</td>
+        <td class="text-right">${Utils.formatCurrency(i.freteTotal)}</td>
+        <td class="text-right ${difClasse}">${Utils.formatCurrency(i.difFrete)}</td>
       </tr>`;
   }
 
@@ -5008,7 +5018,7 @@ const Dashboard = (() => {
     if (!view || view.hidden) return;
     const { dataInicio, dataFim, mes, ano, transportadora } = DataStore.getFilters();
     const itens = DataStore.getIndicadorFreteTransportadora().filter(item => {
-      const ref = item.emissao;
+      const ref = item.dataEmbarque || item.dataCriacao;
       if (!ref) return false;
       if (dataInicio && ref < dataInicio) return false;
       if (dataFim && ref > dataFim) return false;
@@ -5025,7 +5035,11 @@ const Dashboard = (() => {
     const elQtdMaior = document.getElementById('indicador-frete-transportadora-qtd-maior');
     if (elQtdMaior) elQtdMaior.textContent = Utils.formatNumber(qtdMaior);
 
-    const ordenados = itens.slice().sort((a, b) => (b.emissao ? b.emissao.getTime() : 0) - (a.emissao ? a.emissao.getTime() : 0));
+    const ordenados = itens.slice().sort((a, b) => {
+      const da = a.dataEmbarque || a.dataCriacao;
+      const db = b.dataEmbarque || b.dataCriacao;
+      return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+    });
     indicadorFreteTransportadoraItens = ordenados;
     renderTableGeneric(ordenados, indicadorFreteTransportadoraTable, INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS, rowHtmlIndicadorFreteTransportadora);
   }
