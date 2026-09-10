@@ -216,6 +216,35 @@ async function salvarNecessitaAjudante(nf, valor) {
   }, { merge: true });
 }
 
+// "Necessita Ajudante" por CLIENTE (2026-09-10, pedido da usuária) — DIFERENTE do doc por NF
+// acima: "precisa de ajudante" é uma característica do CLIENTE (o tipo de entrega dele), não de
+// uma nota isolada, então ela quer que marcar SIM numa nota já deixe TODAS as notas daquele
+// cliente como SIM — inclusive as que ainda vão chegar no futuro (por isso é uma coleção
+// separada, por cliente, não uma gravação em massa nos docs de NF existentes — ver
+// DataStore.applyClienteNecessitaAjudante em data.js, que aplica isso em toda nota do cliente
+// SEM sobrescrever uma nota que já tenha um valor PRÓPRIO explícito gravado).
+const CLIENTES_NECESSITAM_AJUDANTE_COLECAO = 'clientesNecessitamAjudante';
+
+async function getClientesNecessitamAjudante() {
+  const snapshot = await getDocs(collection(db, CLIENTES_NECESSITAM_AJUDANTE_COLECAO));
+  const porCliente = {};
+  snapshot.forEach(docSnap => { porCliente[docSnap.id] = docSnap.data(); });
+  return porCliente;
+}
+
+/** clienteChave: já normalizada (DataStore.normalizeClienteKey do lado do dashboard.js) — esta
+ * função só grava, não normaliza de novo. */
+async function salvarClienteNecessitaAjudante(clienteChave, valor) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  if (!clienteChave) throw new Error('Cliente inválido — não é possível salvar.');
+  await setDoc(doc(db, CLIENTES_NECESSITAM_AJUDANTE_COLECAO, clienteChave), {
+    necessitaAjudante: valor || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
 /** Grava só a observação de uma NF (usado pela tela "Notas em aberto", 2026-08-19 — uma nota
  * aberta pode não precisar de agendamento nenhum, então essa tela não mexe em status/data).
  * Usa `{merge: true}` de propósito — diferente de salvarAgendamentoManual acima, que sempre
@@ -617,6 +646,7 @@ window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
   getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega, salvarQtdAjudante, salvarNecessitaAjudante,
+  getClientesNecessitamAjudante, salvarClienteNecessitaAjudante,
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
   definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
