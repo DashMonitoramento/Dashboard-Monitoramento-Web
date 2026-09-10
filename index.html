@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260910c">
+<link rel="stylesheet" href="css/style.css?v=20260910d">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1697,7 +1697,7 @@ Segue anexo o relatório atualizado.</textarea>
              explícito da usuária pra "evitar interpretar volume alto como custo caro": a pizza
              mede GASTO TOTAL (soma de Valor Frete) e o hbar mede CUSTO POR KG (Valor Frete ÷
              Peso) — rankings independentes, cada um com seu próprio "Outros". Larguras iguais
-             (2 colunas hoje; ganha uma 3ª quando "Evolução do Frete" entrar numa fase futura). -->
+             (3 colunas: gasto total, custo por Kg, evolução no tempo — Fase 3, 2026-09-10). -->
         <div class="indicador-frete-analises">
           <div class="indicador-frete-analise-card">
             <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com maior gasto de frete</h3>
@@ -1708,6 +1708,18 @@ Segue anexo o relatório atualizado.</textarea>
             <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com maior custo por Kg</h3>
             <p class="chart-card__hint" style="margin-top:0; text-align:left;">Valor Frete ÷ Peso por Cidade Destino (top 7 + Outros), da maior pra menor.</p>
             <div class="chart-root" id="chart-indicador-frete-cidades-rskg"></div>
+          </div>
+          <div class="indicador-frete-analise-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+              <h3 class="chart-card__title" style="margin-bottom:0;">Evolução do Frete</h3>
+              <div class="ocorrencias-periodo-bar__opcoes" id="indicador-frete-granularidade-bar">
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-granularidade="diario">Diário</button>
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-granularidade="semanal">Semanal</button>
+                <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-indicador-frete-granularidade="mensal">Mensal</button>
+              </div>
+            </div>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Barras: Valor do Frete. Linhas: R$/kg e % Frete (cada uma com sua própria escala).</p>
+            <div class="chart-root" id="chart-indicador-frete-evolucao"></div>
           </div>
         </div>
 
@@ -1759,8 +1771,8 @@ Segue anexo o relatório atualizado.</textarea>
 <script type="module" src="js/firebase-init.js?v=20260908f"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910a"></script>
-<script src="js/charts.js?v=20260910a"></script>
-<script src="js/dashboard.js?v=20260910b"></script>
+<script src="js/charts.js?v=20260910b"></script>
+<script src="js/dashboard.js?v=20260910c"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
