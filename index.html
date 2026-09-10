@@ -2056,7 +2056,65 @@ Segue anexo o relatório atualizado.</textarea>
           </div>
         </div>
 
+        <!-- Fase 3 (2026-09-10) — rankings. Tabela de verdade fixa em 10 linhas (mesmo padrão das
+             rankings da fonte irmã, não usa createTableState/renderTableGeneric). Clicar numa
+             linha do ranking de Transportadoras filtra só a TABELA de detalhamento abaixo (mesmo
+             espírito do clique na rosca de Status/pizza de cidades) — o ranking de Embarques não
+             tem esse clique (não pedido). -->
+        <h3 class="chart-card__title" style="margin:20px 0 4px;">Rankings</h3>
+        <div class="indicador-frete-analises">
+          <div class="indicador-frete-analise-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+              <h3 class="chart-card__title" style="margin-bottom:0;">Top 10 Transportadoras — por diferença de frete</h3>
+              <div class="ocorrencias-periodo-bar__opcoes" id="indicador-frete-transportadora-ranking-ordenar">
+                <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-indicador-frete-transportadora-ordenar-ranking="diferenca">Maior diferença R$</button>
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-transportadora-ordenar-ranking="percentual">Maior % diferença</button>
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-transportadora-ordenar-ranking="cobrado">Maior Frete Cobrado</button>
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-transportadora-ordenar-ranking="divergencias">Maior nº divergências</button>
+              </div>
+            </div>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Só embarques auditados. Clique numa transportadora pra filtrar a tabela de detalhamento abaixo.</p>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Transportadora</th>
+                    <th class="text-right">Embarques Auditados</th>
+                    <th class="text-right">Frete Calculado</th>
+                    <th class="text-right">Frete Cobrado</th>
+                    <th class="text-right">Diferença</th>
+                    <th class="text-right">% Diferença</th>
+                  </tr>
+                </thead>
+                <tbody id="indicador-frete-transportadora-ranking-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="indicador-frete-analise-card">
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Top 10 Embarques — Maior Diferença</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Ordenado do maior valor cobrado acima do calculado pro menor. Só embarques auditados.</p>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Embarque</th>
+                    <th>Transportadora</th>
+                    <th class="text-right">Frete Calculado</th>
+                    <th class="text-right">Frete Cobrado</th>
+                    <th class="text-right">Diferença R$</th>
+                    <th class="text-right">% Diferença</th>
+                  </tr>
+                </thead>
+                <tbody id="indicador-frete-transportadora-ranking-embarques-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <span id="indicador-frete-transportadora-status-chip" class="badge badge--info" style="margin-bottom:10px; display:inline-block;" hidden></span>
+        <span id="indicador-frete-transportadora-ranking-chip" class="badge badge--info" style="margin-bottom:10px; margin-left:8px; display:inline-block;" hidden></span>
 
         <div class="table-scroll-wrapper">
           <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
@@ -2113,7 +2171,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910f"></script>
 <script src="js/charts.js?v=20260910c"></script>
-<script src="js/dashboard.js?v=20260910p"></script>
+<script src="js/dashboard.js?v=20260910q"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
