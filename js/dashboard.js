@@ -4136,6 +4136,89 @@ const Dashboard = (() => {
     });
   }
 
+  // "Top 10 Transportadoras" (2026-09-10, Fase 4) — ordenação alternável (padrão: maior gasto,
+  // pedido explícito dela). 'gasto' | 'rskg' | 'viagens'.
+  let indicadorFreteOrdenacaoTransportadoras = 'gasto';
+
+  /** totalValorPeriodo: total do PERÍODO inteiro (já calculado em renderIndicadorFrete), não a
+   * soma só do top 10 — participação % de cada transportadora é sobre o total geral. Transporta-
+   * dora vazia (viagem sem cruzamento, ver semCruzamento) entra como "Não informado", mesmo
+   * critério usado em outras agregações por transportadora do dashboard — soma continua batendo
+   * com o total do período mesmo assim. */
+  function renderIndicadorFreteRankingTransportadoras(itensCruzados, totalValorPeriodo) {
+    const tbody = document.getElementById('indicador-frete-ranking-transportadoras-body');
+    if (!tbody) return;
+    const porTransportadora = new Map();
+    itensCruzados.forEach(i => {
+      const nome = i.transportadora || 'Não informado';
+      if (!porTransportadora.has(nome)) porTransportadora.set(nome, { valor: 0, peso: 0, viagens: 0 });
+      const acc = porTransportadora.get(nome);
+      acc.valor += i.valorFrete;
+      acc.peso += i.peso;
+      acc.viagens++;
+    });
+    const linhas = Array.from(porTransportadora.entries()).map(([nome, acc]) => ({
+      nome, valor: acc.valor, viagens: acc.viagens,
+      participacao: totalValorPeriodo > 0 ? (acc.valor / totalValorPeriodo) * 100 : 0,
+      rsKg: acc.peso > 0 ? acc.valor / acc.peso : 0
+    }));
+    const criterios = {
+      gasto: (a, b) => b.valor - a.valor,
+      rskg: (a, b) => b.rsKg - a.rsKg,
+      viagens: (a, b) => b.viagens - a.viagens
+    };
+    linhas.sort(criterios[indicadorFreteOrdenacaoTransportadoras] || criterios.gasto);
+    const top10 = linhas.slice(0, 10);
+    if (!top10.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="table-empty">Nenhuma transportadora no período/filtro selecionado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = top10.map((l, idx) => `
+      <tr>
+        <td>${idx + 1}º</td>
+        <td class="truncate" title="${escapeAttr(l.nome)}">${escapeAttr(l.nome)}</td>
+        <td class="text-right">${Utils.formatCurrency(l.valor)}</td>
+        <td class="text-right">${Utils.formatPercent(l.participacao)}</td>
+        <td class="text-right">${Utils.formatCurrency(l.rsKg)}</td>
+      </tr>`).join('');
+  }
+
+  // Limiar do destaque "muito acima da média" na tabela de viagens abaixo (2026-09-10) — 1,5x a
+  // média PONDERADA do período (Valor Frete total ÷ Peso total, a mesma "taxa efetiva" já usada
+  // no card "Frete médio por Kg" desta tela, não média das razões individuais). Limiar arbitrário
+  // (ela pediu só "destacar valores muito acima da média", sem número) — documentado aqui pra dar
+  // pra ajustar fácil se achar sensível/insensível demais depois de ver com dado real.
+  const INDICADOR_FRETE_LIMIAR_OUTLIER_RSKG = 1.5;
+
+  /** mediaGeralRsKg: R$/kg médio PONDERADO do período inteiro (mesmo valor do card "Frete médio
+   * por Kg"), usado só pra decidir o destaque — não muda com a ordenação da tabela. */
+  function renderIndicadorFreteRankingViagens(itensCruzados, mediaGeralRsKg) {
+    const tbody = document.getElementById('indicador-frete-ranking-viagens-body');
+    if (!tbody) return;
+    const comRsKg = itensCruzados
+      .filter(i => i.peso > 0)
+      .map(i => ({ ...i, rsKg: i.valorFrete / i.peso }))
+      .sort((a, b) => b.rsKg - a.rsKg)
+      .slice(0, 10);
+    if (!comRsKg.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Nenhuma viagem com peso informado no período/filtro selecionado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = comRsKg.map((i, idx) => {
+      const outlier = mediaGeralRsKg > 0 && i.rsKg >= mediaGeralRsKg * INDICADOR_FRETE_LIMIAR_OUTLIER_RSKG;
+      return `
+        <tr>
+          <td>${idx + 1}º</td>
+          <td>${escapeAttr(i.embarque || '—')}</td>
+          <td${i.semCruzamento ? ' class="text-danger"' : ''}>${escapeAttr(i.placa)}</td>
+          <td class="truncate" title="${escapeAttr(i.cidadeDestino || '')}">${escapeAttr(i.cidadeDestino || '—')}</td>
+          <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
+          <td class="text-right">${Utils.formatCurrency(i.valorFrete)}</td>
+          <td class="text-right${outlier ? ' text-danger' : ''}"${outlier ? ' title="R$/kg muito acima da média do período"' : ''}>${Utils.formatCurrency(i.rsKg)}</td>
+        </tr>`;
+    }).join('');
+  }
+
   // Tolerância do cruzamento Placa+Data (dias) — pedido implícito descoberto testando com dado
   // real (2026-09-09): "Data Embarque" (quando o motorista carrega) e "Data Entrega"/coleta
   // registrada na Base Bluesoft por nota nem sempre são o MESMO dia (ex.: embarque dia 1, nota
@@ -4423,6 +4506,11 @@ const Dashboard = (() => {
     // por tempo na granularidade ativa.
     renderIndicadorFreteEvolucao(itensCruzados);
 
+    // "Top 10 Transportadoras" e "Top 10 Viagens — Maior R$/kg" (2026-09-10, Fase 4) — mesmo
+    // itensCruzados de sempre, sem consulta nova.
+    renderIndicadorFreteRankingTransportadoras(itensCruzados, totalValor);
+    renderIndicadorFreteRankingViagens(itensCruzados, totalPeso > 0 ? totalValor / totalPeso : 0);
+
     // Chip "Filtrando: <cidade> ×" acima da tabela (pedido da usuária, 2026-09-09: clicar num
     // quadrado da pizza mostra só aquela região "abaixo no relatório") — só a TABELA (e a
     // exportação) respeitam essa seleção; cards e pizza continuam somando o período inteiro.
@@ -4512,6 +4600,18 @@ const Dashboard = (() => {
         botao.addEventListener('click', () => {
           indicadorFreteGranularidade = botao.dataset.indicadorFreteGranularidade;
           barraGranularidade.querySelectorAll('[data-indicador-frete-granularidade]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
+          renderIndicadorFrete();
+        });
+      });
+    }
+
+    // Toggle de ordenação do "Top 10 Transportadoras" (2026-09-10, Fase 4) — mesmo padrão de pílulas.
+    const barraOrdenacaoTransp = document.getElementById('indicador-frete-ranking-transportadoras-ordenar');
+    if (barraOrdenacaoTransp) {
+      barraOrdenacaoTransp.querySelectorAll('[data-indicador-frete-ordenar-transportadoras]').forEach(botao => {
+        botao.addEventListener('click', () => {
+          indicadorFreteOrdenacaoTransportadoras = botao.dataset.indicadorFreteOrdenarTransportadoras;
+          barraOrdenacaoTransp.querySelectorAll('[data-indicador-frete-ordenar-transportadoras]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
           renderIndicadorFrete();
         });
       });
