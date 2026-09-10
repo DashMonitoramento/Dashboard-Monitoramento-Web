@@ -1021,8 +1021,8 @@ ul { list-style: none; margin: 0; padding: 0; }
 .indicador-frete-kpi--eficiencia .kpi-card__label { font-size: 10.5px; }
 .indicador-frete-kpi--eficiencia .kpi-card__value { font-size: 17px; }
 
-/* "Análise por Cidade" (2026-09-10, Fase 2) — 2 cartões lado a lado (pizza + hbar), larguras
-   iguais; ganha uma 3ª coluna quando "Evolução do Frete" entrar (fase futura, ver roadmap). */
+/* "Análise por Cidade" (2026-09-10, Fases 2-3) — 3 cartões lado a lado (pizza, hbar, combo de
+   evolução), larguras iguais, quebra pra baixo em telas estreitas (flex-wrap). */
 .indicador-frete-analises { display: flex; gap: 20px; align-items: stretch; margin: 20px 0 16px; flex-wrap: wrap; }
 .indicador-frete-analise-card {
   flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column;
