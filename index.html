@@ -1866,14 +1866,17 @@ Segue anexo o relatório atualizado.</textarea>
           </div>
         </div>
 
-        <!-- "Auditoria de Frete por Nota" (2026-09-10, pedido da usuária) — DIFERENTE da tabela
-             acima: aqui é por NOTA (Número+Série), não por viagem, vindo de uma aba nova
-             ("Indicador Frete Transportadora") — Frete Calc. é o que a Da Terrinha paga, Frete é
-             o que a transportadora cobrou, Dif. Frete é a diferença (positivo = cobrou a mais).
-             Nativo por Transportadora (sem cruzamento); não tem Motorista, então só respeita
-             Período + Transportadora dos filtros globais/cabeçalho acima, não Motorista. -->
-        <h3 class="chart-card__title" style="margin:24px 0 4px;">Auditoria de Frete por Nota</h3>
-        <p class="chart-card__hint" style="text-align:left; margin-top:0;">Frete Calc. = valor que pagamos · Frete = valor cobrado pela transportadora · Dif. Frete = Frete − Frete Calc. (positivo = cobrou a mais). Segue os filtros de Período e Transportadora (não tem Motorista nesta fonte).</p>
+        <!-- "Auditoria de Frete por Embarque" (2026-09-10, pedido da usuária) — DIFERENTE da
+             tabela acima: vem de uma aba separada ("Indicador Frete Transportadora", export cru
+             da Lincros) e é por EMBARQUE, não por Nota Fiscal (o export real não tem
+             Número/Série — o print original dela era da TELA do sistema, diferente do export).
+             Valor Frete Calculado é o que a Da Terrinha paga, Valor Total Frete é o que a
+             transportadora cobrou, Diferença de Frete vem PRONTA da planilha (coluna que ela
+             mesma criou lá): positivo = cobrou a mais (vermelho), negativo = cobrou a menos
+             (verde). Nativo por Transportadora (sem cruzamento); não tem Motorista, então só
+             respeita Período + Transportadora dos filtros globais/cabeçalho acima. -->
+        <h3 class="chart-card__title" style="margin:24px 0 4px;">Auditoria de Frete por Embarque</h3>
+        <p class="chart-card__hint" style="text-align:left; margin-top:0;">Valor Frete Calculado = valor que pagamos · Valor Total Frete = valor cobrado pela transportadora · Diferença de Frete: vermelho = cobrou a mais, verde = cobrou a menos. Segue os filtros de Período e Transportadora (não tem Motorista nesta fonte).</p>
         <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 14px;">
           <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#DC2626">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
@@ -1885,7 +1888,7 @@ Segue anexo o relatório atualizado.</textarea>
           <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#EAB308">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
             <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">Notas com cobrança a maior</span>
+              <span class="kpi-card__label">Embarques com cobrança a maior</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-qtd-maior">0</span>
             </span>
           </article>
@@ -1897,15 +1900,19 @@ Segue anexo o relatório atualizado.</textarea>
           <table class="data-table" id="indicador-frete-transportadora-table">
             <thead>
               <tr>
-                <th data-field="numero">Nº CTE</th>
-                <th data-field="serie">Série</th>
-                <th data-field="emissao">Emissão</th>
+                <th data-field="embarque">Embarque</th>
+                <th data-field="identificador">Identificador</th>
+                <th data-field="dataCriacao">Data de Criação</th>
+                <th data-field="dataEmbarque">Data Embarque</th>
                 <th data-field="transportadora">Transportadora</th>
-                <th>Origem</th>
-                <th>Destino</th>
-                <th data-field="freteCalc" class="text-right">Frete Calc.</th>
-                <th data-field="frete" class="text-right">Frete</th>
-                <th data-field="difFrete" class="text-right">Dif. Frete</th>
+                <th data-field="placa">Placa</th>
+                <th data-field="estadoDestino">UF Destino</th>
+                <th data-field="peso" class="text-right">Peso (Kg)</th>
+                <th data-field="volumes" class="text-right">Volumes</th>
+                <th data-field="valorDocFiscais" class="text-right">Valor Doc. Fiscais</th>
+                <th data-field="freteCalc" class="text-right">Frete Calculado</th>
+                <th data-field="freteTotal" class="text-right">Frete Total</th>
+                <th data-field="difFrete" class="text-right">Diferença de Frete</th>
               </tr>
             </thead>
             <tbody id="indicador-frete-transportadora-table-body"></tbody>
@@ -1936,9 +1943,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260910a"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260910c"></script>
+<script src="js/data.js?v=20260910d"></script>
 <script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910j"></script>
+<script src="js/dashboard.js?v=20260910k"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
