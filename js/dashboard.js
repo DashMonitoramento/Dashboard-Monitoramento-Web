@@ -3905,17 +3905,24 @@ const Dashboard = (() => {
         </select>`
       : (qtdAtual || '—');
     const necessitaAtual = r.necessitaAjudante || '';
+    // data-cliente-necessita-ajudante (2026-09-10): o handler de change (bindDespesasExtraAcoes)
+    // precisa do nome do cliente pra propagar "SIM" pra TODAS as notas dele (ver
+    // DataStore.applyClienteNecessitaAjudante) — vai direto no atributo pra não precisar
+    // procurar o registro de novo por NF na hora de salvar.
     const necessitaCelula = autorizado
-      ? `<select class="ajudante-select" data-necessita-ajudante-nf="${escapeAttr(nfBase)}">
+      ? `<select class="ajudante-select" data-necessita-ajudante-nf="${escapeAttr(nfBase)}" data-cliente-necessita-ajudante="${escapeAttr(r.cliente)}">
           <option value=""${necessitaAtual === '' ? ' selected' : ''}>—</option>
           <option value="SIM"${necessitaAtual === 'SIM' ? ' selected' : ''}>Sim</option>
           <option value="NAO"${necessitaAtual === 'NAO' ? ' selected' : ''}>Não</option>
         </select>`
       : (necessitaAtual === 'SIM' ? 'Sim' : necessitaAtual === 'NAO' ? 'Não' : '—');
+    // Cliente em verde (2026-09-10, pedido da usuária) quando esse cliente precisa de ajudante —
+    // pra ela reconhecer de relance quem exige isso, sem precisar abrir/rolar até a coluna.
+    const classeCliente = necessitaAtual === 'SIM' ? ' class="truncate text-success"' : ' class="truncate"';
     return `
       <tr>
         <td>${escapeAttr(r.nf || '—')}</td>
-        <td class="truncate" title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
+        <td${classeCliente} title="${escapeAttr(r.cliente)}">${escapeAttr(r.cliente)}</td>
         <td class="truncate" title="${escapeAttr(r.motorista)}">${escapeAttr(r.motorista)}</td>
         <td class="truncate" title="${escapeAttr(r.transportadora)}">${escapeAttr(r.transportadora)}</td>
         <td class="text-right">${Utils.formatCurrency(r.valorNF)}</td>
@@ -4023,11 +4030,15 @@ const Dashboard = (() => {
     });
 
     // "Necessita Ajudante" (2026-09-08, pedido da usuária) — mesmo padrão de QTD Ajudante acima,
-    // <select> próprio, salva sozinho no change.
+    // <select> próprio, salva sozinho no change. Marcar SIM (2026-09-10, pedido dela) também
+    // propaga pro CLIENTE inteiro — ver DataStore.applyClienteNecessitaAjudante/
+    // salvarClienteNecessitaAjudante (firebase-init.js). Só propaga no SIM: marcar uma nota como
+    // "não precisa" não deveria desmarcar as outras notas do mesmo cliente que já eram SIM.
     tbody.addEventListener('change', async (e) => {
       const select = e.target.closest('[data-necessita-ajudante-nf]');
       if (!select) return;
       const nf = select.dataset.necessitaAjudanteNf;
+      const cliente = select.dataset.clienteNecessitaAjudante || '';
       const valor = select.value;
       select.disabled = true;
       try {
@@ -4038,8 +4049,16 @@ const Dashboard = (() => {
         await fb.salvarNecessitaAjudante(nf, valor);
         const paginaAntes = table.page;
         DataStore.applyValorDescargaAprovado({ [nf]: { necessitaAjudante: valor } });
+        if (valor === 'SIM' && cliente) {
+          const clienteChave = DataStore.normalizeClienteKey(cliente);
+          await fb.salvarClienteNecessitaAjudante(clienteChave, 'SIM');
+          DataStore.applyClienteNecessitaAjudante({ [clienteChave]: { necessitaAjudante: 'SIM' } });
+        }
         table.page = paginaAntes;
-        Utils.showToast(`NF ${nf}: Necessita Ajudante salvo.`, 'success', 2000);
+        Utils.showToast(
+          valor === 'SIM' && cliente ? `Cliente "${cliente}": todas as notas marcadas como Necessita Ajudante.` : `NF ${nf}: Necessita Ajudante salvo.`,
+          'success', 2500
+        );
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao salvar Necessita Ajudante.', 'error', 5000);
       } finally {
