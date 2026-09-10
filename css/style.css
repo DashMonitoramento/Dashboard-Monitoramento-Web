@@ -985,28 +985,11 @@ ul { list-style: none; margin: 0; padding: 0; }
    (reclamação da usuária: sobrava uma área vazia grande embaixo dos cards pequenos de antes).
    Só CSS/HTML — os IDs dos valores (#indicador-frete-total-valor etc.) continuam os mesmos,
    renderIndicadorFrete() (dashboard.js) não precisou de nenhuma mudança. */
-.indicador-frete-painel { display: flex; gap: 20px; align-items: stretch; margin: 20px 0 16px; flex-wrap: wrap; }
-.indicador-frete-painel__cidades {
-  flex: 1 1 460px; min-width: 0; display: flex; flex-direction: column;
-  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 16px;
-}
-/* Por padrão .chart-root empilha em coluna (pizza em cima, legenda embaixo, ver regra genérica
-   no topo deste arquivo) — só nesta tela vira uma linha, pizza + legenda lado a lado, com a
-   legenda forçada em 2 colunas fixas (o grid auto-fit padrão abriria 3+ colunas num painel
-   largo como este). */
-#indicador-frete-view .chart-root--donut { flex-direction: row; align-items: stretch; gap: 16px; flex: 1; min-height: 0; }
-#indicador-frete-view .chart-plot-area { flex: 0 0 44%; min-width: 180px; }
-#indicador-frete-view .chart-legend--tiles {
-  flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: 1fr; align-content: center; gap: 10px;
-}
-#indicador-frete-view .chart-stat-tile { padding: 12px 14px; }
-
-.indicador-frete-painel__kpis {
-  flex: 1 1 460px; min-width: 0;
-  display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr);
-  gap: 14px;
+/* KPIs principais (2026-09-10: virou linha de largura CHEIA — antes ficava num painel 50/50 ao
+   lado da pizza; o mockup do painel gerencial completo pede a pizza numa linha própria de
+   "Análise por Cidade" mais abaixo, ver .indicador-frete-analises). Grid 2x3, cards grandes. */
+.indicador-frete-kpis-principais {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-bottom: 20px;
 }
 .indicador-frete-kpi { display: flex; flex-direction: row; align-items: center; gap: 14px; min-height: 100px; }
 .indicador-frete-kpi__icone {
@@ -1038,18 +1021,40 @@ ul { list-style: none; margin: 0; padding: 0; }
 .indicador-frete-kpi--eficiencia .kpi-card__label { font-size: 10.5px; }
 .indicador-frete-kpi--eficiencia .kpi-card__value { font-size: 17px; }
 
+/* "Análise por Cidade" (2026-09-10, Fase 2) — 2 cartões lado a lado (pizza + hbar), larguras
+   iguais; ganha uma 3ª coluna quando "Evolução do Frete" entrar (fase futura, ver roadmap). */
+.indicador-frete-analises { display: flex; gap: 20px; align-items: stretch; margin: 20px 0 16px; flex-wrap: wrap; }
+.indicador-frete-analise-card {
+  flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column;
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 16px;
+}
+.indicador-frete-analise-card .chart-root { flex: 1; min-height: 320px; }
+/* Por padrão .chart-root empilha em coluna (pizza em cima, legenda embaixo, ver regra genérica
+   no topo deste arquivo) — só a pizza desta tela vira uma linha, pizza + legenda lado a lado,
+   com a legenda forçada em 2 colunas fixas (o grid auto-fit padrão abriria 3+ colunas num
+   card largo como este). O hbar ao lado não tem legenda (série única), então não precisa
+   desse tratamento — fica com o comportamento padrão (coluna, só o gráfico). */
+#indicador-frete-view .chart-root--donut { flex-direction: row; align-items: stretch; gap: 16px; }
+#indicador-frete-view .chart-plot-area { flex: 0 0 44%; min-width: 180px; }
+#indicador-frete-view .chart-legend--tiles {
+  flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr; align-content: center; gap: 10px;
+}
+#indicador-frete-view .chart-stat-tile { padding: 12px 14px; }
+
 @media (max-width: 1200px) {
-  .indicador-frete-painel__cidades, .indicador-frete-painel__kpis { flex-basis: 100%; }
+  .indicador-frete-kpis-principais { grid-template-columns: repeat(3, 1fr); }
   .indicador-frete-eficiencia { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 720px) {
   #indicador-frete-view .chart-root--donut { flex-direction: column; }
   #indicador-frete-view .chart-plot-area { flex-basis: auto; width: 100%; }
-  .indicador-frete-painel__kpis { grid-template-columns: repeat(2, 1fr); }
+  .indicador-frete-kpis-principais { grid-template-columns: repeat(2, 1fr); }
   .indicador-frete-eficiencia { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 480px) {
-  .indicador-frete-painel__kpis { grid-template-columns: 1fr; grid-template-rows: none; }
+  .indicador-frete-kpis-principais { grid-template-columns: 1fr; }
   #indicador-frete-view .chart-legend--tiles { grid-template-columns: 1fr; }
   .indicador-frete-eficiencia { grid-template-columns: 1fr; }
 }
