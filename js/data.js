@@ -2004,6 +2004,20 @@ const DataStore = (() => {
       // zerou essa coluna uma vez (2026-09-09): o texto aqui tem que bater com o CABEÇALHO DO
       // CSV, não com o nome da coluna na planilha original dela.
       const valorNFsHeader = headerIndex['valor total nfs'];
+      // Campos opcionais (2026-09-10) — AINDA NÃO existem na aba/CSV hoje ("vou implementar no
+      // futuro", ela mesma disse). `null` quando a coluna não existe (nem na planilha, nem por
+      // tabela ainda ter sido regerada com o CSV novo) — diferente de 0, que seria "existe e é
+      // zero". Nenhuma tela usa esses campos ainda; é só scaffolding pra quando ela adicionar as
+      // colunas "Pedágio"/"Descarga"/"Diária"/"Tipo de Veículo"/"Capacidade Máxima Kg"/
+      // "Capacidade Volumes" na planilha (ver Extrair-IndicadorFrete em
+      // atualizar-dados-dashboard.ps1) — nesse momento: custoTotalViagem = valorFrete +
+      // (pedagio||0) + (descarga||0) + (diaria||0); ocupacaoVeiculo = peso/capacidadeMaxKg*100.
+      const pedagioHeader = headerIndex['pedagio'];
+      const descargaHeader = headerIndex['descarga'];
+      const diariaHeader = headerIndex['diaria'];
+      const tipoVeiculoHeader = headerIndex['tipo de veiculo'];
+      const capacidadeMaxKgHeader = headerIndex['capacidade maxima kg'];
+      const capacidadeVolumesHeader = headerIndex['capacidade volumes'];
       lista.push({
         placa,
         dataEmbarque,
@@ -2012,13 +2026,51 @@ const DataStore = (() => {
         valorFrete: valorFreteHeader !== undefined ? parseMoney(row[valorFreteHeader]) : 0,
         peso: pesoHeader !== undefined ? parseMoney(row[pesoHeader]) : 0,
         volumes: volumesHeader !== undefined ? parseMoney(row[volumesHeader]) : 0,
-        valorTotalNFs: valorNFsHeader !== undefined ? parseMoney(row[valorNFsHeader]) : 0
+        valorTotalNFs: valorNFsHeader !== undefined ? parseMoney(row[valorNFsHeader]) : 0,
+        // Célula presente mas vazia (coluna já existe no CSV, mas ela ainda não preencheu essa
+        // viagem) também vira null, não 0 — 0 significaria "existe e é zero", que é diferente de
+        // "ainda sem dado". Sem esse cuidado, o CSV novo (cabeçalho já com as 6 colunas, valores
+        // em branco) faria parseMoney('') virar 0 pra TODA viagem assim que ela rodasse o script
+        // de novo, e a futura tela acharia (errado) que já existe dado de Pedágio pra somar.
+        pedagio: pedagioHeader !== undefined && row[pedagioHeader] !== '' ? parseMoney(row[pedagioHeader]) : null,
+        descarga: descargaHeader !== undefined && row[descargaHeader] !== '' ? parseMoney(row[descargaHeader]) : null,
+        diaria: diariaHeader !== undefined && row[diariaHeader] !== '' ? parseMoney(row[diariaHeader]) : null,
+        tipoVeiculo: tipoVeiculoHeader !== undefined ? (String(row[tipoVeiculoHeader] || '').trim() || null) : null,
+        capacidadeMaxKg: capacidadeMaxKgHeader !== undefined && row[capacidadeMaxKgHeader] !== '' ? parseMoney(row[capacidadeMaxKgHeader]) : null,
+        capacidadeVolumes: capacidadeVolumesHeader !== undefined && row[capacidadeVolumesHeader] !== '' ? parseMoney(row[capacidadeVolumesHeader]) : null
       });
     }
     indicadorFreteRecords = lista;
   }
 
   function getIndicadorFrete() { return indicadorFreteRecords.slice(); }
+
+  /** Dado o filtro de Período ATIVO (dataInicio/dataFim e/ou mes/ano — os 4 são independentes,
+   * ver getFilteredRecords acima), devolve a janela {inicio, fim} imediatamente ANTERIOR, com a
+   * MESMA duração, pra comparações "vs. período anterior" (pedido da usuária, 2026-09-10, no
+   * Indicador de Frete). Regra (decisão de design, não pedido explícito — documentando pra ela
+   * poder reagir): intervalo explícito (dataInicio+dataFim) desloca pela mesma duração pra trás;
+   * mes+ano vira o mês civil anterior; só ano vira o ano civil anterior; SEM filtro de período
+   * nenhum, cai na mesma convenção já usada em renderComparativo (dashboard.js) — mês atual vs.
+   * mês anterior — pra sempre ter uma base de comparação bem definida. */
+  function calcularPeriodoAnterior(filtros) {
+    const { dataInicio, dataFim, mes, ano } = filtros || {};
+    if (dataInicio && dataFim) {
+      const duracaoMs = dataFim.getTime() - dataInicio.getTime();
+      const fim = new Date(dataInicio.getTime() - 86400000);
+      return { inicio: new Date(fim.getTime() - duracaoMs), fim };
+    }
+    if (mes && ano) {
+      const ref = new Date(Number(ano), Number(mes) - 2, 1);
+      return { inicio: new Date(ref.getFullYear(), ref.getMonth(), 1), fim: new Date(ref.getFullYear(), ref.getMonth() + 1, 0) };
+    }
+    if (ano && !mes) {
+      return { inicio: new Date(Number(ano) - 1, 0, 1), fim: new Date(Number(ano) - 1, 11, 31) };
+    }
+    const agora = new Date();
+    const ref = new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
+    return { inicio: ref, fim: new Date(ref.getFullYear(), ref.getMonth() + 1, 0) };
+  }
 
   function getRecords() { return rawRecords.slice(); }
   function getLastUpdated() { return lastUpdated; }
@@ -2331,7 +2383,7 @@ const DataStore = (() => {
     loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual, applyValorDescargaAprovado,
-    loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete,
+    loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
