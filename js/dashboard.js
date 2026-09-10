@@ -4120,6 +4120,13 @@ const Dashboard = (() => {
   // do top 7) é resolvido contra indicadorFreteCidadesOutras, recalculado a cada render.
   let indicadorFreteRegiaoSelecionada = null;
   let indicadorFreteCidadesOutras = new Set();
+  // Seleção de relatório (2026-09-10, pedido da usuária: "ficou muito confuso" com os 2
+  // relatórios sempre visíveis juntos) — null = nenhum escolhido ainda (só os 2 cards
+  // aparecem); 'frete' = mostra o painel completo; 'transportadora' = mostra a Auditoria de
+  // Frete por Embarque. Fica em memória (não persiste no Firestore/localStorage) — reseta pra
+  // null a cada carregamento de página, mas continua lembrada entre trocas de aba dentro da
+  // mesma sessão (não resetada em mostrarViewMapaRegioes). Ver selecionarRelatorioIndicadorFrete.
+  let indicadorFreteRelatorioAtivo = null;
   // Espelha exatamente as linhas exportadas por exportarIndicadorFrete() — sempre o TOTAL
   // filtrado (já com Período/Transportadora/Motorista/região aplicados), não só a página atual —
   // preenchido no fim de renderIndicadorFrete(). renderTableGeneric (2026-09-10) faz a ordenação/
@@ -4603,6 +4610,33 @@ const Dashboard = (() => {
     el.className = `indicador-frete-kpi__comparativo ${positivo === null ? 'indicador-frete-kpi__comparativo--neutro' : positivo ? 'indicador-frete-kpi__comparativo--positivo' : 'indicador-frete-kpi__comparativo--negativo'}`;
   }
 
+  /** Alterna qual dos 2 relatórios do Indicador de Frete fica visível (2026-09-10) — os cards
+   * de seleção substituem o antigo "os dois sempre juntos, um embaixo do outro". Reaplica um
+   * render na hora de mostrar (não só troca CSS) porque os gráficos canvas (pizza/hbar/combo)
+   * ficam com tamanho 0x0 enquanto o container está `hidden`; sem recalcular ao ficar visível
+   * de novo, o desenho sairia errado até o próximo filtro mudar (mesmo motivo pelo qual
+   * mostrarViewMapaRegioes já força renderIndicadorFrete()/renderLeadTime() ao trocar de aba). */
+  function selecionarRelatorioIndicadorFrete(tipo) {
+    indicadorFreteRelatorioAtivo = tipo;
+    const containerFrete = document.getElementById('indicador-frete-relatorio-frete');
+    const containerTransportadora = document.getElementById('indicador-frete-relatorio-transportadora');
+    const hint = document.getElementById('indicador-frete-selecao-hint');
+    if (containerFrete) containerFrete.hidden = tipo !== 'frete';
+    if (containerTransportadora) containerTransportadora.hidden = tipo !== 'transportadora';
+    if (hint) hint.hidden = tipo !== null;
+    document.querySelectorAll('.indicador-frete-relatorio-card').forEach(card => {
+      card.classList.toggle('indicador-frete-relatorio-card--ativo', card.dataset.relatorio === tipo);
+    });
+    if (tipo === 'frete') renderIndicadorFrete();
+    else if (tipo === 'transportadora') renderIndicadorFreteTransportadora();
+  }
+
+  function bindIndicadorFreteSelecaoRelatorio() {
+    document.querySelectorAll('.indicador-frete-relatorio-card').forEach(card => {
+      card.addEventListener('click', () => selecionarRelatorioIndicadorFrete(card.dataset.relatorio));
+    });
+  }
+
   /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na
    * view — no-op se a seção não estiver visível, mesmo padrão de renderDespesasExtra. */
   function renderIndicadorFrete() {
@@ -5084,6 +5118,7 @@ const Dashboard = (() => {
    * (prev/next/clique no cabeçalho) da tabela de viagens do Indicador de Frete. */
   function bindIndicadorFreteAcoes() {
     bindFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS);
+    bindIndicadorFreteSelecaoRelatorio();
     bindIndicadorFreteTransportadoraAcoes();
     const chip = document.getElementById('indicador-frete-filtro-chip');
     if (chip) {
