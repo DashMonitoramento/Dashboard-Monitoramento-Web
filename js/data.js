@@ -2091,6 +2091,16 @@ const DataStore = (() => {
       const valorDocFiscaisHeader = headerIndex['valor doc fiscais'];
       const identificadorHeader = headerIndex['identificador'];
       const difFreteHeader = headerIndex['diferenca frete'];
+      // Scaffolding Pedágio/Descarga/Diária/Outros Adicionais (2026-09-10, Fase 5) — ela ainda
+      // não tem esses dados na planilha, mas pediu pra preparar a estrutura. null = coluna nem
+      // existe ainda no CSV (mesmo idioma já usado no scaffolding equivalente de
+      // indexIndicadorFreteRows) — quando ela criar essas colunas, o PS1 já sai preenchendo sem
+      // precisar mexer aqui de novo. Futuro: Custo Total = freteCalc + pedagio + descarga +
+      // diaria + outrosAdicionais; decompor Diferença de Frete por componente.
+      const pedagioHeader = headerIndex['pedagio'];
+      const descargaHeader = headerIndex['descarga'];
+      const diariaHeader = headerIndex['diaria'];
+      const outrosAdicionaisHeader = headerIndex['outros adicionais'];
       // "Diferença de frete" é calculada pela PRÓPRIA USUÁRIA na planilha (confirmado por ela,
       // 2026-09-10): quando a cobrança da transportadora ainda não chegou, ela deixa essa célula
       // EM BRANCO (não um número negativo cheio). parseMoney('') devolveria 0 -- sem este
@@ -2115,7 +2125,11 @@ const DataStore = (() => {
         placa: placaHeader !== undefined ? String(row[placaHeader] || '').trim() : '',
         valorDocFiscais: valorDocFiscaisHeader !== undefined ? parseMoney(row[valorDocFiscaisHeader]) : 0,
         identificador: identificadorHeader !== undefined ? String(row[identificadorHeader] || '').trim() : '',
-        difFrete
+        difFrete,
+        pedagio: pedagioHeader !== undefined ? parseMoney(row[pedagioHeader]) : null,
+        descarga: descargaHeader !== undefined ? parseMoney(row[descargaHeader]) : null,
+        diaria: diariaHeader !== undefined ? parseMoney(row[diariaHeader]) : null,
+        outrosAdicionais: outrosAdicionaisHeader !== undefined ? parseMoney(row[outrosAdicionaisHeader]) : null
       });
     }
     indicadorFreteTransportadoraRecords = lista;
