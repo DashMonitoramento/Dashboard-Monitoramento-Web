@@ -2021,6 +2021,43 @@ Segue anexo o relatório atualizado.</textarea>
           </article>
         </div>
 
+        <!-- Fase 2 (2026-09-10) — gráficos. Reaproveita 100% de classes já existentes
+             (.indicador-frete-analises/.indicador-frete-analise-card, .ocorrencias-periodo-btn
+             pro toggle) — zero CSS novo. Diário/Semanal/Mensal é UM toggle só controlando os 2
+             gráficos temporais juntos (decisão minha: ela pediu o toggle nos dois, mas ter 2
+             controles independentes pra comparar as mesmas datas seria só fricção a mais). Os 2
+             gráficos temporais e a rosca de Status usam SÓ embarques AUDITADOS/classificados (a
+             rosca é exceção: ela mostra os 4 estados, INCLUSIVE aguardando, pra dar a visão
+             completa — só os 2 gráficos de valor R$ excluem aguardando, ver decisão de design #4
+             do plano). -->
+        <h3 class="chart-card__title" style="margin:20px 0 4px;">Análise Temporal e Status</h3>
+        <div class="indicador-frete-analises">
+          <div class="indicador-frete-analise-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+              <h3 class="chart-card__title" style="margin-bottom:0;">Frete Calculado x Frete Cobrado</h3>
+              <div class="ocorrencias-periodo-bar__opcoes" id="indicador-frete-transportadora-granularidade-bar">
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-transportadora-granularidade="diario">Diário</button>
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-transportadora-granularidade="semanal">Semanal</button>
+                <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-indicador-frete-transportadora-granularidade="mensal">Mensal</button>
+              </div>
+            </div>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Só embarques já auditados (aguardando cobrança fica de fora — comparar contra um "cobrado" que ainda não existe seria enganoso).</p>
+            <div class="chart-root" id="chart-indicador-frete-transportadora-calculado-cobrado"></div>
+          </div>
+          <div class="indicador-frete-analise-card">
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Evolução da Diferença de Frete</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Barra: Diferença em R$ (vermelho = saldo cobrado a maior no período, verde = a menor). Linha: % Diferença. Mesmo Diário/Semanal/Mensal do gráfico ao lado. Só embarques auditados.</p>
+            <div class="chart-root" id="chart-indicador-frete-transportadora-evolucao-dif"></div>
+          </div>
+          <div class="indicador-frete-analise-card">
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Status dos Embarques</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Clique numa categoria pra filtrar a tabela abaixo por esse status (clique de novo pra limpar).</p>
+            <div class="chart-root chart-root--donut" id="chart-indicador-frete-transportadora-status"></div>
+          </div>
+        </div>
+
+        <span id="indicador-frete-transportadora-status-chip" class="badge badge--info" style="margin-bottom:10px; display:inline-block;" hidden></span>
+
         <div class="table-scroll-wrapper">
           <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
           <div class="table-scroll">
@@ -2075,8 +2112,8 @@ Segue anexo o relatório atualizado.</textarea>
 <script type="module" src="js/firebase-init.js?v=20260910a"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910f"></script>
-<script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910o"></script>
+<script src="js/charts.js?v=20260910c"></script>
+<script src="js/dashboard.js?v=20260910p"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
