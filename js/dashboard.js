@@ -2556,7 +2556,8 @@ const Dashboard = (() => {
 
   function renderAll() {
     populateFilterOptions();
-    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS, true);
+    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_AGREGADOS_FILTROS_CABECALHO_IDS);
+    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS, true);
     popularFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
     render(DataStore.getFilteredRecords());
   }
@@ -4650,7 +4651,7 @@ const Dashboard = (() => {
     // Filtros duplicados no cabeçalho (2026-09-10, Fase 7) — sincroniza os controles do
     // cabeçalho com o estado ATUAL a cada render, então uma mudança feita no menu lateral (ou
     // em qualquer outro lugar) também aparece refletida aqui, sem plumbing de evento extra.
-    sincronizarFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS, dataInicio, dataFim, transportadora, motorista);
+    sincronizarFiltrosCabecalhoEmbutido(INDICADOR_FRETE_AGREGADOS_FILTROS_CABECALHO_IDS, dataInicio, dataFim, transportadora, motorista);
 
     const itens = DataStore.getIndicadorFrete().filter(item => {
       const ref = item.dataEmbarque;
@@ -4929,9 +4930,19 @@ const Dashboard = (() => {
    * pra representar isso fielmente) — ver aviso no comentário do HTML.
    * ============================================================ */
 
-  const INDICADOR_FRETE_FILTROS_CABECALHO_IDS = {
+  // Antes 1 objeto só (transportadora+motorista juntos, 1 cabeçalho compartilhado pelos 2
+  // relatórios). Virou 2 (2026-09-10, pedido da usuária): "Indicador de Frete Agregados" só
+  // filtra por Motorista (Transportadora saiu de lá), "Indicador de Frete Transportadora" só
+  // por Transportadora (nunca teve Motorista de verdade, já que é nativo/sem cruzamento) — cada
+  // um com seu próprio filtro embutido, ids de Período distintos entre os dois (ver comentário
+  // no HTML), Transportadora manteve o id antigo (só existia lá mesmo).
+  const INDICADOR_FRETE_AGREGADOS_FILTROS_CABECALHO_IDS = {
     dataInicio: 'indicador-frete-filtro-data-inicio', dataFim: 'indicador-frete-filtro-data-fim',
-    transportadora: 'indicador-frete-filtro-transportadora', motorista: 'indicador-frete-filtro-motorista'
+    motorista: 'indicador-frete-filtro-motorista'
+  };
+  const INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS = {
+    dataInicio: 'indicador-frete-transportadora-filtro-data-inicio', dataFim: 'indicador-frete-transportadora-filtro-data-fim',
+    transportadora: 'indicador-frete-filtro-transportadora'
   };
   const DESPESAS_EXTRA_FILTROS_CABECALHO_IDS = {
     dataInicio: 'despesas-extra-filtro-data-inicio', dataFim: 'despesas-extra-filtro-data-fim',
@@ -5082,6 +5093,12 @@ const Dashboard = (() => {
     const view = document.getElementById('indicador-frete-view');
     if (!view || view.hidden) return;
     const { dataInicio, dataFim, mes, ano, transportadora } = DataStore.getFilters();
+
+    // Filtro próprio deste relatório (2026-09-10, 2ª rodada) — antes sincronizava só dentro de
+    // renderIndicadorFrete() porque os 2 relatórios compartilhavam o mesmo cabeçalho; agora cada
+    // um tem o seu (ver INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS).
+    sincronizarFiltrosCabecalhoEmbutido(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS, dataInicio, dataFim, transportadora, null);
+
     const itens = DataStore.getIndicadorFreteTransportadora().filter(item => {
       const ref = item.dataEmbarque || item.dataCriacao;
       if (!ref) return false;
@@ -5111,13 +5128,16 @@ const Dashboard = (() => {
 
   function bindIndicadorFreteTransportadoraAcoes() {
     bindTableControlsFor(indicadorFreteTransportadoraTable, INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS, () => indicadorFreteTransportadoraItens, rowHtmlIndicadorFreteTransportadora);
+    bindFiltrosCabecalhoEmbutido(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS);
+    const btnExportTransportadora = document.getElementById('btn-export-indicador-frete-transportadora');
+    if (btnExportTransportadora) btnExportTransportadora.addEventListener('click', () => exportarIndicadorFreteTransportadora());
   }
 
   /** Botão "Limpar filtro de região" (dentro do chip, HTML gerado a cada render — por isso
    * delegado no container fixo), "Exportar Excel" e os controles de paginação/ordenação
    * (prev/next/clique no cabeçalho) da tabela de viagens do Indicador de Frete. */
   function bindIndicadorFreteAcoes() {
-    bindFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS);
+    bindFiltrosCabecalhoEmbutido(INDICADOR_FRETE_AGREGADOS_FILTROS_CABECALHO_IDS);
     bindIndicadorFreteSelecaoRelatorio();
     bindIndicadorFreteTransportadoraAcoes();
     const chip = document.getElementById('indicador-frete-filtro-chip');
@@ -5207,6 +5227,32 @@ const Dashboard = (() => {
     ];
     await Utils.exportToStyledExcel('indicador-de-frete.xlsx', 'Indicador de Frete', colunas, itens);
     Utils.showToast(`${itens.length} viagens exportadas para Excel.`, 'success');
+  }
+
+  /** Exporta exatamente o que está na tabela "Auditoria de Frete por Embarque" AGORA
+   * (indicadorFreteTransportadoraItens, preenchido no fim de renderIndicadorFreteTransportadora —
+   * já com Período/Transportadora aplicados). Espelha exportarIndicadorFrete() acima, mesmo
+   * padrão pedido pela usuária pros 2 relatórios (2026-09-10, 2ª rodada). */
+  async function exportarIndicadorFreteTransportadora() {
+    const itens = indicadorFreteTransportadoraItens;
+    if (!itens.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+    const colunas = [
+      { label: 'Embarque', value: i => i.embarque || '—' },
+      { label: 'Identificador', value: i => i.identificador || '—' },
+      { label: 'Data de Criação', value: i => i.dataCriacao ? Utils.formatDate(i.dataCriacao) : '—' },
+      { label: 'Data Embarque', value: i => i.dataEmbarque ? Utils.formatDate(i.dataEmbarque) : '—' },
+      { label: 'Transportadora', value: i => i.transportadora || '—' },
+      { label: 'Placa', value: i => i.placa || '—' },
+      { label: 'UF Destino', value: i => i.estadoDestino || '—' },
+      { label: 'Peso', value: i => i.peso.toFixed(2).replace('.', ',') },
+      { label: 'Volumes', value: i => i.volumes },
+      { label: 'Valor Doc. Fiscais', value: i => i.valorDocFiscais.toFixed(2).replace('.', ',') },
+      { label: 'Frete Calculado', value: i => i.freteCalc.toFixed(2).replace('.', ',') },
+      { label: 'Frete Total', value: i => i.freteTotal.toFixed(2).replace('.', ',') },
+      { label: 'Diferença de Frete', value: i => i.difFrete.toFixed(2).replace('.', ',') }
+    ];
+    await Utils.exportToStyledExcel('indicador-de-frete-transportadora.xlsx', 'Indicador Frete Transportadora', colunas, itens);
+    Utils.showToast(`${itens.length} embarques exportados para Excel.`, 'success');
   }
 
   /* ============================================================
