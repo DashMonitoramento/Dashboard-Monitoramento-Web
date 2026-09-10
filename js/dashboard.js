@@ -5149,6 +5149,33 @@ const Dashboard = (() => {
   // são específicos do relatório irmão).
   let indicadorFreteTransportadoraGranularidade = 'mensal';
 
+  // Ranking "Top 10 Transportadoras — por diferença de frete" (Fase 3, 2026-09-10) — ordenação
+  // alternável, padrão maior diferença R$ (pedido explícito dela). Clique numa linha filtra SÓ a
+  // tabela de detalhamento (mesmo espírito do clique na rosca de Status/pizza de cidades) — nome
+  // da transportadora clicada, local, não mexe no filtro global de Transportadora do cabeçalho.
+  let indicadorFreteTransportadoraOrdenacaoRanking = 'diferenca';
+  let indicadorFreteTransportadoraRankingSelecionada = null;
+
+  /** Agrega os itens (já filtrados por Período/Transportadora/UF Destino) por Transportadora —
+   * SÓ embarques auditados entram (mesma população coerente já usada nos KPIs principais: soma
+   * de Frete Calculado/Cobrado/Diferença desta função são todas sobre o MESMO subconjunto). */
+  function agregarPorTransportadoraFreteTransportadora(itens) {
+    const mapa = new Map();
+    for (const i of itens) {
+      const status = statusAuditoriaFreteTransportadora(i);
+      if (status === 'aguardando') continue;
+      const nome = i.transportadora || 'Não informado';
+      if (!mapa.has(nome)) mapa.set(nome, { transportadora: nome, qtdAuditados: 0, freteCalc: 0, freteCobrado: 0, diferenca: 0, qtdDivergencia: 0 });
+      const agg = mapa.get(nome);
+      agg.qtdAuditados++;
+      agg.freteCalc += i.freteCalc;
+      agg.freteCobrado += i.freteTotal;
+      agg.diferenca += i.difFrete;
+      if (status !== 'auditado_ok') agg.qtdDivergencia++;
+    }
+    return Array.from(mapa.values()).map(a => ({ ...a, percentualDif: a.freteCalc > 0 ? (a.diferenca / a.freteCalc) * 100 : 0 }));
+  }
+
   // Filtro de UF Destino (2026-09-10) — LOCAL a este relatório (não é um conceito usado em
   // nenhuma outra tela do dashboard, então não entra em DataStore.setFilters/estado global,
   // mesmo espírito de indicadorFreteRegiaoSelecionada no relatório irmão).
@@ -5285,6 +5312,23 @@ const Dashboard = (() => {
       auditado_ok: qtdAuditados - qtdDivergencia
     });
 
+    // Fase 3 (2026-09-10) — rankings. Recebem `itens` (período/filtros "de verdade"), não
+    // `itensTabela` (que já pode estar recortado por um clique de drill-down) — mesmo motivo do
+    // chart de Status: um ranking não deve refletir o próprio filtro que ele mesmo aciona.
+    renderIndicadorFreteTransportadoraRanking(itens);
+    renderIndicadorFreteTransportadoraRankingEmbarques(auditados);
+
+    const chipRanking = document.getElementById('indicador-frete-transportadora-ranking-chip');
+    if (chipRanking) {
+      if (indicadorFreteTransportadoraRankingSelecionada) {
+        chipRanking.hidden = false;
+        chipRanking.innerHTML = `Filtrando: <strong>${escapeAttr(indicadorFreteTransportadoraRankingSelecionada)}</strong> <button type="button" data-limpar-filtro-ranking-transportadora aria-label="Limpar filtro de transportadora">✕</button>`;
+      } else {
+        chipRanking.hidden = true;
+        chipRanking.innerHTML = '';
+      }
+    }
+
     // Chip "Filtrando: <status> ×" (clique na rosca de Status) — só a TABELA (e exportação)
     // respeitam essa seleção, mesmo padrão do chip de região do relatório irmão.
     const chipStatus = document.getElementById('indicador-frete-transportadora-status-chip');
@@ -5298,9 +5342,13 @@ const Dashboard = (() => {
       }
     }
 
-    const itensTabela = indicadorFreteTransportadoraStatusSelecionado
-      ? itens.filter(i => statusAuditoriaFreteTransportadora(i) === indicadorFreteTransportadoraStatusSelecionado)
-      : itens;
+    let itensTabela = itens;
+    if (indicadorFreteTransportadoraStatusSelecionado) {
+      itensTabela = itensTabela.filter(i => statusAuditoriaFreteTransportadora(i) === indicadorFreteTransportadoraStatusSelecionado);
+    }
+    if (indicadorFreteTransportadoraRankingSelecionada) {
+      itensTabela = itensTabela.filter(i => i.transportadora === indicadorFreteTransportadoraRankingSelecionada);
+    }
     const ordenados = itensTabela.slice().sort((a, b) => {
       const da = a.dataEmbarque || a.dataCriacao;
       const db = b.dataEmbarque || b.dataCriacao;
@@ -5379,6 +5427,69 @@ const Dashboard = (() => {
     });
   }
 
+  /** "Top 10 Transportadoras — por diferença de frete" (Fase 3, 2026-09-10) — `itens` é o
+   * conjunto já filtrado por Período/Transportadora/UF Destino (mesma população que alimenta os
+   * KPIs/gráficos), não o `itensTabela` (que já pode estar recortado por clique em Status/nesta
+   * própria ranking) — o ranking sempre reflete o recorte "de verdade" da tela, não um clique de
+   * drill-down feito nele mesmo. */
+  function renderIndicadorFreteTransportadoraRanking(itens) {
+    const tbody = document.getElementById('indicador-frete-transportadora-ranking-body');
+    if (!tbody) return;
+    const agregados = agregarPorTransportadoraFreteTransportadora(itens);
+    const criterios = {
+      diferenca: (a, b) => b.diferenca - a.diferenca,
+      percentual: (a, b) => b.percentualDif - a.percentualDif,
+      cobrado: (a, b) => b.freteCobrado - a.freteCobrado,
+      divergencias: (a, b) => b.qtdDivergencia - a.qtdDivergencia
+    };
+    const top10 = agregados.slice().sort(criterios[indicadorFreteTransportadoraOrdenacaoRanking]).slice(0, 10);
+    if (!top10.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Nenhuma transportadora auditada no período/filtro selecionado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = top10.map((a, idx) => {
+      const classe = a.diferenca > 0 ? 'text-danger' : (a.diferenca < 0 ? 'text-success' : '');
+      return `
+      <tr data-transportadora-ranking="${escapeAttr(a.transportadora)}" style="cursor:pointer;" title="Clique pra filtrar a tabela abaixo por esta transportadora">
+        <td>${idx + 1}º</td>
+        <td class="truncate" title="${escapeAttr(a.transportadora)}">${escapeAttr(a.transportadora)}</td>
+        <td class="text-right">${Utils.formatNumber(a.qtdAuditados)}</td>
+        <td class="text-right">${Utils.formatCurrency(a.freteCalc)}</td>
+        <td class="text-right">${Utils.formatCurrency(a.freteCobrado)}</td>
+        <td class="text-right ${classe}">${Utils.formatCurrency(a.diferenca)}</td>
+        <td class="text-right ${classe}">${Utils.formatPercent(a.percentualDif)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  /** "Top 10 Embarques — Maior Diferença" (Fase 3, 2026-09-10) — `auditados` já vem calculado em
+   * renderIndicadorFreteTransportadora (não recalcula status aqui). Ordenado do maior valor
+   * cobrado a maior pro menor (pedido dela) — quem está mais negativo (cobrado a menor) fica no
+   * fim da lista, não é o foco deste ranking específico. */
+  function renderIndicadorFreteTransportadoraRankingEmbarques(auditados) {
+    const tbody = document.getElementById('indicador-frete-transportadora-ranking-embarques-body');
+    if (!tbody) return;
+    const top10 = auditados.slice().sort((a, b) => b.difFrete - a.difFrete).slice(0, 10);
+    if (!top10.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Nenhum embarque auditado no período/filtro selecionado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = top10.map((i, idx) => {
+      const percentualDif = i.freteCalc > 0 ? (i.difFrete / i.freteCalc) * 100 : 0;
+      const classe = i.difFrete > 0 ? 'text-danger' : (i.difFrete < 0 ? 'text-success' : '');
+      return `
+      <tr>
+        <td>${idx + 1}º</td>
+        <td class="text-orange">${escapeAttr(i.embarque)}</td>
+        <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora)}</td>
+        <td class="text-right">${Utils.formatCurrency(i.freteCalc)}</td>
+        <td class="text-right">${Utils.formatCurrency(i.freteTotal)}</td>
+        <td class="text-right ${classe}">${Utils.formatCurrency(i.difFrete)}</td>
+        <td class="text-right ${classe}">${Utils.formatPercent(percentualDif)}</td>
+      </tr>`;
+    }).join('');
+  }
+
   function bindIndicadorFreteTransportadoraAcoes() {
     bindTableControlsFor(indicadorFreteTransportadoraTable, INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS, () => indicadorFreteTransportadoraItens, rowHtmlIndicadorFreteTransportadora);
     bindFiltrosCabecalhoEmbutido(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS);
@@ -5418,6 +5529,41 @@ const Dashboard = (() => {
       chipStatus.addEventListener('click', (e) => {
         if (!e.target.closest('[data-limpar-filtro-status-transportadora]')) return;
         indicadorFreteTransportadoraStatusSelecionado = null;
+        indicadorFreteTransportadoraTable.page = 1;
+        renderIndicadorFreteTransportadora();
+      });
+    }
+    // Toggle de ordenação do ranking "Top 10 Transportadoras" (Fase 3).
+    const barraOrdenarRanking = document.getElementById('indicador-frete-transportadora-ranking-ordenar');
+    if (barraOrdenarRanking) {
+      barraOrdenarRanking.querySelectorAll('[data-indicador-frete-transportadora-ordenar-ranking]').forEach(botao => {
+        botao.addEventListener('click', () => {
+          indicadorFreteTransportadoraOrdenacaoRanking = botao.dataset.indicadorFreteTransportadoraOrdenarRanking;
+          barraOrdenarRanking.querySelectorAll('.ocorrencias-periodo-btn').forEach(b => b.classList.remove('ocorrencias-periodo-btn--ativo'));
+          botao.classList.add('ocorrencias-periodo-btn--ativo');
+          renderIndicadorFreteTransportadora();
+        });
+      });
+    }
+    // Clique numa linha do ranking filtra a tabela de detalhamento por aquela transportadora
+    // (toggle — clicar de novo na mesma limpa).
+    const tbodyRanking = document.getElementById('indicador-frete-transportadora-ranking-body');
+    if (tbodyRanking) {
+      tbodyRanking.addEventListener('click', (e) => {
+        const tr = e.target.closest('[data-transportadora-ranking]');
+        if (!tr) return;
+        const nome = tr.dataset.transportadoraRanking;
+        indicadorFreteTransportadoraRankingSelecionada = indicadorFreteTransportadoraRankingSelecionada === nome ? null : nome;
+        indicadorFreteTransportadoraTable.page = 1;
+        renderIndicadorFreteTransportadora();
+      });
+    }
+    // Chip "Filtrando: <transportadora> ×" — limpa a seleção feita pelo clique no ranking.
+    const chipRanking = document.getElementById('indicador-frete-transportadora-ranking-chip');
+    if (chipRanking) {
+      chipRanking.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-limpar-filtro-ranking-transportadora]')) return;
+        indicadorFreteTransportadoraRankingSelecionada = null;
         indicadorFreteTransportadoraTable.page = 1;
         renderIndicadorFreteTransportadora();
       });
