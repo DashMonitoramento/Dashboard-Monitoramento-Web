@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260910i">
+<link rel="stylesheet" href="css/style.css?v=20260910j">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1629,6 +1629,33 @@ Segue anexo o relatório atualizado.</textarea>
             <button id="btn-export-indicador-frete" class="btn" type="button">⬇️ Exportar Excel</button>
           </div>
         </div>
+
+        <!-- Seleção de relatório (2026-09-10, pedido da usuária) — antes os 2 relatórios
+             ("Indicador de Frete" completo, com 14 blocos, e "Auditoria de Frete por Embarque")
+             ficavam sempre visíveis juntos, um embaixo do outro, e ela achou "muito confuso".
+             Agora ficam escondidos atrás de 2 cards de seleção — só mostra o conteúdo de UM
+             deles por vez, o que ela escolher clicando. Nenhuma informação foi removida, só
+             reorganizada (ver selecionarRelatorioIndicadorFrete/bindIndicadorFreteSelecaoRelatorio
+             em dashboard.js). Os filtros acima continuam valendo pros dois, sempre visíveis. -->
+        <div class="indicador-frete-selecao-relatorio">
+          <button type="button" class="indicador-frete-relatorio-card" id="indicador-frete-card-relatorio-frete" data-relatorio="frete">
+            <span class="indicador-frete-relatorio-card__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
+            <span class="indicador-frete-relatorio-card__texto">
+              <span class="indicador-frete-relatorio-card__titulo">Indicador de Frete</span>
+              <span class="indicador-frete-relatorio-card__desc">Painel completo por viagem: KPIs, eficiência operacional, cidades, evolução, rankings e oportunidades de redução.</span>
+            </span>
+          </button>
+          <button type="button" class="indicador-frete-relatorio-card" id="indicador-frete-card-relatorio-transportadora" data-relatorio="transportadora">
+            <span class="indicador-frete-relatorio-card__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
+            <span class="indicador-frete-relatorio-card__texto">
+              <span class="indicador-frete-relatorio-card__titulo">Indicador Frete Transportadora</span>
+              <span class="indicador-frete-relatorio-card__desc">Auditoria por embarque: valor de frete calculado x valor efetivamente cobrado pela transportadora.</span>
+            </span>
+          </button>
+        </div>
+        <p class="chart-card__hint" id="indicador-frete-selecao-hint">Escolha um dos relatórios acima para ver os detalhes.</p>
+
+        <div id="indicador-frete-relatorio-frete" class="indicador-frete-relatorio-conteudo" hidden>
         <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Os filtros de Período, Transportadora e Motorista aqui em cima valem pro dashboard inteiro (o menu lateral reflete a mesma seleção).</p>
 
         <!-- KPIs principais (2026-09-10: virou seção PRÓPRIA, largura cheia — antes ficava ao
@@ -1866,6 +1893,9 @@ Segue anexo o relatório atualizado.</textarea>
           </div>
         </div>
 
+        </div><!-- /#indicador-frete-relatorio-frete -->
+
+        <div id="indicador-frete-relatorio-transportadora" class="indicador-frete-relatorio-conteudo" hidden>
         <!-- "Auditoria de Frete por Embarque" (2026-09-10, pedido da usuária) — DIFERENTE da
              tabela acima: vem de uma aba separada ("Indicador Frete Transportadora", export cru
              da Lincros) e é por EMBARQUE, não por Nota Fiscal (o export real não tem
@@ -1929,6 +1959,7 @@ Segue anexo o relatório atualizado.</textarea>
             <button id="indicador-frete-transportadora-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
           </div>
         </div>
+        </div><!-- /#indicador-frete-relatorio-transportadora -->
       </section>
 
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
@@ -1945,7 +1976,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910e"></script>
 <script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910l"></script>
+<script src="js/dashboard.js?v=20260910m"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
