@@ -1917,32 +1917,106 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="filtro-cabecalho__label">Transportadora</span>
             <select id="indicador-frete-filtro-transportadora"><option value="">Todos</option></select>
           </label>
+          <label class="filtro-cabecalho">
+            <span class="filtro-cabecalho__label">UF Destino</span>
+            <select id="indicador-frete-transportadora-filtro-uf"><option value="">Todos</option></select>
+          </label>
           <button id="btn-export-indicador-frete-transportadora" class="btn" type="button">⬇️ Exportar Excel</button>
         </div>
-        <!-- "Auditoria de Frete por Embarque" (2026-09-10, pedido da usuária) — DIFERENTE da
-             tabela do outro relatório: vem de uma aba separada ("Indicador Frete Transportadora",
-             export cru da Lincros) e é por EMBARQUE, não por Nota Fiscal (o export real não tem
-             Número/Série — o print original dela era da TELA do sistema, diferente do export).
-             Valor Frete Calculado é o que a Da Terrinha paga, Valor Total Frete é o que a
-             transportadora cobrou, Diferença de Frete vem PRONTA da planilha (coluna que ela
-             mesma criou lá): positivo = cobrou a mais (vermelho), negativo = cobrou a menos
-             (verde). Nativo por Transportadora (sem cruzamento); não tem Motorista, então só
-             respeita Período + Transportadora do filtro próprio acima. -->
-        <h3 class="chart-card__title" style="margin:24px 0 4px;">Auditoria de Frete por Embarque</h3>
-        <p class="chart-card__hint" style="text-align:left; margin-top:0;">Valor Frete Calculado = valor que pagamos · Valor Total Frete = valor cobrado pela transportadora · Diferença de Frete: vermelho = cobrou a mais, verde = cobrou a menos.</p>
-        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 14px;">
-          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#DC2626">
-            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
+        <!-- Painel de Auditoria de Frete (2026-09-10, reformulação completa, Fase 1) — vem de uma
+             aba separada ("Indicador Frete Transportadora", export cru da Lincros), por EMBARQUE,
+             não por Nota Fiscal. Frete Calculado é o que a Da Terrinha espera pagar; Frete Total é
+             o que a transportadora efetivamente cobrou; Diferença vem PRONTA da planilha (coluna
+             que ela mesma criou lá, não é derivada aqui). Nativo por Transportadora (sem
+             cruzamento); não tem Motorista, então só respeita Período + Transportadora + UF
+             Destino do filtro próprio acima.
+             3 estados de auditoria (statusAuditoriaFreteTransportadora, dashboard.js): AGUARDANDO
+             COBRANÇA (célula "Diferença de frete" veio em branco na planilha — NUNCA tratado como
+             cobrou R$0), AUDITADO OK (dentro da tolerância) e DIVERGÊNCIA (cobrado a maior/menor).
+             KPI "Frete Calculado" soma TODOS os embarques filtrados (inclusive aguardando); os
+             demais KPIs desta linha são calculados só sobre os AUDITADOS (populações diferentes de
+             propósito — ver legenda pequena embaixo de cada valor). -->
+        <h3 class="chart-card__title" style="margin:24px 0 4px;">Indicador Frete Transportadora</h3>
+        <p class="chart-card__hint" style="text-align:left; margin-top:0;">Auditoria por embarque: valor de frete calculado x valor efetivamente cobrado pela transportadora.</p>
+        <div class="indicador-frete-kpis-principais" style="margin-bottom: 14px;">
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#2563EB">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="11" x2="16" y2="11"></line><line x1="8" y1="15" x2="12" y2="15"></line></svg></span>
             <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">Total Dif. Frete no período</span>
-              <span class="kpi-card__value" id="indicador-frete-transportadora-total-dif">R$ 0,00</span>
+              <span class="kpi-card__label">Frete Calculado</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-total-calculado">R$ 0,00</span>
+              <span class="kpi-card__sub">inclui aguardando cobrança</span>
             </span>
           </article>
-          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#EAB308">
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#16A34A">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Frete Cobrado</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-total-cobrado">R$ 0,00</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-cobrado">sobre 0 embarques auditados</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#DC2626">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Diferença de Frete</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-total-dif">R$ 0,00</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-dif">sobre 0 embarques auditados</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#EA580C">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">% Diferença</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-percentual-dif">—</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-pct-dif">sobre 0 embarques auditados</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#7C3AED">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Embarques Auditados</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-qtd-auditados">0</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#EAB308">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
             <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">Embarques com cobrança a maior</span>
-              <span class="kpi-card__value" id="indicador-frete-transportadora-qtd-maior">0</span>
+              <span class="kpi-card__label">Embarques com Divergência</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-qtd-divergencia">0</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-divergencia">—</span>
+            </span>
+          </article>
+        </div>
+
+        <!-- Segunda linha — resultado da auditoria (2026-09-10, pedido dela: NUNCA compensar
+             cobrado a maior com cobrado a menor, mostrar os dois valores separados). Cards
+             maiores (3 colunas, não 6) e horizontais, mesmo componente .indicador-frete-kpi. -->
+        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#DC2626">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Cobrado a maior</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-maior-valor">R$ 0,00</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-maior-qtd">0 embarques</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-maior-pct">—</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#16A34A">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Cobrado a menor</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-menor-valor">R$ 0,00</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-menor-qtd">0 embarques</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-menor-pct">—</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#EAB308">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Aguardando cobrança</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-aguardando-valor">R$ 0,00</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-aguardando-qtd">0 embarques</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-aguardando-pct">—</span>
             </span>
           </article>
         </div>
@@ -1965,7 +2039,10 @@ Segue anexo o relatório atualizado.</textarea>
                 <th data-field="valorDocFiscais" class="text-right">Valor Doc. Fiscais</th>
                 <th data-field="freteCalc" class="text-right">Frete Calculado</th>
                 <th data-field="freteTotal" class="text-right">Frete Total</th>
-                <th data-field="difFrete" class="text-right">Diferença de Frete</th>
+                <th data-field="difFrete" class="text-right">Diferença</th>
+                <th class="text-right">% Diferença</th>
+                <th>Status</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody id="indicador-frete-transportadora-table-body"></tbody>
@@ -1997,9 +2074,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260910a"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260910e"></script>
+<script src="js/data.js?v=20260910f"></script>
 <script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910n"></script>
+<script src="js/dashboard.js?v=20260910o"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
