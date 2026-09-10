@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260909b">
+<link rel="stylesheet" href="css/style.css?v=20260910a">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1586,42 +1586,60 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
         <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue os filtros de Período, Transportadora e Motorista da tela inicial.</p>
 
-        <!-- Reaproveita EXATAMENTE o mesmo padrão visual de "Situação de agendamento" (pedido
-             da usuária, 2026-09-09: "cards do tamanho do Agendamento", pizza de um lado sozinha,
-             cards em grid de 2 colunas do outro) — .agendamento-body/.agendamento-cards já
-             existiam pra isso, não precisou CSS novo. margin-top maior que o padrão (pedido da
-             usuária, 2026-09-09: "o texto indicador quero que fique mais pra cima para nao
-             ficar colado nos cards"). -->
-        <div class="agendamento-body" style="margin-top:22px; margin-bottom:16px;">
-          <div style="flex:1 1 240px; min-width:0;">
+        <!-- Painel dedicado (2026-09-10, pedido da usuária com mockup desenhado): metade
+             esquerda = pizza + legenda lado a lado; metade direita = 6 cards grandes em grid
+             2x3 preenchendo a altura toda. Substitui o .agendamento-body/.agendamento-cards
+             (reaproveitados até aqui) por CSS próprio — ver .indicador-frete-painel* em
+             style.css. Só layout: os IDs dos valores continuam os mesmos, renderIndicadorFrete()
+             não mudou nada. -->
+        <div class="indicador-frete-painel">
+          <div class="indicador-frete-painel__cidades">
             <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com frete mais caro</h3>
             <p class="chart-card__hint" style="margin-top:0; text-align:left;">Soma de Valor Frete por Cidade Destino (top 7 + Outros).</p>
             <div class="chart-root chart-root--donut" id="chart-indicador-frete-regioes"></div>
           </div>
-          <div class="agendamento-cards">
-            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#0D9488">
-              <span class="kpi-card__label">Total Valor Frete</span>
-              <span class="kpi-card__value" id="indicador-frete-total-valor">R$ 0,00</span>
+          <div class="indicador-frete-painel__kpis">
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#0D9488">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">Total Valor Frete</span>
+                <span class="kpi-card__value" id="indicador-frete-total-valor">R$ 0,00</span>
+              </span>
             </article>
-            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#2563EB">
-              <span class="kpi-card__label">Total Peso (kg)</span>
-              <span class="kpi-card__value" id="indicador-frete-total-peso">0</span>
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#2563EB">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">Total Peso (kg)</span>
+                <span class="kpi-card__value" id="indicador-frete-total-peso">0</span>
+              </span>
             </article>
-            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#EAB308">
-              <span class="kpi-card__label">Frete médio por Kg</span>
-              <span class="kpi-card__value" id="indicador-frete-media-kg">R$ 0,00</span>
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#EAB308">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">Frete médio por Kg</span>
+                <span class="kpi-card__value" id="indicador-frete-media-kg">R$ 0,00</span>
+              </span>
             </article>
-            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#16A34A">
-              <span class="kpi-card__label">Viagens no período</span>
-              <span class="kpi-card__value" id="indicador-frete-total-viagens">0</span>
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#16A34A">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">Viagens no período</span>
+                <span class="kpi-card__value" id="indicador-frete-total-viagens">0</span>
+              </span>
             </article>
-            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#7C3AED">
-              <span class="kpi-card__label">Valor Total das NFs</span>
-              <span class="kpi-card__value" id="indicador-frete-total-valor-nfs">R$ 0,00</span>
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#7C3AED">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">Valor Total das NFs</span>
+                <span class="kpi-card__value" id="indicador-frete-total-valor-nfs">R$ 0,00</span>
+              </span>
             </article>
-            <article class="kpi-card kpi-card--mini" style="--kpi-accent:#FF7A1A">
-              <span class="kpi-card__label">% Frete</span>
-              <span class="kpi-card__value" id="indicador-frete-percentual">0,0%</span>
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#FF7A1A">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">% Frete</span>
+                <span class="kpi-card__value" id="indicador-frete-percentual">0,0%</span>
+              </span>
             </article>
           </div>
         </div>
