@@ -2556,6 +2556,7 @@ const Dashboard = (() => {
 
   function renderAll() {
     populateFilterOptions();
+    popularIndicadorFreteFiltrosCabecalho();
     render(DataStore.getFilteredRecords());
   }
 
@@ -4546,6 +4547,12 @@ const Dashboard = (() => {
     // Filtro de Período (ver comentário no topo da seção) — mesma lógica de getFilteredRecords
     // (data.js), aplicada aqui em cima de item.dataEmbarque.
     const { dataInicio, dataFim, mes, ano, transportadora, motorista } = DataStore.getFilters();
+
+    // Filtros duplicados no cabeçalho (2026-09-10, Fase 7) — sincroniza os controles do
+    // cabeçalho com o estado ATUAL a cada render, então uma mudança feita no menu lateral (ou
+    // em qualquer outro lugar) também aparece refletida aqui, sem plumbing de evento extra.
+    sincronizarIndicadorFreteFiltrosCabecalho(dataInicio, dataFim, transportadora, motorista);
+
     const itens = DataStore.getIndicadorFrete().filter(item => {
       const ref = item.dataEmbarque;
       if (dataInicio && ref < dataInicio) return false;
@@ -4804,10 +4811,91 @@ const Dashboard = (() => {
       </tr>`;
   }
 
+  /* ============================================================
+   * FILTROS DUPLICADOS NO CABEÇALHO (2026-09-10, Fase 7 — última do plano)
+   * ------------------------------------------------------------
+   * Mesma fonte de verdade do menu lateral (DataStore.getFilters/setFilters) — sem estado
+   * próprio nem filtro paralelo. Período continua sendo um <input type="date"> pra cada ponta
+   * (mesmo componente do menu lateral); Transportadora/Motorista viram <select> de valor ÚNICO
+   * aqui (simplificação: o menu lateral é multi-seleção via checkbox, um <select> simples não dá
+   * pra representar isso fielmente) — ver aviso no comentário do HTML.
+   * ============================================================ */
+
+  function dataParaValorInputDate(d) {
+    if (!d) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  /** Chamada a cada renderIndicadorFrete() — reflete o estado ATUAL do filtro global nos
+   * controles do cabeçalho, sem disparar os próprios `change` (só troca `.value`, que não
+   * dispara evento). transportadora/motorista mostram "Todos" quando o menu lateral tem 0 ou 2+
+   * selecionados (um <select> não representa multi-seleção). */
+  function sincronizarIndicadorFreteFiltrosCabecalho(dataInicio, dataFim, transportadora, motorista) {
+    const elDataInicio = document.getElementById('indicador-frete-filtro-data-inicio');
+    if (elDataInicio) elDataInicio.value = dataParaValorInputDate(dataInicio);
+    const elDataFim = document.getElementById('indicador-frete-filtro-data-fim');
+    if (elDataFim) elDataFim.value = dataParaValorInputDate(dataFim);
+    const elTransportadora = document.getElementById('indicador-frete-filtro-transportadora');
+    if (elTransportadora) elTransportadora.value = (transportadora && transportadora.length === 1) ? transportadora[0] : '';
+    const elMotorista = document.getElementById('indicador-frete-filtro-motorista');
+    if (elMotorista) elMotorista.value = (motorista && motorista.length === 1) ? motorista[0] : '';
+  }
+
+  /** Reconstrói as opções dos <select> de Transportadora/Motorista a partir dos dados
+   * carregados AGORA — chamada de dentro de renderAll() (js/dashboard.js), não no bind: no bind
+   * (init(), antes de qualquer CSV/Firestore ter chegado) DataStore.getDistinctValues ainda
+   * devolveria uma lista vazia (mesmo motivo pelo qual o menu lateral tem populateFilterOptions
+   * separado do bindFilterInputs). Reconstrói do zero a cada chamada (não appendChild) — seguro
+   * chamar de novo em "Atualizar dados" sem duplicar opção. Preserva a seleção atual quando o
+   * nome ainda existe na lista nova (mesmo padrão do <select> de Ano no menu lateral). */
+  function popularIndicadorFreteFiltrosCabecalho() {
+    const preencher = (elId, valores) => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      const valorAtual = el.value;
+      el.innerHTML = '<option value="">Todos</option>' +
+        valores.filter(Boolean).map(v => `<option value="${escapeAttr(v)}">${escapeAttr(v)}</option>`).join('');
+      el.value = valorAtual;
+    };
+    preencher('indicador-frete-filtro-transportadora', DataStore.getDistinctValues('transportadora'));
+    preencher('indicador-frete-filtro-motorista', DataStore.getDistinctValues('motorista'));
+  }
+
+  /** Liga os 4 controles do cabeçalho ao MESMO DataStore.setFilters usado pelo menu lateral —
+   * chamada uma vez só, no bind (as opções dos <select> chegam depois, via
+   * popularIndicadorFreteFiltrosCabecalho em renderAll()). */
+  function bindIndicadorFreteFiltrosCabecalho() {
+    const elTransportadora = document.getElementById('indicador-frete-filtro-transportadora');
+    if (elTransportadora) {
+      elTransportadora.addEventListener('change', (e) => {
+        DataStore.setFilters({ transportadora: e.target.value ? [e.target.value] : [] });
+      });
+    }
+    const elMotorista = document.getElementById('indicador-frete-filtro-motorista');
+    if (elMotorista) {
+      elMotorista.addEventListener('change', (e) => {
+        DataStore.setFilters({ motorista: e.target.value ? [e.target.value] : [] });
+      });
+    }
+    const elDataInicio = document.getElementById('indicador-frete-filtro-data-inicio');
+    if (elDataInicio) {
+      elDataInicio.addEventListener('change', (e) => {
+        DataStore.setFilters({ dataInicio: e.target.value ? Utils.parseDate(e.target.value) : null });
+      });
+    }
+    const elDataFim = document.getElementById('indicador-frete-filtro-data-fim');
+    if (elDataFim) {
+      elDataFim.addEventListener('change', (e) => {
+        DataStore.setFilters({ dataFim: e.target.value ? Utils.parseDate(e.target.value) : null });
+      });
+    }
+  }
+
   /** Botão "Limpar filtro de região" (dentro do chip, HTML gerado a cada render — por isso
    * delegado no container fixo), "Exportar Excel" e os controles de paginação/ordenação
    * (prev/next/clique no cabeçalho) da tabela de viagens do Indicador de Frete. */
   function bindIndicadorFreteAcoes() {
+    bindIndicadorFreteFiltrosCabecalho();
     const chip = document.getElementById('indicador-frete-filtro-chip');
     if (chip) {
       chip.addEventListener('click', (e) => {
