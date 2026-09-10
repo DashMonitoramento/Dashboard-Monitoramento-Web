@@ -2287,6 +2287,22 @@ const DataStore = (() => {
     return out;
   }
 
+  /** Como getNomesTransportadoraPorCategoria, mas garante que NENHUM nome se perca: nomes cujo
+   * tipoTransporte não é nenhuma das 4 categorias filtráveis (sem dado, "Não Encontrado" etc.)
+   * entram num grupo à parte "Sem categoria" — usado pelo <select> ÚNICO (não 4 listas de
+   * checkbox) do cabeçalho do "Indicador de Frete" (2026-09-10, pedido da usuária: "os filtros
+   * estão pegando tudo junto sem separação", igual ao filtro "Transporte" da barra lateral já
+   * faz). Precisa cobrir TODO nome que já aparecia na lista achatada de antes
+   * (getDistinctValues('transportadora')) — diferente do filtro "Transporte" (que ela mesma
+   * pediu pra esconder essa "5ª categoria" de ruído lá), aqui esconder um nome quebraria a
+   * seleção de quem já filtrava por ele. */
+  function getNomesTransportadoraAgrupadosComResto() {
+    const porCategoria = getNomesTransportadoraPorCategoria();
+    const classificados = new Set(Object.values(porCategoria).flat());
+    const semCategoria = getDistinctValues('transportadora').filter(n => n && !classificados.has(n));
+    return { ...porCategoria, 'Sem categoria': semCategoria };
+  }
+
   /* ============================================================
    * PEDIDOS NÃO FATURADOS — aba nova (2026-08-27), pedidos que ainda não viraram nota
    * fiscal. Fonte independente das outras: sem NF, não cruza com rawRecords, só alimenta o
@@ -2470,7 +2486,7 @@ const DataStore = (() => {
     loadIndicadorFreteTransportadoraFromUrl, loadIndicadorFreteTransportadoraFromFile, getIndicadorFreteTransportadora,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
     setFilters, resetFilters, getFilters,
-    getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
+    getDistinctValues, getNomesTransportadoraPorCategoria, getNomesTransportadoraAgrupadosComResto, getAvailableYears, getLeadTimeStats,
     getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
     onChange, suspenderNotificacoes, retomarNotificacoes
   };
