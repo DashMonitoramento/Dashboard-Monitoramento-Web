@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260909a">
+<link rel="stylesheet" href="css/style.css?v=20260909b">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1579,14 +1579,20 @@ Segue anexo o relatório atualizado.</textarea>
       <section id="indicador-frete-view" class="table-card" aria-label="Indicador de Frete" hidden>
         <div class="table-card__header">
           <h2 class="chart-card__title">📈 Indicador de Frete</h2>
+          <div class="table-actions">
+            <span id="indicador-frete-filtro-chip" class="badge badge--info" hidden></span>
+            <button id="btn-export-indicador-frete" class="btn" type="button">⬇️ Exportar Excel</button>
+          </div>
         </div>
-        <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue o filtro de Período da tela inicial — os demais filtros (Transportadora, Motorista etc.) não se aplicam aqui.</p>
+        <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue os filtros de Período, Transportadora e Motorista da tela inicial.</p>
 
         <!-- Reaproveita EXATAMENTE o mesmo padrão visual de "Situação de agendamento" (pedido
              da usuária, 2026-09-09: "cards do tamanho do Agendamento", pizza de um lado sozinha,
              cards em grid de 2 colunas do outro) — .agendamento-body/.agendamento-cards já
-             existiam pra isso, não precisou CSS novo. -->
-        <div class="agendamento-body" style="margin-bottom:16px;">
+             existiam pra isso, não precisou CSS novo. margin-top maior que o padrão (pedido da
+             usuária, 2026-09-09: "o texto indicador quero que fique mais pra cima para nao
+             ficar colado nos cards"). -->
+        <div class="agendamento-body" style="margin-top:22px; margin-bottom:16px;">
           <div style="flex:1 1 240px; min-width:0;">
             <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com frete mais caro</h3>
             <p class="chart-card__hint" style="margin-top:0; text-align:left;">Soma de Valor Frete por Cidade Destino (top 7 + Outros).</p>
@@ -1659,8 +1665,8 @@ Segue anexo o relatório atualizado.</textarea>
 <script type="module" src="js/firebase-init.js?v=20260908f"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260909c"></script>
-<script src="js/charts.js?v=20260901d"></script>
-<script src="js/dashboard.js?v=20260909d"></script>
+<script src="js/charts.js?v=20260909a"></script>
+<script src="js/dashboard.js?v=20260909e"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
