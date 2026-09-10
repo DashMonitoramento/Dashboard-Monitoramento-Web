@@ -1723,6 +1723,58 @@ Segue anexo o relatório atualizado.</textarea>
           </div>
         </div>
 
+        <!-- Rankings (2026-09-10, Fase 4) — tabelas de verdade (não o padrão "ranking" em div
+             usado em Despesas Extra/No Show, que só suporta nome+1 valor) porque ela pediu
+             várias colunas. Top 10 fixo, sem paginação (não precisa do createTableState/
+             renderTableGeneric genérico — volume é sempre 10 linhas no máximo). -->
+        <h3 class="chart-card__title" style="margin:20px 0 4px;">Rankings</h3>
+        <div class="indicador-frete-analises">
+          <div class="indicador-frete-analise-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+              <h3 class="chart-card__title" style="margin-bottom:0;">Top 10 Transportadoras</h3>
+              <div class="ocorrencias-periodo-bar__opcoes" id="indicador-frete-ranking-transportadoras-ordenar">
+                <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-indicador-frete-ordenar-transportadoras="gasto">Maior gasto</button>
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-ordenar-transportadoras="rskg">Maior R$/kg</button>
+                <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-ordenar-transportadoras="viagens">Maior nº viagens</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Transportadora</th>
+                    <th class="text-right">Valor do Frete</th>
+                    <th class="text-right">%</th>
+                    <th class="text-right">R$/kg</th>
+                  </tr>
+                </thead>
+                <tbody id="indicador-frete-ranking-transportadoras-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="indicador-frete-analise-card">
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Top 10 Viagens — Maior R$/kg</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">R$/kg muito acima da média do período aparece destacado em vermelho.</p>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Embarque</th>
+                    <th>Placa</th>
+                    <th>Cidade Destino</th>
+                    <th class="text-right">Peso (kg)</th>
+                    <th class="text-right">Valor Frete</th>
+                    <th class="text-right">R$/kg</th>
+                  </tr>
+                </thead>
+                <tbody id="indicador-frete-ranking-viagens-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <div class="table-scroll-wrapper">
           <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
           <div class="table-scroll">
@@ -1772,7 +1824,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910a"></script>
 <script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910c"></script>
+<script src="js/dashboard.js?v=20260910d"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
