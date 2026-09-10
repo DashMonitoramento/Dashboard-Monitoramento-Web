@@ -1316,6 +1316,13 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .nf-link:hover, .nf-link:focus-visible { text-decoration-color: currentColor; }
 .nf-link--tem-canhoto, .nf-link--ativo { color: var(--color-success); }
 .text-right { text-align: right; }
+.text-center { text-align: center; }
+/* Coluna "Riscos/Alertas"/"Ações" da tabela de viagens do Indicador de Frete (2026-09-10,
+   Fase 6) — badge vira botão (mesmas cores Alto/Médio/Baixo já usadas no painel de
+   Oportunidades) e um ícone-botão simples sem moldura pra "Ver detalhes". */
+.badge--clicavel { border: none; cursor: pointer; font: inherit; }
+.icon-btn-cell { background: none; border: none; padding: 2px 6px; cursor: pointer; font-size: 14px; color: inherit; border-radius: var(--radius-sm); }
+.icon-btn-cell:hover { background: var(--surface-alt); }
 .table-empty { text-align: center !important; padding: 32px !important; color: var(--text-secondary); }
 
 .registro-dinamico__coverage { font-size: 11.5px; color: var(--text-secondary); margin: 0 0 14px; }
