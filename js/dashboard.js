@@ -2558,6 +2558,7 @@ const Dashboard = (() => {
     populateFilterOptions();
     popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_AGREGADOS_FILTROS_CABECALHO_IDS);
     popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS, true);
+    popularFiltroUFIndicadorFreteTransportadora();
     popularFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
     render(DataStore.getFilteredRecords());
   }
@@ -4146,7 +4147,7 @@ const Dashboard = (() => {
     tbody: 'indicador-frete-transportadora-table-body', info: 'indicador-frete-transportadora-table-info',
     pageLabel: 'indicador-frete-transportadora-table-page-label', prev: 'indicador-frete-transportadora-table-prev',
     next: 'indicador-frete-transportadora-table-next', theadSelector: '#indicador-frete-transportadora-table thead th[data-field]',
-    colspan: 13, emptyMessage: 'Nenhum embarque no período/filtro selecionado.'
+    colspan: 16, emptyMessage: 'Nenhum embarque no período/filtro selecionado.'
   };
   let indicadorFreteTable = Object.assign(createTableState(), { sortField: 'dataEmbarque' });
   const INDICADOR_FRETE_TABLE_IDS = {
@@ -5065,12 +5066,58 @@ const Dashboard = (() => {
    * globais; NÃO tem Motorista nesta fonte.
    * ============================================================ */
 
+  // Tolerância pra distinguir "Auditado OK" de "Divergência" (2026-09-10) — ela não deu um
+  // número exato ("dentro da regra/tolerância definida"), então esta é uma escolha minha,
+  // documentada e fácil de ajustar: piso de R$1 (arredondamento não deve virar "divergência"),
+  // teto de R$50 (um freteCalc muito alto não pode mascarar um erro real só por ser uma %
+  // pequena dele), 0,5% do calculado no meio.
+  const TOLERANCIA_AUDITORIA_FRETE_TRANSPORTADORA = { minimo: 1, maximo: 50, percentual: 0.005 };
+
+  /** 3 estados pedidos pela usuária (2026-09-10): AGUARDANDO COBRANÇA (ainda não dá pra auditar
+   * — célula "Diferença de frete" veio em branco na planilha, ver comentário em data.js sobre
+   * NUNCA tratar isso como cobrou R$0), AUDITADO OK (cobrança recebida, dentro da tolerância) e
+   * DIVERGÊNCIA — cobrado_maior (positivo) ou cobrado_menor (negativo), fora da tolerância. */
+  function statusAuditoriaFreteTransportadora(item) {
+    if (item.difFrete === null) return 'aguardando';
+    const { minimo, maximo, percentual } = TOLERANCIA_AUDITORIA_FRETE_TRANSPORTADORA;
+    const tolerancia = Math.max(minimo, Math.min(item.freteCalc * percentual, maximo));
+    if (Math.abs(item.difFrete) <= tolerancia) return 'auditado_ok';
+    return item.difFrete > 0 ? 'cobrado_maior' : 'cobrado_menor';
+  }
+
+  /** Chave estável de identidade de linha (badges/alertas/cliques) — mesmo motivo e mesmo
+   * formato de `chaveViagemIndicadorFrete` (Embarque sozinho pode repetir/vir vazio em algum
+   * caso raro; não confirmei ao vivo nesta fonte porque a planilha estava aberta na hora, mas
+   * assumo o mesmo risco já documentado na fonte irmã). NUNCA usada pra agrupar/somar linhas —
+   * cada linha continua sendo auditada/ranqueada independente mesmo se Embarque repetir. */
+  function chaveEmbarqueTransportadora(i) {
+    return `${i.embarque}|${i.placa}|${i.dataEmbarque ? i.dataEmbarque.getTime() : ''}`;
+  }
+
+  const INDICADOR_FRETE_TRANSPORTADORA_STATUS_BADGE = {
+    aguardando: { classe: 'badge--warning', texto: '🟡 Aguardando cobrança' },
+    auditado_ok: { classe: 'badge--info', texto: '🔵 Auditado OK' },
+    cobrado_maior: { classe: 'badge--danger', texto: '🔴 Cobrado a maior' },
+    cobrado_menor: { classe: 'badge--success', texto: '🟢 Cobrado a menor' }
+  };
+
+  // Filtro de UF Destino (2026-09-10) — LOCAL a este relatório (não é um conceito usado em
+  // nenhuma outra tela do dashboard, então não entra em DataStore.setFilters/estado global,
+  // mesmo espírito de indicadorFreteRegiaoSelecionada no relatório irmão).
+  let indicadorFreteTransportadoraUFSelecionada = null;
+
   function rowHtmlIndicadorFreteTransportadora(i) {
-    // Cor da Diferença de Frete (2026-09-10, pedido explícito da usuária): CONDICIONAL ao sinal
-    // — vermelho quando a transportadora cobrou a mais (positivo), verde quando cobrou a menos
-    // (negativo). Embarque e Frete Calculado em laranja (mesmo tom já usado em Valor Frete/%
-    // Frete na tabela de viagens).
-    const difClasse = i.difFrete > 0 ? 'text-danger' : (i.difFrete < 0 ? 'text-success' : '');
+    const status = statusAuditoriaFreteTransportadora(i);
+    // Cor da Diferença/% Diferença (2026-09-10, pedido explícito da usuária): CONDICIONAL ao
+    // status — vermelho quando cobrou a mais, verde quando cobrou a menos, sem cor quando
+    // auditado dentro da tolerância. Embarque e Frete Calculado em laranja (mesmo tom já usado
+    // em Valor Frete/% Frete na tabela de viagens). Aguardando cobrança mostra "—" em Frete
+    // Total/Diferença/% Diferença (nunca R$ 0,00 — célula vazia não é "cobrou zero").
+    const difClasse = status === 'cobrado_maior' ? 'text-danger' : (status === 'cobrado_menor' ? 'text-success' : '');
+    const percentualDif = (i.difFrete !== null && i.freteCalc > 0) ? (i.difFrete / i.freteCalc) * 100 : null;
+    const badge = INDICADOR_FRETE_TRANSPORTADORA_STATUS_BADGE[status];
+    const resumo = `Embarque ${i.embarque} · ${i.transportadora} · ${badge.texto} · Calculado ${Utils.formatCurrency(i.freteCalc)}` +
+      (i.difFrete === null ? ' · Aguardando cobrança' : ` · Cobrado ${Utils.formatCurrency(i.freteTotal)} · Diferença ${Utils.formatCurrency(i.difFrete)}`);
     return `
       <tr>
         <td class="text-orange">${escapeAttr(i.embarque)}</td>
@@ -5084,9 +5131,21 @@ const Dashboard = (() => {
         <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
         <td class="text-right">${Utils.formatCurrency(i.valorDocFiscais)}</td>
         <td class="text-right text-orange">${Utils.formatCurrency(i.freteCalc)}</td>
-        <td class="text-right">${Utils.formatCurrency(i.freteTotal)}</td>
-        <td class="text-right ${difClasse}">${Utils.formatCurrency(i.difFrete)}</td>
+        <td class="text-right">${i.difFrete === null ? '—' : Utils.formatCurrency(i.freteTotal)}</td>
+        <td class="text-right ${difClasse}">${i.difFrete === null ? '—' : Utils.formatCurrency(i.difFrete)}</td>
+        <td class="text-right ${difClasse}">${percentualDif === null ? '—' : Utils.formatPercent(percentualDif)}</td>
+        <td class="text-center"><span class="badge ${badge.classe}">${badge.texto}</span></td>
+        <td class="text-center"><button type="button" class="icon-btn-cell" data-acao="detalhes-frete-transportadora" data-resumo="${escapeAttr(resumo)}" title="Ver detalhes do embarque">👁</button></td>
       </tr>`;
+  }
+
+  function popularFiltroUFIndicadorFreteTransportadora() {
+    const el = document.getElementById('indicador-frete-transportadora-filtro-uf');
+    if (!el) return;
+    const valorAtual = el.value;
+    const ufs = Utils.uniqueSorted(DataStore.getIndicadorFreteTransportadora().map(i => i.estadoDestino));
+    el.innerHTML = '<option value="">Todos</option>' + ufs.filter(Boolean).map(uf => `<option value="${escapeAttr(uf)}">${escapeAttr(uf)}</option>`).join('');
+    el.value = valorAtual;
   }
 
   function renderIndicadorFreteTransportadora() {
@@ -5107,15 +5166,64 @@ const Dashboard = (() => {
       if (mes && String(ref.getMonth() + 1) !== String(mes)) return false;
       if (ano && String(ref.getFullYear()) !== String(ano)) return false;
       if (transportadora && transportadora.length && !transportadora.includes(item.transportadora)) return false;
+      if (indicadorFreteTransportadoraUFSelecionada && item.estadoDestino !== indicadorFreteTransportadoraUFSelecionada) return false;
       return true;
     });
 
-    const totalDif = Utils.sum(itens, i => i.difFrete);
-    const qtdMaior = itens.filter(i => i.difFrete > 0).length;
-    const elTotalDif = document.getElementById('indicador-frete-transportadora-total-dif');
-    if (elTotalDif) elTotalDif.textContent = Utils.formatCurrency(totalDif);
-    const elQtdMaior = document.getElementById('indicador-frete-transportadora-qtd-maior');
-    if (elQtdMaior) elQtdMaior.textContent = Utils.formatNumber(qtdMaior);
+    // Classificação calculada 1x por item aqui (não recalculada dentro de cada .filter() abaixo)
+    // — ver seção 15 do pedido dela, "evitar recalcular tudo a cada renderização".
+    const comStatus = itens.map(item => ({ item, status: statusAuditoriaFreteTransportadora(item) }));
+    const auditados = comStatus.filter(x => x.status !== 'aguardando').map(x => x.item);
+    const cobradoMaiorItens = comStatus.filter(x => x.status === 'cobrado_maior').map(x => x.item);
+    const cobradoMenorItens = comStatus.filter(x => x.status === 'cobrado_menor').map(x => x.item);
+    const aguardandoItens = comStatus.filter(x => x.status === 'aguardando').map(x => x.item);
+
+    // KPI 1 soma TODOS os embarques filtrados (inclusive aguardando cobrança) — dá a visão de
+    // "quanto no total esperamos pagar". KPIs 2/3/4 usam SÓ os auditados (população coerente
+    // entre si) — por isso KPI3 não é literalmente "KPI2 − KPI1" (populações diferentes; ver
+    // legenda ".kpi-card__sub" em cada card, que deixa esse escopo explícito pra não parecer bug).
+    const freteCalculadoTotal = Utils.sum(itens, i => i.freteCalc);
+    const freteCalculadoAuditados = Utils.sum(auditados, i => i.freteCalc);
+    const freteCobradoTotal = Utils.sum(auditados, i => i.freteTotal);
+    const diferencaTotal = Utils.sum(auditados, i => i.difFrete);
+    const percentualDiferenca = freteCalculadoAuditados > 0 ? (diferencaTotal / freteCalculadoAuditados) * 100 : null;
+    const qtdAuditados = auditados.length;
+    const qtdDivergencia = cobradoMaiorItens.length + cobradoMenorItens.length;
+    const pctDivergencia = qtdAuditados > 0 ? (qtdDivergencia / qtdAuditados) * 100 : 0;
+
+    const setTexto = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
+    setTexto('indicador-frete-transportadora-total-calculado', Utils.formatCurrency(freteCalculadoTotal));
+    setTexto('indicador-frete-transportadora-total-cobrado', Utils.formatCurrency(freteCobradoTotal));
+    setTexto('indicador-frete-transportadora-total-dif', Utils.formatCurrency(diferencaTotal));
+    setTexto('indicador-frete-transportadora-percentual-dif', percentualDiferenca === null ? '—' : Utils.formatPercent(percentualDiferenca));
+    setTexto('indicador-frete-transportadora-qtd-auditados', Utils.formatNumber(qtdAuditados));
+    setTexto('indicador-frete-transportadora-qtd-divergencia', Utils.formatNumber(qtdDivergencia));
+    setTexto('indicador-frete-transportadora-sub-cobrado', `sobre ${Utils.formatNumber(qtdAuditados)} embarques auditados`);
+    setTexto('indicador-frete-transportadora-sub-dif', `sobre ${Utils.formatNumber(qtdAuditados)} embarques auditados`);
+    setTexto('indicador-frete-transportadora-sub-pct-dif', `sobre ${Utils.formatNumber(qtdAuditados)} embarques auditados`);
+    setTexto('indicador-frete-transportadora-sub-divergencia', qtdAuditados > 0 ? `${Utils.formatPercent(pctDivergencia)} dos auditados` : '—');
+
+    // Segunda linha — resultado da auditoria (2026-09-10, pedido dela: NUNCA compensar cobrado a
+    // maior com cobrado a menor, mostrar os dois separados).
+    const maiorValor = Utils.sum(cobradoMaiorItens, i => i.difFrete);
+    const maiorQtd = cobradoMaiorItens.length;
+    const maiorPct = qtdAuditados > 0 ? (maiorQtd / qtdAuditados) * 100 : 0;
+    const menorValor = Utils.sum(cobradoMenorItens, i => i.difFrete);
+    const menorQtd = cobradoMenorItens.length;
+    const menorPct = qtdAuditados > 0 ? (menorQtd / qtdAuditados) * 100 : 0;
+    const aguardandoQtd = aguardandoItens.length;
+    const aguardandoValorCalc = Utils.sum(aguardandoItens, i => i.freteCalc);
+    const aguardandoPct = itens.length > 0 ? (aguardandoQtd / itens.length) * 100 : 0;
+
+    setTexto('indicador-frete-transportadora-maior-valor', Utils.formatCurrency(maiorValor));
+    setTexto('indicador-frete-transportadora-maior-qtd', `${Utils.formatNumber(maiorQtd)} embarques`);
+    setTexto('indicador-frete-transportadora-maior-pct', `${Utils.formatPercent(maiorPct)} dos auditados`);
+    setTexto('indicador-frete-transportadora-menor-valor', Utils.formatCurrency(menorValor));
+    setTexto('indicador-frete-transportadora-menor-qtd', `${Utils.formatNumber(menorQtd)} embarques`);
+    setTexto('indicador-frete-transportadora-menor-pct', `${Utils.formatPercent(menorPct)} dos auditados`);
+    setTexto('indicador-frete-transportadora-aguardando-qtd', `${Utils.formatNumber(aguardandoQtd)} embarques`);
+    setTexto('indicador-frete-transportadora-aguardando-valor', Utils.formatCurrency(aguardandoValorCalc));
+    setTexto('indicador-frete-transportadora-aguardando-pct', `${Utils.formatPercent(aguardandoPct)} do total`);
 
     const ordenados = itens.slice().sort((a, b) => {
       const da = a.dataEmbarque || a.dataCriacao;
@@ -5131,6 +5239,21 @@ const Dashboard = (() => {
     bindFiltrosCabecalhoEmbutido(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS);
     const btnExportTransportadora = document.getElementById('btn-export-indicador-frete-transportadora');
     if (btnExportTransportadora) btnExportTransportadora.addEventListener('click', () => exportarIndicadorFreteTransportadora());
+    const elFiltroUF = document.getElementById('indicador-frete-transportadora-filtro-uf');
+    if (elFiltroUF) {
+      elFiltroUF.addEventListener('change', (e) => {
+        indicadorFreteTransportadoraUFSelecionada = e.target.value || null;
+        indicadorFreteTransportadoraTable.page = 1;
+        renderIndicadorFreteTransportadora();
+      });
+    }
+    const tbodyTransportadora = document.getElementById(INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS.tbody);
+    if (tbodyTransportadora) {
+      tbodyTransportadora.addEventListener('click', (e) => {
+        const botaoDetalhes = e.target.closest('[data-acao="detalhes-frete-transportadora"]');
+        if (botaoDetalhes) Utils.showToast(botaoDetalhes.dataset.resumo, 'info', 7000);
+      });
+    }
   }
 
   /** Botão "Limpar filtro de região" (dentro do chip, HTML gerado a cada render — por isso
@@ -5248,8 +5371,10 @@ const Dashboard = (() => {
       { label: 'Volumes', value: i => i.volumes },
       { label: 'Valor Doc. Fiscais', value: i => i.valorDocFiscais.toFixed(2).replace('.', ',') },
       { label: 'Frete Calculado', value: i => i.freteCalc.toFixed(2).replace('.', ',') },
-      { label: 'Frete Total', value: i => i.freteTotal.toFixed(2).replace('.', ',') },
-      { label: 'Diferença de Frete', value: i => i.difFrete.toFixed(2).replace('.', ',') }
+      { label: 'Frete Total', value: i => i.difFrete === null ? 'Aguardando' : i.freteTotal.toFixed(2).replace('.', ',') },
+      { label: 'Diferença de Frete', value: i => i.difFrete === null ? 'Aguardando' : i.difFrete.toFixed(2).replace('.', ',') },
+      { label: '% Diferença', value: i => (i.difFrete === null || i.freteCalc <= 0) ? '—' : ((i.difFrete / i.freteCalc) * 100).toFixed(1).replace('.', ',') },
+      { label: 'Status', value: i => INDICADOR_FRETE_TRANSPORTADORA_STATUS_BADGE[statusAuditoriaFreteTransportadora(i)].texto.replace(/^[^\s]+\s/, '') }
     ];
     await Utils.exportToStyledExcel('indicador-de-frete-transportadora.xlsx', 'Indicador Frete Transportadora', colunas, itens);
     Utils.showToast(`${itens.length} embarques exportados para Excel.`, 'success');
