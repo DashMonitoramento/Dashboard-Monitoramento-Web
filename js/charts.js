@@ -240,11 +240,21 @@ class DashChart {
       // A % continua aparecendo normalmente dentro da própria pizza/rosca (ver _drawCircular);
       // os demais gráficos de pizza/rosca não passam essa option e continuam mostrando %.
       const legendValores = this.options.legendValores;
+      // legendSecundarioValores (opcional, array paralelo a labels/data, em R$ — 2026-09-10,
+      // pedido da usuária no Indicador de Frete: "cidade, percentual de participação, valor
+      // total de frete da cidade") — troca a 3ª linha do tile (por padrão "N notas") pelo valor
+      // em R$ daquela categoria, mantendo a % na 2ª linha (independente de legendValores acima,
+      // que troca a 2ª linha). Os demais gráficos de pizza/rosca não passam essa option e
+      // continuam mostrando a contagem de notas.
+      const legendSecundarioValores = this.options.legendSecundarioValores;
       const tiles = this.labels.map((l, i) => {
         const v = values[i] || 0;
         const pct = v / total * 100;
         const textoPrincipal = legendValores ? Utils.formatCurrency(legendValores[i] || 0) : `${pct.toFixed(pct < 10 ? 1 : 0)}%`;
-        return { label: l, color: this._sliceColor(i), textoPrincipal, count: Utils.formatNumber(Math.round(v)) };
+        const textoSecundario = legendSecundarioValores
+          ? Utils.formatCurrency(legendSecundarioValores[i] || 0)
+          : `${Utils.formatNumber(Math.round(v))} notas`;
+        return { label: l, color: this._sliceColor(i), textoPrincipal, textoSecundario };
       });
       // onLegendClick (opcional): só quando informado nas options, os tiles ficam clicáveis
       // (cursor, hover, data-label pro delegado em _bindEvents) — os demais gráficos de
@@ -261,7 +271,7 @@ class DashChart {
           <div class="chart-stat-tile__text">
             <span class="chart-stat-tile__label">${this._escape(t.label)}</span>
             <span class="chart-stat-tile__value">${t.textoPrincipal}</span>
-            <span class="chart-stat-tile__count">${t.count} notas</span>
+            <span class="chart-stat-tile__count">${t.textoSecundario}</span>
           </div>
         </div>
       `).join('');
