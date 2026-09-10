@@ -5159,6 +5159,198 @@ const Dashboard = (() => {
   /** Agrega os itens (já filtrados por Período/Transportadora/UF Destino) por Transportadora —
    * SÓ embarques auditados entram (mesma população coerente já usada nos KPIs principais: soma
    * de Frete Calculado/Cobrado/Diferença desta função são todas sobre o MESMO subconjunto). */
+  // "Oportunidades de Redução" (Fase 4, 2026-09-10) — mesmo motor/filosofia do relatório irmão
+  // (calcularOportunidadesReducaoIndicadorFrete): limiares são escolha minha, documentados,
+  // ajustáveis depois de ver dado real; impacto (R$) só aparece quando é um valor REAL observado
+  // ou uma comparação com amostra mínima confiável — nunca inventado. Regras 4/5 (rota) usam UF
+  // Destino como proxy de rota (esta fonte não tem Cidade Destino extraída, ver pendência do
+  // plano/seção 14 do pedido dela).
+  const INDICADOR_FRETE_TRANSPORTADORA_AMOSTRA_MINIMA = 3;
+  const INDICADOR_FRETE_TRANSPORTADORA_LIMIARES_OPORTUNIDADE = {
+    embarquePercentualAlto: 40, // % acima do calculado, por embarque individual (pedido dela: "40% acima")
+    transportadoraAcumuladoAlto: 1000, // R$ acumulado de cobrança a maior no período
+    transportadoraDivergenciaQtdMinima: 5,
+    transportadoraDivergenciaPctMinima: 0.3,
+    rsKgMedio: 0.45,
+    rsKgAlto: 0.8,
+    tendenciaMinSemanas: 4,
+    tendenciaAumentoMinimoPP: 5 // pontos percentuais de aumento na % Diferença, 1ª metade x 2ª metade do período
+  };
+  let indicadorFreteTransportadoraOportunidadesExpandido = false;
+
+  function calcularOportunidadesReducaoFreteTransportadora(auditados) {
+    const L = INDICADOR_FRETE_TRANSPORTADORA_LIMIARES_OPORTUNIDADE;
+    const oportunidades = [];
+    if (!auditados.length) return oportunidades;
+
+    // Regra 1 (ALTO, por embarque, impacto REAL): cobrado 40%+ acima do calculado.
+    auditados.forEach(i => {
+      if (i.freteCalc > 0 && i.difFrete > 0) {
+        const pct = (i.difFrete / i.freteCalc) * 100;
+        if (pct >= L.embarquePercentualAlto) {
+          oportunidades.push({
+            nivel: 'alto',
+            descricao: `Embarque ${i.embarque} (${i.transportadora}) cobrado ${Utils.formatPercent(pct)} acima do calculado`,
+            impacto: i.difFrete
+          });
+        }
+      }
+    });
+
+    // Agregação por transportadora, reaproveitada nas regras 2 e 3.
+    const porTransportadora = new Map();
+    auditados.forEach(i => {
+      const nome = i.transportadora || 'Não informado';
+      if (!porTransportadora.has(nome)) porTransportadora.set(nome, { itens: [], acumuladoPositivo: 0, qtdDivergencia: 0 });
+      const t = porTransportadora.get(nome);
+      t.itens.push(i);
+      if (i.difFrete > 0) t.acumuladoPositivo += i.difFrete;
+      if (statusAuditoriaFreteTransportadora(i) !== 'auditado_ok') t.qtdDivergencia++;
+    });
+
+    // Regra 2 (ALTO, agregado, impacto REAL): transportadora acumula R$X de cobrança a maior.
+    porTransportadora.forEach((t, nome) => {
+      if (t.acumuladoPositivo >= L.transportadoraAcumuladoAlto) {
+        oportunidades.push({
+          nivel: 'alto',
+          descricao: `Transportadora ${nome} acumula ${Utils.formatCurrency(t.acumuladoPositivo)} de cobrança acima do calculado no período`,
+          impacto: t.acumuladoPositivo
+        });
+      }
+    });
+
+    // Regra 3 (MÉDIO, agregado, sem impacto — quantidade não é um valor a corrigir): transporta-
+    // dora com muitos embarques divergentes, exige amostra mínima pra não alarmar com 1 embarque.
+    porTransportadora.forEach((t, nome) => {
+      if (t.itens.length < INDICADOR_FRETE_TRANSPORTADORA_AMOSTRA_MINIMA) return;
+      const pctDivergencia = t.qtdDivergencia / t.itens.length;
+      if (t.qtdDivergencia >= L.transportadoraDivergenciaQtdMinima || pctDivergencia >= L.transportadoraDivergenciaPctMinima) {
+        oportunidades.push({
+          nivel: 'medio',
+          descricao: `Transportadora ${nome} tem ${Utils.formatNumber(t.qtdDivergencia)} embarque(s) divergente(s) de ${Utils.formatNumber(t.itens.length)} auditados (${Utils.formatPercent(pctDivergencia * 100)})`,
+          impacto: null
+        });
+      }
+    });
+
+    // Regra 4 (MÉDIO/ALTO, por embarque): R$/kg (sobre Frete Calculado) muito acima da média da
+    // UF Destino (proxy de rota) OU da transportadora — mesmo motor ponderado (soma/soma, exclui
+    // o próprio item), amostra mínima 3, igual ao relatório irmão.
+    const porUF = new Map();
+    const porTransportadoraPeso = new Map();
+    auditados.forEach(i => {
+      if (i.peso <= 0) return;
+      const uf = i.estadoDestino || '(sem UF)';
+      if (!porUF.has(uf)) porUF.set(uf, { valor: 0, peso: 0, itens: [] });
+      const u = porUF.get(uf);
+      u.valor += i.freteCalc; u.peso += i.peso; u.itens.push(i);
+
+      const nome = i.transportadora || 'Não informado';
+      if (!porTransportadoraPeso.has(nome)) porTransportadoraPeso.set(nome, { valor: 0, peso: 0, itens: [] });
+      const t = porTransportadoraPeso.get(nome);
+      t.valor += i.freteCalc; t.peso += i.peso; t.itens.push(i);
+    });
+    auditados.forEach(i => {
+      if (i.peso <= 0) return;
+      const rsKg = i.freteCalc / i.peso;
+      const uf = i.estadoDestino || '(sem UF)';
+      const grupoUF = porUF.get(uf);
+      const outrosUF = grupoUF.itens.length - 1;
+      if (outrosUF >= INDICADOR_FRETE_TRANSPORTADORA_AMOSTRA_MINIMA) {
+        const mediaUF = (grupoUF.peso - i.peso) > 0 ? (grupoUF.valor - i.freteCalc) / (grupoUF.peso - i.peso) : 0;
+        if (mediaUF > 0) {
+          const diff = (rsKg - mediaUF) / mediaUF;
+          if (diff >= L.rsKgMedio) {
+            oportunidades.push({
+              nivel: diff >= L.rsKgAlto ? 'alto' : 'medio',
+              descricao: `Embarque ${i.embarque}: R$/kg calculado ${Utils.formatPercent(diff * 100)} acima da média da UF ${uf}`,
+              impacto: (rsKg - mediaUF) * i.peso
+            });
+          }
+        }
+      }
+      const nome = i.transportadora || 'Não informado';
+      const grupoT = porTransportadoraPeso.get(nome);
+      const outrosT = grupoT.itens.length - 1;
+      if (nome !== 'Não informado' && outrosT >= INDICADOR_FRETE_TRANSPORTADORA_AMOSTRA_MINIMA) {
+        const mediaT = (grupoT.peso - i.peso) > 0 ? (grupoT.valor - i.freteCalc) / (grupoT.peso - i.peso) : 0;
+        if (mediaT > 0) {
+          const diff = (rsKg - mediaT) / mediaT;
+          if (diff >= L.rsKgMedio) {
+            oportunidades.push({
+              nivel: diff >= L.rsKgAlto ? 'alto' : 'medio',
+              descricao: `Embarque ${i.embarque}: R$/kg calculado ${Utils.formatPercent(diff * 100)} acima da média da transportadora ${nome}`,
+              impacto: (rsKg - mediaT) * i.peso
+            });
+          }
+        }
+      }
+    });
+
+    // Regra 5 (BAIXO, 1 alerta geral, sem impacto): tendência de alta na % Diferença — compara a
+    // 1ª metade x a 2ª metade das SEMANAS do período (não semana a semana), só dispara com pelo
+    // menos 4 semanas de dado auditado (senão a amostra é curta demais pra falar em tendência).
+    const semanas = new Map();
+    auditados.forEach(i => {
+      const ref = i.dataEmbarque || i.dataCriacao;
+      if (!ref) return;
+      const chave = inicioDaSemanaIndicadorFrete(ref).getTime();
+      if (!semanas.has(chave)) semanas.set(chave, { dif: 0, calc: 0 });
+      const s = semanas.get(chave);
+      s.dif += i.difFrete;
+      s.calc += i.freteCalc;
+    });
+    const semanasOrdenadas = Array.from(semanas.entries()).sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+    if (semanasOrdenadas.length >= L.tendenciaMinSemanas) {
+      const metade = Math.floor(semanasOrdenadas.length / 2);
+      const pctMetade = lista => {
+        const calc = lista.reduce((acc, s) => acc + s.calc, 0);
+        const dif = lista.reduce((acc, s) => acc + s.dif, 0);
+        return calc > 0 ? (dif / calc) * 100 : 0;
+      };
+      const pct1 = pctMetade(semanasOrdenadas.slice(0, metade));
+      const pct2 = pctMetade(semanasOrdenadas.slice(metade));
+      if (pct2 - pct1 >= L.tendenciaAumentoMinimoPP) {
+        oportunidades.push({
+          nivel: 'baixo',
+          descricao: `Tendência de alta na % Diferença: de ${Utils.formatPercent(pct1)} nas semanas mais antigas do período pra ${Utils.formatPercent(pct2)} nas mais recentes`,
+          impacto: null
+        });
+      }
+    }
+
+    return oportunidades;
+  }
+
+  /** Espelha renderIndicadorFreteOportunidades (relatório irmão) — mesma UI (badge Alto/Médio/
+   * Baixo, "Ver todas/Ver menos"), containers próprios desta tela. */
+  function renderIndicadorFreteTransportadoraOportunidades(oportunidades) {
+    const lista = document.getElementById('indicador-frete-transportadora-oportunidades-lista');
+    if (!lista) return;
+    const contagemEl = document.getElementById('indicador-frete-transportadora-oportunidades-contagem');
+    if (contagemEl) contagemEl.textContent = oportunidades.length ? `${Utils.formatNumber(oportunidades.length)} encontrada${oportunidades.length === 1 ? '' : 's'}` : '';
+    const btnVerTodas = document.getElementById('indicador-frete-transportadora-oportunidades-ver-todas');
+    if (!oportunidades.length) {
+      lista.innerHTML = '<p class="chart-card__hint" style="margin:0; text-align:left;">Nenhuma oportunidade de redução identificada no período/filtro selecionado.</p>';
+      if (btnVerTodas) btnVerTodas.hidden = true;
+      return;
+    }
+    const mostrar = indicadorFreteTransportadoraOportunidadesExpandido ? oportunidades : oportunidades.slice(0, INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL);
+    const NIVEL_LABEL = { alto: 'ALTO', medio: 'MÉDIO', baixo: 'BAIXO' };
+    const NIVEL_CLASSE = { alto: 'badge--danger', medio: 'badge--warning', baixo: 'badge--success' };
+    lista.innerHTML = mostrar.map((o, idx) => `
+      <div class="indicador-frete-oportunidade">
+        <span class="indicador-frete-oportunidade__pos">${idx + 1}</span>
+        <span class="badge ${NIVEL_CLASSE[o.nivel]}">${NIVEL_LABEL[o.nivel]}</span>
+        <span class="indicador-frete-oportunidade__desc">${escapeAttr(o.descricao)}</span>
+        <span class="indicador-frete-oportunidade__impacto">${o.impacto !== null && o.impacto > 0 ? `Impacto estimado: ${Utils.formatCurrency(o.impacto)}` : ''}</span>
+      </div>`).join('');
+    if (btnVerTodas) {
+      btnVerTodas.hidden = oportunidades.length <= INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL;
+      btnVerTodas.textContent = indicadorFreteTransportadoraOportunidadesExpandido ? 'Ver menos' : `Ver todas (${Utils.formatNumber(oportunidades.length)})`;
+    }
+  }
+
   function agregarPorTransportadoraFreteTransportadora(itens) {
     const mapa = new Map();
     for (const i of itens) {
@@ -5317,6 +5509,24 @@ const Dashboard = (() => {
     // chart de Status: um ranking não deve refletir o próprio filtro que ele mesmo aciona.
     renderIndicadorFreteTransportadoraRanking(itens);
     renderIndicadorFreteTransportadoraRankingEmbarques(auditados);
+    renderIndicadorFreteTransportadoraOportunidades(calcularOportunidadesReducaoFreteTransportadora(auditados));
+
+    // "Indicadores de Custo" (Fase 4, 2026-09-10) — SÓ auditados (Frete Total só existe pra eles),
+    // pra R$/kg Calculado e R$/kg Cobrado ficarem sobre a MESMA população (comparáveis entre si).
+    // R$/tonelada não vira card próprio (decisão do plano: é só R$/kg × 1000, zero informação
+    // nova) — mostrado como legenda pequena dentro do próprio card de R$/kg.
+    const validosPeso = auditados.filter(i => i.peso > 0);
+    const pesoTotalValido = Utils.sum(validosPeso, i => i.peso);
+    const rsKgCalculado = pesoTotalValido > 0 ? Utils.sum(validosPeso, i => i.freteCalc) / pesoTotalValido : null;
+    const rsKgCobrado = pesoTotalValido > 0 ? Utils.sum(validosPeso, i => i.freteTotal) / pesoTotalValido : null;
+    const validosNF = auditados.filter(i => i.valorDocFiscais > 0);
+    const valorNFTotal = Utils.sum(validosNF, i => i.valorDocFiscais);
+    const percentualFreteSobreNF = valorNFTotal > 0 ? (Utils.sum(validosNF, i => i.freteTotal) / valorNFTotal) * 100 : null;
+    setTexto('indicador-frete-transportadora-rskg-calculado', rsKgCalculado === null ? '—' : Utils.formatCurrency(rsKgCalculado));
+    setTexto('indicador-frete-transportadora-rskg-calculado-ton', rsKgCalculado === null ? '' : `≈ ${Utils.formatCurrency(rsKgCalculado * 1000)}/tonelada`);
+    setTexto('indicador-frete-transportadora-rskg-cobrado', rsKgCobrado === null ? '—' : Utils.formatCurrency(rsKgCobrado));
+    setTexto('indicador-frete-transportadora-rskg-cobrado-ton', rsKgCobrado === null ? '' : `≈ ${Utils.formatCurrency(rsKgCobrado * 1000)}/tonelada`);
+    setTexto('indicador-frete-transportadora-pct-frete-nf', percentualFreteSobreNF === null ? '—' : Utils.formatPercent(percentualFreteSobreNF));
 
     const chipRanking = document.getElementById('indicador-frete-transportadora-ranking-chip');
     if (chipRanking) {
@@ -5565,6 +5775,14 @@ const Dashboard = (() => {
         if (!e.target.closest('[data-limpar-filtro-ranking-transportadora]')) return;
         indicadorFreteTransportadoraRankingSelecionada = null;
         indicadorFreteTransportadoraTable.page = 1;
+        renderIndicadorFreteTransportadora();
+      });
+    }
+    // "Ver todas"/"Ver menos" das Oportunidades de Redução (Fase 4).
+    const btnVerTodasOportunidadesTransportadora = document.getElementById('indicador-frete-transportadora-oportunidades-ver-todas');
+    if (btnVerTodasOportunidadesTransportadora) {
+      btnVerTodasOportunidadesTransportadora.addEventListener('click', () => {
+        indicadorFreteTransportadoraOportunidadesExpandido = !indicadorFreteTransportadoraOportunidadesExpandido;
         renderIndicadorFreteTransportadora();
       });
     }
