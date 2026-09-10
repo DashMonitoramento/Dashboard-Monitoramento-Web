@@ -644,6 +644,12 @@ const DataStore = (() => {
   // não uma por vez). Cruzamento com Transportadora/Motorista/NF acontece na hora de exibir
   // (Dashboard cruza por placa+dia contra getRecords()), não fica guardado aqui.
   let indicadorFreteRecords = [];
+  // "Indicador Frete Transportadora" (2026-09-10, pedido da usuária) — DIFERENTE do de cima:
+  // aqui é por NOTA (Número+Série), não por viagem — auditoria de Frete Calculado (o que a Da
+  // Terrinha paga) x Frete cobrado pela transportadora. difFrete = frete − freteCalc (positivo =
+  // transportadora cobrou A MAIS do que o calculado; confirmado batendo os números do print
+  // dela). Nativo por Transportadora (sem cruzamento nenhum) — mas não tem Motorista.
+  let indicadorFreteTransportadoraRecords = [];
   const listeners = new Set();
   // Suspende notify() durante o carregamento inicial (loadInitialData, script.js) — a cadeia
   // de boot chama ~12 loadXFromUrl/applyX diferentes em sequência, CADA UM terminando com
@@ -2045,6 +2051,59 @@ const DataStore = (() => {
 
   function getIndicadorFrete() { return indicadorFreteRecords.slice(); }
 
+  async function loadIndicadorFreteTransportadoraFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexIndicadorFreteTransportadoraRows(rawRows);
+    notify();
+  }
+
+  async function loadIndicadorFreteTransportadoraFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexIndicadorFreteTransportadoraRows(rawRows);
+    notify();
+  }
+
+  /** Ver comentário de `indicadorFreteTransportadoraRecords` acima. Linha sem Número é ignorada
+   * (não dá pra identificar a nota sem ele). */
+  function indexIndicadorFreteTransportadoraRows(rawRows) {
+    const lista = [];
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const numeroHeader = headerIndex['numero'];
+      const numero = numeroHeader !== undefined ? String(row[numeroHeader] || '').trim() : '';
+      if (!numero) continue;
+      const serieHeader = headerIndex['serie'];
+      const emissaoHeader = headerIndex['emissao'];
+      const transportadoraHeader = headerIndex['transportadora'];
+      const origemHeader = headerIndex['origem'];
+      const ufOrigemHeader = headerIndex['uf origem'];
+      const destinoHeader = headerIndex['destino'];
+      const ufDestinoHeader = headerIndex['uf destino'];
+      const freteCalcHeader = headerIndex['frete calc'];
+      const freteHeader = headerIndex['frete'];
+      const difFreteHeader = headerIndex['dif frete'];
+      lista.push({
+        numero,
+        serie: serieHeader !== undefined ? String(row[serieHeader] || '').trim() : '',
+        emissao: emissaoHeader !== undefined ? Utils.parseDate(row[emissaoHeader]) : null,
+        transportadora: transportadoraHeader !== undefined ? String(row[transportadoraHeader] || '').trim() : 'Não informado',
+        origemCidade: origemHeader !== undefined ? String(row[origemHeader] || '').trim() : '',
+        origemUF: ufOrigemHeader !== undefined ? String(row[ufOrigemHeader] || '').trim() : '',
+        destinoCidade: destinoHeader !== undefined ? String(row[destinoHeader] || '').trim() : '',
+        destinoUF: ufDestinoHeader !== undefined ? String(row[ufDestinoHeader] || '').trim() : '',
+        freteCalc: freteCalcHeader !== undefined ? parseMoney(row[freteCalcHeader]) : 0,
+        frete: freteHeader !== undefined ? parseMoney(row[freteHeader]) : 0,
+        difFrete: difFreteHeader !== undefined ? parseMoney(row[difFreteHeader]) : 0
+      });
+    }
+    indicadorFreteTransportadoraRecords = lista;
+  }
+
+  function getIndicadorFreteTransportadora() { return indicadorFreteTransportadoraRecords.slice(); }
+
   /** Dado o filtro de Período ATIVO (dataInicio/dataFim e/ou mes/ano — os 4 são independentes,
    * ver getFilteredRecords acima), devolve a janela {inicio, fim} imediatamente ANTERIOR, com a
    * MESMA duração, pra comparações "vs. período anterior" (pedido da usuária, 2026-09-10, no
@@ -2384,6 +2443,7 @@ const DataStore = (() => {
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual, applyValorDescargaAprovado,
     loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
+    loadIndicadorFreteTransportadoraFromUrl, loadIndicadorFreteTransportadoraFromFile, getIndicadorFreteTransportadora,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
     setFilters, resetFilters, getFilters,
     getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
