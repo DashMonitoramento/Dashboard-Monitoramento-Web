@@ -649,7 +649,10 @@ const DataStore = (() => {
   // Frete Calculado (o que a Da Terrinha paga) x Frete cobrado pela transportadora. difFrete
   // vem PRONTO da planilha (coluna "Diferença de frete" que ela mesma criou e calcula lá, não é
   // derivado aqui): positivo = transportadora cobrou A MAIS do que o calculado; negativo =
-  // cobrou A MENOS. Nativo por Transportadora (sem cruzamento nenhum) — mas não tem Motorista.
+  // cobrou A MENOS; **null** = cobrança ainda não chegou (célula em branco na planilha —
+  // AGUARDANDO COBRANÇA, ver statusAuditoriaFreteTransportadora em dashboard.js; NUNCA tratar
+  // null como 0, célula vazia não é "cobrou R$0"). Nativo por Transportadora (sem cruzamento
+  // nenhum) — mas não tem Motorista.
   let indicadorFreteTransportadoraRecords = [];
   const listeners = new Set();
   // Suspende notify() durante o carregamento inicial (loadInitialData, script.js) — a cadeia
@@ -2088,6 +2091,17 @@ const DataStore = (() => {
       const valorDocFiscaisHeader = headerIndex['valor doc fiscais'];
       const identificadorHeader = headerIndex['identificador'];
       const difFreteHeader = headerIndex['diferenca frete'];
+      // "Diferença de frete" é calculada pela PRÓPRIA USUÁRIA na planilha (confirmado por ela,
+      // 2026-09-10): quando a cobrança da transportadora ainda não chegou, ela deixa essa célula
+      // EM BRANCO (não um número negativo cheio). parseMoney('') devolveria 0 -- sem este
+      // tratamento à parte, uma linha "aguardando cobrança" virava indistinguível de uma
+      // diferença real igual a zero (exatamente o risco que ela avisou: não assumir que célula
+      // vazia = cobrou R$0). null = aguardando; qualquer outro valor (inclusive 0 de verdade,
+      // célula preenchida com "0") passa por parseMoney normalmente.
+      const difFreteRaw = difFreteHeader !== undefined ? row[difFreteHeader] : undefined;
+      const difFrete = (difFreteRaw === undefined || difFreteRaw === null || String(difFreteRaw).trim() === '')
+        ? null
+        : parseMoney(difFreteRaw);
       lista.push({
         embarque,
         dataCriacao: dataCriacaoHeader !== undefined ? Utils.parseDate(row[dataCriacaoHeader]) : null,
@@ -2101,7 +2115,7 @@ const DataStore = (() => {
         placa: placaHeader !== undefined ? String(row[placaHeader] || '').trim() : '',
         valorDocFiscais: valorDocFiscaisHeader !== undefined ? parseMoney(row[valorDocFiscaisHeader]) : 0,
         identificador: identificadorHeader !== undefined ? String(row[identificadorHeader] || '').trim() : '',
-        difFrete: difFreteHeader !== undefined ? parseMoney(row[difFreteHeader]) : 0
+        difFrete
       });
     }
     indicadorFreteTransportadoraRecords = lista;
