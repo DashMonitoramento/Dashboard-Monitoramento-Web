@@ -22,6 +22,7 @@ const DEFAULT_FERIADOS_URL = 'assets/data/feriados.json';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 const DEFAULT_PEDIDOS_NAO_FATURADOS_URL = 'assets/data/sample-data-pedidos-nao-faturados.csv';
 const DEFAULT_INDICADOR_FRETE_URL = 'assets/data/sample-data-indicador-frete.csv';
+const DEFAULT_INDICADOR_FRETE_TRANSPORTADORA_URL = 'assets/data/sample-data-indicador-frete-transportadora.csv';
 
 /* ============================================================
  * AUTENTICAÇÃO — Firebase Authentication (e-mail/senha)
@@ -334,6 +335,17 @@ async function loadIndicadorFreteDataSilently(cacheBust) {
   }
 }
 
+/** "Indicador Frete Transportadora" (2026-09-10) — aba nova/ainda em construção, mesma ideia de
+ * loadIndicadorFreteDataSilently acima: opcional, sem ela essa tabela só fica vazia. */
+async function loadIndicadorFreteTransportadoraDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_INDICADOR_FRETE_TRANSPORTADORA_URL}?t=${Date.now()}` : DEFAULT_INDICADOR_FRETE_TRANSPORTADORA_URL;
+    await DataStore.loadIndicadorFreteTransportadoraFromUrl(url, 'csv');
+  } catch (err) {
+    console.warn('Indicador Frete Transportadora não carregado automaticamente:', err.message);
+  }
+}
+
 /** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
  * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
 async function loadCanhotosIndexSilently(cacheBust) {
@@ -413,7 +425,7 @@ function prefetchTodasAsFontes() {
     DEFAULT_BLUESOFT_URL, DEFAULT_CLIENTES_URL, DEFAULT_AGENDAMENTOS_URL, DEFAULT_MOTIVOS_URL,
     DEFAULT_RETORNO_URL, DEFAULT_FATURAMENTO_URL, DEFAULT_REGIOES_URL, DEFAULT_LEADTIME_URL,
     DEFAULT_FERIADOS_URL, DEFAULT_CANHOTOS_URL, DEFAULT_PEDIDOS_NAO_FATURADOS_URL,
-    DEFAULT_INDICADOR_FRETE_URL,
+    DEFAULT_INDICADOR_FRETE_URL, DEFAULT_INDICADOR_FRETE_TRANSPORTADORA_URL,
   ].forEach(url => { fetch(url).catch(() => {}); });
 }
 
@@ -441,6 +453,7 @@ async function loadInitialData() {
     await loadFeriadosDataSilently(false);
     await loadPedidosNaoFaturadosDataSilently(false);
     await loadIndicadorFreteDataSilently(false);
+    await loadIndicadorFreteTransportadoraDataSilently(false);
     // Índice de canhotos (~20MB) NÃO entra no await — não alimenta nenhum registro/gráfico/KPI,
     // só o Map usado quando ela clica numa NF pra abrir o comprovante (ver Dashboard.loadCanhotosIndex/
     // canhotosIndex). Bloquear o carregamento inteiro por causa dele só atrasava a tela aparecer
