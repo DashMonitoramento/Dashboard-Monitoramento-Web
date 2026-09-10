@@ -319,6 +319,7 @@ class DashChart {
       case 'area': this._drawLineArea(true); break;
       case 'pie': this._drawCircular(false); break;
       case 'donut': this._drawCircular(true); break;
+      case 'combo': this._drawCombo(); break;
     }
   }
 
@@ -600,6 +601,110 @@ class DashChart {
     });
   }
 
+  /* ---------- Combo (barra + linha, 2026-09-10) ----------
+   * "Evolução do Frete": 1 série de BARRA (ex.: Valor do Frete) + N séries de LINHA (ex.: R$/kg,
+   * % Frete) no mesmo gráfico, cada uma com sua PRÓPRIA escala vertical — nenhuma é forçada a
+   * caber na escala da outra. Isso é seguro aqui porque este motor NUNCA desenha um eixo de
+   * valores de verdade (ver _drawBars/_drawLineArea: sem régua lateral, cada barra/ponto mostra
+   * o PRÓPRIO número certo) — diferente de um gráfico com eixo Y compartilhado (onde misturar
+   * escalas pode enganar visualmente), aqui não existe régua nenhuma pra comparar visualmente
+   * contra, só formas/tendência lado a lado + o valor real escrito em cada marca. Série com
+   * `tipo: 'bar'` vira barra; qualquer outra (default) vira linha. */
+  _drawCombo() {
+    const ctx = this.ctx;
+    const { text } = this._getColors();
+    const series = this._currentSeries;
+    const n = this.labels.length;
+    if (n === 0) return;
+
+    const seriesBarra = series.filter(s => s.tipo === 'bar');
+    const seriesLinha = series.filter(s => s.tipo !== 'bar');
+
+    const padding = { top: 34, right: 16, bottom: 30, left: 16 };
+    const plotW = this.width - padding.left - padding.right;
+    const plotH = this.height - padding.top - padding.bottom;
+    const stepX = n > 1 ? plotW / (n - 1) : 0;
+
+    // Barras posicionadas pelo ÍNDICE no tempo (mesmo stepX das linhas, não o "groupSize" de
+    // _drawBars, que é pra categorias discretas sem meio-caminho no eixo).
+    this._hitboxes = [];
+    if (seriesBarra.length) {
+      const maxBarra = Math.max(...seriesBarra.flatMap(s => s.data), 1) * 1.15;
+      const barWidth = Math.min(stepX * 0.5, 34);
+      seriesBarra.forEach(s => {
+        s.data.forEach((v, i) => {
+          const cx = padding.left + i * stepX;
+          const h = plotH * (v / maxBarra);
+          const x = cx - barWidth / 2;
+          const y = padding.top + plotH - h;
+          this._roundRect(ctx, x, y, barWidth, h, 3, s.color);
+          this._hitboxes.push({ x, y, w: barWidth, h, label: this.labels[i], value: v, color: s.color, series: s.name, format: s.format });
+        });
+      });
+    }
+
+    // Linhas: perSeriesScale sempre ligado aqui (não é opção — faz sentido universal pro combo,
+    // já que barra e linha(s) nunca deveriam dividir a mesma régua mesmo). Pill alternando
+    // acima/abaixo do ponto pra não sobrepor quando há 2+ linhas (mesmo truque de _drawLineArea).
+    this._points = [];
+    seriesLinha.forEach((s, si) => {
+      const serieMax = Math.max(...s.data, 1) * 1.25;
+      const pts = s.data.map((v, i) => ({
+        x: padding.left + i * stepX,
+        y: padding.top + plotH * (1 - v / serieMax),
+        value: v
+      }));
+
+      ctx.beginPath();
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 3;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.moveTo(pts[0].x, pts[0].y);
+      this._tracePath(ctx, pts);
+      ctx.stroke();
+
+      let lastLabelX = -Infinity;
+      let lastLabelHalfWidth = 0;
+      pts.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = s.color;
+        ctx.stroke();
+        this._points.push({ ...p, color: s.color, series: s.name, format: s.format, label: this.labels[i] });
+
+        const isLast = i === pts.length - 1;
+        if (p.value !== 0) {
+          const valueText = this._fmt(p.value, s.format);
+          ctx.font = '700 11px Inter, system-ui, sans-serif';
+          const halfWidth = ctx.measureText(valueText).width / 2 + 7;
+          const gapNeeded = lastLabelHalfWidth + halfWidth + 6;
+          if (p.x - lastLabelX >= gapNeeded || isLast) {
+            this._drawValuePill(ctx, p.x, p.y, valueText, s.color, si % 2 === 0);
+            lastLabelX = p.x;
+            lastLabelHalfWidth = halfWidth;
+          }
+        }
+      });
+    });
+
+    // Eixo X (categorias/tempo) — mesmo desenho de _drawLineArea.
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillStyle = text;
+    const axisLabelStep = Math.max(1, Math.ceil(n / Math.max(3, Math.floor(plotW / 60))));
+    this.labels.forEach((label, i) => {
+      if (i % axisLabelStep !== 0 && i !== n - 1) return;
+      const x = padding.left + i * stepX;
+      if (i === 0) ctx.textAlign = 'left';
+      else if (i === n - 1) ctx.textAlign = 'right';
+      else ctx.textAlign = 'center';
+      ctx.fillText(this._truncate(label, 8), x, this.height - 8);
+    });
+  }
+
   /** Traça uma curva suave passando pelos pontos médios entre cada par — evita "cotovelos". */
   _tracePath(ctx, pts) {
     if (pts.length < 2) return;
@@ -837,6 +942,16 @@ class DashChart {
     } else if (this.type === 'line' || this.type === 'area') {
       const near = (this._points || []).find(p => Math.hypot(p.x - x, p.y - y) < 10);
       if (near) found = { label: near.label, lines: [`${near.series}: ${this._fmt(near.value, near.format)}`], color: near.color };
+    } else if (this.type === 'combo') {
+      // Barra primeiro (área retangular, mais fácil de acertar), linha como fallback (raio de
+      // 10px em torno do ponto) — mesmos critérios já usados separadamente pra 'bar' e 'line'.
+      found = (this._hitboxes || []).find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+      if (found) {
+        found = { label: found.label, lines: [`${found.series}: ${this._fmt(found.value, found.format)}`], color: found.color };
+      } else {
+        const near = (this._points || []).find(p => Math.hypot(p.x - x, p.y - y) < 10);
+        if (near) found = { label: near.label, lines: [`${near.series}: ${this._fmt(near.value, near.format)}`], color: near.color };
+      }
     } else if (this.type === 'pie' || this.type === 'donut') {
       const slices = this._slices || [];
       if (slices.length) {
