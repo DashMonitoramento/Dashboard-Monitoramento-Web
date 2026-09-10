@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260910a">
+<link rel="stylesheet" href="css/style.css?v=20260910b">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1604,6 +1604,7 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="indicador-frete-kpi__texto">
                 <span class="kpi-card__label">Total Valor Frete</span>
                 <span class="kpi-card__value" id="indicador-frete-total-valor">R$ 0,00</span>
+                <span class="indicador-frete-kpi__comparativo" id="indicador-frete-total-valor-comparativo"></span>
               </span>
             </article>
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#2563EB">
@@ -1611,6 +1612,7 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="indicador-frete-kpi__texto">
                 <span class="kpi-card__label">Total Peso (kg)</span>
                 <span class="kpi-card__value" id="indicador-frete-total-peso">0</span>
+                <span class="indicador-frete-kpi__comparativo" id="indicador-frete-total-peso-comparativo"></span>
               </span>
             </article>
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#EAB308">
@@ -1618,6 +1620,7 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="indicador-frete-kpi__texto">
                 <span class="kpi-card__label">Frete médio por Kg</span>
                 <span class="kpi-card__value" id="indicador-frete-media-kg">R$ 0,00</span>
+                <span class="indicador-frete-kpi__comparativo" id="indicador-frete-media-kg-comparativo"></span>
               </span>
             </article>
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#16A34A">
@@ -1625,6 +1628,7 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="indicador-frete-kpi__texto">
                 <span class="kpi-card__label">Viagens no período</span>
                 <span class="kpi-card__value" id="indicador-frete-total-viagens">0</span>
+                <span class="indicador-frete-kpi__comparativo" id="indicador-frete-total-viagens-comparativo"></span>
               </span>
             </article>
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#7C3AED">
@@ -1632,6 +1636,7 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="indicador-frete-kpi__texto">
                 <span class="kpi-card__label">Valor Total das NFs</span>
                 <span class="kpi-card__value" id="indicador-frete-total-valor-nfs">R$ 0,00</span>
+                <span class="indicador-frete-kpi__comparativo" id="indicador-frete-total-valor-nfs-comparativo"></span>
               </span>
             </article>
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#FF7A1A">
@@ -1639,9 +1644,60 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="indicador-frete-kpi__texto">
                 <span class="kpi-card__label">% Frete</span>
                 <span class="kpi-card__value" id="indicador-frete-percentual">0,0%</span>
+                <span class="indicador-frete-kpi__comparativo" id="indicador-frete-percentual-comparativo"></span>
               </span>
             </article>
           </div>
+        </div>
+
+        <!-- "Eficiência Operacional" (2026-09-10) — divisões diretas dos totais já calculados
+             acima; as 2 últimas (Quantidade de NFs/Ticket médio por NF) são uma ESTIMATIVA via
+             cruzamento com a Base Bluesoft (não existe coluna de quantidade de NFs na aba
+             "Indicador de Frete") — texto vem com "≈" do próprio JS, não escrito aqui. -->
+        <h3 class="chart-card__title" style="margin:20px 0 4px;">Eficiência Operacional</h3>
+        <div class="indicador-frete-eficiencia">
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#0EA5E9">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Frete por Tonelada (R$/t)</span>
+              <span class="kpi-card__value" id="indicador-frete-frete-tonelada">R$ 0,00</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#8B5CF6">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Custo médio por viagem</span>
+              <span class="kpi-card__value" id="indicador-frete-custo-medio-viagem">R$ 0,00</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#2563EB">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Peso médio por viagem</span>
+              <span class="kpi-card__value" id="indicador-frete-peso-medio-viagem">0 kg</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#7C3AED">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Valor médio de NF por viagem</span>
+              <span class="kpi-card__value" id="indicador-frete-valor-medio-nf-viagem">R$ 0,00</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#64748B">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label" title="Estimativa via cruzamento com a Base Bluesoft — não é o número exato de NFs da viagem no TMS Lincros.">Quantidade de NFs ≈</span>
+              <span class="kpi-card__value" id="indicador-frete-qtd-nfs">—</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#FF7A1A">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.82 0l4.6-4.6a2 2 0 0 0 0-2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label" title="Estimativa via cruzamento com a Base Bluesoft — não é o número exato de NFs da viagem no TMS Lincros.">Ticket médio por NF ≈</span>
+              <span class="kpi-card__value" id="indicador-frete-ticket-medio-nf">—</span>
+            </span>
+          </article>
         </div>
 
         <div class="table-scroll-wrapper">
@@ -1650,15 +1706,15 @@ Segue anexo o relatório atualizado.</textarea>
           <table class="data-table" id="indicador-frete-table">
             <thead>
               <tr>
-                <th>Embarque</th>
-                <th>Placa</th>
-                <th>Data Embarque</th>
-                <th class="text-right">Peso</th>
-                <th class="text-right">Volumes</th>
-                <th class="text-right">Valor Total NFs</th>
-                <th>Transportadora</th>
-                <th>Motorista</th>
-                <th class="text-right">Valor Frete</th>
+                <th data-field="embarque">Embarque</th>
+                <th data-field="placa">Placa</th>
+                <th data-field="dataEmbarque">Data Embarque</th>
+                <th data-field="peso" class="text-right">Peso</th>
+                <th data-field="volumes" class="text-right">Volumes</th>
+                <th data-field="valorTotalNFs" class="text-right">Valor Total NFs</th>
+                <th data-field="transportadora">Transportadora</th>
+                <th data-field="motorista">Motorista</th>
+                <th data-field="valorFrete" class="text-right">Valor Frete</th>
                 <th class="text-right">% Frete</th>
                 <th class="text-right">R$/Kg</th>
               </tr>
@@ -1667,6 +1723,15 @@ Segue anexo o relatório atualizado.</textarea>
           </table>
           </div>
           <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
+        </div>
+
+        <div class="table-footer">
+          <span id="indicador-frete-table-info">Nenhum registro</span>
+          <div class="pagination">
+            <button id="indicador-frete-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="indicador-frete-table-page-label">Página 1 de 1</span>
+            <button id="indicador-frete-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
         </div>
       </section>
 
@@ -1682,9 +1747,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260908f"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260909c"></script>
+<script src="js/data.js?v=20260910a"></script>
 <script src="js/charts.js?v=20260909a"></script>
-<script src="js/dashboard.js?v=20260909e"></script>
+<script src="js/dashboard.js?v=20260910a"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
