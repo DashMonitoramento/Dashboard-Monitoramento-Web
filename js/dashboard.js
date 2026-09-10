@@ -4070,12 +4070,16 @@ const Dashboard = (() => {
   // preenchido no fim de renderIndicadorFrete(). renderTableGeneric (2026-09-10) faz a ordenação/
   // paginação em cima desse array pra desenhar só a página visível.
   let indicadorFreteItensTabela = [];
+  // Preenchido a cada renderIndicadorFrete() com o resultado de construirMapaAlertasPorViagem
+  // (Fase 6, 2026-09-10) — consultado por rowHtmlIndicadorFrete pra montar a coluna
+  // "Riscos/Alertas" sem recalcular o motor de oportunidades linha a linha.
+  let indicadorFreteAlertasPorViagem = new Map();
   let indicadorFreteTable = Object.assign(createTableState(), { sortField: 'dataEmbarque' });
   const INDICADOR_FRETE_TABLE_IDS = {
     tbody: 'indicador-frete-table-body', info: 'indicador-frete-table-info',
     pageLabel: 'indicador-frete-table-page-label', prev: 'indicador-frete-table-prev',
     next: 'indicador-frete-table-next', theadSelector: '#indicador-frete-table thead th[data-field]',
-    colspan: 11, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
+    colspan: 14, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
   };
 
   // "Evolução do Frete" (2026-09-10, Fase 3) — granularidade do gráfico combo (Mensal/Semanal/
@@ -4240,6 +4244,13 @@ const Dashboard = (() => {
   // Limiares (2026-09-10) — ela deu exemplos ("45% acima da média") mas não pediu números
   // exatos; os valores abaixo são uma escolha minha, documentada aqui pra dar pra ajustar fácil
   // depois de ver com dado real (sensível/insensível demais).
+  /** Chave estável pra achar de volta qual viagem uma oportunidade se refere (usada pela coluna
+   * "Riscos/Alertas" da tabela, Fase 6) — Embarque+Placa+timestamp de Data Embarque juntos
+   * porque Embarque sozinho pode repetir/vir vazio em algum caso raro de digitação. */
+  function chaveViagemIndicadorFrete(i) {
+    return `${i.embarque}|${i.placa}|${i.dataEmbarque.getTime()}`;
+  }
+
   const INDICADOR_FRETE_AMOSTRA_MINIMA = 3;
   const INDICADOR_FRETE_LIMIARES_OPORTUNIDADE = {
     rota: { alto: 0.5, medio: 0.25 },
@@ -4289,7 +4300,8 @@ const Dashboard = (() => {
             oportunidades.push({
               nivel: diff >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.rota.alto ? 'alto' : 'medio',
               descricao: `R$/kg ${Utils.formatPercent(diff * 100)} acima da média da rota (${cidade})`,
-              impacto: (rsKgViagem - mediaRota) * i.peso
+              impacto: (rsKgViagem - mediaRota) * i.peso,
+              viagensChave: [chaveViagemIndicadorFrete(i)]
             });
           }
         }
@@ -4306,7 +4318,8 @@ const Dashboard = (() => {
             oportunidades.push({
               nivel: diff >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.transportadora.alto ? 'alto' : 'medio',
               descricao: `R$/kg ${Utils.formatPercent(diff * 100)} acima da média da transportadora (${transp})`,
-              impacto: (rsKgViagem - mediaT) * i.peso
+              impacto: (rsKgViagem - mediaT) * i.peso,
+              viagensChave: [chaveViagemIndicadorFrete(i)]
             });
           }
         }
@@ -4322,7 +4335,8 @@ const Dashboard = (() => {
         oportunidades.push({
           nivel: 'baixo',
           descricao: `Viagem com baixo peso (${Utils.formatNumber(i.peso, 0)} kg, média ${outrasNaRota >= INDICADOR_FRETE_AMOSTRA_MINIMA ? 'da rota' : 'geral'} é ${Utils.formatNumber(baseComparacaoPeso, 0)} kg)`,
-          impacto: null
+          impacto: null,
+          viagensChave: [chaveViagemIndicadorFrete(i)]
         });
       }
 
@@ -4335,7 +4349,8 @@ const Dashboard = (() => {
           oportunidades.push({
             nivel: razao >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.percentualFreteAlto.alto ? 'alto' : 'medio',
             descricao: `% Frete de ${Utils.formatPercent(percentualViagem)} (cidade: ${cidade}), média do período é ${Utils.formatPercent(mediaGeralPercentualFrete)}`,
-            impacto: null
+            impacto: null,
+            viagensChave: [chaveViagemIndicadorFrete(i)]
           });
         }
       }
@@ -4350,7 +4365,8 @@ const Dashboard = (() => {
           oportunidades.push({
             nivel: 'baixo',
             descricao: `${rota.viagens.length} viagens para ${cidade}, peso médio de ${Utils.formatNumber(pesoMedioRota, 0)} kg (possível oportunidade de consolidar carga)`,
-            impacto: null
+            impacto: null,
+            viagensChave: rota.viagens.map(v => chaveViagemIndicadorFrete(v))
           });
         }
       }
@@ -4361,15 +4377,31 @@ const Dashboard = (() => {
     return oportunidades;
   }
 
+  /** Índice viagemChave -> [oportunidades] (2026-09-10, Fase 6) — pra tabela "Detalhamento das
+   * Viagens" saber, linha a linha, se aquela viagem específica tem algum alerta, sem precisar
+   * rodar o motor de novo. Regra 5 (por cidade) aparece em VÁRIAS chaves (todas as viagens
+   * daquela cidade), as outras 4 regras (por viagem) aparecem numa chave só. */
+  function construirMapaAlertasPorViagem(oportunidades) {
+    const mapa = new Map();
+    oportunidades.forEach(op => {
+      (op.viagensChave || []).forEach(chave => {
+        if (!mapa.has(chave)) mapa.set(chave, []);
+        mapa.get(chave).push(op);
+      });
+    });
+    return mapa;
+  }
+
   // "Ver todas" (2026-09-10) — lista começa limitada a 8 (mesma quantidade do mockup dela),
   // expande sob demanda pra não empurrar o resto da tela pra baixo quando há muitos alertas.
   let indicadorFreteOportunidadesExpandido = false;
   const INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL = 8;
 
-  function renderIndicadorFreteOportunidades(itensCruzados) {
+  /** oportunidades já vem CALCULADA (renderIndicadorFrete calcula uma vez só e reaproveita aqui
+   * e no mapa de alertas da tabela, 2026-09-10) — evita rodar o motor duas vezes por render. */
+  function renderIndicadorFreteOportunidades(oportunidades) {
     const lista = document.getElementById('indicador-frete-oportunidades-lista');
     if (!lista) return;
-    const oportunidades = calcularOportunidadesReducaoIndicadorFrete(itensCruzados);
     const contagemEl = document.getElementById('indicador-frete-oportunidades-contagem');
     if (contagemEl) contagemEl.textContent = oportunidades.length ? `${Utils.formatNumber(oportunidades.length)} encontrada${oportunidades.length === 1 ? '' : 's'}` : '';
     const btnVerTodas = document.getElementById('indicador-frete-oportunidades-ver-todas');
@@ -4686,8 +4718,11 @@ const Dashboard = (() => {
     renderIndicadorFreteRankingTransportadoras(itensCruzados, totalValor);
     renderIndicadorFreteRankingViagens(itensCruzados, totalPeso > 0 ? totalValor / totalPeso : 0);
 
-    // "Oportunidades de Redução" (2026-09-10, Fase 5) — mesmo itensCruzados de sempre.
-    renderIndicadorFreteOportunidades(itensCruzados);
+    // "Oportunidades de Redução" (2026-09-10, Fase 5) — calculado UMA vez só, reaproveitado
+    // pelo painel de oportunidades E pela coluna "Riscos/Alertas" da tabela abaixo (Fase 6).
+    const oportunidadesReducao = calcularOportunidadesReducaoIndicadorFrete(itensCruzados);
+    indicadorFreteAlertasPorViagem = construirMapaAlertasPorViagem(oportunidadesReducao);
+    renderIndicadorFreteOportunidades(oportunidadesReducao);
 
     // Chip "Filtrando: <cidade> ×" acima da tabela (pedido da usuária, 2026-09-09: clicar num
     // quadrado da pizza mostra só aquela região "abaixo no relatório") — só a TABELA (e a
@@ -4723,6 +4758,9 @@ const Dashboard = (() => {
   /** Uma linha da tabela "Detalhamento das Viagens" do Indicador de Frete — extraída de
    * renderIndicadorFrete() pra servir de rowRenderer pro renderTableGeneric (paginação,
    * 2026-09-10). */
+  const INDICADOR_FRETE_NIVEL_LABEL = { alto: 'ALTO', medio: 'MÉDIO', baixo: 'BAIXO' };
+  const INDICADOR_FRETE_NIVEL_CLASSE = { alto: 'badge--danger', medio: 'badge--warning', baixo: 'badge--success' };
+
   function rowHtmlIndicadorFrete(i) {
     const rsPorKg = i.peso > 0 ? i.valorFrete / i.peso : 0;
     // Percentual do frete (pedido da usuária, 2026-09-09): Valor Frete Calculado dividido
@@ -4730,14 +4768,29 @@ const Dashboard = (() => {
     // ESCALA de porcentagem (ex.: 3.2, não 0.032), por isso o *100 aqui.
     const percentualFrete = i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0;
     const classePlaca = i.semCruzamento ? ' class="text-danger"' : '';
-    // Ordem das colunas pedida pela usuária, 2026-09-09: Embarque, Placa, Data Embarque,
-    // Peso, Volumes, Valor Total NFs, Transportadora, Motorista, Valor Frete, % Frete, R$/Kg
-    // (Cidade Destino saiu da tabela — agora alimenta só a pizza acima).
+
+    // Coluna "Riscos/Alertas" (2026-09-10, Fase 6) — cidade voltou pra tabela e ganhou 2 colunas
+    // novas no fim, pedido explícito dela na reformulação completa do painel. Nível mostrado é o
+    // MAIS GRAVE entre os alertas daquela viagem (Alto > Médio > Baixo); clicar mostra os motivos
+    // (todos, não só o mais grave) via toast — ver bindIndicadorFreteAcoes.
+    const alertas = indicadorFreteAlertasPorViagem.get(chaveViagemIndicadorFrete(i)) || [];
+    let celulaAlertas = '<span class="text-secondary">—</span>';
+    if (alertas.length) {
+      const nivelMax = alertas.some(a => a.nivel === 'alto') ? 'alto' : alertas.some(a => a.nivel === 'medio') ? 'medio' : 'baixo';
+      const motivos = alertas.map(a => a.descricao).join(' • ');
+      celulaAlertas = `<button type="button" class="badge ${INDICADOR_FRETE_NIVEL_CLASSE[nivelMax]} badge--clicavel" data-acao="alertas" data-motivos="${escapeAttr(motivos)}">⚠ ${INDICADOR_FRETE_NIVEL_LABEL[nivelMax]} (${alertas.length})</button>`;
+    }
+    const resumo = `Embarque ${i.embarque || '—'} · Placa ${i.placa} · ${i.transportadora || 'transportadora não identificada'} · R$/kg ${Utils.formatCurrency(rsPorKg)} · % Frete ${Utils.formatPercent(percentualFrete)}`;
+
+    // Ordem das colunas pedida pela usuária na reformulação completa (2026-09-10): Embarque,
+    // Placa, Data Embarque, Cidade Destino, Peso, Volumes, Valor Total NFs, Transportadora,
+    // Motorista, Valor Frete, % Frete, R$/Kg, Riscos/Alertas, Ações.
     return `
       <tr>
         <td>${escapeAttr(i.embarque || '—')}</td>
         <td${classePlaca}>${escapeAttr(i.placa)}</td>
         <td>${Utils.formatDate(i.dataEmbarque)}</td>
+        <td class="truncate" title="${escapeAttr(i.cidadeDestino || '')}">${escapeAttr(i.cidadeDestino || '—')}</td>
         <td class="text-right">${Utils.formatNumber(i.peso, 2)}</td>
         <td class="text-right">${Utils.formatNumber(i.volumes, 0)}</td>
         <td class="text-right">${Utils.formatCurrency(i.valorTotalNFs)}</td>
@@ -4746,6 +4799,8 @@ const Dashboard = (() => {
         <td class="text-right text-orange">${Utils.formatCurrency(i.valorFrete)}</td>
         <td class="text-right text-orange">${Utils.formatPercent(percentualFrete)}</td>
         <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
+        <td class="text-center">${celulaAlertas}</td>
+        <td class="text-center"><button type="button" class="icon-btn-cell" data-acao="detalhes" data-resumo="${escapeAttr(resumo)}" title="Ver detalhes da viagem">👁</button></td>
       </tr>`;
   }
 
@@ -4769,6 +4824,20 @@ const Dashboard = (() => {
     // cabeçalho só precisam trocar de página/ordenação, não reprocessar cruzamento (mesmo padrão
     // de bindDespesasExtraAcoes).
     bindTableControlsFor(indicadorFreteTable, INDICADOR_FRETE_TABLE_IDS, () => indicadorFreteItensTabela, rowHtmlIndicadorFrete);
+
+    // Colunas "Riscos/Alertas" e "Ações" (2026-09-10, Fase 6) — delegado no tbody (a tabela é
+    // reconstruída a cada render). "Ao clicar no ícone de alerta, mostrar o motivo" (pedido
+    // dela) — via toast, mesmo mecanismo já usado no resto do site pra feedback rápido, sem
+    // precisar de um modal novo.
+    const tbodyViagens = document.getElementById(INDICADOR_FRETE_TABLE_IDS.tbody);
+    if (tbodyViagens) {
+      tbodyViagens.addEventListener('click', (e) => {
+        const botaoAlerta = e.target.closest('[data-acao="alertas"]');
+        if (botaoAlerta) { Utils.showToast(botaoAlerta.dataset.motivos, 'warning', 8000); return; }
+        const botaoDetalhes = e.target.closest('[data-acao="detalhes"]');
+        if (botaoDetalhes) { Utils.showToast(botaoDetalhes.dataset.resumo, 'info', 6000); }
+      });
+    }
 
     // Toggle Mensal/Semanal/Diário do "Evolução do Frete" (2026-09-10) — mesmo padrão de pílulas
     // já usado em "Ocorrências do Dia"/"No Show" (bindCargasNoShowPeriodo).
