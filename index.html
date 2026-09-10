@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260910e">
+<link rel="stylesheet" href="css/style.css?v=20260910f">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1793,6 +1793,7 @@ Segue anexo o relatório atualizado.</textarea>
                 <th data-field="embarque">Embarque</th>
                 <th data-field="placa">Placa</th>
                 <th data-field="dataEmbarque">Data Embarque</th>
+                <th data-field="cidadeDestino">Cidade Destino</th>
                 <th data-field="peso" class="text-right">Peso</th>
                 <th data-field="volumes" class="text-right">Volumes</th>
                 <th data-field="valorTotalNFs" class="text-right">Valor Total NFs</th>
@@ -1801,6 +1802,8 @@ Segue anexo o relatório atualizado.</textarea>
                 <th data-field="valorFrete" class="text-right">Valor Frete</th>
                 <th class="text-right">% Frete</th>
                 <th class="text-right">R$/Kg</th>
+                <th class="text-center">Riscos/Alertas</th>
+                <th class="text-center">Ações</th>
               </tr>
             </thead>
             <tbody id="indicador-frete-table-body"></tbody>
@@ -1833,7 +1836,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910a"></script>
 <script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910e"></script>
+<script src="js/dashboard.js?v=20260910f"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
