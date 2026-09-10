@@ -2795,6 +2795,34 @@ const Dashboard = (() => {
     charts.indicadorFreteEvolucao = new DashChart(document.getElementById('chart-indicador-frete-evolucao'), {
       type: 'combo', labels: [], series: []
     });
+    // "Indicador Frete Transportadora" — Fase 2 (2026-09-10) do painel de auditoria. Bar simples
+    // (não combo): as 2 séries são valores em R$ comparáveis entre si, faz sentido dividir a
+    // MESMA régua (diferente do combo, que existe justamente pra quando as escalas NÃO deveriam
+    // se misturar). Atualizado em renderIndicadorFreteTransportadora(), aqui só cria vazio.
+    charts.indicadorFreteTransportadoraCalculadoCobrado = new DashChart(document.getElementById('chart-indicador-frete-transportadora-calculado-cobrado'), {
+      type: 'bar', labels: [], series: []
+    });
+    // Combo (barra+linha, escalas independentes) — a barra "Diferença (R$)" pode ser NEGATIVA
+    // (cobrado a menor), por isso _drawCombo ganhou suporte a barra bidirecional nesta mesma
+    // rodada (ver comentário em charts.js) — sem essa mudança a barra desenharia errado (pra
+    // cima da régua) pra qualquer bucket com saldo negativo.
+    charts.indicadorFreteTransportadoraEvolucaoDif = new DashChart(document.getElementById('chart-indicador-frete-transportadora-evolucao-dif'), {
+      type: 'combo', labels: [], series: []
+    });
+    // Rosca "Status dos Embarques" — clique na legenda filtra a TABELA (mesmo padrão da pizza de
+    // cidades do relatório irmão), a rosca em si sempre mostra os 4 estados do período inteiro.
+    charts.indicadorFreteTransportadoraStatus = new DashChart(document.getElementById('chart-indicador-frete-transportadora-status'), {
+      type: 'donut', labels: [], series: [{ data: [] }],
+      options: {
+        colors: ['#EAB308', '#DC2626', '#16A34A', '#2563EB'], // Aguardando, Cobrado a maior, Cobrado a menor, Auditado OK — mesma ordem de INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS
+        onLegendClick: (label) => {
+          const chaveStatus = Object.entries(INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS).find(([, texto]) => texto === label)?.[0] || null;
+          indicadorFreteTransportadoraStatusSelecionado = indicadorFreteTransportadoraStatusSelecionado === chaveStatus ? null : chaveStatus;
+          indicadorFreteTransportadoraTable.page = 1;
+          renderIndicadorFreteTransportadora();
+        }
+      }
+    });
   }
 
   function renderCharts(records) {
@@ -5100,6 +5128,26 @@ const Dashboard = (() => {
     cobrado_maior: { classe: 'badge--danger', texto: '🔴 Cobrado a maior' },
     cobrado_menor: { classe: 'badge--success', texto: '🟢 Cobrado a menor' }
   };
+  // Textos SEM emoji, na mesma ordem das cores passadas em options.colors da rosca "Status dos
+  // Embarques" (createCharts) — usado como labels do gráfico e pra resolver de volta o clique na
+  // legenda (texto -> chave de status), já que a rosca não tem acesso ao emoji/classe do badge.
+  const INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS = {
+    aguardando: 'Aguardando cobrança',
+    cobrado_maior: 'Cobrado a maior',
+    cobrado_menor: 'Cobrado a menor',
+    auditado_ok: 'Auditado OK'
+  };
+  // Filtro por clique na rosca de Status (2026-09-10, Fase 2) — LOCAL, só afeta a TABELA de
+  // detalhamento (mesmo espírito de indicadorFreteRegiaoSelecionada no relatório irmão): os
+  // KPIs/gráficos continuam somando o período inteiro, pra dar pra comparar a categoria clicada
+  // contra o total.
+  let indicadorFreteTransportadoraStatusSelecionado = null;
+  // Granularidade dos 2 gráficos temporais desta tela — UM toggle só controla os dois juntos
+  // (decisão minha: ela pediu Diário/Semanal/Mensal nos dois gráficos, mas 2 controles
+  // independentes pra comparar as mesmas datas seria só fricção a mais). Reaproveita
+  // INDICADOR_FRETE_GRANULARIDADES/inicioDoDia/inicioDaSemanaIndicadorFrete, já genéricos (não
+  // são específicos do relatório irmão).
+  let indicadorFreteTransportadoraGranularidade = 'mensal';
 
   // Filtro de UF Destino (2026-09-10) — LOCAL a este relatório (não é um conceito usado em
   // nenhuma outra tela do dashboard, então não entra em DataStore.setFilters/estado global,
@@ -5225,13 +5273,110 @@ const Dashboard = (() => {
     setTexto('indicador-frete-transportadora-aguardando-valor', Utils.formatCurrency(aguardandoValorCalc));
     setTexto('indicador-frete-transportadora-aguardando-pct', `${Utils.formatPercent(aguardandoPct)} do total`);
 
-    const ordenados = itens.slice().sort((a, b) => {
+    // Fase 2 (2026-09-10) — gráficos temporais (só auditados) + rosca de Status (os 4 estados,
+    // período inteiro, independente do filtro de clique abaixo — mesmo espírito da pizza de
+    // cidades do relatório irmão: o gráfico nunca reflete a própria seleção feita nele mesmo).
+    renderIndicadorFreteTransportadoraCalculadoCobrado(auditados);
+    renderIndicadorFreteTransportadoraEvolucaoDif(auditados);
+    renderIndicadorFreteTransportadoraStatusChart({
+      aguardando: aguardandoItens.length,
+      cobrado_maior: cobradoMaiorItens.length,
+      cobrado_menor: cobradoMenorItens.length,
+      auditado_ok: qtdAuditados - qtdDivergencia
+    });
+
+    // Chip "Filtrando: <status> ×" (clique na rosca de Status) — só a TABELA (e exportação)
+    // respeitam essa seleção, mesmo padrão do chip de região do relatório irmão.
+    const chipStatus = document.getElementById('indicador-frete-transportadora-status-chip');
+    if (chipStatus) {
+      if (indicadorFreteTransportadoraStatusSelecionado) {
+        chipStatus.hidden = false;
+        chipStatus.innerHTML = `Filtrando: <strong>${escapeAttr(INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS[indicadorFreteTransportadoraStatusSelecionado])}</strong> <button type="button" data-limpar-filtro-status-transportadora aria-label="Limpar filtro de status">✕</button>`;
+      } else {
+        chipStatus.hidden = true;
+        chipStatus.innerHTML = '';
+      }
+    }
+
+    const itensTabela = indicadorFreteTransportadoraStatusSelecionado
+      ? itens.filter(i => statusAuditoriaFreteTransportadora(i) === indicadorFreteTransportadoraStatusSelecionado)
+      : itens;
+    const ordenados = itensTabela.slice().sort((a, b) => {
       const da = a.dataEmbarque || a.dataCriacao;
       const db = b.dataEmbarque || b.dataCriacao;
       return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
     });
     indicadorFreteTransportadoraItens = ordenados;
     renderTableGeneric(ordenados, indicadorFreteTransportadoraTable, INDICADOR_FRETE_TRANSPORTADORA_TABLE_IDS, rowHtmlIndicadorFreteTransportadora);
+  }
+
+  /** Frete Calculado x Frete Cobrado, agrupado por período (Fase 2, 2026-09-10) — bar simples
+   * (2 séries, mesma régua, valores comparáveis em R$). Só embarques AUDITADOS por bucket —
+   * plotar "cobrado" de um aguardando seria mostrar que a transportadora "cobrou zero", exatamente
+   * o erro que ela pediu pra nunca cometer. */
+  function renderIndicadorFreteTransportadoraCalculadoCobrado(auditados) {
+    if (!charts.indicadorFreteTransportadoraCalculadoCobrado) return;
+    const def = INDICADOR_FRETE_GRANULARIDADES[indicadorFreteTransportadoraGranularidade];
+    const buckets = new Map();
+    auditados.forEach(i => {
+      const ref = i.dataEmbarque || i.dataCriacao;
+      if (!ref) return;
+      const chave = def.chave(ref);
+      if (!buckets.has(chave)) buckets.set(chave, { ts: def.inicioBucket(ref).getTime(), label: def.label(ref), calculado: 0, cobrado: 0 });
+      const b = buckets.get(chave);
+      b.calculado += i.freteCalc;
+      b.cobrado += i.freteTotal;
+    });
+    const ordenados = Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
+    charts.indicadorFreteTransportadoraCalculadoCobrado.update({
+      labels: ordenados.map(b => b.label),
+      series: [
+        { name: 'Frete Calculado', data: ordenados.map(b => b.calculado), color: '#2563EB' },
+        { name: 'Frete Cobrado', data: ordenados.map(b => b.cobrado), color: '#16A34A' }
+      ]
+    });
+  }
+
+  /** Evolução da Diferença de Frete, agrupado por período (Fase 2, 2026-09-10) — combo (barra +
+   * linha, escalas independentes). Barra vermelha/verde POR BUCKET (não por série inteira) —
+   * usa o `s.colors[i]` novo em _drawCombo. Só embarques AUDITADOS. */
+  function renderIndicadorFreteTransportadoraEvolucaoDif(auditados) {
+    if (!charts.indicadorFreteTransportadoraEvolucaoDif) return;
+    const def = INDICADOR_FRETE_GRANULARIDADES[indicadorFreteTransportadoraGranularidade];
+    const buckets = new Map();
+    auditados.forEach(i => {
+      const ref = i.dataEmbarque || i.dataCriacao;
+      if (!ref) return;
+      const chave = def.chave(ref);
+      if (!buckets.has(chave)) buckets.set(chave, { ts: def.inicioBucket(ref).getTime(), label: def.label(ref), dif: 0, calc: 0 });
+      const b = buckets.get(chave);
+      b.dif += i.difFrete;
+      b.calc += i.freteCalc;
+    });
+    const ordenados = Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
+    charts.indicadorFreteTransportadoraEvolucaoDif.update({
+      labels: ordenados.map(b => b.label),
+      series: [
+        {
+          name: 'Diferença (R$)', data: ordenados.map(b => b.dif),
+          colors: ordenados.map(b => b.dif >= 0 ? '#DC2626' : '#16A34A'),
+          color: '#DC2626', tipo: 'bar', format: 'currency'
+        },
+        { name: '% Diferença', data: ordenados.map(b => b.calc > 0 ? (b.dif / b.calc) * 100 : 0), color: '#EA580C', format: 'percent' }
+      ]
+    });
+  }
+
+  /** Rosca "Status dos Embarques" (Fase 2, 2026-09-10) — contagens já vêm prontas de
+   * renderIndicadorFreteTransportadora (calculadas 1x, não recalculadas aqui). Ordem das
+   * categorias/cores bate com options.colors definido em createCharts. */
+  function renderIndicadorFreteTransportadoraStatusChart(contagens) {
+    if (!charts.indicadorFreteTransportadoraStatus) return;
+    const ordem = ['aguardando', 'cobrado_maior', 'cobrado_menor', 'auditado_ok'];
+    charts.indicadorFreteTransportadoraStatus.update({
+      labels: ordem.map(k => INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS[k]),
+      series: [{ data: ordem.map(k => contagens[k] || 0) }]
+    });
   }
 
   function bindIndicadorFreteTransportadoraAcoes() {
@@ -5252,6 +5397,29 @@ const Dashboard = (() => {
       tbodyTransportadora.addEventListener('click', (e) => {
         const botaoDetalhes = e.target.closest('[data-acao="detalhes-frete-transportadora"]');
         if (botaoDetalhes) Utils.showToast(botaoDetalhes.dataset.resumo, 'info', 7000);
+      });
+    }
+    // Toggle Diário/Semanal/Mensal dos 2 gráficos temporais (Fase 2) — mesmo padrão de pílulas
+    // já usado em "Evolução do Frete"/"Ocorrências do Dia".
+    const barraGranularidadeTransportadora = document.getElementById('indicador-frete-transportadora-granularidade-bar');
+    if (barraGranularidadeTransportadora) {
+      barraGranularidadeTransportadora.querySelectorAll('[data-indicador-frete-transportadora-granularidade]').forEach(botao => {
+        botao.addEventListener('click', () => {
+          indicadorFreteTransportadoraGranularidade = botao.dataset.indicadorFreteTransportadoraGranularidade;
+          barraGranularidadeTransportadora.querySelectorAll('.ocorrencias-periodo-btn').forEach(b => b.classList.remove('ocorrencias-periodo-btn--ativo'));
+          botao.classList.add('ocorrencias-periodo-btn--ativo');
+          renderIndicadorFreteTransportadora();
+        });
+      });
+    }
+    // Chip "Filtrando: <status> ×" — limpa a seleção feita pelo clique na rosca de Status.
+    const chipStatus = document.getElementById('indicador-frete-transportadora-status-chip');
+    if (chipStatus) {
+      chipStatus.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-limpar-filtro-status-transportadora]')) return;
+        indicadorFreteTransportadoraStatusSelecionado = null;
+        indicadorFreteTransportadoraTable.page = 1;
+        renderIndicadorFreteTransportadora();
       });
     }
   }
