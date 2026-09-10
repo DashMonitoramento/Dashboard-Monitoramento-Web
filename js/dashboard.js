@@ -4219,6 +4219,181 @@ const Dashboard = (() => {
     }).join('');
   }
 
+  /* ============================================================
+   * "OPORTUNIDADES DE REDUÇÃO" (2026-09-10, Fase 5) — motor de alertas automáticos
+   * ------------------------------------------------------------
+   * Ela deu 7 exemplos de regra. Implementei as 5 com comparação CONFIÁVEL possível hoje:
+   * R$/kg vs. média da rota, R$/kg vs. média da transportadora, peso muito baixo, % Frete muito
+   * alto, e várias viagens pro mesmo destino com baixo volume. As outras 2 ficam pra uma fase
+   * futura: "rota com custo crescente" (precisaria de uma análise de tendência temporal por rota
+   * — mais complexa, risco de falso positivo com pouca amostra) e "baixo aproveitamento do
+   * veículo" (precisa de Capacidade Máxima, que ainda NÃO existe na planilha — ver scaffolding
+   * `capacidadeMaxKg` da Fase 1; regra fica pronta pra ligar quando o dado existir).
+   *
+   * REGRA DE OURO (pedido explícito dela): "o painel não deve inventar economia" — Impacto
+   * estimado (R$) só é calculado quando existe uma média de comparação com amostra mínima
+   * confiável (>= INDICADOR_FRETE_AMOSTRA_MINIMA outras viagens); sem isso, mostra só o alerta,
+   * sem nenhum número de impacto. Médias de comparação são sempre PONDERADAS (soma/soma, exclui
+   * a própria viagem do cálculo), nunca média das razões individuais.
+   * ============================================================ */
+
+  // Limiares (2026-09-10) — ela deu exemplos ("45% acima da média") mas não pediu números
+  // exatos; os valores abaixo são uma escolha minha, documentada aqui pra dar pra ajustar fácil
+  // depois de ver com dado real (sensível/insensível demais).
+  const INDICADOR_FRETE_AMOSTRA_MINIMA = 3;
+  const INDICADOR_FRETE_LIMIARES_OPORTUNIDADE = {
+    rota: { alto: 0.5, medio: 0.25 },
+    transportadora: { alto: 0.5, medio: 0.25 },
+    pesoBaixo: 0.3,
+    percentualFreteAlto: { alto: 2, medio: 1.5 },
+    mesmoDestinoBaixoVolume: { minViagens: 4, limiarPeso: 0.5 }
+  };
+
+  function calcularOportunidadesReducaoIndicadorFrete(itensCruzados) {
+    const oportunidades = [];
+    const validas = itensCruzados.filter(i => i.peso > 0);
+    if (!validas.length) return oportunidades;
+
+    const porRota = new Map();
+    const porTransportadora = new Map();
+    let totalValor = 0, totalPeso = 0, totalValorNFs = 0;
+    validas.forEach(i => {
+      const cidade = i.cidadeDestino || '(sem cidade)';
+      if (!porRota.has(cidade)) porRota.set(cidade, { valor: 0, peso: 0, viagens: [] });
+      const r = porRota.get(cidade);
+      r.valor += i.valorFrete; r.peso += i.peso; r.viagens.push(i);
+
+      const transp = i.transportadora || 'Não informado';
+      if (!porTransportadora.has(transp)) porTransportadora.set(transp, { valor: 0, peso: 0, viagens: [] });
+      const t = porTransportadora.get(transp);
+      t.valor += i.valorFrete; t.peso += i.peso; t.viagens.push(i);
+
+      totalValor += i.valorFrete; totalPeso += i.peso; totalValorNFs += i.valorTotalNFs;
+    });
+    const mediaGeralPercentualFrete = totalValorNFs > 0 ? (totalValor / totalValorNFs) * 100 : 0;
+    const mediaGeralPeso = validas.length ? totalPeso / validas.length : 0;
+
+    validas.forEach(i => {
+      const rsKgViagem = i.valorFrete / i.peso;
+      const cidade = i.cidadeDestino || '(sem cidade)';
+      const transp = i.transportadora || 'Não informado';
+      const rota = porRota.get(cidade);
+      const outrasNaRota = rota.viagens.length - 1;
+
+      // Regra 1: R$/kg muito acima da média da ROTA (exclui a própria viagem da média).
+      if (outrasNaRota >= INDICADOR_FRETE_AMOSTRA_MINIMA) {
+        const mediaRota = (rota.peso - i.peso) > 0 ? (rota.valor - i.valorFrete) / (rota.peso - i.peso) : 0;
+        if (mediaRota > 0) {
+          const diff = (rsKgViagem - mediaRota) / mediaRota;
+          if (diff >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.rota.medio) {
+            oportunidades.push({
+              nivel: diff >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.rota.alto ? 'alto' : 'medio',
+              descricao: `R$/kg ${Utils.formatPercent(diff * 100)} acima da média da rota (${cidade})`,
+              impacto: (rsKgViagem - mediaRota) * i.peso
+            });
+          }
+        }
+      }
+
+      // Regra 2: R$/kg acima da média da TRANSPORTADORA (exclui a própria viagem).
+      const transportadoraAgg = porTransportadora.get(transp);
+      const outrasDaTransportadora = transportadoraAgg.viagens.length - 1;
+      if (transp !== 'Não informado' && outrasDaTransportadora >= INDICADOR_FRETE_AMOSTRA_MINIMA) {
+        const mediaT = (transportadoraAgg.peso - i.peso) > 0 ? (transportadoraAgg.valor - i.valorFrete) / (transportadoraAgg.peso - i.peso) : 0;
+        if (mediaT > 0) {
+          const diff = (rsKgViagem - mediaT) / mediaT;
+          if (diff >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.transportadora.medio) {
+            oportunidades.push({
+              nivel: diff >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.transportadora.alto ? 'alto' : 'medio',
+              descricao: `R$/kg ${Utils.formatPercent(diff * 100)} acima da média da transportadora (${transp})`,
+              impacto: (rsKgViagem - mediaT) * i.peso
+            });
+          }
+        }
+      }
+
+      // Regra 3: peso muito baixo — compara contra a média da ROTA (com amostra) ou a média
+      // GERAL do período. Só alerta: não dá pra estimar com confiança "quanto custaria certo"
+      // consolidar a carga, então impacto fica null (regra de ouro: não inventar economia).
+      const baseComparacaoPeso = outrasNaRota >= INDICADOR_FRETE_AMOSTRA_MINIMA
+        ? (rota.peso - i.peso) / outrasNaRota
+        : mediaGeralPeso;
+      if (baseComparacaoPeso > 0 && i.peso < baseComparacaoPeso * INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.pesoBaixo) {
+        oportunidades.push({
+          nivel: 'baixo',
+          descricao: `Viagem com baixo peso (${Utils.formatNumber(i.peso, 0)} kg, média ${outrasNaRota >= INDICADOR_FRETE_AMOSTRA_MINIMA ? 'da rota' : 'geral'} é ${Utils.formatNumber(baseComparacaoPeso, 0)} kg)`,
+          impacto: null
+        });
+      }
+
+      // Regra 4: % Frete muito alto vs. média GERAL do período. Sem impacto: uma % alta pode ser
+      // legítima dependendo da carga, não é um "erro" com valor certo a corrigir.
+      if (i.valorTotalNFs > 0 && mediaGeralPercentualFrete > 0) {
+        const percentualViagem = (i.valorFrete / i.valorTotalNFs) * 100;
+        const razao = percentualViagem / mediaGeralPercentualFrete;
+        if (razao >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.percentualFreteAlto.medio) {
+          oportunidades.push({
+            nivel: razao >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.percentualFreteAlto.alto ? 'alto' : 'medio',
+            descricao: `% Frete de ${Utils.formatPercent(percentualViagem)} (cidade: ${cidade}), média do período é ${Utils.formatPercent(mediaGeralPercentualFrete)}`,
+            impacto: null
+          });
+        }
+      }
+    });
+
+    // Regra 5: várias viagens pro MESMO destino com baixo volume médio — 1 alerta por CIDADE
+    // (não por viagem individual), sugestão de possível consolidação de carga.
+    porRota.forEach((rota, cidade) => {
+      if (rota.viagens.length >= INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.mesmoDestinoBaixoVolume.minViagens && mediaGeralPeso > 0) {
+        const pesoMedioRota = rota.peso / rota.viagens.length;
+        if (pesoMedioRota < mediaGeralPeso * INDICADOR_FRETE_LIMIARES_OPORTUNIDADE.mesmoDestinoBaixoVolume.limiarPeso) {
+          oportunidades.push({
+            nivel: 'baixo',
+            descricao: `${rota.viagens.length} viagens para ${cidade}, peso médio de ${Utils.formatNumber(pesoMedioRota, 0)} kg (possível oportunidade de consolidar carga)`,
+            impacto: null
+          });
+        }
+      }
+    });
+
+    const pesoNivel = { alto: 3, medio: 2, baixo: 1 };
+    oportunidades.sort((a, b) => pesoNivel[b.nivel] !== pesoNivel[a.nivel] ? pesoNivel[b.nivel] - pesoNivel[a.nivel] : (b.impacto || 0) - (a.impacto || 0));
+    return oportunidades;
+  }
+
+  // "Ver todas" (2026-09-10) — lista começa limitada a 8 (mesma quantidade do mockup dela),
+  // expande sob demanda pra não empurrar o resto da tela pra baixo quando há muitos alertas.
+  let indicadorFreteOportunidadesExpandido = false;
+  const INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL = 8;
+
+  function renderIndicadorFreteOportunidades(itensCruzados) {
+    const lista = document.getElementById('indicador-frete-oportunidades-lista');
+    if (!lista) return;
+    const oportunidades = calcularOportunidadesReducaoIndicadorFrete(itensCruzados);
+    const contagemEl = document.getElementById('indicador-frete-oportunidades-contagem');
+    if (contagemEl) contagemEl.textContent = oportunidades.length ? `${Utils.formatNumber(oportunidades.length)} encontrada${oportunidades.length === 1 ? '' : 's'}` : '';
+    const btnVerTodas = document.getElementById('indicador-frete-oportunidades-ver-todas');
+    if (!oportunidades.length) {
+      lista.innerHTML = '<p class="chart-card__hint" style="margin:0; text-align:left;">Nenhuma oportunidade de redução identificada no período/filtro selecionado.</p>';
+      if (btnVerTodas) btnVerTodas.hidden = true;
+      return;
+    }
+    const mostrar = indicadorFreteOportunidadesExpandido ? oportunidades : oportunidades.slice(0, INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL);
+    const NIVEL_LABEL = { alto: 'ALTO', medio: 'MÉDIO', baixo: 'BAIXO' };
+    const NIVEL_CLASSE = { alto: 'badge--danger', medio: 'badge--warning', baixo: 'badge--success' };
+    lista.innerHTML = mostrar.map((o, idx) => `
+      <div class="indicador-frete-oportunidade">
+        <span class="indicador-frete-oportunidade__pos">${idx + 1}</span>
+        <span class="badge ${NIVEL_CLASSE[o.nivel]}">${NIVEL_LABEL[o.nivel]}</span>
+        <span class="indicador-frete-oportunidade__desc">${escapeAttr(o.descricao)}</span>
+        <span class="indicador-frete-oportunidade__impacto">${o.impacto !== null && o.impacto > 0 ? `Impacto estimado: ${Utils.formatCurrency(o.impacto)}` : ''}</span>
+      </div>`).join('');
+    if (btnVerTodas) {
+      btnVerTodas.hidden = oportunidades.length <= INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL;
+      btnVerTodas.textContent = indicadorFreteOportunidadesExpandido ? 'Ver menos' : `Ver todas (${Utils.formatNumber(oportunidades.length)})`;
+    }
+  }
+
   // Tolerância do cruzamento Placa+Data (dias) — pedido implícito descoberto testando com dado
   // real (2026-09-09): "Data Embarque" (quando o motorista carrega) e "Data Entrega"/coleta
   // registrada na Base Bluesoft por nota nem sempre são o MESMO dia (ex.: embarque dia 1, nota
@@ -4511,6 +4686,9 @@ const Dashboard = (() => {
     renderIndicadorFreteRankingTransportadoras(itensCruzados, totalValor);
     renderIndicadorFreteRankingViagens(itensCruzados, totalPeso > 0 ? totalValor / totalPeso : 0);
 
+    // "Oportunidades de Redução" (2026-09-10, Fase 5) — mesmo itensCruzados de sempre.
+    renderIndicadorFreteOportunidades(itensCruzados);
+
     // Chip "Filtrando: <cidade> ×" acima da tabela (pedido da usuária, 2026-09-09: clicar num
     // quadrado da pizza mostra só aquela região "abaixo no relatório") — só a TABELA (e a
     // exportação) respeitam essa seleção; cards e pizza continuam somando o período inteiro.
@@ -4614,6 +4792,15 @@ const Dashboard = (() => {
           barraOrdenacaoTransp.querySelectorAll('[data-indicador-frete-ordenar-transportadoras]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
           renderIndicadorFrete();
         });
+      });
+    }
+
+    // "Ver todas"/"Ver menos" das Oportunidades de Redução (2026-09-10, Fase 5).
+    const btnVerTodasOportunidades = document.getElementById('indicador-frete-oportunidades-ver-todas');
+    if (btnVerTodasOportunidades) {
+      btnVerTodasOportunidades.addEventListener('click', () => {
+        indicadorFreteOportunidadesExpandido = !indicadorFreteOportunidadesExpandido;
+        renderIndicadorFrete();
       });
     }
   }
