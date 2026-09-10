@@ -2428,6 +2428,25 @@ const DataStore = (() => {
     notify();
   }
 
+  /** "Necessita Ajudante" por CLIENTE (2026-09-10, pedido da usuária) — ela quer que marcar SIM
+   * numa nota já deixe TODA nota daquele cliente como SIM, inclusive as que ainda vão chegar
+   * (por isso é um valor por CLIENTE, não uma gravação em massa nos docs de NF existentes — ver
+   * firebase-init.js). Só preenche quando a nota AINDA NÃO tem um valor PRÓPRIO explícito
+   * (`r.necessitaAjudante` vazio) — uma nota marcada manualmente como NAO nunca é sobrescrita
+   * pelo padrão do cliente, mesmo que outras notas dele sejam SIM. Chamada depois de
+   * applyValorDescargaAprovado no boot (ver script.js), mas a ordem entre as duas não importa de
+   * verdade: applyValorDescargaAprovado sempre GANHA quando tem valor próprio, não importa quem
+   * rodou primeiro. */
+  function applyClienteNecessitaAjudante(porCliente) {
+    if (!porCliente) return;
+    for (const r of rawRecords) {
+      if (r.necessitaAjudante) continue;
+      const info = porCliente[normalizeClienteKey(r.cliente)];
+      if (info && info.necessitaAjudante) r.necessitaAjudante = info.necessitaAjudante;
+    }
+    notify();
+  }
+
   return {
     loadFromUrl, loadFromFile, setRawRows,
     loadBluesoftFromUrl, loadBluesoftFromFile,
@@ -2441,7 +2460,7 @@ const DataStore = (() => {
     loadFeriadosFromUrl,
     loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
-    applyAgendamentoManual, applyValorDescargaAprovado,
+    applyAgendamentoManual, applyValorDescargaAprovado, applyClienteNecessitaAjudante, normalizeClienteKey,
     loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
     loadIndicadorFreteTransportadoraFromUrl, loadIndicadorFreteTransportadoraFromFile, getIndicadorFreteTransportadora,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
