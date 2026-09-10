@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260910b">
+<link rel="stylesheet" href="css/style.css?v=20260910c">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1586,19 +1586,13 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
         <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue os filtros de Período, Transportadora e Motorista da tela inicial.</p>
 
-        <!-- Painel dedicado (2026-09-10, pedido da usuária com mockup desenhado): metade
-             esquerda = pizza + legenda lado a lado; metade direita = 6 cards grandes em grid
-             2x3 preenchendo a altura toda. Substitui o .agendamento-body/.agendamento-cards
-             (reaproveitados até aqui) por CSS próprio — ver .indicador-frete-painel* em
-             style.css. Só layout: os IDs dos valores continuam os mesmos, renderIndicadorFrete()
+        <!-- KPIs principais (2026-09-10: virou seção PRÓPRIA, largura cheia — antes ficava ao
+             lado da pizza num painel 50/50, mas o mockup completo do painel gerencial pede a
+             pizza numa linha própria de "Análise por Cidade" mais abaixo, junto do hbar de
+             R$/kg novo). Grid 2x3 preenchendo a altura toda — ver .indicador-frete-kpis-principais
+             em style.css. Só layout: os IDs dos valores continuam os mesmos, renderIndicadorFrete()
              não mudou nada. -->
-        <div class="indicador-frete-painel">
-          <div class="indicador-frete-painel__cidades">
-            <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com frete mais caro</h3>
-            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Soma de Valor Frete por Cidade Destino (top 7 + Outros).</p>
-            <div class="chart-root chart-root--donut" id="chart-indicador-frete-regioes"></div>
-          </div>
-          <div class="indicador-frete-painel__kpis">
+        <div class="indicador-frete-kpis-principais">
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#0D9488">
               <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
               <span class="indicador-frete-kpi__texto">
@@ -1647,7 +1641,6 @@ Segue anexo o relatório atualizado.</textarea>
                 <span class="indicador-frete-kpi__comparativo" id="indicador-frete-percentual-comparativo"></span>
               </span>
             </article>
-          </div>
         </div>
 
         <!-- "Eficiência Operacional" (2026-09-10) — divisões diretas dos totais já calculados
@@ -1700,6 +1693,24 @@ Segue anexo o relatório atualizado.</textarea>
           </article>
         </div>
 
+        <!-- "Análise por Cidade" (2026-09-10, Fase 2) — 2 análises SEPARADAS lado a lado, pedido
+             explícito da usuária pra "evitar interpretar volume alto como custo caro": a pizza
+             mede GASTO TOTAL (soma de Valor Frete) e o hbar mede CUSTO POR KG (Valor Frete ÷
+             Peso) — rankings independentes, cada um com seu próprio "Outros". Larguras iguais
+             (2 colunas hoje; ganha uma 3ª quando "Evolução do Frete" entrar numa fase futura). -->
+        <div class="indicador-frete-analises">
+          <div class="indicador-frete-analise-card">
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com maior gasto de frete</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Soma de Valor Frete por Cidade Destino (top 7 + Outros).</p>
+            <div class="chart-root chart-root--donut" id="chart-indicador-frete-regioes"></div>
+          </div>
+          <div class="indicador-frete-analise-card">
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Cidades com maior custo por Kg</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Valor Frete ÷ Peso por Cidade Destino (top 7 + Outros), da maior pra menor.</p>
+            <div class="chart-root" id="chart-indicador-frete-cidades-rskg"></div>
+          </div>
+        </div>
+
         <div class="table-scroll-wrapper">
           <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
           <div class="table-scroll">
@@ -1748,8 +1759,8 @@ Segue anexo o relatório atualizado.</textarea>
 <script type="module" src="js/firebase-init.js?v=20260908f"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910a"></script>
-<script src="js/charts.js?v=20260909a"></script>
-<script src="js/dashboard.js?v=20260910a"></script>
+<script src="js/charts.js?v=20260910a"></script>
+<script src="js/dashboard.js?v=20260910b"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
