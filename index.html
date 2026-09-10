@@ -1844,6 +1844,63 @@ Segue anexo o relatório atualizado.</textarea>
             <button id="indicador-frete-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
           </div>
         </div>
+
+        <!-- "Auditoria de Frete por Nota" (2026-09-10, pedido da usuária) — DIFERENTE da tabela
+             acima: aqui é por NOTA (Número+Série), não por viagem, vindo de uma aba nova
+             ("Indicador Frete Transportadora") — Frete Calc. é o que a Da Terrinha paga, Frete é
+             o que a transportadora cobrou, Dif. Frete é a diferença (positivo = cobrou a mais).
+             Nativo por Transportadora (sem cruzamento); não tem Motorista, então só respeita
+             Período + Transportadora dos filtros globais/cabeçalho acima, não Motorista. -->
+        <h3 class="chart-card__title" style="margin:24px 0 4px;">Auditoria de Frete por Nota</h3>
+        <p class="chart-card__hint" style="text-align:left; margin-top:0;">Frete Calc. = valor que pagamos · Frete = valor cobrado pela transportadora · Dif. Frete = Frete − Frete Calc. (positivo = cobrou a mais). Segue os filtros de Período e Transportadora (não tem Motorista nesta fonte).</p>
+        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 14px;">
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#DC2626">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Total Dif. Frete no período</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-total-dif">R$ 0,00</span>
+            </span>
+          </article>
+          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#EAB308">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Notas com cobrança a maior</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-qtd-maior">0</span>
+            </span>
+          </article>
+        </div>
+
+        <div class="table-scroll-wrapper">
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+          <div class="table-scroll">
+          <table class="data-table" id="indicador-frete-transportadora-table">
+            <thead>
+              <tr>
+                <th data-field="numero">Nº CTE</th>
+                <th data-field="serie">Série</th>
+                <th data-field="emissao">Emissão</th>
+                <th data-field="transportadora">Transportadora</th>
+                <th>Origem</th>
+                <th>Destino</th>
+                <th data-field="freteCalc" class="text-right">Frete Calc.</th>
+                <th data-field="frete" class="text-right">Frete</th>
+                <th data-field="difFrete" class="text-right">Dif. Frete</th>
+              </tr>
+            </thead>
+            <tbody id="indicador-frete-transportadora-table-body"></tbody>
+          </table>
+          </div>
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
+        </div>
+
+        <div class="table-footer">
+          <span id="indicador-frete-transportadora-table-info">Nenhum registro</span>
+          <div class="pagination">
+            <button id="indicador-frete-transportadora-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="indicador-frete-transportadora-table-page-label">Página 1 de 1</span>
+            <button id="indicador-frete-transportadora-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
+        </div>
       </section>
 
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
@@ -1858,10 +1915,10 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260908f"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260910a"></script>
+<script src="js/data.js?v=20260910b"></script>
 <script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910g"></script>
-<script src="js/script.js?v=20260909b"></script>
+<script src="js/dashboard.js?v=20260910h"></script>
+<script src="js/script.js?v=20260910a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
   // guarda nada em cache de propósito (ver sw.js), então não tem risco de mostrar tela antiga
