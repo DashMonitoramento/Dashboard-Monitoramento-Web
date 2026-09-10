@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260910f">
+<link rel="stylesheet" href="css/style.css?v=20260910g">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1580,11 +1580,35 @@ Segue anexo o relatório atualizado.</textarea>
         <div class="table-card__header">
           <h2 class="chart-card__title">📈 Indicador de Frete</h2>
           <div class="table-actions">
+            <!-- Filtros duplicados no cabeçalho (2026-09-10, Fase 7 — última do plano) — mesma
+                 fonte de verdade do menu lateral (DataStore.setFilters), sem estado próprio.
+                 Simplificação assumida: Transportadora/Motorista viram <select> de valor ÚNICO
+                 aqui (o menu lateral continua com o checkbox múltiplo de sempre) — escolher um
+                 nome aqui SUBSTITUI a seleção múltipla feita lá por essa 1 opção; se o menu
+                 lateral tiver 0 ou 2+ selecionados, o select mostra "Todos" (não dá pra
+                 representar multi-seleção num <select> simples). Ver
+                 bindIndicadorFreteFiltrosCabecalho/sincronizarIndicadorFreteFiltrosCabecalho. -->
+            <label class="indicador-frete-filtro-cabecalho">
+              <span class="indicador-frete-filtro-cabecalho__label">Período</span>
+              <span class="indicador-frete-filtro-cabecalho__campos">
+                <input type="date" id="indicador-frete-filtro-data-inicio" aria-label="Data início">
+                <span>–</span>
+                <input type="date" id="indicador-frete-filtro-data-fim" aria-label="Data fim">
+              </span>
+            </label>
+            <label class="indicador-frete-filtro-cabecalho">
+              <span class="indicador-frete-filtro-cabecalho__label">Transportadora</span>
+              <select id="indicador-frete-filtro-transportadora"><option value="">Todos</option></select>
+            </label>
+            <label class="indicador-frete-filtro-cabecalho">
+              <span class="indicador-frete-filtro-cabecalho__label">Motorista</span>
+              <select id="indicador-frete-filtro-motorista"><option value="">Todos</option></select>
+            </label>
             <span id="indicador-frete-filtro-chip" class="badge badge--info" hidden></span>
             <button id="btn-export-indicador-frete" class="btn" type="button">⬇️ Exportar Excel</button>
           </div>
         </div>
-        <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Segue os filtros de Período, Transportadora e Motorista da tela inicial.</p>
+        <p class="chart-card__hint">Por viagem (Placa + Data de Embarque), preenchido a partir do TMS Lincros. Os filtros de Período, Transportadora e Motorista aqui em cima valem pro dashboard inteiro (o menu lateral reflete a mesma seleção).</p>
 
         <!-- KPIs principais (2026-09-10: virou seção PRÓPRIA, largura cheia — antes ficava ao
              lado da pizza num painel 50/50, mas o mockup completo do painel gerencial pede a
@@ -1836,7 +1860,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260910a"></script>
 <script src="js/charts.js?v=20260910b"></script>
-<script src="js/dashboard.js?v=20260910f"></script>
+<script src="js/dashboard.js?v=20260910g"></script>
 <script src="js/script.js?v=20260909b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
