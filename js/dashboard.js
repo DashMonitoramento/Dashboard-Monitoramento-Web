@@ -2776,6 +2776,15 @@ const Dashboard = (() => {
         }
       }
     });
+    // "Cidades com maior custo por Kg" (2026-09-10, Fase 2 do painel gerencial) — hbar simples,
+    // já existente no motor (zero risco novo), ranking INDEPENDENTE da pizza acima (aqui por
+    // R$/kg, lá por valor total — "Outros" de cada um pode ser um conjunto de cidades diferente,
+    // por design). currency:true pra formatar os rótulos como "R$ 0,81" em vez de arredondar
+    // pra inteiro (ver DashChart._fmt).
+    charts.indicadorFreteCidadesRsPorKg = new DashChart(document.getElementById('chart-indicador-frete-cidades-rskg'), {
+      type: 'hbar', labels: [], series: [{ name: 'R$/kg', data: [], color: ChartPalette[3] }],
+      options: { currency: true, fullLabels: true }
+    });
   }
 
   function renderCharts(records) {
@@ -4274,11 +4283,13 @@ const Dashboard = (() => {
     setTextoEfic('indicador-frete-qtd-nfs', qtdNFsEstimadaTotal > 0 ? `≈ ${Utils.formatNumber(qtdNFsEstimadaTotal)}` : '—');
     setTextoEfic('indicador-frete-ticket-medio-nf', qtdNFsEstimadaTotal > 0 ? `≈ ${Utils.formatCurrency(totalValorNFs / qtdNFsEstimadaTotal)}` : '—');
 
-    // Pizza "Cidades com frete mais caro" (2026-09-09) — soma de Valor Frete por Cidade
-    // Destino: pizza representa PARTES DE UM TODO, e uma soma de R$ por região é exatamente
-    // isso (as fatias somam o total gasto); % Frete é uma proporção por região (não soma 100%
-    // ao empilhar), não cabe bem numa pizza — por isso a escolha de Valor Frete aqui, não %.
-    // Top 7 + "Outros" (a paleta de cores do dashboard tem 8 cores fixas, ver ChartPalette).
+    // Pizza "Cidades com maior gasto de frete" (2026-09-09, renomeada 2026-09-10 — antes
+    // "Cidades com frete mais caro": nome antigo dava a entender custo por Kg, não gasto total,
+    // daí a separação em 2 análises pedida pela usuária, ver o hbar de R$/kg logo abaixo) — soma
+    // de Valor Frete por Cidade Destino: pizza representa PARTES DE UM TODO, e uma soma de R$
+    // por região é exatamente isso (as fatias somam o total gasto); % Frete é uma proporção por
+    // região (não soma 100% ao empilhar), não cabe bem numa pizza — por isso a escolha de Valor
+    // Frete aqui, não %. Top 7 + "Outros" (paleta do dashboard tem 8 cores fixas, ver ChartPalette).
     const cidadeDoItem = i => i.cidadeDestino || '(sem cidade)';
     if (charts.indicadorFreteRegioes) {
       const porCidade = new Map();
@@ -4294,7 +4305,11 @@ const Dashboard = (() => {
       const labelsChart = topCidades.map(([nome]) => nome);
       const dataChart = topCidades.map(([, valor]) => valor);
       if (somaOutras > 0) { labelsChart.push('Outros'); dataChart.push(somaOutras); }
-      charts.indicadorFreteRegioes.update({ labels: labelsChart, series: [{ data: dataChart }] });
+      // legendSecundarioValores = dataChart (2026-09-10, pedido da usuária: "cidade, percentual
+      // de participação, valor total de frete da cidade") — é o MESMO array que já alimenta a
+      // pizza, então o tile mostra a % (calculada a partir dele, automático) e o R$ (o próprio
+      // valor), sem cálculo novo nenhum.
+      charts.indicadorFreteRegioes.update({ labels: labelsChart, series: [{ data: dataChart }], options: { legendSecundarioValores: dataChart } });
       // "Outros" agrupa o que ficou fora do top 7 — pra clicar nesse quadrado e filtrar a
       // tabela por TODAS essas cidades (não uma cidade literal chamada "Outros").
       indicadorFreteCidadesOutras = new Set(outrasCidades.map(([nome]) => nome));
@@ -4304,6 +4319,40 @@ const Dashboard = (() => {
         ? indicadorFreteCidadesOutras.size > 0
         : labelsChart.includes(indicadorFreteRegiaoSelecionada);
       if (indicadorFreteRegiaoSelecionada && !aindaExiste) indicadorFreteRegiaoSelecionada = null;
+    }
+
+    // "Cidades com maior custo por Kg" (2026-09-10, Fase 2) — hbar com Valor Frete ÷ Peso por
+    // cidade, RANKING INDEPENDENTE do gráfico acima (aqui ordena por R$/kg, lá por valor total —
+    // os "Outros" de cada um podem ser conjuntos de cidades diferentes, por design: são duas
+    // análises distintas, pedido explícito da usuária pra "evitar interpretar volume alto como
+    // custo caro"). "Outros" é soma/soma dos remanescentes, NÃO média das médias individuais —
+    // uma cidade com pouco peso e R$/kg alto não pode pesar igual a uma com volume grande
+    // (evita o erro de Simpson). Cidade sem peso nenhum (peso=0) não entra — R$/kg indefinido.
+    if (charts.indicadorFreteCidadesRsPorKg) {
+      const porCidadeRsKg = new Map();
+      itensCruzados.forEach(i => {
+        const cidade = cidadeDoItem(i);
+        if (!porCidadeRsKg.has(cidade)) porCidadeRsKg.set(cidade, { valor: 0, peso: 0 });
+        const acc = porCidadeRsKg.get(cidade);
+        acc.valor += i.valorFrete;
+        acc.peso += i.peso;
+      });
+      const cidadesComRsKg = Array.from(porCidadeRsKg.entries())
+        .map(([nome, acc]) => ({ nome, valor: acc.valor, peso: acc.peso, rsKg: acc.peso > 0 ? acc.valor / acc.peso : 0 }))
+        .filter(c => c.peso > 0)
+        .sort((a, b) => b.rsKg - a.rsKg);
+      const TOP_N_CIDADES_RSKG = 7;
+      const topRsKg = cidadesComRsKg.slice(0, TOP_N_CIDADES_RSKG);
+      const outrasRsKg = cidadesComRsKg.slice(TOP_N_CIDADES_RSKG);
+      const labelsRsKg = topRsKg.map(c => c.nome);
+      const dataRsKg = topRsKg.map(c => c.rsKg);
+      if (outrasRsKg.length) {
+        const somaValorOutras = Utils.sum(outrasRsKg, c => c.valor);
+        const somaPesoOutras = Utils.sum(outrasRsKg, c => c.peso);
+        labelsRsKg.push('Outros');
+        dataRsKg.push(somaPesoOutras > 0 ? somaValorOutras / somaPesoOutras : 0);
+      }
+      charts.indicadorFreteCidadesRsPorKg.update({ labels: labelsRsKg, series: [{ name: 'R$/kg', data: dataRsKg }] });
     }
 
     // Chip "Filtrando: <cidade> ×" acima da tabela (pedido da usuária, 2026-09-09: clicar num
