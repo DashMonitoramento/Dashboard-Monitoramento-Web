@@ -2556,7 +2556,7 @@ const Dashboard = (() => {
 
   function renderAll() {
     populateFilterOptions();
-    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS);
+    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_FILTROS_CABECALHO_IDS, true);
     popularFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
     render(DataStore.getFilteredRecords());
   }
@@ -4931,7 +4931,7 @@ const Dashboard = (() => {
    * separado do bindFilterInputs). Reconstrói do zero a cada chamada (não appendChild) — seguro
    * chamar de novo em "Atualizar dados" sem duplicar opção. Preserva a seleção atual quando o
    * nome ainda existe na lista nova (mesmo padrão do <select> de Ano no menu lateral). */
-  function popularFiltrosCabecalhoEmbutido(ids) {
+  function popularFiltrosCabecalhoEmbutido(ids, agruparTransportadoraPorCategoria = false) {
     const preencher = (elId, valores) => {
       const el = document.getElementById(elId);
       if (!el) return;
@@ -4940,8 +4940,39 @@ const Dashboard = (() => {
         valores.filter(Boolean).map(v => `<option value="${escapeAttr(v)}">${escapeAttr(v)}</option>`).join('');
       el.value = valorAtual;
     };
-    preencher(ids.transportadora, DataStore.getDistinctValues('transportadora'));
+    if (agruparTransportadoraPorCategoria) {
+      preencherSelectTransportadoraAgrupado(ids.transportadora);
+    } else {
+      preencher(ids.transportadora, DataStore.getDistinctValues('transportadora'));
+    }
     preencher(ids.motorista, DataStore.getDistinctValues('motorista'));
+  }
+
+  /** Preenche o <select> de Transportadora do cabeçalho AGRUPADO por Categoria (Transportadora/
+   * Agregado/Próprio Retira/Exportação/Sem categoria) via <optgroup> — mesma separação que já
+   * existe no filtro "Transporte" da barra lateral (CATEGORIAS_TRANSPORTE_UI), só que aqui é 1
+   * <select> único (o cabeçalho é sempre single-select, não 4 listas de checkbox). Pedido da
+   * usuária (2026-09-10): "os filtros estão pegando tudo junto sem separação" — antes a lista
+   * vinha achatada, sem indicar qual nome é Transportadora de verdade e qual é Agregado. Só usada
+   * no Indicador de Frete (Despesas Extra continua com a lista achatada — não foi pedido lá). O
+   * valor do <option> continua sendo só o nome (igual antes) — <optgroup> é puramente visual,
+   * não muda o que chega em DataStore.setFilters. */
+  function preencherSelectTransportadoraAgrupado(elId) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const valorAtual = el.value;
+    const porCategoria = DataStore.getNomesTransportadoraAgrupadosComResto();
+    const grupos = [...CATEGORIAS_TRANSPORTE_UI.map(c => c.label), 'Sem categoria'];
+    const html = ['<option value="">Todos</option>'];
+    for (const categoria of grupos) {
+      const nomes = (porCategoria[categoria] || []).filter(Boolean);
+      if (!nomes.length) continue;
+      html.push(`<optgroup label="${escapeAttr(categoria)}">`);
+      html.push(nomes.map(n => `<option value="${escapeAttr(n)}">${escapeAttr(n)}</option>`).join(''));
+      html.push('</optgroup>');
+    }
+    el.innerHTML = html.join('');
+    el.value = valorAtual;
   }
 
   /** Liga os 4 controles do cabeçalho ao MESMO DataStore.setFilters usado pelo menu lateral —
