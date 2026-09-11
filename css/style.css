@@ -1073,10 +1073,21 @@ ul { list-style: none; margin: 0; padding: 0; }
 /* Por padrão .chart-root empilha em coluna (pizza em cima, legenda embaixo, ver regra genérica
    no topo deste arquivo) — só a pizza desta tela vira uma linha, pizza + legenda lado a lado,
    com a legenda forçada em 2 colunas fixas (o grid auto-fit padrão abriria 3+ colunas num
-   card largo como este). O hbar ao lado não tem legenda (série única), então não precisa
-   desse tratamento — fica com o comportamento padrão (coluna, só o gráfico). */
+   card largo como este). O hbar/combo ao lado não devem ganhar esse tratamento.
+   BUG REAL (achado 2026-09-11, testando com a usuária): a regra de baixo estava com o seletor
+   largo demais (`#indicador-frete-view .chart-plot-area`, sem `.chart-root--donut`) — batia em
+   TODO `.chart-plot-area` da tela, não só o da pizza. Resultado: `flex: 0 0 44%` (flex-grow:0,
+   flex-basis:44%) se aplicava também a gráficos em COLUNA (hbar/combo/bar simples), onde o eixo
+   principal do flex é VERTICAL — a área de plotagem ficava travada em 44% da altura do card,
+   SEM crescer (flex-grow:0), sobrando um vão vazio embaixo do tamanho do resto (56%) — essa é a
+   causa raiz de verdade do "gráfico pequeno, espaço vazio embaixo" (o aumento de min-height
+   sozinho, na rodada anterior, só fez esse vão crescer junto, não resolveu). Confirmado ao vivo
+   via DevTools: chart-root em 460px, mas .chart-plot-area preso em ~202px (~44% de 460).
+   Fix: escopar a regra só ao `.chart-root--donut` (linha de cima), que é quem realmente precisa
+   de pizza+legenda lado a lado — hbar/combo/bar voltam a usar o `flex:1` genérico da regra no
+   topo do arquivo, crescendo de verdade dentro do min-height que cada um tem hoje. */
 #indicador-frete-view .chart-root--donut { flex-direction: row; align-items: stretch; gap: 16px; }
-#indicador-frete-view .chart-plot-area { flex: 0 0 44%; min-width: 180px; }
+#indicador-frete-view .chart-root--donut .chart-plot-area { flex: 0 0 44%; min-width: 180px; }
 #indicador-frete-view .chart-legend--tiles {
   flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-rows: 1fr; align-content: center; gap: 10px;
