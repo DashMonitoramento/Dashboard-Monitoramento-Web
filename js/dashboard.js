@@ -2819,7 +2819,10 @@ const Dashboard = (() => {
     charts.indicadorFreteTransportadoraStatus = new DashChart(document.getElementById('chart-indicador-frete-transportadora-status'), {
       type: 'donut', labels: [], series: [{ data: [] }],
       options: {
-        colors: ['#EAB308', '#DC2626', '#16A34A', '#2563EB'], // Aguardando, Cobrado a maior, Cobrado a menor, Auditado OK — mesma ordem de INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS
+        // Auditado OK, Cobrado a maior, Cobrado a menor, Aguardando — mesma ordem de `ordem` em
+        // renderIndicadorFreteTransportadoraStatusChart (2026-09-11, pedido da usuária: essa
+        // sequência específica nos 4 quadrados da legenda, não a ordem antiga).
+        colors: ['#2563EB', '#DC2626', '#16A34A', '#EAB308'],
         onLegendClick: (label) => {
           const chaveStatus = Object.entries(INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS).find(([, texto]) => texto === label)?.[0] || null;
           indicadorFreteTransportadoraStatusSelecionado = indicadorFreteTransportadoraStatusSelecionado === chaveStatus ? null : chaveStatus;
@@ -5637,7 +5640,10 @@ const Dashboard = (() => {
    * categorias/cores bate com options.colors definido em createCharts. */
   function renderIndicadorFreteTransportadoraStatusChart(contagens) {
     if (!charts.indicadorFreteTransportadoraStatus) return;
-    const ordem = ['aguardando', 'cobrado_maior', 'cobrado_menor', 'auditado_ok'];
+    // Ordem pedida pela usuária (2026-09-11) pros 4 quadrados da legenda (grid 2x2: este array
+    // vira topo-esquerda/topo-direita/baixo-esquerda/baixo-direita, nessa ordem) — `colors` em
+    // createCharts precisa continuar na MESMA ordem (é posicional, não por nome).
+    const ordem = ['auditado_ok', 'cobrado_maior', 'cobrado_menor', 'aguardando'];
     charts.indicadorFreteTransportadoraStatus.update({
       labels: ordem.map(k => INDICADOR_FRETE_TRANSPORTADORA_STATUS_LABELS[k]),
       series: [{ data: ordem.map(k => contagens[k] || 0) }]
