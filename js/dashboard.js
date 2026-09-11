@@ -2787,7 +2787,12 @@ const Dashboard = (() => {
     // pra inteiro (ver DashChart._fmt).
     charts.indicadorFreteCidadesRsPorKg = new DashChart(document.getElementById('chart-indicador-frete-cidades-rskg'), {
       type: 'hbar', labels: [], series: [{ name: 'R$/kg', data: [], color: ChartPalette[3] }],
-      options: { currency: true, fullLabels: true }
+      // rowGapRatio/barThicknessRatio (2026-09-11, pedido da usuária: "muito pequeno, espaço
+      // vazio grande embaixo") — mais vão ENTRE as barras (0.28→0.38) E barra mais grossa dentro
+      // do próprio espaço dela (0.86→0.95, sem sentido reservar folga pra outra série aqui, é
+      // série única) — combinado com o min-height maior deste container (ver style.css), o
+      // resultado ocupa a altura do card de verdade em vez de ficar pequeno no topo.
+      options: { currency: true, fullLabels: true, rowGapRatio: 0.38, barThicknessRatio: 0.95 }
     });
     // "Evolução do Frete" (2026-09-10, Fase 3) — tipo 'combo' novo (barra + linhas, cada uma com
     // sua própria escala, ver _drawCombo em charts.js). Séries/dados vêm de
