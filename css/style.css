@@ -1093,6 +1093,12 @@ ul { list-style: none; margin: 0; padding: 0; }
   grid-auto-rows: 1fr; align-content: center; gap: 10px;
 }
 #indicador-frete-view .chart-stat-tile { padding: 12px 14px; }
+/* "Status dos CT-es" (2026-09-11, pedido da usuária: "deixa o gráfico pizza maior") — mais
+   largura pra rosca em si dentro do próprio card (44%→58%, ID específico pra não afetar a outra
+   pizza da tela, "Cidades com maior gasto de frete", que continua em 44%). */
+#indicador-frete-view #chart-indicador-frete-transportadora-status .chart-plot-area {
+  flex-basis: 58%;
+}
 
 /* "Oportunidades de Redução" (2026-09-10, Fase 5) — lista de alertas automáticos, reaproveita
    .badge--danger/--warning/--success já existentes (Alto/Médio/Baixo) — sem paleta nova. */
