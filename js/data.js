@@ -2137,6 +2137,19 @@ const DataStore = (() => {
 
   function getIndicadorFreteTransportadora() { return indicadorFreteTransportadoraRecords.slice(); }
 
+  /** Nomes de Transportadora DESTA fonte nativa (export cru da Lincros, campo
+   * "transportadora.nome") — vocabulário PRÓPRIO, sem nenhuma relação com os nomes de
+   * Transportadora da Base Bluesoft (rawRecords). Usado só pro <select> de filtro do relatório
+   * "Indicador de Frete Transportadora" (dashboard.js) — antes esse <select> reaproveitava
+   * getNomesTransportadoraAgrupadosComResto() (nomes da Base Bluesoft), o que fazia sentido
+   * quando essa fonte ainda era cruzada por Placa+dia (rodada antiga, já superada); depois que
+   * virou 100% nativa (sem cruzamento nenhum, "correção FUNDAMENTAL" de 2026-09-10), o <select>
+   * ficou oferecendo nomes que quase nunca existem em item.transportadora — selecionar qualquer
+   * um deles zerava o relatório inteiro (bug real, reportado pela usuária 2026-09-11). */
+  function getDistinctValuesIndicadorFreteTransportadora() {
+    return Utils.uniqueSorted(indicadorFreteTransportadoraRecords.map(r => r.transportadora));
+  }
+
   /** Dado o filtro de Período ATIVO (dataInicio/dataFim e/ou mes/ano — os 4 são independentes,
    * ver getFilteredRecords acima), devolve a janela {inicio, fim} imediatamente ANTERIOR, com a
    * MESMA duração, pra comparações "vs. período anterior" (pedido da usuária, 2026-09-10, no
@@ -2315,21 +2328,6 @@ const DataStore = (() => {
     return out;
   }
 
-  /** Como getNomesTransportadoraPorCategoria, mas garante que NENHUM nome se perca: nomes cujo
-   * tipoTransporte não é nenhuma das 4 categorias filtráveis (sem dado, "Não Encontrado" etc.)
-   * entram num grupo à parte "Sem categoria" — usado pelo <select> ÚNICO (não 4 listas de
-   * checkbox) do cabeçalho do "Indicador de Frete" (2026-09-10, pedido da usuária: "os filtros
-   * estão pegando tudo junto sem separação", igual ao filtro "Transporte" da barra lateral já
-   * faz). Precisa cobrir TODO nome que já aparecia na lista achatada de antes
-   * (getDistinctValues('transportadora')) — diferente do filtro "Transporte" (que ela mesma
-   * pediu pra esconder essa "5ª categoria" de ruído lá), aqui esconder um nome quebraria a
-   * seleção de quem já filtrava por ele. */
-  function getNomesTransportadoraAgrupadosComResto() {
-    const porCategoria = getNomesTransportadoraPorCategoria();
-    const classificados = new Set(Object.values(porCategoria).flat());
-    const semCategoria = getDistinctValues('transportadora').filter(n => n && !classificados.has(n));
-    return { ...porCategoria, 'Sem categoria': semCategoria };
-  }
 
   /* ============================================================
    * PEDIDOS NÃO FATURADOS — aba nova (2026-08-27), pedidos que ainda não viraram nota
@@ -2512,9 +2510,10 @@ const DataStore = (() => {
     applyAgendamentoManual, applyValorDescargaAprovado, applyClienteNecessitaAjudante, normalizeClienteKey,
     loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
     loadIndicadorFreteTransportadoraFromUrl, loadIndicadorFreteTransportadoraFromFile, getIndicadorFreteTransportadora,
+    getDistinctValuesIndicadorFreteTransportadora,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
     setFilters, resetFilters, getFilters,
-    getDistinctValues, getNomesTransportadoraPorCategoria, getNomesTransportadoraAgrupadosComResto, getAvailableYears, getLeadTimeStats,
+    getDistinctValues, getNomesTransportadoraPorCategoria, getAvailableYears, getLeadTimeStats,
     getCodigoRegiaoComercial, getRegioesComerciaisComCodigo,
     onChange, suspenderNotificacoes, retomarNotificacoes
   };
