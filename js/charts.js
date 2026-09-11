@@ -369,9 +369,16 @@ class DashChart {
     // options.thickBars: pedido do usuário pros rankings de transportadoras (entregues vs.
     // vencidas) — barras mais grossas, com menos espaço vazio entre elas.
     const thick = !!this.options.thickBars;
-    const innerBarRatio = thick ? 0.94 : 0.86;
+    // options.barThicknessRatio/rowGapRatio (opcionais, 2026-09-11): override explícito dos 2
+    // números abaixo, pra ajustar a densidade de UM hbar específico sem afetar os outros — ao
+    // contrário de thickBars (mais grosso E menos vão), aqui às vezes se quer MAIS vão ENTRE as
+    // barras E barra mais grossa ao mesmo tempo (ex.: "Cidades com maior custo por Kg", pedido
+    // da usuária: "muito pequeno, espaço vazio grande embaixo"). Sem essas options, comportamento
+    // idêntico a antes (thickBars continua funcionando igual pros gráficos que já o usavam).
+    const innerBarRatio = this.options.barThicknessRatio ?? (thick ? 0.94 : 0.86);
+    const gapRatio = this.options.rowGapRatio ?? (thick ? 0.14 : 0.28);
     const groupSize = horizontal ? plotH / n : plotW / n;
-    const barGap = groupSize * (thick ? 0.14 : 0.28);
+    const barGap = groupSize * gapRatio;
     const barSlot = groupSize - barGap;
     const barWidth = barSlot / series.length;
 
@@ -620,7 +627,11 @@ class DashChart {
     const seriesBarra = series.filter(s => s.tipo === 'bar');
     const seriesLinha = series.filter(s => s.tipo !== 'bar');
 
-    const padding = { top: 34, right: 16, bottom: 30, left: 16 };
+    // Padding maior que o padrão de _drawLineArea (2026-09-11, pedido da usuária: rótulos
+    // colados/cortados na borda) — topo/base dão espaço pras "pills" das linhas nascerem sem
+    // baterem no rótulo do eixo X nem na borda de cima; laterais dão folga pra pill do 1º/último
+    // ponto não ficar espremida bem na quina do canvas.
+    const padding = { top: 44, right: 28, bottom: 34, left: 28 };
     const plotW = this.width - padding.left - padding.right;
     const plotH = this.height - padding.top - padding.bottom;
     const stepX = n > 1 ? plotW / (n - 1) : 0;
@@ -660,7 +671,12 @@ class DashChart {
 
     // Linhas: perSeriesScale sempre ligado aqui (não é opção — faz sentido universal pro combo,
     // já que barra e linha(s) nunca deveriam dividir a mesma régua mesmo). Pill alternando
-    // acima/abaixo do ponto pra não sobrepor quando há 2+ linhas (mesmo truque de _drawLineArea).
+    // acima/abaixo do ponto pra não sobrepor quando há 2+ linhas (mesmo truque de _drawLineArea) —
+    // com anti-colisão de verdade (2026-09-11, pedido da usuária: "labels não podem ficar em cima
+    // de barras/outros labels"): `occupied` começa com as barras já desenhadas (this._hitboxes é
+    // {x,y,w,h} igual ao formato que _drawValuePillEsquivando espera) e cada pill nova testa
+    // contra tudo que já foi colocado antes de decidir onde nascer.
+    const occupied = this._hitboxes.slice();
     this._points = [];
     seriesLinha.forEach((s, si) => {
       const serieMax = Math.max(...s.data, 1) * 1.25;
@@ -698,7 +714,7 @@ class DashChart {
           const halfWidth = ctx.measureText(valueText).width / 2 + 7;
           const gapNeeded = lastLabelHalfWidth + halfWidth + 6;
           if (p.x - lastLabelX >= gapNeeded || isLast) {
-            this._drawValuePill(ctx, p.x, p.y, valueText, s.color, si % 2 === 0);
+            this._drawValuePillEsquivando(ctx, p.x, p.y, valueText, s.color, si % 2 === 0, occupied, padding.top, padding.top + plotH);
             lastLabelX = p.x;
             lastLabelHalfWidth = halfWidth;
           }
@@ -732,15 +748,10 @@ class DashChart {
     ctx.lineTo(last.x, last.y);
   }
 
-  /** Etiqueta arredondada com o valor, flutuando acima (série principal) ou abaixo do ponto. */
-  _drawValuePill(ctx, x, y, valueText, color, above) {
-    ctx.font = '700 11px Inter, system-ui, sans-serif';
-    const boxW = ctx.measureText(valueText).width + 14;
-    const boxH = 19;
-    // Trava a etiqueta dentro do canvas — senão a do primeiro/último ponto fica cortada.
-    const boxX = Math.max(2, Math.min(x - boxW / 2, this.width - boxW - 2));
-    const boxY = above ? y - 14 - boxH : y + 14;
-
+  /** Desenha o retângulo arredondado + texto de uma "pill" já posicionada — miolo visual
+   * compartilhado por _drawValuePill (posição fixa) e _drawValuePillEsquivando (com
+   * anti-colisão), pra não duplicar sombra/arredondamento/texto em 2 lugares. */
+  _paintPillBox(ctx, boxX, boxY, boxW, boxH, valueText, color) {
     ctx.save();
     ctx.shadowColor = 'rgba(16,24,40,.18)';
     ctx.shadowBlur = 4;
@@ -754,6 +765,53 @@ class DashChart {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(valueText, boxX + boxW / 2, boxY + boxH / 2);
+  }
+
+  /** Etiqueta arredondada com o valor, flutuando acima (série principal) ou abaixo do ponto. */
+  _drawValuePill(ctx, x, y, valueText, color, above) {
+    ctx.font = '700 11px Inter, system-ui, sans-serif';
+    const boxW = ctx.measureText(valueText).width + 14;
+    const boxH = 19;
+    // Trava a etiqueta dentro do canvas — senão a do primeiro/último ponto fica cortada.
+    const boxX = Math.max(2, Math.min(x - boxW / 2, this.width - boxW - 2));
+    const boxY = above ? y - 14 - boxH : y + 14;
+    this._paintPillBox(ctx, boxX, boxY, boxW, boxH, valueText, color);
+  }
+
+  /** Como _drawValuePill, mas com anti-colisão de verdade (2026-09-11, pedido da usuária no
+   * gráfico "Evolução do Frete"/"Evolução da Diferença de Frete": labels não podem ficar em
+   * cima de barra nem de outro label, e nenhum pode ser cortado pelo canvas). `occupied` é a
+   * lista de retângulos {x,y,w,h} já desenhados neste frame (barras + pills anteriores) — testa
+   * 4 posições candidatas em ordem de preferência (lado preferido perto/longe, lado oposto
+   * perto/longe) e usa a primeira que não colide com nada E cabe dentro do canvas; se nenhuma
+   * limpar (caso raro), cai pra a preferida só travada dentro da tela — nunca omite o valor
+   * (o pedido é "não sobrepor", não "esconder"). Sempre registra a box escolhida em `occupied`
+   * antes de sair, pra a próxima pill já saber que ali está ocupado. */
+  _drawValuePillEsquivando(ctx, x, y, valueText, color, preferAbove, occupied, boundTop, boundBottom) {
+    ctx.font = '700 11px Inter, system-ui, sans-serif';
+    const boxW = ctx.measureText(valueText).width + 14;
+    const boxH = 19;
+    const boxX = Math.max(2, Math.min(x - boxW / 2, this.width - boxW - 2));
+    // Limites = a ÁREA DE PLOTAGEM (padding.top até padding.top+plotH), não o canvas inteiro —
+    // usar this.height aqui deixava a pill "abaixo" invadir a faixa do rótulo do eixo X (bug
+    // real, achado testando: "Mar/26" colidindo com o pill "2%" da % Frete quando o ponto fica
+    // perto do fundo do gráfico).
+    const margem = 4;
+
+    const perto = [y - 14 - boxH, y + 14];
+    const longe = [y - 14 - (boxH * 2 + 6), y + 14 + (boxH + 6)];
+    const candidatos = preferAbove ? [perto[0], perto[1], longe[0], longe[1]] : [perto[1], perto[0], longe[1], longe[0]];
+
+    const colide = (by) => occupied.some(o =>
+      boxX < o.x + o.w && boxX + boxW > o.x && by < o.y + o.h && by + boxH > o.y
+    );
+    const dentroDosLimites = (by) => by >= boundTop + margem && by + boxH <= boundBottom - margem;
+
+    let boxY = candidatos.find(by => dentroDosLimites(by) && !colide(by));
+    if (boxY === undefined) boxY = Math.max(boundTop + margem, Math.min(candidatos[0], boundBottom - margem - boxH));
+
+    this._paintPillBox(ctx, boxX, boxY, boxW, boxH, valueText, color);
+    occupied.push({ x: boxX, y: boxY, w: boxW, h: boxH });
   }
 
   _withAlpha(hex, alpha) {
