@@ -1058,6 +1058,18 @@ ul { list-style: none; margin: 0; padding: 0; }
   padding: 16px;
 }
 .indicador-frete-analise-card .chart-root { flex: 1; min-height: 320px; }
+/* "Cidades com maior custo por Kg" + as 2 "Evolução..." (combo, um em cada relatório) — 2026-09-11,
+   pedido da usuária ("gráfico pequeno, espaço vazio embaixo"; e "manter esse padrão... pro
+   dashboard inteiro ficar consistente" pro combo irmão do relatório Transportadora). Piso bem
+   mais alto que o padrão de 320px acima, só nestes 3 — ainda fluido (flex:1 continua valendo,
+   cresce mais se o card ficar maior), só o MÍNIMO que subiu. O resto da linha (pizza/donut, bar
+   Calculado x Cobrado) acompanha via align-items:stretch da própria .indicador-frete-analises,
+   sem precisar de regra própria. */
+#chart-indicador-frete-cidades-rskg,
+#chart-indicador-frete-evolucao,
+#chart-indicador-frete-transportadora-evolucao-dif {
+  min-height: 460px;
+}
 /* Por padrão .chart-root empilha em coluna (pizza em cima, legenda embaixo, ver regra genérica
    no topo deste arquivo) — só a pizza desta tela vira uma linha, pizza + legenda lado a lado,
    com a legenda forçada em 2 colunas fixas (o grid auto-fit padrão abriria 3+ colunas num
