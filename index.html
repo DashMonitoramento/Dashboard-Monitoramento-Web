@@ -1609,7 +1609,7 @@ Segue anexo o relatório atualizado.</textarea>
              reorganizada (ver selecionarRelatorioIndicadorFrete/bindIndicadorFreteSelecaoRelatorio
              em dashboard.js). RENOMEADOS + filtro próprio por relatório (2026-09-10, 2ª rodada):
              "Indicador de Frete Agregados" (viagens cruzadas por Placa+Dia, filtra por Motorista)
-             e "Indicador de Frete Transportadora" (auditoria nativa por Embarque, filtra por
+             e "Indicador de Frete Transportadora" (auditoria nativa por CT-e, filtra por
              Transportadora) — antes os dois compartilhavam 1 cabeçalho só com os 2 filtros
              juntos, mesmo um deles não fazendo nada num relatório (Motorista não existe na fonte
              do 2º relatório). Cada relatório agora tem seu próprio filtro dentro do seu container
@@ -1627,7 +1627,7 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="indicador-frete-relatorio-card__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
             <span class="indicador-frete-relatorio-card__texto">
               <span class="indicador-frete-relatorio-card__titulo">Indicador de Frete Transportadora</span>
-              <span class="indicador-frete-relatorio-card__desc">Auditoria por embarque, filtrado por Transportadora: valor de frete calculado x valor efetivamente cobrado.</span>
+              <span class="indicador-frete-relatorio-card__desc">Auditoria por CT-e, filtrado por Transportadora: valor de frete calculado x valor efetivamente cobrado.</span>
             </span>
           </button>
         </div>
@@ -1923,21 +1923,23 @@ Segue anexo o relatório atualizado.</textarea>
           </label>
           <button id="btn-export-indicador-frete-transportadora" class="btn" type="button">⬇️ Exportar Excel</button>
         </div>
-        <!-- Painel de Auditoria de Frete (2026-09-10, reformulação completa, Fase 1) — vem de uma
-             aba separada ("Indicador Frete Transportadora", export cru da Lincros), por EMBARQUE,
-             não por Nota Fiscal. Frete Calculado é o que a Da Terrinha espera pagar; Frete Total é
-             o que a transportadora efetivamente cobrou; Diferença vem PRONTA da planilha (coluna
-             que ela mesma criou lá, não é derivada aqui). Nativo por Transportadora (sem
-             cruzamento); não tem Motorista, então só respeita Período + Transportadora + UF
-             Destino do filtro próprio acima.
+        <!-- Painel de Auditoria de Frete (2026-09-10, reformulação completa, Fase 1; REESCRITO
+             2026-09-11) — vem de uma aba separada ("Indicador Frete Transportadora"), por
+             CT-E/NOTA (Número+Série), não por Embarque nem por NF. Frete Calculado é o que a Da
+             Terrinha espera pagar; Frete Cobrado (Valor realizado) é o que a transportadora
+             efetivamente cobrou; Diferença vem PRONTA da planilha (coluna que ela mesma criou lá,
+             não é derivada aqui). Nativo por Transportadora (sem cruzamento); não tem Motorista,
+             então só respeita Período + Transportadora + UF Destino do filtro próprio acima.
              3 estados de auditoria (statusAuditoriaFreteTransportadora, dashboard.js): AGUARDANDO
              COBRANÇA (célula "Diferença de frete" veio em branco na planilha — NUNCA tratado como
              cobrou R$0), AUDITADO OK (dentro da tolerância) e DIVERGÊNCIA (cobrado a maior/menor).
-             KPI "Frete Calculado" soma TODOS os embarques filtrados (inclusive aguardando); os
+             KPI "Frete Calculado" soma TODOS os CT-es filtrados (inclusive aguardando); os
              demais KPIs desta linha são calculados só sobre os AUDITADOS (populações diferentes de
-             propósito — ver legenda pequena embaixo de cada valor). -->
+             propósito — ver legenda pequena embaixo de cada valor). Sem Peso/Volumes/Valor Doc.
+             Fiscais nesta fonte — por isso não há mais cards de R$/kg nem % Frete sobre NF aqui
+             (existiam na versão por Embarque). -->
         <h3 class="chart-card__title" style="margin:24px 0 4px;">Indicador Frete Transportadora</h3>
-        <p class="chart-card__hint" style="text-align:left; margin-top:0;">Auditoria por embarque: valor de frete calculado x valor efetivamente cobrado pela transportadora.</p>
+        <p class="chart-card__hint" style="text-align:left; margin-top:0;">Auditoria por CT-e: valor de frete calculado x valor efetivamente cobrado pela transportadora.</p>
         <div class="indicador-frete-kpis-principais" style="margin-bottom: 14px;">
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#2563EB">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="11" x2="16" y2="11"></line><line x1="8" y1="15" x2="12" y2="15"></line></svg></span>
@@ -1954,7 +1956,7 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="kpi-card__label">Frete Cobrado</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-total-cobrado">R$ 0,00</span>
               <span class="indicador-frete-kpi__comparativo" id="indicador-frete-transportadora-total-cobrado-comparativo"></span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-cobrado">sobre 0 embarques auditados</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-cobrado">sobre 0 CT-es auditados</span>
             </span>
           </article>
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#DC2626">
@@ -1963,7 +1965,7 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="kpi-card__label">Diferença de Frete</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-total-dif">R$ 0,00</span>
               <span class="indicador-frete-kpi__comparativo" id="indicador-frete-transportadora-total-dif-comparativo"></span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-dif">sobre 0 embarques auditados</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-dif">sobre 0 CT-es auditados</span>
             </span>
           </article>
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#EA580C">
@@ -1972,13 +1974,13 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="kpi-card__label">% Diferença</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-percentual-dif">—</span>
               <span class="indicador-frete-kpi__comparativo" id="indicador-frete-transportadora-percentual-dif-comparativo"></span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-pct-dif">sobre 0 embarques auditados</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-pct-dif">sobre 0 CT-es auditados</span>
             </span>
           </article>
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#7C3AED">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
             <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">Embarques Auditados</span>
+              <span class="kpi-card__label">CT-es Auditados</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-qtd-auditados">0</span>
               <span class="indicador-frete-kpi__comparativo" id="indicador-frete-transportadora-qtd-auditados-comparativo"></span>
             </span>
@@ -1986,7 +1988,7 @@ Segue anexo o relatório atualizado.</textarea>
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#EAB308">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
             <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">Embarques com Divergência</span>
+              <span class="kpi-card__label">CT-es com Divergência</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-qtd-divergencia">0</span>
               <span class="indicador-frete-kpi__comparativo" id="indicador-frete-transportadora-qtd-divergencia-comparativo"></span>
               <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-divergencia">—</span>
@@ -2003,7 +2005,7 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="indicador-frete-kpi__texto">
               <span class="kpi-card__label">Cobrado a maior</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-maior-valor">R$ 0,00</span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-maior-qtd">0 embarques</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-maior-qtd">0 CT-es</span>
               <span class="kpi-card__sub" id="indicador-frete-transportadora-maior-pct">—</span>
             </span>
           </article>
@@ -2012,7 +2014,7 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="indicador-frete-kpi__texto">
               <span class="kpi-card__label">Cobrado a menor</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-menor-valor">R$ 0,00</span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-menor-qtd">0 embarques</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-menor-qtd">0 CT-es</span>
               <span class="kpi-card__sub" id="indicador-frete-transportadora-menor-pct">—</span>
             </span>
           </article>
@@ -2021,48 +2023,23 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="indicador-frete-kpi__texto">
               <span class="kpi-card__label">Aguardando cobrança</span>
               <span class="kpi-card__value" id="indicador-frete-transportadora-aguardando-valor">R$ 0,00</span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-aguardando-qtd">0 embarques</span>
+              <span class="kpi-card__sub" id="indicador-frete-transportadora-aguardando-qtd">0 CT-es</span>
               <span class="kpi-card__sub" id="indicador-frete-transportadora-aguardando-pct">—</span>
             </span>
           </article>
         </div>
 
-        <!-- "Indicadores de Custo" (Fase 4, 2026-09-10) — SÓ embarques auditados (Frete Total só
-             existe pra eles). R$/tonelada não vira card próprio (é só R$/kg × 1000, decisão do
-             plano) — vira legenda pequena dentro do próprio card de R$/kg. Mesmo componente
-             .indicador-frete-kpi--eficiencia (cards menores) já usado no relatório irmão. -->
-        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
-          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#2563EB">
-            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
-            <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">R$/kg Calculado</span>
-              <span class="kpi-card__value" id="indicador-frete-transportadora-rskg-calculado">—</span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-rskg-calculado-ton"></span>
-            </span>
-          </article>
-          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#16A34A">
-            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
-            <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">R$/kg Cobrado</span>
-              <span class="kpi-card__value" id="indicador-frete-transportadora-rskg-cobrado">—</span>
-              <span class="kpi-card__sub" id="indicador-frete-transportadora-rskg-cobrado-ton"></span>
-            </span>
-          </article>
-          <article class="kpi-card indicador-frete-kpi indicador-frete-kpi--eficiencia" style="--kpi-accent:#7C3AED">
-            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>
-            <span class="indicador-frete-kpi__texto">
-              <span class="kpi-card__label">% Frete sobre NF</span>
-              <span class="kpi-card__value" id="indicador-frete-transportadora-pct-frete-nf">—</span>
-            </span>
-          </article>
-        </div>
+        <!-- "Indicadores de Custo" (R$/kg Calculado/Cobrado, % Frete sobre NF) existiam aqui na
+             versão por Embarque (Fase 4, 2026-09-10) — REMOVIDOS na reescrita de 2026-09-11: a
+             fonte nova (por CT-e) não tem Peso/Volumes/Valor Doc. Fiscais, então esses 3
+             indicadores não são mais calculáveis com o dado disponível. -->
 
         <!-- Fase 2 (2026-09-10) — gráficos. Reaproveita 100% de classes já existentes
              (.indicador-frete-analises/.indicador-frete-analise-card, .ocorrencias-periodo-btn
              pro toggle) — zero CSS novo. Diário/Semanal/Mensal é UM toggle só controlando os 2
              gráficos temporais juntos (decisão minha: ela pediu o toggle nos dois, mas ter 2
              controles independentes pra comparar as mesmas datas seria só fricção a mais). Os 2
-             gráficos temporais e a rosca de Status usam SÓ embarques AUDITADOS/classificados (a
+             gráficos temporais e a rosca de Status usam SÓ CT-es AUDITADOS/classificados (a
              rosca é exceção: ela mostra os 4 estados, INCLUSIVE aguardando, pra dar a visão
              completa — só os 2 gráficos de valor R$ excluem aguardando, ver decisão de design #4
              do plano). -->
@@ -2077,16 +2054,16 @@ Segue anexo o relatório atualizado.</textarea>
                 <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-indicador-frete-transportadora-granularidade="mensal">Mensal</button>
               </div>
             </div>
-            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Só embarques já auditados (aguardando cobrança fica de fora — comparar contra um "cobrado" que ainda não existe seria enganoso).</p>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Só CT-es já auditados (aguardando cobrança fica de fora — comparar contra um "cobrado" que ainda não existe seria enganoso).</p>
             <div class="chart-root" id="chart-indicador-frete-transportadora-calculado-cobrado"></div>
           </div>
           <div class="indicador-frete-analise-card">
             <h3 class="chart-card__title" style="margin-bottom:4px;">Evolução da Diferença de Frete</h3>
-            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Barra: Diferença em R$ (vermelho = saldo cobrado a maior no período, verde = a menor). Linha: % Diferença. Mesmo Diário/Semanal/Mensal do gráfico ao lado. Só embarques auditados.</p>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Barra: Diferença em R$ (vermelho = saldo cobrado a maior no período, verde = a menor). Linha: % Diferença. Mesmo Diário/Semanal/Mensal do gráfico ao lado. Só CT-es auditados.</p>
             <div class="chart-root" id="chart-indicador-frete-transportadora-evolucao-dif"></div>
           </div>
           <div class="indicador-frete-analise-card">
-            <h3 class="chart-card__title" style="margin-bottom:4px;">Status dos Embarques</h3>
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Status dos CT-es</h3>
             <p class="chart-card__hint" style="margin-top:0; text-align:left;">Clique numa categoria pra filtrar a tabela abaixo por esse status (clique de novo pra limpar).</p>
             <div class="chart-root chart-root--donut" id="chart-indicador-frete-transportadora-status"></div>
           </div>
@@ -2095,7 +2072,7 @@ Segue anexo o relatório atualizado.</textarea>
         <!-- Fase 3 (2026-09-10) — rankings. Tabela de verdade fixa em 10 linhas (mesmo padrão das
              rankings da fonte irmã, não usa createTableState/renderTableGeneric). Clicar numa
              linha do ranking de Transportadoras filtra só a TABELA de detalhamento abaixo (mesmo
-             espírito do clique na rosca de Status/pizza de cidades) — o ranking de Embarques não
+             espírito do clique na rosca de Status/pizza de cidades) — o ranking de CT-es não
              tem esse clique (não pedido). -->
         <h3 class="chart-card__title" style="margin:20px 0 4px;">Rankings e Oportunidades</h3>
         <div class="indicador-frete-analises">
@@ -2109,14 +2086,14 @@ Segue anexo o relatório atualizado.</textarea>
                 <button type="button" class="ocorrencias-periodo-btn" data-indicador-frete-transportadora-ordenar-ranking="divergencias">Maior nº divergências</button>
               </div>
             </div>
-            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Só embarques auditados. Clique numa transportadora pra filtrar a tabela de detalhamento abaixo.</p>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Só CT-es auditados. Clique numa transportadora pra filtrar a tabela de detalhamento abaixo.</p>
             <div style="overflow-x:auto;">
               <table class="data-table">
                 <thead>
                   <tr>
                     <th>#</th>
                     <th>Transportadora</th>
-                    <th class="text-right">Embarques Auditados</th>
+                    <th class="text-right">CT-es Auditados</th>
                     <th class="text-right">Frete Calculado</th>
                     <th class="text-right">Frete Cobrado</th>
                     <th class="text-right">Diferença</th>
@@ -2128,14 +2105,14 @@ Segue anexo o relatório atualizado.</textarea>
             </div>
           </div>
           <div class="indicador-frete-analise-card">
-            <h3 class="chart-card__title" style="margin-bottom:4px;">Top 10 Embarques — Maior Diferença</h3>
-            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Ordenado do maior valor cobrado acima do calculado pro menor. Só embarques auditados.</p>
+            <h3 class="chart-card__title" style="margin-bottom:4px;">Top 10 CT-es — Maior Diferença</h3>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Ordenado do maior valor cobrado acima do calculado pro menor. Só CT-es auditados.</p>
             <div style="overflow-x:auto;">
               <table class="data-table">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Embarque</th>
+                    <th>Nº CTE</th>
                     <th>Transportadora</th>
                     <th class="text-right">Frete Calculado</th>
                     <th class="text-right">Frete Cobrado</th>
@@ -2152,7 +2129,7 @@ Segue anexo o relatório atualizado.</textarea>
               <h3 class="chart-card__title" style="margin-bottom:0;">⚠️ Oportunidades de Redução</h3>
               <span id="indicador-frete-transportadora-oportunidades-contagem" style="font-size:12px; color:var(--text-secondary); font-weight:700; white-space:nowrap;"></span>
             </div>
-            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Alertas automáticos de embarques/transportadoras fora do padrão. Impacto só aparece quando há valor real ou comparação confiável.</p>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Alertas automáticos de CT-es/transportadoras fora do padrão. Impacto só aparece quando há valor real ou comparação confiável.</p>
             <div id="indicador-frete-transportadora-oportunidades-lista" class="indicador-frete-oportunidades-lista"></div>
             <button type="button" id="indicador-frete-transportadora-oportunidades-ver-todas" class="btn" style="margin-top:10px; align-self:flex-start;" hidden>Ver todas</button>
           </div>
@@ -2167,18 +2144,17 @@ Segue anexo o relatório atualizado.</textarea>
           <table class="data-table" id="indicador-frete-transportadora-table">
             <thead>
               <tr>
-                <th data-field="embarque">Embarque</th>
-                <th data-field="identificador">Identificador</th>
-                <th data-field="dataCriacao">Data de Criação</th>
-                <th data-field="dataEmbarque">Data Embarque</th>
+                <th data-field="numeroCte">Nº CTE</th>
+                <th data-field="serie">Série</th>
+                <th data-field="dataEmissao">Emissão</th>
                 <th data-field="transportadora">Transportadora</th>
-                <th data-field="placa">Placa</th>
+                <th data-field="unidade">Unidade</th>
+                <th data-field="origem">Origem</th>
+                <th data-field="estadoOrigem">UF Origem</th>
+                <th data-field="destino">Destino</th>
                 <th data-field="estadoDestino">UF Destino</th>
-                <th data-field="peso" class="text-right">Peso (Kg)</th>
-                <th data-field="volumes" class="text-right">Volumes</th>
-                <th data-field="valorDocFiscais" class="text-right">Valor Doc. Fiscais</th>
                 <th data-field="freteCalc" class="text-right">Frete Calculado</th>
-                <th data-field="freteTotal" class="text-right">Frete Total</th>
+                <th data-field="valorRealizado" class="text-right">Frete Cobrado</th>
                 <th data-field="difFrete" class="text-right">Diferença</th>
                 <th class="text-right">% Diferença</th>
                 <th>Status</th>
@@ -2214,9 +2190,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260910a"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260911a"></script>
+<script src="js/data.js?v=20260911b"></script>
 <script src="js/charts.js?v=20260910c"></script>
-<script src="js/dashboard.js?v=20260911a"></script>
+<script src="js/dashboard.js?v=20260911b"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
