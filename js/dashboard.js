@@ -2556,8 +2556,8 @@ const Dashboard = (() => {
 
   function renderAll() {
     populateFilterOptions();
-    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_AGREGADOS_FILTROS_CABECALHO_IDS);
-    popularFiltrosCabecalhoEmbutido(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS, true);
+    popularFiltroMotoristaIndicadorFreteAgregados();
+    popularFiltroTransportadoraIndicadorFreteTransportadora();
     popularFiltroUFIndicadorFreteTransportadora();
     popularFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
     render(DataStore.getFilteredRecords());
@@ -5016,7 +5016,7 @@ const Dashboard = (() => {
    * separado do bindFilterInputs). Reconstrói do zero a cada chamada (não appendChild) — seguro
    * chamar de novo em "Atualizar dados" sem duplicar opção. Preserva a seleção atual quando o
    * nome ainda existe na lista nova (mesmo padrão do <select> de Ano no menu lateral). */
-  function popularFiltrosCabecalhoEmbutido(ids, agruparTransportadoraPorCategoria = false) {
+  function popularFiltrosCabecalhoEmbutido(ids) {
     const preencher = (elId, valores) => {
       const el = document.getElementById(elId);
       if (!el) return;
@@ -5025,38 +5025,55 @@ const Dashboard = (() => {
         valores.filter(Boolean).map(v => `<option value="${escapeAttr(v)}">${escapeAttr(v)}</option>`).join('');
       el.value = valorAtual;
     };
-    if (agruparTransportadoraPorCategoria) {
-      preencherSelectTransportadoraAgrupado(ids.transportadora);
-    } else {
-      preencher(ids.transportadora, DataStore.getDistinctValues('transportadora'));
-    }
+    preencher(ids.transportadora, DataStore.getDistinctValues('transportadora'));
     preencher(ids.motorista, DataStore.getDistinctValues('motorista'));
   }
 
-  /** Preenche o <select> de Transportadora do cabeçalho AGRUPADO por Categoria (Transportadora/
-   * Agregado/Próprio Retira/Exportação/Sem categoria) via <optgroup> — mesma separação que já
-   * existe no filtro "Transporte" da barra lateral (CATEGORIAS_TRANSPORTE_UI), só que aqui é 1
-   * <select> único (o cabeçalho é sempre single-select, não 4 listas de checkbox). Pedido da
-   * usuária (2026-09-10): "os filtros estão pegando tudo junto sem separação" — antes a lista
-   * vinha achatada, sem indicar qual nome é Transportadora de verdade e qual é Agregado. Só usada
-   * no Indicador de Frete (Despesas Extra continua com a lista achatada — não foi pedido lá). O
-   * valor do <option> continua sendo só o nome (igual antes) — <optgroup> é puramente visual,
-   * não muda o que chega em DataStore.setFilters. */
-  function preencherSelectTransportadoraAgrupado(elId) {
-    const el = document.getElementById(elId);
+  /** Preenche o <select> de Transportadora do relatório "Indicador de Frete Transportadora"
+   * (2026-09-11, correção de bug real). ESSA fonte é 100% nativa (campo "transportadora.nome" do
+   * export cru da Lincros, sem cruzamento nenhum com a Base Bluesoft — ver comentário em
+   * indexIndicadorFreteTransportadoraRows/data.js) — os nomes não têm NENHUMA relação garantida
+   * com os nomes de Transportadora da Base Bluesoft. Antes este <select> reaproveitava
+   * DataStore.getNomesTransportadoraAgrupadosComResto() (nomes da Bluesoft, agrupados por
+   * Categoria) — fazia sentido numa versão antiga/descartada desta tela (cruzada por Placa+dia),
+   * mas ficou errado depois da reescrita pra fonte nativa: quase nenhum nome da Bluesoft batia com
+   * item.transportadora, então selecionar qualquer transportadora zerava o relatório inteiro
+   * (bug reportado pela usuária). Fix: popular direto com os nomes que EXISTEM nesta fonte. */
+  /** Preenche o <select> de Motorista do relatório "Indicador de Frete Agregados" (2026-09-11,
+   * correção de bug real/UX, mesma classe do bug do <select> de Transportadora do relatório
+   * irmão). Motorista aqui é um campo CRUZADO (Placa+dia mais próximo contra a Base Bluesoft, ver
+   * cruzarPlacaDiaMaisProximo) — o <select> reaproveitava DataStore.getDistinctValues('motorista')
+   * (TODOS os ~500 motoristas cadastrados na Base Bluesoft inteira), mas a planilha separada
+   * "Indicador de Frete" (Placa+Data Embarque, preenchida à parte no Lincros) só cobre ~518
+   * placas — medido com dado real: quase METADE dos nomes do <select> (237 de 499, 47,5%) não
+   * tinha NENHUMA viagem cruzada nesta fonte, então escolher um deles zerava o relatório inteiro
+   * (reportado pela usuária). Fix: só oferecer quem de fato aparece cruzado aqui — reusa a MESMA
+   * função de cruzamento já usada em renderIndicadorFrete(), sem filtro de Período (mesmo
+   * critério do <select> irmão: lista tudo que a fonte É CAPAZ de mostrar, não só o recorte
+   * filtrado agora). */
+  function popularFiltroMotoristaIndicadorFreteAgregados() {
+    const el = document.getElementById(INDICADOR_FRETE_AGREGADOS_FILTROS_CABECALHO_IDS.motorista);
     if (!el) return;
     const valorAtual = el.value;
-    const porCategoria = DataStore.getNomesTransportadoraAgrupadosComResto();
-    const grupos = [...CATEGORIAS_TRANSPORTE_UI.map(c => c.label), 'Sem categoria'];
-    const html = ['<option value="">Todos</option>'];
-    for (const categoria of grupos) {
-      const nomes = (porCategoria[categoria] || []).filter(Boolean);
-      if (!nomes.length) continue;
-      html.push(`<optgroup label="${escapeAttr(categoria)}">`);
-      html.push(nomes.map(n => `<option value="${escapeAttr(n)}">${escapeAttr(n)}</option>`).join(''));
-      html.push('</optgroup>');
-    }
-    el.innerHTML = html.join('');
+    const mapaPorPlaca = construirMapaPorPlacaIndicadorFrete();
+    const nomes = new Set();
+    DataStore.getIndicadorFrete().forEach(item => {
+      const cruzado = cruzarPlacaDiaMaisProximo(mapaPorPlaca, item.placa, item.dataEmbarque);
+      if (cruzado && cruzado.motorista) nomes.add(cruzado.motorista);
+    });
+    const lista = Utils.uniqueSorted([...nomes]);
+    el.innerHTML = '<option value="">Todos</option>' +
+      lista.map(n => `<option value="${escapeAttr(n)}">${escapeAttr(n)}</option>`).join('');
+    el.value = valorAtual;
+  }
+
+  function popularFiltroTransportadoraIndicadorFreteTransportadora() {
+    const el = document.getElementById(INDICADOR_FRETE_TRANSPORTADORA_FILTROS_CABECALHO_IDS.transportadora);
+    if (!el) return;
+    const valorAtual = el.value;
+    const nomes = DataStore.getDistinctValuesIndicadorFreteTransportadora();
+    el.innerHTML = '<option value="">Todos</option>' +
+      nomes.filter(Boolean).map(n => `<option value="${escapeAttr(n)}">${escapeAttr(n)}</option>`).join('');
     el.value = valorAtual;
   }
 
