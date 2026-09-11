@@ -2070,67 +2070,65 @@ const DataStore = (() => {
     notify();
   }
 
-  /** Ver comentário de `indicadorFreteTransportadoraRecords` acima. Linha sem Embarque é
-   * ignorada (não dá pra identificar o registro sem ele). */
+  /** 2026-09-11 — REESCRITA COMPLETA: ela extraiu essa aba de outra fonte/relatório do Lincros
+   * (não mais o export "por Embarque" de 2026-09-10) — grão agora é por CT-e/Nota (Número+Série),
+   * não por Embarque, e as colunas mudaram inteiras: sumiram Peso/Volumes/Placa/Valor Doc
+   * Fiscais/Data de Criação/Identificador; entraram Série/Empresa/Unidade/Origem/Estado de
+   * origem/Destino, e "Valor total frete" virou "Valor realizado". "Número" é o Nº do CT-e
+   * (confirmado por ela) -- NÃO confundir com a coluna "NF" usada no resto do dashboard (ver
+   * [[feedback_labeling_clarity]]). Confirmado por ela: Número+Série se REPETE de propósito
+   * (~10 linhas por combinação em média) -- cada linha é um lançamento real e distinto, soma-se
+   * tudo normalmente nos KPIs, não é duplicata pra remover. Como não há campo único de verdade,
+   * a chave de identidade da linha (badges/cliques) usa a posição de leitura (índice), só pra
+   * nunca colidir -- nunca usada pra agrupar/somar. Linha sem Número é ignorada (não dá pra
+   * identificar o registro sem ele). */
   function indexIndicadorFreteTransportadoraRows(rawRows) {
     const lista = [];
+    let indice = 0;
     for (const row of rawRows) {
       const headerIndex = buildHeaderIndex(row);
-      const embarqueHeader = headerIndex['embarque'];
-      const embarque = embarqueHeader !== undefined ? String(row[embarqueHeader] || '').trim() : '';
-      if (!embarque) continue;
-      const dataCriacaoHeader = headerIndex['data criacao'];
+      const numeroHeader = headerIndex['numero'];
+      const numeroCte = numeroHeader !== undefined ? String(row[numeroHeader] || '').trim() : '';
+      if (!numeroCte) continue;
+      const serieHeader = headerIndex['serie'];
+      const emissaoHeader = headerIndex['emissao'];
       const transportadoraHeader = headerIndex['transportadora'];
-      const freteCalcHeader = headerIndex['valor frete calculado'];
-      const freteTotalHeader = headerIndex['valor total frete'];
+      const unidadeHeader = headerIndex['unidade'];
+      const origemHeader = headerIndex['origem'];
+      const estadoOrigemHeader = headerIndex['estado origem'];
+      const destinoHeader = headerIndex['destino'];
       const estadoDestinoHeader = headerIndex['estado destino'];
-      const pesoHeader = headerIndex['peso'];
-      const volumesHeader = headerIndex['volumes'];
-      const dataEmbarqueHeader = headerIndex['data embarque'];
-      const placaHeader = headerIndex['placa'];
-      const valorDocFiscaisHeader = headerIndex['valor doc fiscais'];
-      const identificadorHeader = headerIndex['identificador'];
+      const freteCalcHeader = headerIndex['frete calculado'];
+      const valorRealizadoHeader = headerIndex['valor realizado'];
       const difFreteHeader = headerIndex['diferenca frete'];
-      // Scaffolding Pedágio/Descarga/Diária/Outros Adicionais (2026-09-10, Fase 5) — ela ainda
-      // não tem esses dados na planilha, mas pediu pra preparar a estrutura. null = coluna nem
-      // existe ainda no CSV (mesmo idioma já usado no scaffolding equivalente de
-      // indexIndicadorFreteRows) — quando ela criar essas colunas, o PS1 já sai preenchendo sem
-      // precisar mexer aqui de novo. Futuro: Custo Total = freteCalc + pedagio + descarga +
-      // diaria + outrosAdicionais; decompor Diferença de Frete por componente.
-      const pedagioHeader = headerIndex['pedagio'];
-      const descargaHeader = headerIndex['descarga'];
-      const diariaHeader = headerIndex['diaria'];
-      const outrosAdicionaisHeader = headerIndex['outros adicionais'];
       // "Diferença de frete" é calculada pela PRÓPRIA USUÁRIA na planilha (confirmado por ela,
-      // 2026-09-10): quando a cobrança da transportadora ainda não chegou, ela deixa essa célula
-      // EM BRANCO (não um número negativo cheio). parseMoney('') devolveria 0 -- sem este
-      // tratamento à parte, uma linha "aguardando cobrança" virava indistinguível de uma
-      // diferença real igual a zero (exatamente o risco que ela avisou: não assumir que célula
-      // vazia = cobrou R$0). null = aguardando; qualquer outro valor (inclusive 0 de verdade,
-      // célula preenchida com "0") passa por parseMoney normalmente.
+      // 2026-09-10, ainda vale nesta fonte nova): quando a cobrança da transportadora ainda não
+      // chegou, ela deixa essa célula EM BRANCO (não um número negativo cheio). parseMoney('')
+      // devolveria 0 -- sem este tratamento à parte, uma linha "aguardando cobrança" virava
+      // indistinguível de uma diferença real igual a zero (exatamente o risco que ela avisou: não
+      // assumir que célula vazia = cobrou R$0). null = aguardando; qualquer outro valor (inclusive
+      // 0 de verdade, célula preenchida com "0") passa por parseMoney normalmente.
       const difFreteRaw = difFreteHeader !== undefined ? row[difFreteHeader] : undefined;
       const difFrete = (difFreteRaw === undefined || difFreteRaw === null || String(difFreteRaw).trim() === '')
         ? null
         : parseMoney(difFreteRaw);
+      const serie = serieHeader !== undefined ? String(row[serieHeader] || '').trim() : '';
       lista.push({
-        embarque,
-        dataCriacao: dataCriacaoHeader !== undefined ? Utils.parseDate(row[dataCriacaoHeader]) : null,
+        numeroCte,
+        serie,
+        dataEmissao: emissaoHeader !== undefined ? Utils.parseDate(row[emissaoHeader]) : null,
         transportadora: transportadoraHeader !== undefined ? String(row[transportadoraHeader] || '').trim() : 'Não informado',
-        freteCalc: freteCalcHeader !== undefined ? parseMoney(row[freteCalcHeader]) : 0,
-        freteTotal: freteTotalHeader !== undefined ? parseMoney(row[freteTotalHeader]) : 0,
+        unidade: unidadeHeader !== undefined ? String(row[unidadeHeader] || '').trim() : '',
+        origem: origemHeader !== undefined ? String(row[origemHeader] || '').trim() : '',
+        estadoOrigem: estadoOrigemHeader !== undefined ? String(row[estadoOrigemHeader] || '').trim() : '',
+        destino: destinoHeader !== undefined ? String(row[destinoHeader] || '').trim() : '',
         estadoDestino: estadoDestinoHeader !== undefined ? String(row[estadoDestinoHeader] || '').trim() : '',
-        peso: pesoHeader !== undefined ? parseMoney(row[pesoHeader]) : 0,
-        volumes: volumesHeader !== undefined ? parseMoney(row[volumesHeader]) : 0,
-        dataEmbarque: dataEmbarqueHeader !== undefined ? Utils.parseDate(row[dataEmbarqueHeader]) : null,
-        placa: placaHeader !== undefined ? String(row[placaHeader] || '').trim() : '',
-        valorDocFiscais: valorDocFiscaisHeader !== undefined ? parseMoney(row[valorDocFiscaisHeader]) : 0,
-        identificador: identificadorHeader !== undefined ? String(row[identificadorHeader] || '').trim() : '',
+        freteCalc: freteCalcHeader !== undefined ? parseMoney(row[freteCalcHeader]) : 0,
+        valorRealizado: valorRealizadoHeader !== undefined ? parseMoney(row[valorRealizadoHeader]) : 0,
         difFrete,
-        pedagio: pedagioHeader !== undefined ? parseMoney(row[pedagioHeader]) : null,
-        descarga: descargaHeader !== undefined ? parseMoney(row[descargaHeader]) : null,
-        diaria: diariaHeader !== undefined ? parseMoney(row[diariaHeader]) : null,
-        outrosAdicionais: outrosAdicionaisHeader !== undefined ? parseMoney(row[outrosAdicionaisHeader]) : null
+        chave: `${numeroCte}-${serie}-${indice}`
       });
+      indice++;
     }
     indicadorFreteTransportadoraRecords = lista;
   }
