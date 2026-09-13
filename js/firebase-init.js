@@ -27,7 +27,10 @@ import {
   collection,
   getDocs,
   onSnapshot,
-  writeBatch
+  writeBatch,
+  query,
+  orderBy,
+  limit
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -678,15 +681,22 @@ async function atualizarDisponibilidadesEmLote(atualizacoes) {
 }
 
 /* ============================================================
- * AVISO AOS MOTORISTAS (2026-09-13)
+ * AVISO AOS MOTORISTAS (2026-09-13, prioridade + histórico em 2026-09-13)
  * Card informativo enviado pelo Controle de Cargas (painel administrativo) e exibido no topo
  * do Painel do Motorista — pedido da usuária: "essa mensagem vai durar 24hrs e depois vai
  * sumir, ou se for enviado outra manualmente". Modelado como 1 DOC SÓ (singleton, id fixo
  * 'atual'), não uma coleção de mensagens indexada — só existe "o aviso atual", sobrescrito a
- * cada envio novo (nunca acumula histórico); a expiração de 24h é decidida NO CLIENTE (quem lê
- * compara `criadoEm` com a hora atual), não tem job/cron nenhum apagando o doc sozinho. */
+ * cada envio novo; a expiração de 24h é decidida NO CLIENTE (quem lê compara `criadoEm` com a
+ * hora atual), não tem job/cron nenhum apagando o doc sozinho.
+ * `prioridade` ('info'/'atencao'/'urgente') muda só a cor/ícone de exibição, não o
+ * comportamento — mesmo padrão em ambos os apps (dashboard.js e motoristas/index.html).
+ * `avisoMotoristasHistorico` (auto-ID, só cresce) grava 1 cópia de CADA envio — pedido de
+ * melhoria dela ("um histórico dos avisos já enviados"), já que o doc singleton por si só não
+ * guarda rastro do que foi substituído. Remover o aviso NÃO gera entrada de histórico (não é
+ * uma mensagem nova, só encerra a atual antes da hora). */
 const AVISO_MOTORISTAS_COLECAO = 'avisoMotoristas';
 const AVISO_MOTORISTAS_DOC_ID = 'atual';
+const AVISO_MOTORISTAS_HISTORICO_COLECAO = 'avisoMotoristasHistorico';
 
 /** Tempo real do aviso atual — dispara com `null` quando não existe (nunca foi enviado, ou foi
  * removido manualmente). A decisão de "já passou de 24h" fica por conta de quem consome (ver
@@ -701,15 +711,23 @@ function assinarAvisoMotoristas(callback, aoFalhar) {
 
 /** Envia (ou substitui) o aviso atual — mesmo doc sempre, sobrescrito por completo, reiniciando
  * a contagem de 24h a partir de agora (é exatamente o "ou se for enviado outra manualmente"
- * pedido por ela). */
-async function enviarAvisoMotoristas(mensagem) {
+ * pedido por ela) — e grava 1 cópia no histórico, no MESMO writeBatch (mesma técnica de
+ * estado-atual + histórico já usada em statusCarga/disponibilidade). */
+async function enviarAvisoMotoristas(mensagem, prioridade) {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
   const texto = String(mensagem || '').trim();
   if (!texto) throw new Error('Mensagem vazia.');
-  await setDoc(doc(db, AVISO_MOTORISTAS_COLECAO, AVISO_MOTORISTAS_DOC_ID), {
-    mensagem: texto, criadoEm: serverTimestamp(), criadoPorEmail: usuario.email
+  const nivel = ['info', 'atencao', 'urgente'].includes(prioridade) ? prioridade : 'info';
+
+  const lote = writeBatch(db);
+  lote.set(doc(db, AVISO_MOTORISTAS_COLECAO, AVISO_MOTORISTAS_DOC_ID), {
+    mensagem: texto, prioridade: nivel, criadoEm: serverTimestamp(), criadoPorEmail: usuario.email
   });
+  lote.set(doc(collection(db, AVISO_MOTORISTAS_HISTORICO_COLECAO)), {
+    mensagem: texto, prioridade: nivel, criadoEm: serverTimestamp(), criadoPorEmail: usuario.email
+  });
+  await lote.commit();
 }
 
 /** Remove o aviso atual antes das 24h (botão "Remover aviso" no painel administrativo). */
@@ -717,6 +735,16 @@ async function removerAvisoMotoristas() {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
   await deleteDoc(doc(db, AVISO_MOTORISTAS_COLECAO, AVISO_MOTORISTAS_DOC_ID));
+}
+
+/** Tempo real dos últimos 20 avisos já enviados (mais recente primeiro) — só o painel
+ * administrativo assina isso; o app do motorista não precisa de histórico nenhum. */
+function assinarAvisoMotoristasHistorico(callback, aoFalhar) {
+  return onSnapshot(
+    query(collection(db, AVISO_MOTORISTAS_HISTORICO_COLECAO), orderBy('criadoEm', 'desc'), limit(20)),
+    snapshot => callback(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
+    err => { console.error('Falha ao sincronizar histórico de avisos', err); if (aoFalhar) aoFalhar(err); }
+  );
 }
 
 window.Firebase = {
@@ -732,6 +760,6 @@ window.Firebase = {
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote,
-  assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas
+  assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico
 };
 window.dispatchEvent(new Event('firebase-ready'));
