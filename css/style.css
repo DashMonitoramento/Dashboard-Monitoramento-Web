@@ -1513,6 +1513,30 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .main-content { padding: 16px 12px 40px; }
   .table-card__header { flex-direction: column; align-items: stretch; }
   .table-search { min-width: 0; }
+
+  /* Cabeçalho fixo não tem flex-wrap (não daria pra "quebrar linha" com altura fixa) — em
+     telas de celular a soma dos itens da esquerda+direita passava da largura da tela e o
+     botão "Sair" (o último item, mais à direita) ficava cortado fora da viewport. Compacta o
+     essencial: some com o nome da empresa/app já é escondido a partir de 900px (acima),
+     aqui some também o subtítulo e o nome do usuário no chip, deixando só o avatar. */
+  .app-header { padding: 0 12px; }
+  .app-header__left { gap: 8px; }
+  .app-header__right { gap: 6px; }
+  .app-header__subtitle { display: none; }
+  .user-chip { padding: 6px; }
+  .user-chip #current-user { display: none; }
+
+  /* Pizza + quadrados da "Situação de agendamento" lado a lado (.agendamento-body) espremiam
+     a pizza pra uma faixa fina (ela tem flex-basis:240px mas divide espaço com os quadrados,
+     que têm mínimo de 300px) — na tela do celular isso sobrava como uma área vazia grande à
+     esquerda, com os quadrados começando só depois de mais da metade do card. Empilha em vez
+     de espremer: pizza em cima ocupando a largura toda, quadrados embaixo. */
+  .agendamento-body { flex-direction: column; }
+  .agendamento-body .chart-root--donut { flex: 0 0 auto; width: 100%; }
+  /* Os quadrados em si têm um piso de 150px por coluna (minmax(150px,1fr) lá em cima) — com
+     2 colunas isso soma uns 308px de largura mínima, que não cabe em celulares mais estreitos
+     (320-360px) e empurrava o cartão inteiro pra fora da tela. 1 coluna só no celular. */
+  .agendamento-cards { grid-template-columns: 1fr; }
 }
 
 /* ---------- 13. Print ---------- */
