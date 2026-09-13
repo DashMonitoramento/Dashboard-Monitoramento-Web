@@ -267,8 +267,15 @@ async function salvarObservacaoNota(nf, observacao) {
 // (que grava esse campo aqui no próprio perfil, em `users/{uid}`).
 
 /** Lista todos os usuários cadastrados — usado só no modal "Gerenciar usuários". As regras
- * de segurança do Firestore restringem essa consulta ao super admin (ver Regras no console). */
+ * de segurança do Firestore restringem essa consulta ao super admin (ver Regras no console).
+ * "Missing or insufficient permissions" intermitente aqui (2026-09-12, mesmo com a regra e o
+ * e-mail certos) -- rastreado até o ID token da sessão ficar desatualizado quando a aba fica
+ * muito tempo aberta/em segundo plano (mesmo padrão de "aba velha" já visto neste projeto, só
+ * que aplicado ao token de autenticação, não ao JS/CSS): forçar a renovação (getIdToken(true))
+ * ANTES da consulta, em vez de confiar no token que já estava em memória, resolveu na hora
+ * quando testado ao vivo. Sem custo perceptível (só troca o token já em memória por um novo). */
 async function getUsuarios() {
+  if (auth.currentUser) await auth.currentUser.getIdToken(true);
   const snapshot = await getDocs(collection(db, 'users'));
   const lista = [];
   snapshot.forEach(docSnap => {
