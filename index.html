@@ -1637,13 +1637,10 @@ Segue anexo o relatório atualizado.</textarea>
              selecionarRelatorioIndicadorFrete em dashboard.js). Mesmo padrão .chart-card--foto/
              .chart-card__foto-completa já usado na foto "AGENDA" (Situação de agendamento) —
              aqui sem a camada de animação HUD, só a foto estática.
-             Arquivo salvo por ela é pequeno (636x294px, ~25KB — provável print/thumbnail, não a
-             foto original em alta resolução). Em vez de esticar pra largura toda do card (o que
-             ampliaria a imagem várias vezes e deixaria borrada), o box abaixo fica limitado perto
-             do tamanho NATIVO da foto, centralizado — sem upscaling, sem borrão extra. Se ela
-             mandar uma versão maior depois, é só aumentar max-width/height aqui. -->
-        <div class="chart-card chart-card--foto" id="indicador-frete-selecao-capa" style="height:294px; max-width:636px; margin:16px auto 0;">
-          <img src="assets/img/indicador-capa.jpg?v=20260912a" alt="" class="chart-card__foto-completa">
+             2ª foto enviada por ela (1120x512px) — bem melhor que a 1ª tentativa (636x294,
+             virava borrão esticada) — volta ao formato de banner largo, sem limitar max-width. -->
+        <div class="chart-card chart-card--foto" id="indicador-frete-selecao-capa" style="height:300px; margin-top:16px;">
+          <img src="assets/img/indicador-capa.jpg?v=20260912b" alt="" class="chart-card__foto-completa">
         </div>
 
         <div id="indicador-frete-relatorio-frete" class="indicador-frete-relatorio-conteudo" hidden>
