@@ -1542,9 +1542,23 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__label">Total Valor Descarga Aprovado</span>
             <span class="kpi-card__value" id="despesas-extra-total-valor">R$ 0,00</span>
           </article>
-          <article class="kpi-card kpi-card--mini" style="--kpi-accent:#2563EB">
+          <!-- Clicável (2026-09-12, pedido da usuária) — filtra a tabela abaixo só pras notas com
+               Valor Descarga Aprovado preenchido. Mesmo padrão de "Controle de Cargas" (.selecionado
+               via CSS já genérico de .cargas-cards, data-despesas-extra-filtro lido no bind). -->
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-despesas-extra-filtro="comValor" style="--kpi-accent:#2563EB" title="Clique para ver só as notas com valor de descarga aprovado">
             <span class="kpi-card__label">Notas com valor aprovado</span>
             <span class="kpi-card__value" id="despesas-extra-total-notas">0</span>
+          </article>
+          <!-- 2 cards novos (2026-09-12) — contam CLIENTES distintos (não notas) com Necessita
+               Ajudante = Sim/Não; clicar filtra a tabela pelas NOTAS com esse valor (mesmo
+               critério da coluna "Necessita Ajudante" já existente). -->
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-despesas-extra-filtro="ajudanteSim" style="--kpi-accent:#16A34A" title="Clique para ver as notas desses clientes">
+            <span class="kpi-card__label">Clientes Obriga Ajudante</span>
+            <span class="kpi-card__value" id="despesas-extra-clientes-ajudante-sim">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-despesas-extra-filtro="ajudanteNao" style="--kpi-accent:#64748B" title="Clique para ver as notas desses clientes">
+            <span class="kpi-card__label">Clientes Não Obriga Ajudante</span>
+            <span class="kpi-card__value" id="despesas-extra-clientes-ajudante-nao">0</span>
           </article>
         </div>
 
@@ -2203,7 +2217,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260912a"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260912b"></script>
+<script src="js/dashboard.js?v=20260912c"></script>
 <script src="js/script.js?v=20260912a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
