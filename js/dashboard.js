@@ -116,7 +116,7 @@ const Dashboard = (() => {
     tbody: 'despesas-extra-table-body', info: 'despesas-extra-table-info',
     pageLabel: 'despesas-extra-table-page-label', prev: 'despesas-extra-table-prev',
     next: 'despesas-extra-table-next', theadSelector: '#despesas-extra-table thead th[data-field]',
-    colspan: 9
+    colspan: 10
   };
   // Número do pedido em edição (painel abaixo da tabela), ou null se nenhum — pedido do
   // usuário (2026-08-28): clicar no Número do Pedido abre a edição, igual à de "Aguardando
@@ -3903,9 +3903,10 @@ const Dashboard = (() => {
       (r.transportadora || '').toLowerCase().includes(alvo));
   }
 
-  /** "Controle de Descarga" (2026-09-10) — Top 5 pares Transportadora+Motorista por soma de
-   * Valor Descarga Aprovado. Mesmo cartão de "Top No Show" (.cargas-noshow-ranking*), só que a
-   * linha vira uma grade de 3 colunas (--3col) em vez do par nome/valor original. */
+  /** "Controle de Descarga" (2026-09-10; +Cliente em 2026-09-12) — Top 5 combinações
+   * Transportadora+Motorista+Cliente por soma de Valor Descarga Aprovado. Mesmo cartão de "Top
+   * No Show" (.cargas-noshow-ranking*), só que a linha vira uma grade de 4 colunas (--4col, era
+   * --3col antes da coluna Cliente entrar) em vez do par nome/valor original. */
   function renderControleDescarga(mapaPares) {
     const el = document.getElementById('despesas-extra-controle-descarga');
     if (!el) return;
@@ -3914,13 +3915,14 @@ const Dashboard = (() => {
     el.innerHTML = `
       <div class="cargas-noshow-ranking">
         <h4 class="cargas-noshow-ranking__titulo">Controle de Descarga</h4>
-        <div class="cargas-noshow-ranking__item cargas-noshow-ranking__item--3col cargas-noshow-ranking__item--cabecalho">
-          <span>Transportadora</span><span>Motorista</span><span>Valor Total</span>
+        <div class="cargas-noshow-ranking__item cargas-noshow-ranking__item--4col cargas-noshow-ranking__item--cabecalho">
+          <span>Transportadora</span><span>Motorista</span><span>Cliente</span><span>Valor Total</span>
         </div>
         ${top.map(p => `
-          <div class="cargas-noshow-ranking__item cargas-noshow-ranking__item--3col">
+          <div class="cargas-noshow-ranking__item cargas-noshow-ranking__item--4col">
             <span class="cargas-noshow-ranking__celula-truncada" title="${escapeAttr(p.transportadora)}">${escapeAttr(p.transportadora)}</span>
             <span class="cargas-noshow-ranking__celula-truncada" title="${escapeAttr(p.motorista)}">${escapeAttr(p.motorista)}</span>
+            <span class="cargas-noshow-ranking__celula-truncada" title="${escapeAttr(p.cliente)}">${escapeAttr(p.cliente)}</span>
             <span class="cargas-noshow-ranking__valor">${Utils.formatCurrency(p.valor)}</span>
           </div>`).join('')}
       </div>`;
@@ -3957,6 +3959,15 @@ const Dashboard = (() => {
     // Cliente em verde (2026-09-10, pedido da usuária) quando esse cliente precisa de ajudante —
     // pra ela reconhecer de relance quem exige isso, sem precisar abrir/rolar até a coluna.
     const classeCliente = necessitaAtual === 'SIM' ? ' class="truncate text-success"' : ' class="truncate"';
+    // Observação (2026-09-12, pedido da usuária) — POR CLIENTE, não por NF (mesmo espírito de
+    // Necessita Ajudante, mas sem a metade "própria da nota": aqui não existe valor individual,
+    // é sempre o texto do cliente inteiro — ver DataStore.applyClienteObservacaoDescarga/
+    // salvarClienteObservacaoDescarga em firebase-init.js). Mesmo padrão inline dos outros campos
+    // deste relatório (input, salva no focusout) — data-cliente-observacao-descarga carrega o
+    // nome pro handler não precisar achar o registro de novo.
+    const observacaoCelula = autorizado
+      ? `<input type="text" class="observacao-descarga-inline" data-observacao-descarga-nf="${escapeAttr(nfBase)}" data-cliente-observacao-descarga="${escapeAttr(r.cliente)}" value="${escapeAttr(r.observacaoDescarga || '')}" placeholder="Observação">`
+      : (r.observacaoDescarga || '—');
     return `
       <tr>
         <td>${escapeAttr(r.nf || '—')}</td>
@@ -3968,6 +3979,7 @@ const Dashboard = (() => {
         <td class="text-right">${valorCelula}</td>
         <td>${qtdCelula}</td>
         <td>${necessitaCelula}</td>
+        <td>${observacaoCelula}</td>
       </tr>`;
   }
 
@@ -3985,7 +3997,8 @@ const Dashboard = (() => {
       { label: 'Peso', value: r => r.peso != null ? r.peso : '' },
       { label: 'Valor Descarga Aprovado', value: r => r.valorDescargaAprovado != null ? r.valorDescargaAprovado.toFixed(2).replace('.', ',') : '' },
       { label: 'QTD Ajudante', value: r => r.qtdAjudante || '—' },
-      { label: 'Necessita Ajudante', value: r => r.necessitaAjudante === 'SIM' ? 'Sim' : r.necessitaAjudante === 'NAO' ? 'Não' : '—' }
+      { label: 'Necessita Ajudante', value: r => r.necessitaAjudante === 'SIM' ? 'Sim' : r.necessitaAjudante === 'NAO' ? 'Não' : '—' },
+      { label: 'Observação', value: r => r.observacaoDescarga || '—' }
     ];
     await Utils.exportToStyledExcel('controle-despesas-extra.xlsx', 'Despesas Extra', colunas, registros);
     Utils.showToast(`${registros.length} registros exportados para Excel.`, 'success');
@@ -4011,12 +4024,17 @@ const Dashboard = (() => {
     // (Top Transportadoras / Top Motoristas, cada um somando por sua própria dimensão); ela
     // pediu pra virar UM só, agrupado pelo PAR Transportadora+Motorista (ela confirmou com um
     // exemplo batendo exatamente os valores que já apareciam nos 2 rankings antigos).
+    // 2026-09-12: ganhou uma 3ª chave de agrupamento, Cliente (pedido dela, ordem "Transportadora
+    // - Motorista - Cliente - Valor") — top 5 agora é por combinação Transportadora+Motorista+
+    // Cliente, não só Transportadora+Motorista (um mesmo par pode entregar pra vários clientes
+    // diferentes, então precisava de uma 3ª dimensão pra "o cliente" fazer sentido na linha).
     const porParTransportadoraMotorista = new Map();
     comValor.forEach(r => {
       const t = r.transportadora || '(sem transportadora)';
       const m = r.motorista || '(sem motorista)';
-      const chave = `${t}|${m}`;
-      if (!porParTransportadoraMotorista.has(chave)) porParTransportadoraMotorista.set(chave, { transportadora: t, motorista: m, valor: 0 });
+      const c = r.cliente || '(sem cliente)';
+      const chave = `${t}|${m}|${c}`;
+      if (!porParTransportadoraMotorista.has(chave)) porParTransportadoraMotorista.set(chave, { transportadora: t, motorista: m, cliente: c, valor: 0 });
       porParTransportadoraMotorista.get(chave).valor += r.valorDescargaAprovado;
     });
     renderControleDescarga(porParTransportadoraMotorista);
@@ -4129,6 +4147,37 @@ const Dashboard = (() => {
         Utils.showToast(`NF ${nf}: valor descarga aprovado salvo.`, 'success', 2000);
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao salvar o valor de descarga.', 'error', 5000);
+        input.disabled = false;
+        return;
+      }
+      input.disabled = false;
+    });
+
+    // Observação por CLIENTE (2026-09-12) — salva na coleção própria por cliente e propaga na
+    // hora pra TODAS as linhas em tela daquele cliente (mesmo mecanismo de
+    // DataStore.applyClienteNecessitaAjudante, só que sempre sobrescreve — não existe "valor
+    // próprio da nota" pra essa Observação, é sempre o texto do cliente inteiro).
+    tbody.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('[data-observacao-descarga-nf]');
+      if (!input) return;
+      const texto = input.value.trim();
+      if (texto === (input.defaultValue || '').trim()) return;
+      const cliente = input.dataset.clienteObservacaoDescarga || '';
+      input.disabled = true;
+      try {
+        const fb = await new Promise((resolve) => {
+          if (window.Firebase) return resolve(window.Firebase);
+          window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+        });
+        const clienteChave = DataStore.normalizeClienteKey(cliente);
+        if (!clienteChave) throw new Error('Nota sem cliente identificado — não é possível salvar.');
+        await fb.salvarClienteObservacaoDescarga(clienteChave, texto);
+        const paginaAntes = table.page;
+        DataStore.applyClienteObservacaoDescarga({ [clienteChave]: { observacao: texto } });
+        table.page = paginaAntes;
+        Utils.showToast(`Cliente "${cliente}": Observação salva em todas as notas dele.`, 'success', 2500);
+      } catch (err) {
+        Utils.showToast(err.message || 'Falha ao salvar a Observação.', 'error', 5000);
         input.disabled = false;
         return;
       }
