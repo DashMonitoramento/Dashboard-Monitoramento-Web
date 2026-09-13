@@ -1632,6 +1632,19 @@ Segue anexo o relatório atualizado.</textarea>
           </button>
         </div>
         <p class="chart-card__hint" id="indicador-frete-selecao-hint">Escolha um dos relatórios acima para ver os detalhes.</p>
+        <!-- Capa decorativa (2026-09-12, pedido da usuária) — só aparece enquanto nenhum
+             relatório foi escolhido ainda (mesmo toggle do hint acima, ver
+             selecionarRelatorioIndicadorFrete em dashboard.js). Mesmo padrão .chart-card--foto/
+             .chart-card__foto-completa já usado na foto "AGENDA" (Situação de agendamento) —
+             aqui sem a camada de animação HUD, só a foto estática.
+             Arquivo salvo por ela é pequeno (636x294px, ~25KB — provável print/thumbnail, não a
+             foto original em alta resolução). Em vez de esticar pra largura toda do card (o que
+             ampliaria a imagem várias vezes e deixaria borrada), o box abaixo fica limitado perto
+             do tamanho NATIVO da foto, centralizado — sem upscaling, sem borrão extra. Se ela
+             mandar uma versão maior depois, é só aumentar max-width/height aqui. -->
+        <div class="chart-card chart-card--foto" id="indicador-frete-selecao-capa" style="height:294px; max-width:636px; margin:16px auto 0;">
+          <img src="assets/img/indicador-capa.jpg?v=20260912a" alt="" class="chart-card__foto-completa">
+        </div>
 
         <div id="indicador-frete-relatorio-frete" class="indicador-frete-relatorio-conteudo" hidden>
         <div class="table-actions" style="margin-bottom:10px;">
@@ -2192,7 +2205,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260911b"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260911d"></script>
+<script src="js/dashboard.js?v=20260912a"></script>
 <script src="js/script.js?v=20260910b"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
