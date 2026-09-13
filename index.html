@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260913b">
+<link rel="stylesheet" href="css/style.css?v=20260913c">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1447,14 +1447,24 @@ Segue anexo o relatório atualizado.</textarea>
           <div class="cargas-aviso__titulo">📢 Aviso para os motoristas</div>
           <span class="cargas-aviso__hint">Aparece no Painel do Motorista por 24h, ou até você enviar outro aviso ou remover este.</span>
           <div class="cargas-aviso__ativo" id="cargas-aviso-ativo" hidden>
+            <span class="cargas-aviso__badge" id="cargas-aviso-badge"></span>
             <p class="cargas-aviso__mensagem-atual" id="cargas-aviso-mensagem-atual"></p>
             <p class="cargas-aviso__meta" id="cargas-aviso-meta"></p>
             <button type="button" id="cargas-btn-remover-aviso" class="btn btn--ghost">Remover aviso</button>
           </div>
           <div class="cargas-aviso__form">
             <textarea id="cargas-aviso-texto" rows="2" maxlength="280" placeholder="Escreva um aviso rápido para os motoristas..."></textarea>
+            <select id="cargas-aviso-prioridade">
+              <option value="info">📘 Informativo</option>
+              <option value="atencao">⚠️ Atenção</option>
+              <option value="urgente">🚨 Urgente</option>
+            </select>
             <button type="button" id="cargas-btn-enviar-aviso" class="btn btn--primary">Enviar aviso</button>
           </div>
+          <details class="cargas-aviso__historico">
+            <summary>Histórico de avisos enviados</summary>
+            <div id="cargas-aviso-historico-lista"></div>
+          </details>
         </div>
 
         <div class="cargas-cards">
@@ -2229,11 +2239,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260913a"></script>
+<script type="module" src="js/firebase-init.js?v=20260913b"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260912b"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260913a"></script>
+<script src="js/dashboard.js?v=20260913b"></script>
 <script src="js/script.js?v=20260912a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
