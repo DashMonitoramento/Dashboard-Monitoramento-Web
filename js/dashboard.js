@@ -388,6 +388,7 @@ const Dashboard = (() => {
   let cargasUltimaVerificacaoNoShow = '';
   let cargasCarregamentoTentativas = new Set(); // placas já tentadas nesta sessão de página (ver verificarCarregamentoStatusCarga)
   let cargasNoShowPlacaAlvo = null; // placa aguardando confirmação no modal "Motivo do No Show"
+  let cargasAvisoAtual = null; // aviso aos motoristas em vigor (ou null) — ver renderControleCargasAviso
 
   // Colunas que começam OCULTAS por padrão na tabela "Registros detalhados" — decisão do
   // usuário (2026-08-22): campos novos, úteis pra consulta pontual, mas que não deveriam
@@ -6478,17 +6479,84 @@ const Dashboard = (() => {
       verificarNoShowDisponibilidade();
     }, (err) => Utils.showToast('Falha ao sincronizar disponibilidade: ' + err.message, 'error'));
 
-    // "Há X minutos" precisa avançar mesmo sem nenhum evento novo do Firestore.
+    fb.assinarAvisoMotoristas((aviso) => {
+      renderControleCargasAviso(aviso);
+    }, (err) => Utils.showToast('Falha ao sincronizar aviso aos motoristas: ' + err.message, 'error'));
+
+    // "Há X minutos" precisa avançar mesmo sem nenhum evento novo do Firestore. Mesmo timer
+    // também reavalia se o aviso aos motoristas passou das 24h (ninguém dispara um evento novo
+    // do Firestore só porque o tempo passou — sem isso o card ficaria "ativo" indefinidamente
+    // até a próxima mudança real no doc).
     setInterval(() => {
       if (cargasFiltroAtivo && !document.getElementById('cargas-view').hidden) renderControleCargasLista();
+      renderControleCargasAviso(cargasAvisoAtual);
     }, 60000);
   }
 
   function renderControleCargasAcoesGlobais() {
     const btnCadastrar = document.getElementById('cargas-btn-cadastrar');
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
+    const blocoAviso = document.getElementById('cargas-aviso-bloco');
     if (btnCadastrar) btnCadastrar.hidden = !cargasPodeEditar;
     if (btnSincronizar) btnSincronizar.hidden = !cargasPodeEditar;
+    if (blocoAviso) blocoAviso.hidden = !cargasPodeEditar;
+  }
+
+  /** "Vencido" = passou de 24h desde `criadoEm` — mesma regra tanto aqui (painel) quanto no
+   * Painel do Motorista (motoristas/index.html, copiada lá por ser um app autocontido sem
+   * módulo compartilhado). Sem `criadoEm` ainda resolvido (gravação otimista, serverTimestamp
+   * ainda não veio do servidor) trata como recém-criado, não vencido. */
+  function cargasAvisoExpirado(aviso) {
+    if (!aviso) return true;
+    const data = cargasTimestampParaData(aviso.criadoEm);
+    if (!data) return false;
+    return (Date.now() - data.getTime()) > 24 * 60 * 60 * 1000;
+  }
+
+  function renderControleCargasAviso(aviso) {
+    cargasAvisoAtual = aviso;
+    const blocoAtivo = document.getElementById('cargas-aviso-ativo');
+    if (!blocoAtivo) return;
+    const ativo = !cargasAvisoExpirado(aviso);
+    blocoAtivo.hidden = !ativo;
+    if (!ativo) return;
+    document.getElementById('cargas-aviso-mensagem-atual').textContent = aviso.mensagem;
+    const data = cargasTimestampParaData(aviso.criadoEm);
+    const autor = aviso.criadoPorEmail ? ` · enviado por ${aviso.criadoPorEmail}` : '';
+    document.getElementById('cargas-aviso-meta').textContent = data
+      ? `${cargasFormatarTempoDecorrido(data)}${autor}`
+      : `Enviando...${autor}`;
+  }
+
+  function bindControleCargasAviso() {
+    const btnEnviar = document.getElementById('cargas-btn-enviar-aviso');
+    const btnRemover = document.getElementById('cargas-btn-remover-aviso');
+    const textarea = document.getElementById('cargas-aviso-texto');
+    if (btnEnviar) btnEnviar.addEventListener('click', async () => {
+      const texto = (textarea.value || '').trim();
+      if (!texto) return;
+      btnEnviar.disabled = true;
+      try {
+        await cargasDashFirebase.enviarAvisoMotoristas(texto);
+        textarea.value = '';
+        Utils.showToast('Aviso enviado aos motoristas.', 'success');
+      } catch (err) {
+        Utils.showToast('Falha ao enviar aviso: ' + err.message, 'error');
+      } finally {
+        btnEnviar.disabled = false;
+      }
+    });
+    if (btnRemover) btnRemover.addEventListener('click', async () => {
+      btnRemover.disabled = true;
+      try {
+        await cargasDashFirebase.removerAvisoMotoristas();
+        Utils.showToast('Aviso removido.', 'success');
+      } catch (err) {
+        Utils.showToast('Falha ao remover aviso: ' + err.message, 'error');
+      } finally {
+        btnRemover.disabled = false;
+      }
+    });
   }
 
   /** Pedido da usuária, 2026-09-04: "as opções tem na planilha Base do Monitoramento -
@@ -7011,6 +7079,7 @@ const Dashboard = (() => {
     bindModalCadastrarMotorista();
     bindModalNoShowMotivo();
     bindCargasNoShowPeriodo();
+    bindControleCargasAviso();
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
     if (btnSincronizar) btnSincronizar.addEventListener('click', sincronizarCadastroMotoristas);
   }
