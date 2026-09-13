@@ -2492,6 +2492,20 @@ const DataStore = (() => {
     notify();
   }
 
+  /** "Observação" da tela Despesas Extra, por CLIENTE (2026-09-12, pedido da usuária) — diferente
+   * de applyClienteNecessitaAjudante acima, aqui NÃO existe um valor "próprio da nota": a
+   * Observação é sempre a do cliente inteiro, então toda nota do cliente é SOBRESCRITA (sem
+   * guarda de "só preenche se vazio") — é exatamente esse o comportamento pedido ("a mensagem
+   * fica salva em todas as notas que tiverem o mesmo cliente"). */
+  function applyClienteObservacaoDescarga(porCliente) {
+    if (!porCliente) return;
+    for (const r of rawRecords) {
+      const info = porCliente[normalizeClienteKey(r.cliente)];
+      if (info && info.observacao !== undefined) r.observacaoDescarga = info.observacao;
+    }
+    notify();
+  }
+
   return {
     loadFromUrl, loadFromFile, setRawRows,
     loadBluesoftFromUrl, loadBluesoftFromFile,
@@ -2505,7 +2519,8 @@ const DataStore = (() => {
     loadFeriadosFromUrl,
     loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
-    applyAgendamentoManual, applyValorDescargaAprovado, applyClienteNecessitaAjudante, normalizeClienteKey,
+    applyAgendamentoManual, applyValorDescargaAprovado, applyClienteNecessitaAjudante,
+    applyClienteObservacaoDescarga, normalizeClienteKey,
     loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
     loadIndicadorFreteTransportadoraFromUrl, loadIndicadorFreteTransportadoraFromFile, getIndicadorFreteTransportadora,
     getDistinctValuesIndicadorFreteTransportadora,
