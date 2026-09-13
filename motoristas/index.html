@@ -70,10 +70,15 @@ h1,h2,h3,p{margin:0;}
 
 .aviso-card{
   display:flex; flex-direction:column; gap:6px;
-  background:linear-gradient(135deg, rgba(255,122,26,.2), rgba(255,122,26,.06));
-  border:1px solid rgba(255,122,26,.45); border-radius:14px; padding:14px 16px; margin-bottom:18px;
+  background:linear-gradient(135deg, rgba(37,99,235,.2), rgba(37,99,235,.06));
+  border:1px solid rgba(37,99,235,.45); border-radius:14px; padding:14px 16px; margin-bottom:18px;
 }
-.aviso-card__titulo{font-size:12.5px; font-weight:800; color:var(--brand); letter-spacing:.02em;}
+/* Cor muda por prioridade (2026-09-13) — classe aplicada em cima da base (JS: renderAviso). */
+.aviso-card--atencao{ background:linear-gradient(135deg, rgba(234,179,8,.22), rgba(234,179,8,.06)); border-color:rgba(234,179,8,.5); }
+.aviso-card--urgente{ background:linear-gradient(135deg, rgba(220,38,38,.22), rgba(220,38,38,.06)); border-color:rgba(220,38,38,.5); }
+.aviso-card__titulo{font-size:12.5px; font-weight:800; color:var(--azul); letter-spacing:.02em;}
+.aviso-card--atencao .aviso-card__titulo{color:var(--alerta);}
+.aviso-card--urgente .aviso-card__titulo{color:var(--erro);}
 .aviso-card__texto{font-size:14.5px; color:var(--ink); line-height:1.5; white-space:pre-wrap;}
 .aviso-card__tempo{font-size:11.5px; color:var(--ink-soft);}
 
@@ -189,7 +194,7 @@ h1,h2,h3,p{margin:0;}
     </header>
 
     <div class="aviso-card" id="aviso-card" hidden>
-      <div class="aviso-card__titulo">📢 Aviso</div>
+      <div class="aviso-card__titulo" id="aviso-card-titulo"></div>
       <div class="aviso-card__texto" id="aviso-card-texto"></div>
       <div class="aviso-card__tempo" id="aviso-card-tempo"></div>
     </div>
@@ -452,6 +457,8 @@ function iniciarApp() {
   setInterval(renderAviso, 60000);
 }
 
+const AVISO_PRIORIDADE_TITULO = { info: '📘 Aviso', atencao: '⚠️ Atenção', urgente: '🚨 Urgente' };
+
 let avisoAtual = null;
 function renderAviso() {
   const card = $('aviso-card');
@@ -459,6 +466,9 @@ function renderAviso() {
   const vencido = !avisoAtual || (data && (Date.now() - data.getTime()) > 24 * 60 * 60 * 1000);
   card.hidden = vencido;
   if (vencido) return;
+  const nivel = ['info', 'atencao', 'urgente'].includes(avisoAtual.prioridade) ? avisoAtual.prioridade : 'info';
+  card.className = 'aviso-card' + (nivel === 'info' ? '' : ' aviso-card--' + nivel);
+  $('aviso-card-titulo').textContent = AVISO_PRIORIDADE_TITULO[nivel];
   $('aviso-card-texto').textContent = avisoAtual.mensagem;
   $('aviso-card-tempo').textContent = data ? formatarTempoDecorrido(data) : 'Agora mesmo';
 }
