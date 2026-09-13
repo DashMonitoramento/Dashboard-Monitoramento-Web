@@ -389,6 +389,7 @@ const Dashboard = (() => {
   let cargasCarregamentoTentativas = new Set(); // placas já tentadas nesta sessão de página (ver verificarCarregamentoStatusCarga)
   let cargasNoShowPlacaAlvo = null; // placa aguardando confirmação no modal "Motivo do No Show"
   let cargasAvisoAtual = null; // aviso aos motoristas em vigor (ou null) — ver renderControleCargasAviso
+  let cargasAvisoHistorico = []; // últimos 20 avisos já enviados — ver renderControleCargasAvisoHistorico
 
   // Colunas que começam OCULTAS por padrão na tabela "Registros detalhados" — decisão do
   // usuário (2026-08-22): campos novos, úteis pra consulta pontual, mas que não deveriam
@@ -6483,6 +6484,10 @@ const Dashboard = (() => {
       renderControleCargasAviso(aviso);
     }, (err) => Utils.showToast('Falha ao sincronizar aviso aos motoristas: ' + err.message, 'error'));
 
+    fb.assinarAvisoMotoristasHistorico((lista) => {
+      renderControleCargasAvisoHistorico(lista);
+    }, (err) => Utils.showToast('Falha ao sincronizar histórico de avisos: ' + err.message, 'error'));
+
     // "Há X minutos" precisa avançar mesmo sem nenhum evento novo do Firestore. Mesmo timer
     // também reavalia se o aviso aos motoristas passou das 24h (ninguém dispara um evento novo
     // do Firestore só porque o tempo passou — sem isso o card ficaria "ativo" indefinidamente
@@ -6513,6 +6518,8 @@ const Dashboard = (() => {
     return (Date.now() - data.getTime()) > 24 * 60 * 60 * 1000;
   }
 
+  const CARGAS_AVISO_PRIORIDADE_LABEL = { info: '📘 Informativo', atencao: '⚠️ Atenção', urgente: '🚨 Urgente' };
+
   function renderControleCargasAviso(aviso) {
     cargasAvisoAtual = aviso;
     const blocoAtivo = document.getElementById('cargas-aviso-ativo');
@@ -6520,6 +6527,9 @@ const Dashboard = (() => {
     const ativo = !cargasAvisoExpirado(aviso);
     blocoAtivo.hidden = !ativo;
     if (!ativo) return;
+    const nivel = ['info', 'atencao', 'urgente'].includes(aviso.prioridade) ? aviso.prioridade : 'info';
+    blocoAtivo.className = 'cargas-aviso__ativo cargas-aviso__ativo--' + nivel;
+    document.getElementById('cargas-aviso-badge').textContent = CARGAS_AVISO_PRIORIDADE_LABEL[nivel];
     document.getElementById('cargas-aviso-mensagem-atual').textContent = aviso.mensagem;
     const data = cargasTimestampParaData(aviso.criadoEm);
     const autor = aviso.criadoPorEmail ? ` · enviado por ${aviso.criadoPorEmail}` : '';
@@ -6528,17 +6538,39 @@ const Dashboard = (() => {
       : `Enviando...${autor}`;
   }
 
+  function renderControleCargasAvisoHistorico(lista) {
+    cargasAvisoHistorico = lista;
+    const container = document.getElementById('cargas-aviso-historico-lista');
+    if (!container) return;
+    if (!lista.length) {
+      container.innerHTML = '<div class="vazio">Nenhum aviso enviado ainda.</div>';
+      return;
+    }
+    container.innerHTML = lista.map(item => {
+      const nivel = ['info', 'atencao', 'urgente'].includes(item.prioridade) ? item.prioridade : 'info';
+      const data = cargasTimestampParaData(item.criadoEm);
+      const quando = data ? data.toLocaleString('pt-BR') : '—';
+      const autor = item.criadoPorEmail || '—';
+      return `<div class="cargas-aviso__historico-item">
+        <span class="cargas-aviso__historico-item__texto">${CARGAS_AVISO_PRIORIDADE_LABEL[nivel]} — ${escapeAttr(item.mensagem)}</span>
+        <span class="cargas-aviso__historico-item__meta">${escapeAttr(quando)} · enviado por ${escapeAttr(autor)}</span>
+      </div>`;
+    }).join('');
+  }
+
   function bindControleCargasAviso() {
     const btnEnviar = document.getElementById('cargas-btn-enviar-aviso');
     const btnRemover = document.getElementById('cargas-btn-remover-aviso');
     const textarea = document.getElementById('cargas-aviso-texto');
+    const selectPrioridade = document.getElementById('cargas-aviso-prioridade');
     if (btnEnviar) btnEnviar.addEventListener('click', async () => {
       const texto = (textarea.value || '').trim();
       if (!texto) return;
       btnEnviar.disabled = true;
       try {
-        await cargasDashFirebase.enviarAvisoMotoristas(texto);
+        await cargasDashFirebase.enviarAvisoMotoristas(texto, selectPrioridade.value);
         textarea.value = '';
+        selectPrioridade.value = 'info';
         Utils.showToast('Aviso enviado aos motoristas.', 'success');
       } catch (err) {
         Utils.showToast('Falha ao enviar aviso: ' + err.message, 'error');
