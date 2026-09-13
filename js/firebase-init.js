@@ -245,6 +245,34 @@ async function salvarClienteNecessitaAjudante(clienteChave, valor) {
   }, { merge: true });
 }
 
+// "Observação" da tela Despesas Extra, por CLIENTE (2026-09-12, pedido da usuária: "a mensagem
+// fica salva em todas as notas que tiverem o mesmo cliente") -- mesmo padrão de coleção separada
+// por cliente que CLIENTES_NECESSITAM_AJUDANTE_COLECAO acima, mas sem a metade "valor próprio da
+// nota": aqui NUNCA existe um valor individual por NF, é sempre o texto do cliente inteiro (ver
+// DataStore.applyClienteObservacaoDescarga em data.js, que sobrescreve toda nota do cliente sem
+// guarda de "só se vazio").
+const CLIENTES_OBSERVACAO_DESCARGA_COLECAO = 'clientesObservacaoDescarga';
+
+async function getClientesObservacaoDescarga() {
+  const snapshot = await getDocs(collection(db, CLIENTES_OBSERVACAO_DESCARGA_COLECAO));
+  const porCliente = {};
+  snapshot.forEach(docSnap => { porCliente[docSnap.id] = docSnap.data(); });
+  return porCliente;
+}
+
+/** clienteChave: já normalizada (DataStore.normalizeClienteKey do lado do dashboard.js) — esta
+ * função só grava, não normaliza de novo. */
+async function salvarClienteObservacaoDescarga(clienteChave, observacao) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  if (!clienteChave) throw new Error('Cliente inválido — não é possível salvar.');
+  await setDoc(doc(db, CLIENTES_OBSERVACAO_DESCARGA_COLECAO, clienteChave), {
+    observacao: observacao || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
 /** Grava só a observação de uma NF (usado pela tela "Notas em aberto", 2026-08-19 — uma nota
  * aberta pode não precisar de agendamento nenhum, então essa tela não mexe em status/data).
  * Usa `{merge: true}` de propósito — diferente de salvarAgendamentoManual acima, que sempre
@@ -654,6 +682,7 @@ window.Firebase = {
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
   getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega, salvarQtdAjudante, salvarNecessitaAjudante,
   getClientesNecessitamAjudante, salvarClienteNecessitaAjudante,
+  getClientesObservacaoDescarga, salvarClienteObservacaoDescarga,
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
   definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
