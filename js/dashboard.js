@@ -112,6 +112,11 @@ const Dashboard = (() => {
   // inicial, sem precisar de filtro próprio duplicado aqui.
   let despesasExtraTable = createTableState();
   let despesasExtraBusca = '';
+  // Card clicado nos KPIs do topo (2026-09-12) — null = nenhum filtro extra, só busca/filtros
+  // globais de sempre. 'comValor' = só notas com Valor Descarga Aprovado preenchido; 'ajudanteSim'/
+  // 'ajudanteNao' = só notas com Necessita Ajudante = Sim/Não (mesmo critério da coluna já
+  // existente). Clicar no card já ativo desmarca (mesmo padrão de Controle de Cargas).
+  let despesasExtraFiltroCard = null;
   const DESPESAS_EXTRA_TABLE_IDS = {
     tbody: 'despesas-extra-table-body', info: 'despesas-extra-table-info',
     pageLabel: 'despesas-extra-table-page-label', prev: 'despesas-extra-table-prev',
@@ -3903,6 +3908,17 @@ const Dashboard = (() => {
       (r.transportadora || '').toLowerCase().includes(alvo));
   }
 
+  /** Filtro extra do card clicado no topo (2026-09-12) — aplicado DEPOIS da busca, mesma ordem de
+   * sempre (filtros globais -> busca própria da tela -> este). Reaproveitado por
+   * renderDespesasExtra (o que aparece na tabela) e exportarDespesasExtra (pra exportar
+   * exatamente o que está em tela, inclusive quando um card está filtrando). */
+  function aplicarFiltroCardDespesasExtra(records) {
+    if (despesasExtraFiltroCard === 'comValor') return records.filter(r => r.valorDescargaAprovado != null);
+    if (despesasExtraFiltroCard === 'ajudanteSim') return records.filter(r => r.necessitaAjudante === 'SIM');
+    if (despesasExtraFiltroCard === 'ajudanteNao') return records.filter(r => r.necessitaAjudante === 'NAO');
+    return records;
+  }
+
   /** "Controle de Descarga" (2026-09-10; +Cliente em 2026-09-12) — Top 5 combinações
    * Transportadora+Motorista+Cliente por soma de Valor Descarga Aprovado. Mesmo cartão de "Top
    * No Show" (.cargas-noshow-ranking*), só que a linha vira uma grade de 4 colunas (--4col, era
@@ -3983,10 +3999,10 @@ const Dashboard = (() => {
       </tr>`;
   }
 
-  /** Exporta exatamente o que está na tabela AGORA (mesmo filtro global + busca própria da tela,
-   * TODOS os registros, não só os que já têm valor aprovado — igual ao que aparece em tela). */
+  /** Exporta exatamente o que está na tabela AGORA (mesmo filtro global + busca própria da tela +
+   * o card clicado no topo, se algum estiver ativo — igual ao que aparece em tela). */
   async function exportarDespesasExtra() {
-    const registros = aplicarBuscaDespesasExtra(DataStore.getFilteredRecords());
+    const registros = aplicarFiltroCardDespesasExtra(aplicarBuscaDespesasExtra(DataStore.getFilteredRecords()));
     if (!registros.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
     const colunas = [
       { label: 'NF', value: r => r.nf || '—' },
@@ -4020,6 +4036,21 @@ const Dashboard = (() => {
     document.getElementById('despesas-extra-total-valor').textContent = Utils.formatCurrency(totalValor);
     document.getElementById('despesas-extra-total-notas').textContent = Utils.formatNumber(comValor.length);
 
+    // "Clientes Obriga/Não Obriga Ajudante" (2026-09-12) — conta CLIENTES DISTINTOS (não notas):
+    // Necessita Ajudante é um atributo do CLIENTE (propaga via clientesNecessitamAjudante), então
+    // contar por cliente é mais fiel que contar por nota (um cliente com muitas notas não deveria
+    // inflar o número). O clique no card, por outro lado, filtra a tabela por NOTA (mesmo
+    // critério da coluna "Necessita Ajudante" já existente) — ver aplicarFiltroCardDespesasExtra.
+    const clientesAjudanteSim = new Set();
+    const clientesAjudanteNao = new Set();
+    registros.forEach(r => {
+      if (!r.cliente) return;
+      if (r.necessitaAjudante === 'SIM') clientesAjudanteSim.add(r.cliente);
+      else if (r.necessitaAjudante === 'NAO') clientesAjudanteNao.add(r.cliente);
+    });
+    document.getElementById('despesas-extra-clientes-ajudante-sim').textContent = Utils.formatNumber(clientesAjudanteSim.size);
+    document.getElementById('despesas-extra-clientes-ajudante-nao').textContent = Utils.formatNumber(clientesAjudanteNao.size);
+
     // "Controle de Descarga" (2026-09-10, pedido da usuária) — antes eram 2 rankings separados
     // (Top Transportadoras / Top Motoristas, cada um somando por sua própria dimensão); ela
     // pediu pra virar UM só, agrupado pelo PAR Transportadora+Motorista (ela confirmou com um
@@ -4039,7 +4070,13 @@ const Dashboard = (() => {
     });
     renderControleDescarga(porParTransportadoraMotorista);
 
-    renderTableGeneric(registros, despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, rowHtmlDespesasExtra);
+    // Destaca (outline, CSS já genérico de .cargas-cards) o card clicado, se algum estiver ativo
+    // — mesmo padrão visual de Controle de Cargas.
+    document.querySelectorAll('#despesas-extra-view [data-despesas-extra-filtro]').forEach(card => {
+      card.classList.toggle('selecionado', card.dataset.despesasExtraFiltro === despesasExtraFiltroCard);
+    });
+
+    renderTableGeneric(aplicarFiltroCardDespesasExtra(registros), despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, rowHtmlDespesasExtra);
   }
 
   function bindDespesasExtraAcoes() {
@@ -4050,7 +4087,18 @@ const Dashboard = (() => {
     const tbody = document.getElementById(DESPESAS_EXTRA_TABLE_IDS.tbody);
     if (!tbody) return;
 
-    bindTableControlsFor(despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, () => aplicarBuscaDespesasExtra(DataStore.getFilteredRecords()), rowHtmlDespesasExtra);
+    bindTableControlsFor(despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, () => aplicarFiltroCardDespesasExtra(aplicarBuscaDespesasExtra(DataStore.getFilteredRecords())), rowHtmlDespesasExtra);
+
+    // Cards clicáveis do topo (2026-09-12) — mesmo padrão de Controle de Cargas: clicar no card já
+    // ativo desmarca (volta a mostrar tudo), clicar noutro troca direto.
+    document.querySelectorAll('#despesas-extra-view [data-despesas-extra-filtro]').forEach(card => {
+      card.addEventListener('click', () => {
+        const filtro = card.dataset.despesasExtraFiltro;
+        despesasExtraFiltroCard = despesasExtraFiltroCard === filtro ? null : filtro;
+        despesasExtraTable.page = 1;
+        renderDespesasExtra(DataStore.getFilteredRecords());
+      });
+    });
 
     const searchHandler = Utils.debounce((value) => {
       despesasExtraBusca = value;
