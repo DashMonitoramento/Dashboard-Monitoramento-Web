@@ -677,6 +677,48 @@ async function atualizarDisponibilidadesEmLote(atualizacoes) {
   }
 }
 
+/* ============================================================
+ * AVISO AOS MOTORISTAS (2026-09-13)
+ * Card informativo enviado pelo Controle de Cargas (painel administrativo) e exibido no topo
+ * do Painel do Motorista — pedido da usuária: "essa mensagem vai durar 24hrs e depois vai
+ * sumir, ou se for enviado outra manualmente". Modelado como 1 DOC SÓ (singleton, id fixo
+ * 'atual'), não uma coleção de mensagens indexada — só existe "o aviso atual", sobrescrito a
+ * cada envio novo (nunca acumula histórico); a expiração de 24h é decidida NO CLIENTE (quem lê
+ * compara `criadoEm` com a hora atual), não tem job/cron nenhum apagando o doc sozinho. */
+const AVISO_MOTORISTAS_COLECAO = 'avisoMotoristas';
+const AVISO_MOTORISTAS_DOC_ID = 'atual';
+
+/** Tempo real do aviso atual — dispara com `null` quando não existe (nunca foi enviado, ou foi
+ * removido manualmente). A decisão de "já passou de 24h" fica por conta de quem consome (ver
+ * cargasAvisoExpirado em dashboard.js e a mesma checagem em motoristas/index.html). */
+function assinarAvisoMotoristas(callback, aoFalhar) {
+  return onSnapshot(
+    doc(db, AVISO_MOTORISTAS_COLECAO, AVISO_MOTORISTAS_DOC_ID),
+    snap => callback(snap.exists() ? { id: snap.id, ...snap.data() } : null),
+    err => { console.error('Falha ao sincronizar aviso aos motoristas', err); if (aoFalhar) aoFalhar(err); }
+  );
+}
+
+/** Envia (ou substitui) o aviso atual — mesmo doc sempre, sobrescrito por completo, reiniciando
+ * a contagem de 24h a partir de agora (é exatamente o "ou se for enviado outra manualmente"
+ * pedido por ela). */
+async function enviarAvisoMotoristas(mensagem) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const texto = String(mensagem || '').trim();
+  if (!texto) throw new Error('Mensagem vazia.');
+  await setDoc(doc(db, AVISO_MOTORISTAS_COLECAO, AVISO_MOTORISTAS_DOC_ID), {
+    mensagem: texto, criadoEm: serverTimestamp(), criadoPorEmail: usuario.email
+  });
+}
+
+/** Remove o aviso atual antes das 24h (botão "Remover aviso" no painel administrativo). */
+async function removerAvisoMotoristas() {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  await deleteDoc(doc(db, AVISO_MOTORISTAS_COLECAO, AVISO_MOTORISTAS_DOC_ID));
+}
+
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
@@ -689,6 +731,7 @@ window.Firebase = {
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga,
-  assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote
+  assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote,
+  assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas
 };
 window.dispatchEvent(new Event('firebase-ready'));
