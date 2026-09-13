@@ -9,6 +9,16 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 
+/* Bug real achado em 2026-09-13: `.btn`/`.icon-btn` (e outras classes) declaram `display`
+   explícito, que empata em especificidade com o `[hidden]{display:none}` da folha de estilo
+   do próprio navegador — como a folha do autor vem DEPOIS da do navegador na cascata, ela
+   ganha o empate, e qualquer `<button class="btn" hidden>` fica VISÍVEL mesmo com o atributo
+   `hidden` presente (foi assim que "Cadastrar motorista"/"Sincronizar planilha" apareciam pra
+   quem não tinha permissão nenhuma — o `hidden` nunca escondia de verdade). `!important` aqui
+   é proposital: `hidden` deve sempre vencer, não existe caso legítimo de um elemento marcado
+   hidden que precise continuar visível. */
+[hidden] { display: none !important; }
+
 /* Barra de rolagem customizada — trilho e polegar em cinza escuro. Vale pra tela toda. */
 * { scrollbar-width: thin; scrollbar-color: #4B5563 #14141a; }
 *::-webkit-scrollbar { width: 11px; height: 11px; }
