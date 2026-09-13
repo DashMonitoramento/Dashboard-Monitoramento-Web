@@ -1440,6 +1440,12 @@ let editId = null;
 let tipoAtual = 'recusa';
 let filtroTipo = 'todos';
 let filtroStatus = 'todos';
+// Tipos cujo card/aba só contam e mostram notas AINDA PENDENTES (2026-09-12, pedido da usuária:
+// Recusa e Reentrega resolvidas devem "ir para" o card Já tratado, não continuar contando/
+// aparecendo no card do próprio Tipo) -- mesmo tratamento que "sem_tratativa" já tinha desde
+// 2026-09-03 (esse não mudou, só ganhou companhia). Fonte única usada em renderStats/renderLista/
+// renderHistorico, pra nunca divergir entre a contagem do card e o que aparece ao clicar nele.
+const TIPOS_SO_PENDENTE = ['recusa','reentrega','sem_tratativa'];
 // Id do registro cuja Observação está em edição inline na lista (pedido do usuário, 2026-09-01)
 // — mesmo padrão de "clique pra editar" já usado no dashboard principal, só 1 por vez.
 let obsEditandoId = null;
@@ -1488,13 +1494,12 @@ function renderStats(){
   const wrap = $('stats');
   wrap.innerHTML = '';
   tipos.forEach(t=>{
-    // "Sem tratativa" só conta quem realmente ainda não tem status nenhum resolvido (pedido do
-    // usuário, 2026-09-03) -- diferente dos outros 3 cards (Recusa/Reentrega/Agendamento, que
-    // contam TODAS as notas daquele tipo, resolvidas ou não), esse aqui some da contagem assim
-    // que a nota é resolvida (seja pela Base Bluesoft ou manualmente) -- senão fica com um
-    // número inflado de notas importadas que já foram tratadas, só que nunca tiveram o campo
-    // Tipo trocado de "Sem tratativa" pra outra coisa.
-    const total = t==='sem_tratativa'
+    // Recusa/Reentrega/Sem tratativa (TIPOS_SO_PENDENTE) só contam quem ainda está pendente --
+    // uma vez resolvida, a nota sai da contagem/lista do próprio Tipo e passa a contar só em
+    // "Já tratado" (pedido da usuária, 2026-09-12, estendendo a mesma regra que "Sem tratativa"
+    // já tinha desde 2026-09-03). "Agendamento" continua contando TUDO (resolvido ou não) --
+    // ela não pediu essa mudança pra ele.
+    const total = TIPOS_SO_PENDENTE.includes(t)
       ? grupos.filter(e=>e.tipo===t && e.status==='pendente').length
       : grupos.filter(e=>e.tipo===t).length;
     const pend = grupos.filter(e=>e.tipo===t && e.status==='pendente').length;
@@ -1578,6 +1583,9 @@ function renderLista(){
     // não é um Tipo de verdade, filtra por Status ao invés de por Tipo.
     if(filtroTipo==='ja_tratado'){ if(e.status!=='resolvido') return false; }
     else if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
+    // Mesma regra de TIPOS_SO_PENDENTE do card (ver renderStats) -- clicar em Recusa/Reentrega/
+    // Sem tratativa nunca mostra uma nota já resolvida (essa já foi "embora" pro Já tratado).
+    else if(TIPOS_SO_PENDENTE.includes(filtroTipo) && e.status!=='pendente') return false;
     if(filtroStatus!=='todos' && e.status!==filtroStatus) return false;
     if(busca){
       // Busca por número de nota ou cliente (pedido do usuário, 2026-09-02) -- endereço saiu
@@ -1713,6 +1721,8 @@ function renderHistorico(){
   const filtradas = entries.filter(e=>{
     if(filtroTipo==='ja_tratado'){ if(e.status!=='resolvido') return false; }
     else if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
+    // Mesma regra de TIPOS_SO_PENDENTE do card (ver renderStats/renderLista).
+    else if(TIPOS_SO_PENDENTE.includes(filtroTipo) && e.status!=='pendente') return false;
     if(busca){
       const alvo = normalizarTexto((e.nf || '') + ' ' + (e.cliente || ''));
       if(!alvo.includes(busca)) return false;
