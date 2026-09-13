@@ -2473,19 +2473,23 @@ const DataStore = (() => {
     notify();
   }
 
-  /** "Necessita Ajudante" por CLIENTE (2026-09-10, pedido da usuária) — ela quer que marcar SIM
-   * numa nota já deixe TODA nota daquele cliente como SIM, inclusive as que ainda vão chegar
-   * (por isso é um valor por CLIENTE, não uma gravação em massa nos docs de NF existentes — ver
-   * firebase-init.js). Só preenche quando a nota AINDA NÃO tem um valor PRÓPRIO explícito
-   * (`r.necessitaAjudante` vazio) — uma nota marcada manualmente como NAO nunca é sobrescrita
-   * pelo padrão do cliente, mesmo que outras notas dele sejam SIM. Chamada depois de
-   * applyValorDescargaAprovado no boot (ver script.js), mas a ordem entre as duas não importa de
-   * verdade: applyValorDescargaAprovado sempre GANHA quando tem valor próprio, não importa quem
-   * rodou primeiro. */
+  /** "Necessita Ajudante" por CLIENTE (2026-09-10; virou SIM/NÃO simétrico em 2026-09-12) — ela
+   * quer que marcar SIM ou NÃO numa nota já deixe TODA nota daquele cliente com o MESMO valor,
+   * inclusive as que ainda vão chegar (por isso é um valor por CLIENTE, não uma gravação em massa
+   * nos docs de NF existentes — ver firebase-init.js). SEMPRE sobrescreve (não guarda mais "só se
+   * vazio" — até 2026-09-12 só SIM propagava, pra não desmarcar quem já era SIM; ela pediu
+   * explicitamente o mesmo critério pros dois lados, "pra não precisar ficar apertando NÃO
+   * repetidamente"). Chamada depois de applyValorDescargaAprovado no boot (ver script.js), mas a
+   * ordem entre as duas não importa de verdade: applyValorDescargaAprovado sempre GANHA quando
+   * tem valor próprio, não importa quem rodou primeiro (ATENÇÃO: essa garantia valia quando esta
+   * função só preenchia vazio; agora que SEMPRE sobrescreve, o valor final de uma nota recém-
+   * carregada depende de qual dos dois `load*Silently` — por NF ou por cliente — resolver por
+   * último no boot, já que os dois rodam em paralelo no mesmo Promise.all. Isso só importa pra
+   * dado LEGADO anterior a 2026-09-12; daqui pra frente, toda escrita nova atualiza as duas
+   * coleções juntas — ver bindDespesasExtraAcoes/dashboard.js — então elas nunca mais divergem). */
   function applyClienteNecessitaAjudante(porCliente) {
     if (!porCliente) return;
     for (const r of rawRecords) {
-      if (r.necessitaAjudante) continue;
       const info = porCliente[normalizeClienteKey(r.cliente)];
       if (info && info.necessitaAjudante) r.necessitaAjudante = info.necessitaAjudante;
     }
