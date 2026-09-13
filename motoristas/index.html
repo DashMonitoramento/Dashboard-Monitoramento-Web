@@ -68,6 +68,15 @@ h1,h2,h3,p{margin:0;}
 .app-header h1{font-size:16.5px; font-weight:800;}
 .app-header p{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
 
+.aviso-card{
+  display:flex; flex-direction:column; gap:6px;
+  background:linear-gradient(135deg, rgba(255,122,26,.2), rgba(255,122,26,.06));
+  border:1px solid rgba(255,122,26,.45); border-radius:14px; padding:14px 16px; margin-bottom:18px;
+}
+.aviso-card__titulo{font-size:12.5px; font-weight:800; color:var(--brand); letter-spacing:.02em;}
+.aviso-card__texto{font-size:14.5px; color:var(--ink); line-height:1.5; white-space:pre-wrap;}
+.aviso-card__tempo{font-size:11.5px; color:var(--ink-soft);}
+
 .btn-cta{
   display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
   background:linear-gradient(135deg, var(--brand), var(--brand-dark)); color:#fff; border:none;
@@ -178,6 +187,12 @@ h1,h2,h3,p{margin:0;}
         <p>Painel do Motorista</p>
       </div>
     </header>
+
+    <div class="aviso-card" id="aviso-card" hidden>
+      <div class="aviso-card__titulo">📢 Aviso</div>
+      <div class="aviso-card__texto" id="aviso-card-texto"></div>
+      <div class="aviso-card__tempo" id="aviso-card-tempo"></div>
+    </div>
 
     <button type="button" id="btn-avisar-disponibilidade" class="btn-cta">📢 Avisar Disponibilidade</button>
 
@@ -425,6 +440,27 @@ function iniciarApp() {
   onSnapshot(collection(db, 'disponibilidade'), snap => {
     disponibilidade = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
   }, () => {});
+
+  onSnapshot(doc(db, 'avisoMotoristas', 'atual'), snap => {
+    avisoAtual = snap.exists() ? snap.data() : null;
+    renderAviso();
+  }, () => {});
+
+  // "Vencido" (24h) não dispara evento novo do Firestore sozinho — reavalia periodicamente pra
+  // o card sumir na hora certa mesmo se o motorista deixar o app aberto (mesma ideia do relógio
+  // "Há X min" dos cards de status, formatarTempoDecorrido acima).
+  setInterval(renderAviso, 60000);
+}
+
+let avisoAtual = null;
+function renderAviso() {
+  const card = $('aviso-card');
+  const data = avisoAtual ? timestampParaData(avisoAtual.criadoEm) : null;
+  const vencido = !avisoAtual || (data && (Date.now() - data.getTime()) > 24 * 60 * 60 * 1000);
+  card.hidden = vencido;
+  if (vencido) return;
+  $('aviso-card-texto').textContent = avisoAtual.mensagem;
+  $('aviso-card-tempo').textContent = data ? formatarTempoDecorrido(data) : 'Agora mesmo';
 }
 
 onAuthStateChanged(auth, async (user) => {
