@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instalar Aplicativos — Da Terrinha Alimentos</title>
+<link rel="icon" href="assets/img/logo-mascote.png">
+<style>
+  :root{
+    --bg:#0F172A; --surface:#17233B; --surface-soft:#1C2A47; --ink:#EDF1F7;
+    --ink-soft:#9AACC7; --ink-faint:#64748B; --line:#29365A; --brand:#FF7A1A; --brand-dark:#E86A0C;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink); min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:520px; margin:0 auto; padding:32px 20px 56px;}
+  .topo{text-align:center; margin-bottom:28px;}
+  .topo img{width:64px; height:64px; border-radius:50%; margin-bottom:12px;}
+  .topo h1{font-size:19px; font-weight:800; margin:0 0 6px;}
+  .topo p{font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.5;}
+
+  .app-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:16px;
+    padding:20px; margin-bottom:16px; display:flex; flex-direction:column; align-items:center; text-align:center;
+  }
+  .app-card img{width:76px; height:76px; border-radius:20px; margin-bottom:14px; box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  .app-card h2{font-size:16.5px; font-weight:800; margin:0 0 6px;}
+  .app-card p{font-size:13px; color:var(--ink-soft); margin:0 0 16px; line-height:1.5;}
+  .app-card a{
+    display:block; width:100%; text-decoration:none; background:linear-gradient(135deg, var(--brand), var(--brand-dark));
+    color:#fff; border-radius:14px; padding:14px 16px; font-size:15px; font-weight:800;
+  }
+  .app-card a:active{transform:scale(.98);}
+
+  .instrucoes{
+    background:var(--surface-soft); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; margin-top:24px; font-size:13px; color:var(--ink-soft); line-height:1.6;
+  }
+  .instrucoes h3{font-size:13px; font-weight:800; color:var(--ink); margin:0 0 10px;}
+  .instrucoes ol{margin:0 0 14px; padding-left:18px;}
+  .instrucoes ol:last-child{margin-bottom:0;}
+  .instrucoes strong{color:var(--ink);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="topo">
+    <img src="assets/img/logo-mascote.png" alt="Da Terrinha Alimentos">
+    <h1>Instalar Aplicativos</h1>
+    <p>Da Terrinha Alimentos — abra este link pelo celular e instale o app que você usa.</p>
+  </div>
+
+  <div class="app-card">
+    <img src="assets/img/icon-motoristas-512.png" alt="Painel do Motorista">
+    <h2>Painel do Motorista</h2>
+    <p>Para motoristas avisarem disponibilidade e acompanharem o status da carga.</p>
+    <a href="motoristas/index.html">Abrir Painel do Motorista</a>
+  </div>
+
+  <div class="app-card">
+    <img src="assets/img/icon-manifesto-512.png" alt="Controle de Retorno">
+    <h2>Controle de Retorno</h2>
+    <p>Para registrar e acompanhar recusas, reentregas e devoluções.</p>
+    <a href="manifesto/index.html">Abrir Controle de Retorno</a>
+  </div>
+
+  <div class="instrucoes">
+    <h3>Como instalar no celular</h3>
+    <p><strong>Android (Chrome):</strong></p>
+    <ol>
+      <li>Toque no botão do app que você quer acima.</li>
+      <li>Toque no menu ⋮ no canto superior direito do navegador.</li>
+      <li>Toque em "Instalar aplicativo" (ou aceite o banner que aparece sozinho).</li>
+    </ol>
+    <p><strong>iPhone (Safari):</strong></p>
+    <ol>
+      <li>Toque no botão do app que você quer acima.</li>
+      <li>Toque no ícone de Compartilhar (o quadrado com a seta para cima).</li>
+      <li>Toque em "Adicionar à Tela de Início".</li>
+    </ol>
+  </div>
+</div>
+
+</body>
+</html>
