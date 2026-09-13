@@ -1457,6 +1457,10 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .ajudante-select:disabled { opacity: .6; }
 .valor-descarga-inline { width: 100px; padding: 4px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary); font-size: 12.5px; text-align: right; }
 .valor-descarga-inline:disabled { opacity: .6; }
+/* Observação por cliente (2026-09-12) — mesmo padrão visual de .valor-descarga-inline, só mais
+   larga (texto livre, não número) e alinhada à esquerda. */
+.observacao-descarga-inline { width: 160px; max-width: 100%; padding: 4px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-alt); color: var(--text-primary); font-size: 12.5px; }
+.observacao-descarga-inline:disabled { opacity: .6; }
 .text-orange { color: var(--color-orange); font-weight: 700; }
 .text-danger { color: var(--color-danger); font-weight: 700; }
 .text-success { color: var(--color-success); font-weight: 700; }
@@ -1589,6 +1593,9 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
    Transportadora/Motorista/Valor Total lado a lado, alinhados em coluna entre as linhas
    (diferente do --item padrão, que só distribui 2 pontas com space-between). */
 .cargas-noshow-ranking__item--3col { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; }
+/* Variante 4 colunas (2026-09-12) — "Controle de Descarga" ganhou uma coluna Cliente entre
+   Motorista e Valor Total (pedido da usuária). */
+.cargas-noshow-ranking__item--4col { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; }
 .cargas-noshow-ranking__item--cabecalho {
   font-size: 10.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;
   letter-spacing: .03em; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 2px;
