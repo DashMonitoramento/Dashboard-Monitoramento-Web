@@ -425,6 +425,20 @@ async function loadClientesNecessitamAjudanteSilently() {
   }
 }
 
+/** "Observação" da tela Despesas Extra por CLIENTE (2026-09-12) — mesma ideia de
+ * loadClientesNecessitamAjudanteSilently acima, coleção própria (ver
+ * DataStore.applyClienteObservacaoDescarga em data.js). Opcional: sem Firestore disponível, a
+ * coluna Observação só fica vazia, nada mais quebra. */
+async function loadClientesObservacaoDescargaSilently() {
+  try {
+    const fb = await waitFirebaseReady();
+    const porCliente = await fb.getClientesObservacaoDescarga();
+    DataStore.applyClienteObservacaoDescarga(porCliente);
+  } catch (err) {
+    console.warn('Observação por cliente (Firestore) não carregada:', err.message);
+  }
+}
+
 /** Dispara todas as buscas de CSV/JSON em PARALELO, só pra esquentar o cache HTTP do
  * navegador — a cadeia abaixo continua buscando e processando cada fonte na mesma ordem
  * sequencial de sempre (não muda nenhuma lógica de enriquecimento/dependência entre elas),
@@ -484,7 +498,8 @@ async function loadInitialData() {
       loadPermissaoEdicaoAgendamentoSilently(),
       loadValoresDescargaAprovadosSilently(),
       loadPermissaoEdicaoValorDescargaSilently(),
-      loadClientesNecessitamAjudanteSilently()
+      loadClientesNecessitamAjudanteSilently(),
+      loadClientesObservacaoDescargaSilently()
     ]);
     Dashboard.renderAll();
     Utils.showToast(`${DataStore.getRecords().length} registros carregados com sucesso.`, 'success');
