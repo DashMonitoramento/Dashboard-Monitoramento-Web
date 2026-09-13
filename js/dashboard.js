@@ -4134,10 +4134,13 @@ const Dashboard = (() => {
     });
 
     // "Necessita Ajudante" (2026-09-08, pedido da usuária) — mesmo padrão de QTD Ajudante acima,
-    // <select> próprio, salva sozinho no change. Marcar SIM (2026-09-10, pedido dela) também
-    // propaga pro CLIENTE inteiro — ver DataStore.applyClienteNecessitaAjudante/
-    // salvarClienteNecessitaAjudante (firebase-init.js). Só propaga no SIM: marcar uma nota como
-    // "não precisa" não deveria desmarcar as outras notas do mesmo cliente que já eram SIM.
+    // <select> próprio, salva sozinho no change. Marcar SIM OU NÃO (SIM desde 2026-09-10; NÃO
+    // também a partir de 2026-09-12, pedido dela: "pra eu não precisar ficar apertando NÃO
+    // repetidamente") propaga pro CLIENTE inteiro — ver DataStore.applyClienteNecessitaAjudante/
+    // salvarClienteNecessitaAjudante (firebase-init.js). SEMPRE sobrescreve as outras notas do
+    // mesmo cliente (não guarda mais "só se ainda tava vazio") — o critério agora é simétrico
+    // pros dois lados, de propósito. Só NÃO propaga quando ela limpa o campo de volta pra "—"
+    // (valor vazio): isso só afeta a nota atual, não apaga o padrão do cliente nem as outras notas.
     tbody.addEventListener('change', async (e) => {
       const select = e.target.closest('[data-necessita-ajudante-nf]');
       if (!select) return;
@@ -4153,14 +4156,15 @@ const Dashboard = (() => {
         await fb.salvarNecessitaAjudante(nf, valor);
         const paginaAntes = table.page;
         DataStore.applyValorDescargaAprovado({ [nf]: { necessitaAjudante: valor } });
-        if (valor === 'SIM' && cliente) {
+        const propaga = (valor === 'SIM' || valor === 'NAO') && cliente;
+        if (propaga) {
           const clienteChave = DataStore.normalizeClienteKey(cliente);
-          await fb.salvarClienteNecessitaAjudante(clienteChave, 'SIM');
-          DataStore.applyClienteNecessitaAjudante({ [clienteChave]: { necessitaAjudante: 'SIM' } });
+          await fb.salvarClienteNecessitaAjudante(clienteChave, valor);
+          DataStore.applyClienteNecessitaAjudante({ [clienteChave]: { necessitaAjudante: valor } });
         }
         table.page = paginaAntes;
         Utils.showToast(
-          valor === 'SIM' && cliente ? `Cliente "${cliente}": todas as notas marcadas como Necessita Ajudante.` : `NF ${nf}: Necessita Ajudante salvo.`,
+          propaga ? `Cliente "${cliente}": todas as notas marcadas como ${valor === 'SIM' ? 'Necessita' : 'Não Necessita'} Ajudante.` : `NF ${nf}: Necessita Ajudante salvo.`,
           'success', 2500
         );
       } catch (err) {
