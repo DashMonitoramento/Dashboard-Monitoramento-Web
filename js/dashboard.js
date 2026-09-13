@@ -4670,9 +4670,11 @@ const Dashboard = (() => {
     const containerFrete = document.getElementById('indicador-frete-relatorio-frete');
     const containerTransportadora = document.getElementById('indicador-frete-relatorio-transportadora');
     const hint = document.getElementById('indicador-frete-selecao-hint');
+    const capa = document.getElementById('indicador-frete-selecao-capa');
     if (containerFrete) containerFrete.hidden = tipo !== 'frete';
     if (containerTransportadora) containerTransportadora.hidden = tipo !== 'transportadora';
     if (hint) hint.hidden = tipo !== null;
+    if (capa) capa.hidden = tipo !== null;
     document.querySelectorAll('.indicador-frete-relatorio-card').forEach(card => {
       card.classList.toggle('indicador-frete-relatorio-card--ativo', card.dataset.relatorio === tipo);
     });
