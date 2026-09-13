@@ -6446,8 +6446,13 @@ const Dashboard = (() => {
 
     try {
       const permissoes = await fb.getMinhasPermissoesCargas();
-      cargasPodeEditar = !!permissoes.podeEditarCargas;
-      cargasPodeGerenciarDisponibilidade = !!permissoes.podeGerenciarDisponibilidade;
+      // Bug real (2026-09-13): faltava o mesmo bypass de super admin que isAdminAgendamento()/
+      // isAutorizadoValorDescarga() já aplicam — sem isso, o super admin ficava sem
+      // cargasPodeEditar (dependia só do campo bruto users/{uid}.podeEditarCargas, que pode
+      // nunca ter sido gravado pra ele mesmo, já que o checkbox dele em "Gerenciar usuários"
+      // fica desabilitado/sempre marcado só na TELA, sem nunca escrever o campo de verdade).
+      cargasPodeEditar = isSuperAdminAgendamento() || !!permissoes.podeEditarCargas;
+      cargasPodeGerenciarDisponibilidade = isSuperAdminAgendamento() || !!permissoes.podeGerenciarDisponibilidade;
     } catch (err) {
       console.warn('Não consegui verificar permissões do Controle de Cargas:', err.message);
     }
