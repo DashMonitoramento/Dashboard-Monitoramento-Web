@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260913d">
+<link rel="stylesheet" href="css/style.css?v=20260914a">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -528,6 +528,14 @@ Segue anexo o relatório atualizado.</textarea>
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="indicador-frete" title="Indicador de Frete">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg></span>
           <span class="nav-label">Indicador de Frete</span>
+        </button>
+        <!-- "Auditoria de Embarques" (2026-09-14): confere se toda viagem já FATURADA (Base
+             Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", e se peso/
+             valor batem — ver calcularAuditoriaEmbarques (data.js) e renderAuditoriaEmbarques
+             (dashboard.js). -->
+        <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="auditoria-embarques" title="Auditoria de Embarques">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg></span>
+          <span class="nav-label">Auditoria de Embarques</span>
         </button>
         <button type="button" class="btn btn--ghost btn--block toggle-view-btn toggle-view-btn--inativo" data-view="cargas" title="Controle de Cargas e Motoristas">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></span>
@@ -2244,6 +2252,98 @@ Segue anexo o relatório atualizado.</textarea>
         </div><!-- /#indicador-frete-relatorio-transportadora -->
       </section>
 
+      <!-- ===================== AUDITORIA DE EMBARQUES (2026-09-14) =====================
+           Confere se toda viagem já FATURADA (Base Bluesoft) teve o embarque correspondente
+           criado no "Indicador de Frete", comparando Peso/Valor consolidados por Placa+Data.
+           calcularAuditoriaEmbarques (data.js) faz o cruzamento; renderAuditoriaEmbarques
+           (dashboard.js) desenha. Chave = Placa + Data de Faturamento (Bluesoft) / Data Embarque
+           (Indicador) — ver comentário completo em calcularAuditoriaEmbarques. -->
+      <section id="auditoria-embarques-view" class="table-card" aria-label="Auditoria de Embarques" hidden>
+        <div class="table-card__header">
+          <h2 class="chart-card__title">🧾 Auditoria de Embarques</h2>
+          <div class="table-actions">
+            <label class="filtro-cabecalho">
+              <span class="filtro-cabecalho__label">Período</span>
+              <span class="filtro-cabecalho__campos">
+                <input type="date" id="auditoria-embarques-filtro-data-inicio" aria-label="Data início">
+                <span>–</span>
+                <input type="date" id="auditoria-embarques-filtro-data-fim" aria-label="Data fim">
+              </span>
+            </label>
+            <label class="filtro-cabecalho">
+              <span class="filtro-cabecalho__label">Status</span>
+              <select id="auditoria-embarques-filtro-status">
+                <option value="">Todos</option>
+                <option value="NAO_CRIADO">Não criado</option>
+                <option value="CRIADO">Criado</option>
+                <option value="INCOMPLETO">Incompleto</option>
+                <option value="ERRO_DADOS">Erro de dados</option>
+              </select>
+            </label>
+            <button id="btn-export-auditoria-embarques" class="btn" type="button">⬇️ Exportar Excel</button>
+          </div>
+        </div>
+        <p class="chart-card__hint">Compara viagens já faturadas (Base Bluesoft) contra os embarques do "Indicador de Frete", por Placa + Data. O período aqui segue o mesmo filtro do menu lateral.</p>
+
+        <div class="cargas-cards">
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-auditoria-embarques-filtro="NAO_CRIADO" style="--kpi-accent:#DC2626" title="Viagens faturadas sem embarque correspondente">
+            <span class="kpi-card__label">Embarques não criados</span>
+            <span class="kpi-card__value" id="auditoria-embarques-count-nao-criado">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-auditoria-embarques-filtro="CRIADO" style="--kpi-accent:#16A34A" title="Embarque encontrado, peso e valor dentro da tolerância">
+            <span class="kpi-card__label">Embarques criados</span>
+            <span class="kpi-card__value" id="auditoria-embarques-count-criado">0</span>
+          </article>
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-auditoria-embarques-filtro="INCOMPLETO" style="--kpi-accent:#EAB308" title="Embarque encontrado, mas peso ou valor não bate">
+            <span class="kpi-card__label">Embarques incompletos</span>
+            <span class="kpi-card__value" id="auditoria-embarques-count-incompleto">0</span>
+          </article>
+        </div>
+        <p class="chart-card__hint" id="auditoria-embarques-sem-chave-hint"></p>
+
+        <div class="table-card__header">
+          <div class="table-search" style="margin-left:auto;">
+            🔎 <input type="search" id="auditoria-embarques-table-search" placeholder="Pesquisar por placa, viagem, motorista, NF...">
+          </div>
+        </div>
+
+        <div class="table-scroll-wrapper">
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--left" aria-label="Rolar tabela para a esquerda">‹</button>
+          <div class="table-scroll">
+          <table class="data-table" id="auditoria-embarques-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th data-field="placaOriginal">Placa</th>
+                <th data-field="data">Data</th>
+                <th data-field="status">Status</th>
+                <th>Embarque(s)</th>
+                <th data-field="pesoBluesoft" class="text-right">Peso Bluesoft</th>
+                <th data-field="pesoEmbarque" class="text-right">Peso Embarque</th>
+                <th data-field="diferencaPeso" class="text-right">Dif. Peso</th>
+                <th data-field="valorBluesoft" class="text-right">Valor Bluesoft</th>
+                <th data-field="valorEmbarque" class="text-right">Valor Embarque</th>
+                <th data-field="diferencaValor" class="text-right">Dif. Valor</th>
+                <th data-field="qtdViagens" class="text-right">Viagens</th>
+                <th data-field="qtdNfs" class="text-right">NFs</th>
+              </tr>
+            </thead>
+            <tbody id="auditoria-embarques-table-body"></tbody>
+          </table>
+          </div>
+          <button type="button" class="table-scroll-arrow table-scroll-arrow--right" aria-label="Rolar tabela para a direita">›</button>
+        </div>
+
+        <div class="table-footer">
+          <span id="auditoria-embarques-table-info">Nenhum registro</span>
+          <div class="pagination">
+            <button id="auditoria-embarques-table-prev" class="btn" style="padding:6px 10px;">← Anterior</button>
+            <span id="auditoria-embarques-table-page-label">Página 1 de 1</span>
+            <button id="auditoria-embarques-table-next" class="btn" style="padding:6px 10px;">Próxima →</button>
+          </div>
+        </div>
+      </section>
+
       <footer style="text-align:center; color:var(--text-secondary); font-size:12px; padding:24px 0;">
         Dashboard de Entregas · Da Terrinha Alimentos — dados atualizados automaticamente a partir da planilha.
       </footer>
@@ -2256,9 +2356,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260913b"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260912b"></script>
+<script src="js/data.js?v=20260914a"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260914a"></script>
+<script src="js/dashboard.js?v=20260914b"></script>
 <script src="js/script.js?v=20260912a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
