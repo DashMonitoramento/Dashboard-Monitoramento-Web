@@ -2028,6 +2028,12 @@ const DataStore = (() => {
       const tipoVeiculoHeader = headerIndex['tipo de veiculo'];
       const capacidadeMaxKgHeader = headerIndex['capacidade maxima kg'];
       const capacidadeVolumesHeader = headerIndex['capacidade volumes'];
+      // 3 colunas novas (2026-09-14, "Auditoria de Embarques") — já existiam na planilha, só
+      // nunca tinham sido extraídas. `identificadorViagem` vem vazio na maioria das linhas
+      // (confirmado por print real dela) — nunca usar como chave única de cruzamento.
+      const transportadoraHeader = headerIndex['transportador'];
+      const dataCriacaoHeader = headerIndex['data criacao'];
+      const identificadorViagemHeader = headerIndex['identificador viagem'];
       lista.push({
         placa,
         dataEmbarque,
@@ -2047,13 +2053,102 @@ const DataStore = (() => {
         diaria: diariaHeader !== undefined && row[diariaHeader] !== '' ? parseMoney(row[diariaHeader]) : null,
         tipoVeiculo: tipoVeiculoHeader !== undefined ? (String(row[tipoVeiculoHeader] || '').trim() || null) : null,
         capacidadeMaxKg: capacidadeMaxKgHeader !== undefined && row[capacidadeMaxKgHeader] !== '' ? parseMoney(row[capacidadeMaxKgHeader]) : null,
-        capacidadeVolumes: capacidadeVolumesHeader !== undefined && row[capacidadeVolumesHeader] !== '' ? parseMoney(row[capacidadeVolumesHeader]) : null
+        capacidadeVolumes: capacidadeVolumesHeader !== undefined && row[capacidadeVolumesHeader] !== '' ? parseMoney(row[capacidadeVolumesHeader]) : null,
+        transportadora: transportadoraHeader !== undefined ? (String(row[transportadoraHeader] || '').trim() || null) : null,
+        dataCriacao: dataCriacaoHeader !== undefined && row[dataCriacaoHeader] !== '' ? Utils.parseDate(row[dataCriacaoHeader]) : null,
+        identificadorViagem: identificadorViagemHeader !== undefined ? (String(row[identificadorViagemHeader] || '').trim() || null) : null
       });
     }
     indicadorFreteRecords = lista;
   }
 
   function getIndicadorFrete() { return indicadorFreteRecords.slice(); }
+
+  const AUDITORIA_EMBARQUES_TOLERANCIA_PESO = 0.05;
+  const AUDITORIA_EMBARQUES_TOLERANCIA_VALOR = 0.05;
+
+  /** "Auditoria de Embarques" (2026-09-14) — verifica se toda viagem já FATURADA (Base
+   * Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", comparando Peso e
+   * Valor consolidados. Chave: placa normalizada + data (Data de Faturamento do lado Bluesoft —
+   * `r.dataFaturamento` já é o resultado do cruzamento com a Base BI que roda em
+   * applyFaturamentoEnrichment, não precisa refazer esse join aqui — e Data Embarque do lado
+   * Indicador), só a parte de data, sem hora. Universo = todo grupo que existe do lado Bluesoft
+   * (viagens faturadas); um embarque sem nenhuma NF faturada correspondente fica de fora (a
+   * pergunta é "toda viagem faturada tem embarque", não o inverso).
+   * Registro Bluesoft sem placa OU sem Data de Faturamento não forma chave nenhuma — cai em
+   * `semChave` (não auditável, nem dá pra saber de qual dia/placa seria). Registro com
+   * placa+data mas peso/valor ausente ou <= 0 vira status ERRO_DADOS pro grupo inteiro (não
+   * silenciosamente 0 nem "viagem grátis" legítima — `parseMoney('')` já devolve 0 por padrão
+   * em todo o resto do dashboard, mas aqui isso precisa ficar visível como problema). */
+  function calcularAuditoriaEmbarques() {
+    const gruposBluesoft = new Map(); // chave -> { placa, placaOriginal, data, registros: [...] }
+    let semChave = 0;
+
+    for (const r of rawRecords) {
+      const placaNormalizada = String(r.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!placaNormalizada || !r.dataFaturamento) { semChave++; continue; }
+      const data = Utils.startOfDay(r.dataFaturamento);
+      const chave = `${placaNormalizada}|${data.getTime()}`;
+      if (!gruposBluesoft.has(chave)) {
+        gruposBluesoft.set(chave, { placa: placaNormalizada, placaOriginal: r.placa, data, registros: [] });
+      }
+      gruposBluesoft.get(chave).registros.push(r);
+    }
+
+    const gruposIndicador = new Map(); // mesma chave -> itens[]
+    for (const i of indicadorFreteRecords) {
+      if (!i.placa || !i.dataEmbarque) continue;
+      const data = Utils.startOfDay(i.dataEmbarque);
+      const chave = `${i.placa}|${data.getTime()}`;
+      if (!gruposIndicador.has(chave)) gruposIndicador.set(chave, []);
+      gruposIndicador.get(chave).push(i);
+    }
+
+    const grupos = [];
+    for (const [chave, g] of gruposBluesoft) {
+      const registrosInvalidos = g.registros.filter(r => !(r.peso > 0) || !(r.valorNF > 0));
+      const pesoBluesoft = Utils.sum(g.registros, r => r.peso);
+      const valorBluesoft = Utils.sum(g.registros, r => r.valorNF);
+
+      // Agrupa por Viagem só pro detalhamento (seção 9/10 do pedido dela) — não afeta a
+      // classificação, que é sempre no nível placa+data.
+      const viagensMap = new Map();
+      for (const r of g.registros) {
+        const vKey = r.viagem || '(sem viagem)';
+        if (!viagensMap.has(vKey)) viagensMap.set(vKey, { viagem: r.viagem || '', motorista: r.motorista, nfs: [] });
+        viagensMap.get(vKey).nfs.push({ nf: r.nf, valorNF: r.valorNF, peso: r.peso });
+      }
+      const viagens = Array.from(viagensMap.values());
+
+      const itensIndicador = gruposIndicador.get(chave) || [];
+      const existeEmbarque = itensIndicador.length > 0;
+      const pesoEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.peso) : null;
+      const valorEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.valorTotalNFs) : null;
+      const diferencaPeso = existeEmbarque ? (pesoBluesoft - pesoEmbarque) : null;
+      const diferencaValor = existeEmbarque ? (valorBluesoft - valorEmbarque) : null;
+
+      let status;
+      if (registrosInvalidos.length > 0) status = 'ERRO_DADOS';
+      else if (!existeEmbarque) status = 'NAO_CRIADO';
+      else if (Math.abs(diferencaPeso) <= AUDITORIA_EMBARQUES_TOLERANCIA_PESO + 1e-9 &&
+               Math.abs(diferencaValor) <= AUDITORIA_EMBARQUES_TOLERANCIA_VALOR + 1e-9) status = 'CRIADO';
+      else status = 'INCOMPLETO';
+
+      grupos.push({
+        chave, placa: g.placa, placaOriginal: g.placaOriginal, data: g.data, status,
+        pesoBluesoft, valorBluesoft, pesoEmbarque, valorEmbarque, diferencaPeso, diferencaValor,
+        embarques: Utils.uniqueSorted(itensIndicador.map(i => i.embarque)),
+        transportadoras: Utils.uniqueSorted(itensIndicador.map(i => i.transportadora)),
+        identificadoresViagem: Utils.uniqueSorted(itensIndicador.map(i => i.identificadorViagem)),
+        viagens,
+        qtdViagens: viagens.length,
+        qtdNfs: g.registros.length,
+        qtdRegistrosInvalidos: registrosInvalidos.length
+      });
+    }
+
+    return { grupos, semChave };
+  }
 
   async function loadIndicadorFreteTransportadoraFromUrl(url, format = 'csv') {
     const adapter = DataAdapters[format];
@@ -2526,6 +2621,7 @@ const DataStore = (() => {
     applyAgendamentoManual, applyValorDescargaAprovado, applyClienteNecessitaAjudante,
     applyClienteObservacaoDescarga, normalizeClienteKey,
     loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
+    calcularAuditoriaEmbarques,
     loadIndicadorFreteTransportadoraFromUrl, loadIndicadorFreteTransportadoraFromFile, getIndicadorFreteTransportadora,
     getDistinctValuesIndicadorFreteTransportadora,
     getRecords, getFilteredRecords, getLastUpdated, dataReferenciaPeriodo,
