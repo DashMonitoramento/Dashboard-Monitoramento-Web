@@ -1692,3 +1692,49 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface); color: var(--text-primary); font-size: 14px;
 }
+
+/* ---------- Auditoria de Embarques (2026-09-14) ---------- */
+/* Badge de status genérico — reutilizável por qualquer tela que precise de um "selo" colorido
+   de resultado (só esta tela usa por enquanto). */
+.badge-status {
+  display: inline-block; font-size: 11.5px; font-weight: 700; padding: 3px 10px;
+  border-radius: 999px; color: #fff; white-space: nowrap;
+}
+.badge-status--ok { background: var(--color-success); }
+.badge-status--erro { background: var(--color-danger); }
+.badge-status--alerta { background: var(--color-warning); color: #1a1a1a; }
+.badge-status--neutro { background: var(--text-secondary); }
+
+.celula-divergente { background: rgba(220,38,38,.12); font-weight: 700; color: var(--color-danger); }
+
+.auditoria-embarques-expandir {
+  width: 24px; height: 24px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface-alt); color: var(--text-secondary); font-size: 12px; cursor: pointer;
+}
+.auditoria-embarques-expandir:hover { background: var(--surface); color: var(--text-primary); }
+
+.auditoria-embarques-linha-detalhe td { padding: 0; background: var(--surface-alt); }
+.auditoria-embarques-detalhe { padding: 16px 20px; border-top: 1px dashed var(--border); }
+.auditoria-embarques-detalhe h4 {
+  font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--text-secondary); margin: 0 0 6px;
+}
+.auditoria-embarques-detalhe p { font-size: 13px; color: var(--text-primary); margin: 0 0 4px; }
+.auditoria-embarques-detalhe__bloco { margin-bottom: 14px; }
+.auditoria-embarques-detalhe__grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.auditoria-embarques-viagem { margin-bottom: 12px; }
+.auditoria-embarques-viagem__titulo { font-size: 12.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.auditoria-embarques-nfs {
+  width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--surface);
+  border-radius: var(--radius-sm); overflow: hidden;
+}
+.auditoria-embarques-nfs th, .auditoria-embarques-nfs td { padding: 6px 10px; border-bottom: 1px solid var(--border-light); }
+.auditoria-embarques-nfs th { text-align: left; color: var(--text-secondary); font-weight: 700; font-size: 11px; text-transform: uppercase; }
+.auditoria-embarques-nfs tr:last-child td { border-bottom: none; }
+
+@media (max-width: 900px) {
+  .auditoria-embarques-detalhe__grid { grid-template-columns: 1fr; gap: 10px; }
+}
