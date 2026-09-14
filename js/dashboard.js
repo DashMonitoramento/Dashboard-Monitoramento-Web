@@ -5500,6 +5500,41 @@ const Dashboard = (() => {
     el.value = valorAtual;
   }
 
+  /** "% Frete sobre Valor das Notas" (2026-09-14, pedido da usuária) — a fonte "Indicador Frete
+   * Transportadora" (por CT-e) não tem Valor NF nem Peso (ver comentário em
+   * renderIndicadorFreteTransportadora), então esse valor não existe dentro da própria linha do
+   * CT-e. Testado contra os CSVs reais: o nome da Transportadora NÃO bate entre essa fonte e a
+   * Base Bluesoft (22 nomes no CT-e, 0 batem com os 159 da Bluesoft — Lincros usa razão social
+   * completa, Bluesoft às vezes usa nome de motorista) — cruzar por Transportadora está fora de
+   * cogitação sem uma tabela de correspondência manual, que ela optou por NÃO fazer agora
+   * (confirmado via pergunta). Cruza só por Estado Destino + Período, os 2 campos que batem bem
+   * entre as fontes.
+   * `ufs`: lista de UFs a somar na Base Bluesoft — quando ela filtra por 1 UF específica, é só
+   * essa; sem filtro de UF, usa o CONJUNTO de UFs que aparece nos CT-es já filtrados (não
+   * "todas as UFs do Brasil") pra não diluir a conta com estados que essas transportadoras nem
+   * atendem. Data usa `r.dataEntrega` (não `r.dataCriacao`) — mesma convenção de sempre nesse
+   * projeto pra "aconteceu neste dia" na Base Bluesoft (a NF é criada dias antes de rodar).
+   * `r.tipoTransporte === 'Transportadora'` é OUTRO filtro essencial, achado testando com dado
+   * real: sem ele, o percentual saía de ~0,5% (a Base Bluesoft inteira tem AGREGADO/PRÓPRIO
+   * RETIRA/EXPORTAÇÃO misturados, categorias que o relatório de Transportadora nem audita) —
+   * com o filtro, sobe pra ~0,9%, população bem mais parecida com a do CT-e (mesma categoria
+   * que dá nome ao próprio relatório e ao valor "TRANSPORTADORA" da coluna Categoria/Z). */
+  function calcularValorNotasFreteTransportadora(ufs, dataInicio, dataFim, mes, ano) {
+    if (!ufs || !ufs.length) return 0;
+    const registros = DataStore.getRecords().filter(r => {
+      if (!ufs.includes(r.uf)) return false;
+      if (r.tipoTransporte !== 'Transportadora') return false;
+      const ref = r.dataEntrega;
+      if (!ref) return false;
+      if (dataInicio && ref < dataInicio) return false;
+      if (dataFim && ref > dataFim) return false;
+      if (mes && String(ref.getMonth() + 1) !== String(mes)) return false;
+      if (ano && String(ref.getFullYear()) !== String(ano)) return false;
+      return true;
+    });
+    return Utils.sum(registros, r => r.valorNF);
+  }
+
   /** Mesmo filtro de Período+Transportadora+UF Destino de renderIndicadorFreteTransportadora,
    * extraído aqui (Fase 5, 2026-09-10) pra também aplicar num intervalo [inicio, fim] já
    * resolvido (ver DataStore.calcularPeriodoAnterior) — usado só pra "vs. período anterior". */
@@ -5558,6 +5593,15 @@ const Dashboard = (() => {
     const qtdDivergencia = cobradoMaiorItens.length + cobradoMenorItens.length;
     const pctDivergencia = qtdAuditados > 0 ? (qtdDivergencia / qtdAuditados) * 100 : 0;
 
+    // "% Frete sobre Valor das Notas" (2026-09-14) — cruzamento por Estado Destino + Período
+    // contra a Base Bluesoft, ver calcularValorNotasFreteTransportadora acima (por que não dá
+    // pra cruzar por Transportadora nesta fonte).
+    const ufsFiltroAtual = indicadorFreteTransportadoraUFSelecionada
+      ? [indicadorFreteTransportadoraUFSelecionada]
+      : Array.from(new Set(itens.map(i => i.estadoDestino).filter(Boolean)));
+    const valorNotasCorrespondente = calcularValorNotasFreteTransportadora(ufsFiltroAtual, dataInicio, dataFim, mes, ano);
+    const percentualFreteSobreNotas = valorNotasCorrespondente > 0 ? (freteCalculadoTotal / valorNotasCorrespondente) * 100 : null;
+
     const setTexto = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
     setTexto('indicador-frete-transportadora-total-calculado', Utils.formatCurrency(freteCalculadoTotal));
     setTexto('indicador-frete-transportadora-total-cobrado', Utils.formatCurrency(freteCobradoTotal));
@@ -5569,6 +5613,10 @@ const Dashboard = (() => {
     setTexto('indicador-frete-transportadora-sub-dif', `sobre ${Utils.formatNumber(qtdAuditados)} CT-es auditados`);
     setTexto('indicador-frete-transportadora-sub-pct-dif', `sobre ${Utils.formatNumber(qtdAuditados)} CT-es auditados`);
     setTexto('indicador-frete-transportadora-sub-divergencia', qtdAuditados > 0 ? `${Utils.formatPercent(pctDivergencia)} dos auditados` : '—');
+    setTexto('indicador-frete-transportadora-percentual-notas', percentualFreteSobreNotas === null ? '—' : Utils.formatPercent(percentualFreteSobreNotas));
+    setTexto('indicador-frete-transportadora-sub-percentual-notas', valorNotasCorrespondente > 0
+      ? `sobre ${Utils.formatCurrency(valorNotasCorrespondente)} em notas categoria Transportadora · mesmo Estado Destino/Período`
+      : 'sem notas da Base Bluesoft no Estado Destino/Período selecionado');
 
     // Comparação "vs. período anterior" (Fase 5, 2026-09-10) — só quando algum filtro de Período
     // está de fato ativo, mesma decisão/motivo já documentado em DataStore.calcularPeriodoAnterior
