@@ -123,6 +123,34 @@ const Dashboard = (() => {
     next: 'despesas-extra-table-next', theadSelector: '#despesas-extra-table thead th[data-field]',
     colspan: 10
   };
+
+  // "Auditoria de Embarques" (2026-09-14) — estado da tela nova. `auditoriaEmbarquesGrupos` é
+  // recalculado 1x por render (não a cada filtro de UI local, só quando os dados/filtro global
+  // de Período mudam de verdade) via DataStore.calcularAuditoriaEmbarques(); busca/status/card
+  // filtram esse array já pronto, sem recalcular o cruzamento inteiro de novo.
+  let auditoriaEmbarquesGrupos = [];
+  let auditoriaEmbarquesSemChave = 0;
+  // Um estado SÓ pro filtro de status — alimentado tanto pelo clique num dos 3 cards quanto
+  // pelo <select> (que também tem "Erro de dados", sem card próprio) — os dois ficam sempre
+  // sincronizados entre si, evitando o card mostrar "selecionado" com um status e o <select>
+  // mostrando outro.
+  let auditoriaEmbarquesFiltroStatus = ''; // '' | 'NAO_CRIADO' | 'CRIADO' | 'INCOMPLETO' | 'ERRO_DADOS'
+  let auditoriaEmbarquesBusca = '';
+  let auditoriaEmbarquesTable = createTableState();
+  auditoriaEmbarquesTable.sortField = 'data';
+  auditoriaEmbarquesTable.sortDir = 'desc';
+  // Chaves de grupo com a linha de detalhe aberta (clique na linha-resumo) — Set, não índice de
+  // página, pra sobreviver a reordenação/paginação sem fechar sozinho.
+  let auditoriaEmbarquesExpandidos = new Set();
+  const AUDITORIA_EMBARQUES_TABLE_IDS = {
+    tbody: 'auditoria-embarques-table-body', info: 'auditoria-embarques-table-info',
+    pageLabel: 'auditoria-embarques-table-page-label', prev: 'auditoria-embarques-table-prev',
+    next: 'auditoria-embarques-table-next', theadSelector: '#auditoria-embarques-table thead th[data-field]',
+    colspan: 13
+  };
+  const AUDITORIA_EMBARQUES_FILTROS_CABECALHO_IDS = {
+    dataInicio: 'auditoria-embarques-filtro-data-inicio', dataFim: 'auditoria-embarques-filtro-data-fim'
+  };
   // Número do pedido em edição (painel abaixo da tabela), ou null se nenhum — pedido do
   // usuário (2026-08-28): clicar no Número do Pedido abre a edição, igual à de "Aguardando
   // agendamento", só que pra um pedido só por vez (não a lista inteira de uma vez).
@@ -439,6 +467,7 @@ const Dashboard = (() => {
     bindLeadTimePedidos();
     bindControleCargas();
     bindIndicadorFreteAcoes();
+    bindAuditoriaEmbarquesAcoes();
     createCharts();
     DataStore.onChange(render);
   }
@@ -502,6 +531,7 @@ const Dashboard = (() => {
     const cargasView = document.getElementById('cargas-view');
     const despesasExtraView = document.getElementById('despesas-extra-view');
     const indicadorFreteView = document.getElementById('indicador-frete-view');
+    const auditoriaEmbarquesView = document.getElementById('auditoria-embarques-view');
 
     main.hidden = view !== 'registros' && view !== 'ocorrencias';
     main.classList.toggle('modo-tabela-foco', view === 'ocorrencias');
@@ -514,6 +544,7 @@ const Dashboard = (() => {
     if (cargasView) cargasView.hidden = view !== 'cargas';
     if (despesasExtraView) despesasExtraView.hidden = view !== 'despesas-extra';
     if (indicadorFreteView) indicadorFreteView.hidden = view !== 'indicador-frete';
+    if (auditoriaEmbarquesView) auditoriaEmbarquesView.hidden = view !== 'auditoria-embarques';
     atualizarBotaoIrInicio();
 
     document.querySelectorAll('[data-view]').forEach((botao) => {
@@ -543,6 +574,9 @@ const Dashboard = (() => {
     } else if (view === 'indicador-frete') {
       renderIndicadorFrete(); // idem, mesmo motivo do renderLeadTime()/renderDespesasExtra acima
       if (indicadorFreteView) indicadorFreteView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (view === 'auditoria-embarques') {
+      renderAuditoriaEmbarques(); // idem, mesmo motivo do renderLeadTime()/renderDespesasExtra acima
+      if (auditoriaEmbarquesView) auditoriaEmbarquesView.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       // 'registros' e 'ocorrencias' entram aqui — entrar/sair do modo muda quais registros a
       // tabela mostra (aplicarFiltroOcorrenciasDoDia), então precisa redesenhar mesmo sem
@@ -2529,6 +2563,7 @@ const Dashboard = (() => {
     renderPedidosNaoFaturadosView(); // no-op se a tela "Pedidos Aguardando Faturamento" não estiver visível
     renderDespesasExtra(records); // no-op se a tela "Controle de Despesas Extra" não estiver visível
     renderIndicadorFrete(); // no-op se a tela "Indicador de Frete" não estiver visível
+    renderAuditoriaEmbarques(); // no-op se a tela "Auditoria de Embarques" não estiver visível
     updateLastUpdatedLabel();
     enviarDadosRegioesParaIframe(records);
     atualizarBotaoLimparFiltros();
@@ -4789,6 +4824,231 @@ const Dashboard = (() => {
     document.querySelectorAll('.indicador-frete-relatorio-card').forEach(card => {
       card.addEventListener('click', () => selecionarRelatorioIndicadorFrete(card.dataset.relatorio));
     });
+  }
+
+  /* ============================================================
+   * AUDITORIA DE EMBARQUES (2026-09-14)
+   * Confere se toda viagem já FATURADA (Base Bluesoft) teve o embarque correspondente criado no
+   * "Indicador de Frete" — DataStore.calcularAuditoriaEmbarques() faz o cruzamento (por Placa +
+   * Data), esta seção só filtra/desenha o resultado.
+   * ============================================================ */
+
+  const AUDITORIA_EMBARQUES_STATUS_LABEL = {
+    NAO_CRIADO: 'Não criado', CRIADO: 'Criado', INCOMPLETO: 'Incompleto', ERRO_DADOS: 'Erro de dados'
+  };
+  const AUDITORIA_EMBARQUES_STATUS_CLASSE = {
+    NAO_CRIADO: 'badge-status--erro', CRIADO: 'badge-status--ok', INCOMPLETO: 'badge-status--alerta', ERRO_DADOS: 'badge-status--neutro'
+  };
+
+  function auditoriaEmbarquesGruposFiltrados() {
+    let lista = auditoriaEmbarquesGrupos;
+    if (auditoriaEmbarquesFiltroStatus) lista = lista.filter(g => g.status === auditoriaEmbarquesFiltroStatus);
+    const termo = auditoriaEmbarquesBusca.trim().toUpperCase();
+    if (termo) {
+      lista = lista.filter(g =>
+        g.placaOriginal.toUpperCase().includes(termo) ||
+        g.embarques.some(e => e.toUpperCase().includes(termo)) ||
+        g.viagens.some(v =>
+          (v.viagem || '').toUpperCase().includes(termo) ||
+          (v.motorista || '').toUpperCase().includes(termo) ||
+          v.nfs.some(nf => (nf.nf || '').toUpperCase().includes(termo))
+        )
+      );
+    }
+    return lista;
+  }
+
+  /** Linha-resumo (sempre visível) + linha de detalhe (escondida por padrão, alternada num
+   * clique na linha-resumo — ver bindAuditoriaEmbarquesAcoes). Não usa modal nenhum: o mesmo
+   * conteúdo do "detalhamento" pedido (seção 10) entra dentro da própria linha expandida. */
+  function rowHtmlAuditoriaEmbarques(g) {
+    const label = AUDITORIA_EMBARQUES_STATUS_LABEL[g.status];
+    const classe = AUDITORIA_EMBARQUES_STATUS_CLASSE[g.status];
+    const divergente = (a, b) => a != null && b != null && Math.abs(a - b) > 0.05 ? ' class="text-right celula-divergente"' : ' class="text-right"';
+    const fmtPeso = v => v == null ? '—' : `${Utils.formatNumber(v, 3)} kg`;
+    const fmtValor = v => v == null ? '—' : Utils.formatCurrency(v);
+    const expandido = auditoriaEmbarquesExpandidos.has(g.chave);
+
+    const linhaResumo = `<tr class="auditoria-embarques-linha-resumo" data-auditoria-embarques-toggle="${escapeAttr(g.chave)}">
+      <td><button type="button" class="auditoria-embarques-expandir" aria-label="Expandir detalhe">${expandido ? '▾' : '▸'}</button></td>
+      <td>${escapeAttr(g.placaOriginal)}</td>
+      <td>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</td>
+      <td><span class="badge-status ${classe}">${label}</span></td>
+      <td>${g.embarques.length ? escapeAttr(g.embarques.join(', ')) : '—'}</td>
+      <td class="text-right">${fmtPeso(g.pesoBluesoft)}</td>
+      <td class="text-right">${fmtPeso(g.pesoEmbarque)}</td>
+      <td${divergente(g.pesoBluesoft, g.pesoEmbarque)}>${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3)}</td>
+      <td class="text-right">${fmtValor(g.valorBluesoft)}</td>
+      <td class="text-right">${fmtValor(g.valorEmbarque)}</td>
+      <td${divergente(g.valorBluesoft, g.valorEmbarque)}>${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</td>
+      <td class="text-right">${Utils.formatNumber(g.qtdViagens)}</td>
+      <td class="text-right">${Utils.formatNumber(g.qtdNfs)}</td>
+    </tr>`;
+
+    if (!expandido) return linhaResumo;
+
+    const viagensHtml = g.viagens.map(v => `
+      <div class="auditoria-embarques-viagem">
+        <div class="auditoria-embarques-viagem__titulo">Viagem ${escapeAttr(v.viagem || '—')} · Motorista: ${escapeAttr(v.motorista || '—')}</div>
+        <table class="auditoria-embarques-nfs">
+          <thead><tr><th>NF</th><th class="text-right">Valor</th><th class="text-right">Peso</th></tr></thead>
+          <tbody>
+            ${v.nfs.map(nf => `<tr><td>${escapeAttr(nf.nf || '—')}</td><td class="text-right">${Utils.formatCurrency(nf.valorNF || 0)}</td><td class="text-right">${nf.peso != null ? Utils.formatNumber(nf.peso, 3) + ' kg' : '—'}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`).join('');
+
+    const linhaDetalhe = `<tr class="auditoria-embarques-linha-detalhe">
+      <td colspan="${AUDITORIA_EMBARQUES_TABLE_IDS.colspan}">
+        <div class="auditoria-embarques-detalhe">
+          <div class="auditoria-embarques-detalhe__bloco">
+            <h4>Auditoria do embarque</h4>
+            <p>Placa: <strong>${escapeAttr(g.placaOriginal)}</strong> · Data de faturamento: <strong>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</strong></p>
+            <p>Viagens: ${g.qtdViagens} · NFs: ${g.qtdNfs}${g.transportadoras.length ? ` · Transportador(es) no embarque: ${escapeAttr(g.transportadoras.join(', '))}` : ''}${g.identificadoresViagem.length ? ` · Identificador de viagem: ${escapeAttr(g.identificadoresViagem.join(', '))}` : ''}</p>
+          </div>
+          <div class="auditoria-embarques-detalhe__grid">
+            <div>
+              <h4>Base Bluesoft</h4>
+              <p>Peso consolidado: <strong>${fmtPeso(g.pesoBluesoft)}</strong></p>
+              <p>Valor consolidado: <strong>${fmtValor(g.valorBluesoft)}</strong></p>
+            </div>
+            <div>
+              <h4>Indicador de Frete</h4>
+              <p>Embarques encontrados: <strong>${g.embarques.length ? escapeAttr(g.embarques.join(', ')) : 'nenhum'}</strong></p>
+              <p>Peso consolidado: <strong>${fmtPeso(g.pesoEmbarque)}</strong></p>
+              <p>Valor consolidado: <strong>${fmtValor(g.valorEmbarque)}</strong></p>
+            </div>
+            <div>
+              <h4>Resultado</h4>
+              <p>Status: <strong><span class="badge-status ${classe}">${label}</span></strong></p>
+              <p>Diferença de peso: <strong>${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3) + ' kg'}</strong></p>
+              <p>Diferença de valor: <strong>${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</strong></p>
+            </div>
+          </div>
+          <h4>Notas fiscais por viagem</h4>
+          ${viagensHtml}
+        </div>
+      </td>
+    </tr>`;
+
+    return linhaResumo + linhaDetalhe;
+  }
+
+  /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na
+   * view — no-op se a seção não estiver visível, mesmo padrão de renderDespesasExtra/
+   * renderIndicadorFrete. Recalcula o cruzamento inteiro (DataStore.calcularAuditoriaEmbarques)
+   * a cada chamada — mesmo padrão do resto do dashboard, sem cache: o array bruto (~76 mil
+   * registros da Base Bluesoft) já é processado assim em outros relatórios sem problema de
+   * desempenho perceptível. */
+  function renderAuditoriaEmbarques() {
+    const view = document.getElementById('auditoria-embarques-view');
+    if (!view || view.hidden) return;
+
+    const { dataInicio, dataFim, mes, ano } = DataStore.getFilters();
+    sincronizarFiltrosCabecalhoEmbutido(AUDITORIA_EMBARQUES_FILTROS_CABECALHO_IDS, dataInicio, dataFim, null, null);
+
+    const resultado = DataStore.calcularAuditoriaEmbarques();
+    auditoriaEmbarquesSemChave = resultado.semChave;
+    auditoriaEmbarquesGrupos = resultado.grupos.filter(g => {
+      const ref = g.data;
+      if (dataInicio && ref < dataInicio) return false;
+      if (dataFim && ref > dataFim) return false;
+      if (mes && String(ref.getMonth() + 1) !== String(mes)) return false;
+      if (ano && String(ref.getFullYear()) !== String(ano)) return false;
+      return true;
+    });
+
+    const contagem = { NAO_CRIADO: 0, CRIADO: 0, INCOMPLETO: 0, ERRO_DADOS: 0 };
+    auditoriaEmbarquesGrupos.forEach(g => { contagem[g.status]++; });
+    document.getElementById('auditoria-embarques-count-nao-criado').textContent = Utils.formatNumber(contagem.NAO_CRIADO);
+    document.getElementById('auditoria-embarques-count-criado').textContent = Utils.formatNumber(contagem.CRIADO);
+    document.getElementById('auditoria-embarques-count-incompleto').textContent = Utils.formatNumber(contagem.INCOMPLETO);
+
+    const hintSemChave = document.getElementById('auditoria-embarques-sem-chave-hint');
+    if (hintSemChave) {
+      hintSemChave.hidden = auditoriaEmbarquesSemChave === 0;
+      hintSemChave.textContent = auditoriaEmbarquesSemChave > 0
+        ? `${Utils.formatNumber(auditoriaEmbarquesSemChave)} nota(s) faturada(s) sem placa ou sem Data de Faturamento não entraram nesta auditoria (não é possível formar a chave Placa+Data).`
+        : '';
+    }
+
+    document.querySelectorAll('[data-auditoria-embarques-filtro]').forEach(card => {
+      card.classList.toggle('selecionado', card.dataset.auditoriaEmbarquesFiltro === auditoriaEmbarquesFiltroStatus);
+    });
+    const selectStatus = document.getElementById('auditoria-embarques-filtro-status');
+    if (selectStatus) selectStatus.value = auditoriaEmbarquesFiltroStatus;
+
+    auditoriaEmbarquesTable.page = 1;
+    renderTableGeneric(auditoriaEmbarquesGruposFiltrados(), auditoriaEmbarquesTable, AUDITORIA_EMBARQUES_TABLE_IDS, rowHtmlAuditoriaEmbarques);
+  }
+
+  function aplicarFiltroStatusAuditoriaEmbarques(status) {
+    auditoriaEmbarquesFiltroStatus = auditoriaEmbarquesFiltroStatus === status ? '' : status;
+    renderAuditoriaEmbarques();
+  }
+
+  function bindAuditoriaEmbarquesAcoes() {
+    document.querySelectorAll('[data-auditoria-embarques-filtro]').forEach(card => {
+      card.addEventListener('click', () => aplicarFiltroStatusAuditoriaEmbarques(card.dataset.auditoriaEmbarquesFiltro));
+    });
+
+    const selectStatus = document.getElementById('auditoria-embarques-filtro-status');
+    if (selectStatus) {
+      selectStatus.addEventListener('change', (e) => {
+        auditoriaEmbarquesFiltroStatus = e.target.value;
+        renderAuditoriaEmbarques();
+      });
+    }
+
+    const searchHandler = Utils.debounce((value) => {
+      auditoriaEmbarquesBusca = value;
+      auditoriaEmbarquesTable.page = 1;
+      renderTableGeneric(auditoriaEmbarquesGruposFiltrados(), auditoriaEmbarquesTable, AUDITORIA_EMBARQUES_TABLE_IDS, rowHtmlAuditoriaEmbarques);
+    }, 250);
+    const searchInput = document.getElementById('auditoria-embarques-table-search');
+    if (searchInput) searchInput.addEventListener('input', (e) => searchHandler(e.target.value));
+
+    // Expandir/recolher — delegado no tbody (as linhas são recriadas a cada render, um listener
+    // por linha vazaria/duplicaria). Ignora clique dentro da linha de detalhe (ela também é
+    // filha do tbody, mas não deve alternar nada).
+    const tbody = document.getElementById('auditoria-embarques-table-body');
+    if (tbody) {
+      tbody.addEventListener('click', (e) => {
+        const linha = e.target.closest('[data-auditoria-embarques-toggle]');
+        if (!linha) return;
+        const chave = linha.dataset.auditoriaEmbarquesToggle;
+        if (auditoriaEmbarquesExpandidos.has(chave)) auditoriaEmbarquesExpandidos.delete(chave);
+        else auditoriaEmbarquesExpandidos.add(chave);
+        renderTableGeneric(auditoriaEmbarquesGruposFiltrados(), auditoriaEmbarquesTable, AUDITORIA_EMBARQUES_TABLE_IDS, rowHtmlAuditoriaEmbarques);
+      });
+    }
+
+    bindTableControlsFor(auditoriaEmbarquesTable, AUDITORIA_EMBARQUES_TABLE_IDS, auditoriaEmbarquesGruposFiltrados, rowHtmlAuditoriaEmbarques);
+    bindFiltrosCabecalhoEmbutido(AUDITORIA_EMBARQUES_FILTROS_CABECALHO_IDS);
+
+    const btnExportar = document.getElementById('btn-export-auditoria-embarques');
+    if (btnExportar) btnExportar.addEventListener('click', exportarAuditoriaEmbarques);
+  }
+
+  async function exportarAuditoriaEmbarques() {
+    const grupos = auditoriaEmbarquesGruposFiltrados();
+    if (!grupos.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+    const colunas = [
+      { label: 'Placa', value: g => g.placaOriginal },
+      { label: 'Data', value: g => g.data.toLocaleDateString('pt-BR') },
+      { label: 'Status', value: g => AUDITORIA_EMBARQUES_STATUS_LABEL[g.status] },
+      { label: 'Embarque(s)', value: g => g.embarques.join(', ') || '—' },
+      { label: 'Peso Bluesoft', value: g => g.pesoBluesoft.toFixed(3).replace('.', ',') },
+      { label: 'Peso Embarque', value: g => g.pesoEmbarque != null ? g.pesoEmbarque.toFixed(3).replace('.', ',') : '' },
+      { label: 'Diferença de Peso', value: g => g.diferencaPeso != null ? g.diferencaPeso.toFixed(3).replace('.', ',') : '' },
+      { label: 'Valor Bluesoft', value: g => g.valorBluesoft.toFixed(2).replace('.', ',') },
+      { label: 'Valor Embarque', value: g => g.valorEmbarque != null ? g.valorEmbarque.toFixed(2).replace('.', ',') : '' },
+      { label: 'Diferença de Valor', value: g => g.diferencaValor != null ? g.diferencaValor.toFixed(2).replace('.', ',') : '' },
+      { label: 'Qtd Viagens', value: g => g.qtdViagens },
+      { label: 'Qtd NFs', value: g => g.qtdNfs }
+    ];
+    await Utils.exportToStyledExcel('auditoria-embarques.xlsx', 'Auditoria de Embarques', colunas, grupos);
+    Utils.showToast(`${grupos.length} grupos exportados para Excel.`, 'success');
   }
 
   /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na
