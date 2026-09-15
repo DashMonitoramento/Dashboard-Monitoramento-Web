@@ -4693,18 +4693,20 @@ const Dashboard = (() => {
   /** "Valor Descarga Aprovado" somado por Placa + Data (2026-09-15, pedido da usuária) — pra
    * cada linha do Indicador de Frete (Placa + Data Embarque), soma o Valor Descarga Aprovado
    * (campo por NF, preenchido em "Despesas Extra"/"Registros detalhados") de toda NF da Base
-   * Bluesoft com a MESMA Placa e cuja Data de Faturamento caia no MESMO dia da Data Embarque
-   * dessa viagem — confirmado com ela via pergunta: cruza por Placa+Data (Data de Faturamento
-   * do lado Bluesoft), não pela Data de Entrega/coleta que o cruzamento de Motorista/
-   * Transportadora já usa (cruzarPlacaDiaMaisProximo, acima) — são 2 cruzamentos DIFERENTES de
-   * propósito, cada um com a data que ela pediu. Mapa construído 1x por render (não por linha),
-   * mesmo cuidado de desempenho de construirMapaPorPlacaIndicadorFrete. */
+   * Bluesoft com a MESMA Placa e cuja Data de Entrega (= data de coleta/início de viagem, ver
+   * [[project_dashboard_january_gap]]) caia no MESMO dia da Data Embarque dessa viagem.
+   * Trocado de Data de Faturamento pra Data de Entrega em seguida (mesmo dia, pedido dela) —
+   * Faturamento tende a vir dias DEPOIS do Embarque (mesmo viés já comprovado na Auditoria de
+   * Embarques), o que deixava essa coluna zerada com frequência; Data de Entrega é a MESMA data
+   * que o cruzamento de Motorista/Transportadora desta tela já usa (cruzarPlacaDiaMaisProximo,
+   * acima), então agora os 2 cruzamentos ficam consistentes entre si. Mapa construído 1x por
+   * render (não por linha), mesmo cuidado de desempenho de construirMapaPorPlacaIndicadorFrete. */
   function construirMapaValorDescargaAprovadoPorPlacaData() {
     const mapa = new Map(); // "PLACA|timestamp do dia" -> soma de valorDescargaAprovado
     DataStore.getRecords().forEach(r => {
-      if (!r.placa || !r.dataFaturamento || !(r.valorDescargaAprovado > 0)) return;
+      if (!r.placa || !r.dataEntrega || !(r.valorDescargaAprovado > 0)) return;
       const placa = cargasNormalizarPlaca(r.placa);
-      const chave = `${placa}|${inicioDoDia(r.dataFaturamento).getTime()}`;
+      const chave = `${placa}|${inicioDoDia(r.dataEntrega).getTime()}`;
       mapa.set(chave, (mapa.get(chave) || 0) + r.valorDescargaAprovado);
     });
     return mapa;
