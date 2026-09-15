@@ -2079,12 +2079,18 @@ const DataStore = (() => {
    * `semChave` (não auditável, nem dá pra saber de qual dia/placa seria). Registro com
    * placa+data mas peso/valor ausente ou <= 0 vira status ERRO_DADOS pro grupo inteiro (não
    * silenciosamente 0 nem "viagem grátis" legítima — `parseMoney('')` já devolve 0 por padrão
-   * em todo o resto do dashboard, mas aqui isso precisa ficar visível como problema). */
-  function calcularAuditoriaEmbarques() {
+   * em todo o resto do dashboard, mas aqui isso precisa ficar visível como problema).
+   * `tipoTransporte` (2026-09-15, pedido da usuária) filtra os registros da Base Bluesoft por
+   * `r.tipoTransporte` (coluna "Categoria") ANTES de agrupar — só "Agregado" realmente precisa
+   * ter embarque criado no Indicador de Frete; Transportadora (CT-e)/Próprio Retira/Exportação
+   * não passam por esse processo, então incluí-los sempre inflava o "Não criado" com falso
+   * positivo. `''`/`undefined` = sem filtro (todas as categorias, comportamento antigo). */
+  function calcularAuditoriaEmbarques(tipoTransporte) {
     const gruposBluesoft = new Map(); // chave -> { placa, placaOriginal, data, registros: [...] }
     let semChave = 0;
 
     for (const r of rawRecords) {
+      if (tipoTransporte && r.tipoTransporte !== tipoTransporte) continue;
       const placaNormalizada = String(r.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (!placaNormalizada || !r.dataFaturamento) { semChave++; continue; }
       const data = Utils.startOfDay(r.dataFaturamento);
