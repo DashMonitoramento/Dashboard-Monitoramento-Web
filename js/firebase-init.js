@@ -611,6 +611,19 @@ async function marcarNoShowStatusCarga(placaBruta, motivo) {
   await lote.commit();
 }
 
+/** Corrige/completa o Motivo de uma ocorrência de No Show já registrada (2026-09-15, pedido da
+ * usuária: "editável, igual o campo de Observação") — diferente de marcarNoShowStatusCarga
+ * (que sempre CRIA um doc novo, auto-ID), aqui é update de UM campo num doc que já existe,
+ * identificado pelo próprio id do documento (statusCargaNoShow não tem chave de negócio única
+ * tipo NF/cliente pra usar num setDoc com merge, então updateDoc no id é o jeito certo). */
+async function atualizarMotivoNoShow(id, motivo) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  await updateDoc(doc(db, STATUS_CARGA_NO_SHOW_COLECAO, id), {
+    motivo: motivo || '', motivoAtualizadoPorEmail: usuario.email, motivoAtualizadoEm: serverTimestamp()
+  });
+}
+
 /** Tempo real de quem avisou disponibilidade (1 doc por placa — status DISPONIVEL/ENCERRADO,
  * ver disponibilidade/{placa}). */
 function assinarDisponibilidade(callback, aoFalhar) {
@@ -758,7 +771,7 @@ window.Firebase = {
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga,
-  assinarStatusCargaNoShow, marcarNoShowStatusCarga,
+  assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico
 };
