@@ -867,6 +867,10 @@ function initLogin() {
       Auth.setUser(user);
       userChip.textContent = user.name;
       renderAvatar(user.photoURL);
+      // Reparo automático do perfil em users/{uid} (2026-09-15) — cria o doc que faltar, sem
+      // sobrescrever nada se já existir; ver comentário completo em garantirPerfilUsuario
+      // (firebase-init.js). "Melhor esforço": nunca trava/atrasa o login, só loga aviso se falhar.
+      if (window.Firebase && window.Firebase.garantirPerfilUsuario) window.Firebase.garantirPerfilUsuario();
       const btnGerenciarUsuarios = document.getElementById('btn-gerenciar-usuarios');
       if (btnGerenciarUsuarios) btnGerenciarUsuarios.hidden = !Dashboard.isSuperAdminAgendamento();
       overlay.classList.add('login-overlay--hidden');
