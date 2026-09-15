@@ -291,7 +291,8 @@ import {
   getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
-  getFirestore, doc, collection, onSnapshot, writeBatch, serverTimestamp
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, collection, onSnapshot, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -305,7 +306,14 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+// Cache local persistente (2026-09-15) -- este app é o que mais pesa na cota do Firestore: cada
+// motorista relê as coleções inteiras (motoristas/statusCarga/disponibilidade) toda vez que o
+// celular descarrega a aba da memória e recarrega (comum trocando de app/perdendo sinal em
+// rota). Com o cache, o app reaproveita o que já foi baixado no aparelho e só busca no servidor
+// o que mudou de verdade desde a última vez.
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 
 // Motorista não faz login com e-mail/senha (pedido explícito da usuária: "não precisa procurar
 // ou digitar seu nome") -- Anonymous Auth mantém `request.auth != null` válido pras mesmas
