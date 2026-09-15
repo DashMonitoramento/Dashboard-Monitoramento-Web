@@ -1722,7 +1722,11 @@ Segue anexo o relatório atualizado.</textarea>
              R$/kg novo). Grid 2x3 preenchendo a altura toda — ver .indicador-frete-kpis-principais
              em style.css. Só layout: os IDs dos valores continuam os mesmos, renderIndicadorFrete()
              não mudou nada. -->
-        <div class="indicador-frete-kpis-principais">
+        <!-- grid-template-columns via auto-fit (não fixo) — inline style tem especificidade
+             maior que as media queries de .indicador-frete-kpis-principais em css/style.css;
+             como essa linha ganhou 2 cards novos (8 no total), auto-fit se adapta sozinho ao
+             invés de depender de um valor fixo que quebraria no celular. -->
+        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#0D9488">
               <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
               <span class="indicador-frete-kpi__texto">
@@ -1769,6 +1773,27 @@ Segue anexo o relatório atualizado.</textarea>
                 <span class="kpi-card__label">% Frete</span>
                 <span class="kpi-card__value" id="indicador-frete-percentual">0,0%</span>
                 <span class="indicador-frete-kpi__comparativo" id="indicador-frete-percentual-comparativo"></span>
+              </span>
+            </article>
+            <!-- "Total Descarga" e "Total Frete + Descarga" (2026-09-15, pedido da usuária:
+                 "preciso saber quanto vou ter de descarga para adicionar no frete") — soma da
+                 coluna nova "Valor Descarga Aprovado" (cruzada por Placa+Data de Faturamento
+                 contra a Base Bluesoft, ver construirMapaValorDescargaAprovadoPorPlacaData em
+                 dashboard.js), resposta direta sem precisar somar linha por linha na tabela. -->
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#DB2777">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"></path><path d="M3 8h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 12v4"></path><path d="M10 14h4"></path></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">Total Descarga</span>
+                <span class="kpi-card__value" id="indicador-frete-total-descarga">R$ 0,00</span>
+                <span class="kpi-card__sub">Valor Descarga Aprovado, por Placa+Data de Faturamento</span>
+              </span>
+            </article>
+            <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#9333EA">
+              <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+              <span class="indicador-frete-kpi__texto">
+                <span class="kpi-card__label">Total Frete + Descarga</span>
+                <span class="kpi-card__value" id="indicador-frete-total-frete-descarga">R$ 0,00</span>
+                <span class="kpi-card__sub">Total Valor Frete + Total Descarga</span>
               </span>
             </article>
         </div>
@@ -1930,6 +1955,8 @@ Segue anexo o relatório atualizado.</textarea>
                 <th data-field="transportadora">Transportadora</th>
                 <th data-field="motorista">Motorista</th>
                 <th data-field="valorFrete" class="text-right">Valor Frete</th>
+                <th data-field="valorDescargaAprovado" class="text-right">Valor Descarga Aprovado</th>
+                <th data-field="freteMaisDescarga" class="text-right">Frete + Descarga</th>
                 <th class="text-right">% Frete</th>
                 <th class="text-right">R$/Kg</th>
                 <th class="text-center">Riscos/Alertas</th>
@@ -2390,7 +2417,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260915a"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260915b"></script>
+<script src="js/dashboard.js?v=20260915c"></script>
 <script src="js/script.js?v=20260912a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
