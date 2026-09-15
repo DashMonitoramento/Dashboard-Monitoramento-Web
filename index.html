@@ -2270,6 +2270,22 @@ Segue anexo o relatório atualizado.</textarea>
                 <input type="date" id="auditoria-embarques-filtro-data-fim" aria-label="Data fim">
               </span>
             </label>
+            <!-- Tipo de Transporte (2026-09-15, pedido da usuária) — só "Agregado" realmente
+                 precisa ter embarque criado no Indicador de Frete; Transportadora (auditada à
+                 parte, por CT-e)/Próprio Retira/Exportação não passam por esse processo, então
+                 vêm sempre como falso "Não criado" se não filtrar. Pré-selecionado em Agregado,
+                 mas continua um FILTRO (não exclusão definitiva) — dá pra trocar quando precisar
+                 checar as outras categorias. -->
+            <label class="filtro-cabecalho">
+              <span class="filtro-cabecalho__label">Tipo de Transporte</span>
+              <select id="auditoria-embarques-filtro-tipo-transporte">
+                <option value="Agregado" selected>Agregado</option>
+                <option value="">Todos</option>
+                <option value="Transportadora">Transportadora</option>
+                <option value="Próprio Retira">Próprio Retira</option>
+                <option value="Exportação">Exportação</option>
+              </select>
+            </label>
             <label class="filtro-cabecalho">
               <span class="filtro-cabecalho__label">Status</span>
               <select id="auditoria-embarques-filtro-status">
@@ -2283,7 +2299,7 @@ Segue anexo o relatório atualizado.</textarea>
             <button id="btn-export-auditoria-embarques" class="btn" type="button">⬇️ Exportar Excel</button>
           </div>
         </div>
-        <p class="chart-card__hint">Compara viagens já faturadas (Base Bluesoft) contra os embarques do "Indicador de Frete", por Placa + Data. O período aqui segue o mesmo filtro do menu lateral.</p>
+        <p class="chart-card__hint">Compara viagens já faturadas (Base Bluesoft) contra os embarques do "Indicador de Frete", por Placa + Data. O período aqui segue o mesmo filtro do menu lateral. Vem filtrado por "Agregado" (só essa categoria precisa ter embarque criado) — troque em Tipo de Transporte se precisar ver as outras.</p>
 
         <div class="cargas-cards">
           <article class="kpi-card kpi-card--mini kpi-card--clickable" data-auditoria-embarques-filtro="NAO_CRIADO" style="--kpi-accent:#DC2626" title="Viagens faturadas sem embarque correspondente">
@@ -2356,9 +2372,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260913b"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260914a"></script>
+<script src="js/data.js?v=20260915a"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260914b"></script>
+<script src="js/dashboard.js?v=20260915a"></script>
 <script src="js/script.js?v=20260912a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
