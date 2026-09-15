@@ -4771,7 +4771,10 @@ const Dashboard = (() => {
     'indicador-frete-transportadora-total-dif': true,
     'indicador-frete-transportadora-percentual-dif': true,
     'indicador-frete-transportadora-qtd-auditados': false,
-    'indicador-frete-transportadora-qtd-divergencia': true
+    'indicador-frete-transportadora-qtd-divergencia': true,
+    // "Total de CT-es" (2026-09-15) — mesma semântica de "CT-es Auditados": é VOLUME/cobertura,
+    // não custo, então crescer não é nem bom nem ruim (só informativo).
+    'indicador-frete-transportadora-total-ctes': false
   };
 
   /** Preenche a linha "▲/▼ X% vs. período anterior" de um KPI card do Indicador de Frete.
@@ -5875,6 +5878,7 @@ const Dashboard = (() => {
     const percentualFreteSobreNotas = valorNotasCorrespondente > 0 ? (freteCalculadoTotal / valorNotasCorrespondente) * 100 : null;
 
     const setTexto = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
+    setTexto('indicador-frete-transportadora-total-ctes', Utils.formatNumber(itens.length));
     setTexto('indicador-frete-transportadora-total-calculado', Utils.formatCurrency(freteCalculadoTotal));
     setTexto('indicador-frete-transportadora-total-cobrado', Utils.formatCurrency(freteCobradoTotal));
     setTexto('indicador-frete-transportadora-total-dif', Utils.formatCurrency(diferencaTotal));
@@ -5913,6 +5917,7 @@ const Dashboard = (() => {
       ? auditadosAnteriorTransportadora.filter(i => { const s = statusAuditoriaFreteTransportadora(i); return s === 'cobrado_maior' || s === 'cobrado_menor'; }).length
       : null;
 
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-ctes', itens.length, temBaseAnteriorGeral ? itensAnteriorTransportadora.length : null);
     renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-calculado', freteCalculadoTotal, freteCalculadoTotalAnterior);
     renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-cobrado', freteCobradoTotal, freteCobradoTotalAnterior);
     renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-dif', diferencaTotal, diferencaTotalAnterior);
