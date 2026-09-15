@@ -7133,6 +7133,7 @@ const Dashboard = (() => {
     const [inicio, fim] = periodoOcorrenciasDoDia(cargasNoShowPeriodo);
     const itens = Array.from(cargasNoShowHistorico.values())
       .map(n => ({
+        id: n.id,
         placa: n.placa,
         rota: n.rota || '',
         motivo: n.motivo || '',
@@ -7174,18 +7175,25 @@ const Dashboard = (() => {
       const nome = motorista ? motorista.nome : '(motorista não encontrado no cadastro)';
       const rotaTexto = item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '';
       const separadoTexto = item.dataSeparado ? ` · Separado desde: ${cargasFormatarData(item.dataSeparado)}` : '';
-      const motivoTexto = item.motivo ? ` · Motivo: ${escapeAttr(item.motivo)}` : '';
       const dataTexto = item.marcadoEm ? `<div class="cargas-item__data">${cargasFormatarData(item.marcadoEm)}</div>` : '';
       const tempo = item.marcadoEm ? cargasFormatarTempoDecorrido(item.marcadoEm) : '';
+      // Motivo virou editável (2026-09-15, pedido da usuária, mesmo padrão de campo editável já
+      // usado em Observação) — antes era texto fixo, só definido 1x no modal ao marcar o No
+      // Show; agora dá pra corrigir/completar depois direto na lista. Some do texto fixo, vira
+      // um <input> (mesma classe .observacao-descarga-inline já usada em Despesas Extra, mesmo
+      // padrão visual). Sem permissão, mostra só o texto (sem <input>), igual ao resto do painel.
+      const motivoHtml = cargasPodeEditar
+        ? `<input type="text" class="observacao-descarga-inline" data-noshow-motivo-id="${escapeAttr(item.id)}" value="${escapeAttr(item.motivo)}" placeholder="Motivo do no show...">`
+        : (item.motivo ? `<span class="text-secondary">Motivo: ${escapeAttr(item.motivo)}</span>` : '');
 
       return `
         <div class="cargas-item">
           <div class="cargas-item__info">
             <div class="cargas-item__nome">${escapeAttr(nome)}</div>
-            <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)}${rotaTexto}${separadoTexto}${motivoTexto}</div>
+            <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)}${rotaTexto}${separadoTexto}</div>
           </div>
           <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
-          <div class="cargas-item__acoes"></div>
+          <div class="cargas-item__acoes">${motivoHtml}</div>
         </div>`;
     }).join('');
 
@@ -7228,6 +7236,25 @@ const Dashboard = (() => {
       }
       // Sem re-render manual aqui de propósito — o onSnapshot correspondente já dispara sozinho
       // assim que o Firestore confirmar a escrita (mesmo padrão real-time do resto do módulo).
+    });
+
+    // Motivo do No Show editável (2026-09-15) — salva no focusout, só se o texto mudou de
+    // verdade (mesmo padrão de sempre pra campos inline: Observação/Valor Descarga Aprovado).
+    // Sem re-render manual aqui também — o onSnapshot de statusCargaNoShow já redesenha a lista
+    // assim que o Firestore confirmar.
+    wrap.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('[data-noshow-motivo-id]');
+      if (!input) return;
+      const id = input.dataset.noshowMotivoId;
+      const novoValor = input.value.trim();
+      const atual = (cargasNoShowHistorico.get(id) || {}).motivo || '';
+      if (novoValor === atual) return;
+      try {
+        await cargasDashFirebase.atualizarMotivoNoShow(id, novoValor);
+        Utils.showToast('Motivo do No Show salvo.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast('Falha ao salvar motivo do No Show: ' + err.message, 'error');
+      }
     });
   }
 
