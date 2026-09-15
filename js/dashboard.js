@@ -4332,7 +4332,7 @@ const Dashboard = (() => {
     tbody: 'indicador-frete-table-body', info: 'indicador-frete-table-info',
     pageLabel: 'indicador-frete-table-page-label', prev: 'indicador-frete-table-prev',
     next: 'indicador-frete-table-next', theadSelector: '#indicador-frete-table thead th[data-field]',
-    colspan: 14, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
+    colspan: 16, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
   };
 
   // "Evolução do Frete" (2026-09-10, Fase 3) — granularidade do gráfico combo (Mensal/Semanal/
@@ -4690,6 +4690,26 @@ const Dashboard = (() => {
   /** Todas as datas conhecidas de cada placa (Transportadora/Motorista), pra achar a mais
    * próxima da Data Embarque na hora de cruzar — reconstruída a cada render, custo é 1 passada
    * sobre os registros já carregados em memória (sem leitura nova nenhuma). */
+  /** "Valor Descarga Aprovado" somado por Placa + Data (2026-09-15, pedido da usuária) — pra
+   * cada linha do Indicador de Frete (Placa + Data Embarque), soma o Valor Descarga Aprovado
+   * (campo por NF, preenchido em "Despesas Extra"/"Registros detalhados") de toda NF da Base
+   * Bluesoft com a MESMA Placa e cuja Data de Faturamento caia no MESMO dia da Data Embarque
+   * dessa viagem — confirmado com ela via pergunta: cruza por Placa+Data (Data de Faturamento
+   * do lado Bluesoft), não pela Data de Entrega/coleta que o cruzamento de Motorista/
+   * Transportadora já usa (cruzarPlacaDiaMaisProximo, acima) — são 2 cruzamentos DIFERENTES de
+   * propósito, cada um com a data que ela pediu. Mapa construído 1x por render (não por linha),
+   * mesmo cuidado de desempenho de construirMapaPorPlacaIndicadorFrete. */
+  function construirMapaValorDescargaAprovadoPorPlacaData() {
+    const mapa = new Map(); // "PLACA|timestamp do dia" -> soma de valorDescargaAprovado
+    DataStore.getRecords().forEach(r => {
+      if (!r.placa || !r.dataFaturamento || !(r.valorDescargaAprovado > 0)) return;
+      const placa = cargasNormalizarPlaca(r.placa);
+      const chave = `${placa}|${inicioDoDia(r.dataFaturamento).getTime()}`;
+      mapa.set(chave, (mapa.get(chave) || 0) + r.valorDescargaAprovado);
+    });
+    return mapa;
+  }
+
   function construirMapaPorPlacaIndicadorFrete() {
     const mapa = new Map();
     DataStore.getRecords().forEach(r => {
@@ -5091,8 +5111,11 @@ const Dashboard = (() => {
     });
 
     const mapaPorPlaca = construirMapaPorPlacaIndicadorFrete();
+    const mapaValorDescargaAprovado = construirMapaValorDescargaAprovadoPorPlacaData();
     const itensCruzados = itens.map(item => {
       const cruzado = cruzarPlacaDiaMaisProximo(mapaPorPlaca, item.placa, item.dataEmbarque);
+      const chaveDescarga = `${item.placa}|${inicioDoDia(item.dataEmbarque).getTime()}`;
+      const valorDescargaAprovado = mapaValorDescargaAprovado.get(chaveDescarga) || 0;
       return {
         ...item,
         transportadora: cruzado ? cruzado.transportadora : '',
@@ -5102,7 +5125,11 @@ const Dashboard = (() => {
         // vermelho) pra ela conseguir achar/investigar esses casos (normalmente erro de
         // digitação da placa na própria aba "Indicador de Frete").
         semCruzamento: !cruzado,
-        qtdNFsEstimada: cruzado ? cruzado.qtdNotas : 0
+        qtdNFsEstimada: cruzado ? cruzado.qtdNotas : 0,
+        // "Valor Descarga Aprovado" e "Frete + Descarga" (2026-09-15) — ver
+        // construirMapaValorDescargaAprovadoPorPlacaData acima.
+        valorDescargaAprovado,
+        freteMaisDescarga: item.valorFrete + valorDescargaAprovado
       };
       // Transportadora/Motorista da barra lateral (pedido da usuária, 2026-09-09) filtram DEPOIS
       // do cruzamento acima — são campos cruzados, não nativos da planilha de viagens. Viagem sem
@@ -5117,12 +5144,20 @@ const Dashboard = (() => {
     const totalValor = Utils.sum(itensCruzados, i => i.valorFrete);
     const totalPeso = Utils.sum(itensCruzados, i => i.peso);
     const totalValorNFs = Utils.sum(itensCruzados, i => i.valorTotalNFs);
+    // Total de Descarga (2026-09-15, pedido dela: "preciso saber quanto vou ter de descarga
+    // para adicionar no frete") — soma simples da coluna nova, resposta direta sem precisar
+    // somar linha por linha na tabela.
+    const totalDescarga = Utils.sum(itensCruzados, i => i.valorDescargaAprovado);
     document.getElementById('indicador-frete-total-valor').textContent = Utils.formatCurrency(totalValor);
     document.getElementById('indicador-frete-total-peso').textContent = Utils.formatNumber(totalPeso, 0);
     document.getElementById('indicador-frete-media-kg').textContent = Utils.formatCurrency(totalPeso > 0 ? totalValor / totalPeso : 0);
     document.getElementById('indicador-frete-total-viagens').textContent = Utils.formatNumber(itensCruzados.length);
     const elTotalNFs = document.getElementById('indicador-frete-total-valor-nfs');
     if (elTotalNFs) elTotalNFs.textContent = Utils.formatCurrency(totalValorNFs);
+    const elTotalDescarga = document.getElementById('indicador-frete-total-descarga');
+    if (elTotalDescarga) elTotalDescarga.textContent = Utils.formatCurrency(totalDescarga);
+    const elTotalFreteDescarga = document.getElementById('indicador-frete-total-frete-descarga');
+    if (elTotalFreteDescarga) elTotalFreteDescarga.textContent = Utils.formatCurrency(totalValor + totalDescarga);
     // Card "% Frete" (2026-09-09) — % agregada do PERÍODO INTEIRO (soma/soma), não a média das
     // % linha a linha (que distorceria a favor de viagens pequenas) — mesmo critério de "taxa
     // efetiva" já usado noutras % agregadas do dashboard.
@@ -5337,6 +5372,8 @@ const Dashboard = (() => {
         <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
         <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
         <td class="text-right text-orange">${Utils.formatCurrency(i.valorFrete)}</td>
+        <td class="text-right">${Utils.formatCurrency(i.valorDescargaAprovado)}</td>
+        <td class="text-right text-orange">${Utils.formatCurrency(i.freteMaisDescarga)}</td>
         <td class="text-right text-orange">${Utils.formatPercent(percentualFrete)}</td>
         <td class="text-right">${Utils.formatCurrency(rsPorKg)}</td>
         <td class="text-center">${celulaAlertas}</td>
@@ -6320,6 +6357,8 @@ const Dashboard = (() => {
       { label: 'Transportadora', value: i => i.transportadora || '—' },
       { label: 'Motorista', value: i => i.motorista || '—' },
       { label: 'Valor Frete', value: i => i.valorFrete.toFixed(2).replace('.', ',') },
+      { label: 'Valor Descarga Aprovado', value: i => i.valorDescargaAprovado.toFixed(2).replace('.', ',') },
+      { label: 'Frete + Descarga', value: i => i.freteMaisDescarga.toFixed(2).replace('.', ',') },
       { label: '% Frete', value: i => (i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0).toFixed(1).replace('.', ',') },
       { label: 'R$/Kg', value: i => (i.peso > 0 ? i.valorFrete / i.peso : 0).toFixed(2).replace('.', ',') }
     ];
