@@ -135,6 +135,10 @@ const Dashboard = (() => {
   // sincronizados entre si, evitando o card mostrar "selecionado" com um status e o <select>
   // mostrando outro.
   let auditoriaEmbarquesFiltroStatus = ''; // '' | 'NAO_CRIADO' | 'CRIADO' | 'INCOMPLETO' | 'ERRO_DADOS'
+  // Só "Agregado" realmente precisa ter embarque criado no Indicador de Frete (pedido da
+  // usuária, 2026-09-15) — pré-selecionado, mas continua filtro (ela pode trocar pra 'Todos'
+  // ou outra categoria quando precisar checar).
+  let auditoriaEmbarquesFiltroTipoTransporte = 'Agregado';
   let auditoriaEmbarquesBusca = '';
   let auditoriaEmbarquesTable = createTableState();
   auditoriaEmbarquesTable.sortField = 'data';
@@ -4947,7 +4951,7 @@ const Dashboard = (() => {
     const { dataInicio, dataFim, mes, ano } = DataStore.getFilters();
     sincronizarFiltrosCabecalhoEmbutido(AUDITORIA_EMBARQUES_FILTROS_CABECALHO_IDS, dataInicio, dataFim, null, null);
 
-    const resultado = DataStore.calcularAuditoriaEmbarques();
+    const resultado = DataStore.calcularAuditoriaEmbarques(auditoriaEmbarquesFiltroTipoTransporte);
     auditoriaEmbarquesSemChave = resultado.semChave;
     auditoriaEmbarquesGrupos = resultado.grupos.filter(g => {
       const ref = g.data;
@@ -4996,6 +5000,14 @@ const Dashboard = (() => {
     if (selectStatus) {
       selectStatus.addEventListener('change', (e) => {
         auditoriaEmbarquesFiltroStatus = e.target.value;
+        renderAuditoriaEmbarques();
+      });
+    }
+
+    const selectTipoTransporte = document.getElementById('auditoria-embarques-filtro-tipo-transporte');
+    if (selectTipoTransporte) {
+      selectTipoTransporte.addEventListener('change', (e) => {
+        auditoriaEmbarquesFiltroTipoTransporte = e.target.value;
         renderAuditoriaEmbarques();
       });
     }
