@@ -92,6 +92,39 @@ function onAuthChange(callback) {
   return onAuthStateChanged(auth, callback);
 }
 
+/** Reparo automático (2026-09-15, bug real achado: usuário "Ayrton Costa" conseguia logar mas
+ * nunca aparecia em "Gerenciar Usuários"). Causa: a regra do Firestore pra `users/{userId}`
+ * restringia TODA escrita ao super admin — inclusive a gravação do PRÓPRIO cadastro em
+ * createUser() (acima), que é sempre feita pelo usuário recém-criado, nunca pelo super admin.
+ * Ou seja, o perfil em `users/{uid}` NUNCA era gravado de verdade pra ninguém que se
+ * cadastrasse (o catch silencioso escondia isso) — o login (Authentication) funciona
+ * independente disso, só o perfil (nome/permissões, usado por "Gerenciar Usuários") que ficava
+ * sempre faltando. Corrigido a regra pra permitir `create` do PRÓPRIO doc (uid batendo, sempre
+ * com as 4 permissões em false — impede autopromoção), mas isso só resolve daqui pra frente;
+ * quem já tinha conta (como o Ayrton) continua sem o doc. Esta função roda em TODO login bem-
+ * sucedido (script.js) — cria o doc que falta com as permissões padrão, sem sobrescrever nada
+ * se já existir. */
+async function garantirPerfilUsuario() {
+  const usuario = auth.currentUser;
+  if (!usuario) return;
+  try {
+    const ref = doc(db, 'users', usuario.uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) return;
+    await setDoc(ref, {
+      nome: usuario.displayName || usuario.email || '',
+      email: usuario.email || '',
+      criadoEm: serverTimestamp(),
+      podeEditarAgendamento: false,
+      podeEditarManifesto: false,
+      podeEditarCargas: false,
+      podeGerenciarDisponibilidade: false
+    });
+  } catch (e) {
+    console.warn('Não foi possível verificar/criar o perfil em users/{uid}:', e.code || e.message);
+  }
+}
+
 // Substitui a planilha de Agendamentos como fonte da DATA/status de agendamento (a Base
 // Bluesoft já cobre "precisa de agendamento" via a própria coluna "Agendado", cruzada por
 // CNPJ) — por decisão do usuário (2026-08-14). Uma coleção só, documento por NF (sem
@@ -761,7 +794,7 @@ function assinarAvisoMotoristasHistorico(callback, aoFalhar) {
 }
 
 window.Firebase = {
-  auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange,
+  auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange, garantirPerfilUsuario,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
   getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega, salvarQtdAjudante, salvarNecessitaAjudante,
   getClientesNecessitamAjudante, salvarClienteNecessitaAjudante,
