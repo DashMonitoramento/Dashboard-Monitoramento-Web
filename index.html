@@ -1566,6 +1566,13 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="filtro-cabecalho__label">Motorista</span>
               <select id="despesas-extra-filtro-motorista"><option value="">Todos</option></select>
             </label>
+            <!-- Filtro de Cliente (2026-09-15, pedido da usuária) — LOCAL desta tela (não é um
+                 filtro global do menu lateral, diferente de Período/Transportadora/Motorista
+                 acima), populado com os clientes que aparecem nos registros atuais. -->
+            <label class="filtro-cabecalho">
+              <span class="filtro-cabecalho__label">Cliente</span>
+              <select id="despesas-extra-filtro-cliente"><option value="">Todos</option></select>
+            </label>
             <button id="btn-export-despesas-extra" class="btn" type="button">⬇️ Exportar Excel</button>
           </div>
         </div>
@@ -2417,7 +2424,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260915a"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260915d"></script>
+<script src="js/dashboard.js?v=20260915e"></script>
 <script src="js/script.js?v=20260912a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
