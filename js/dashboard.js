@@ -117,6 +117,9 @@ const Dashboard = (() => {
   // 'ajudanteNao' = só notas com Necessita Ajudante = Sim/Não (mesmo critério da coluna já
   // existente). Clicar no card já ativo desmarca (mesmo padrão de Controle de Cargas).
   let despesasExtraFiltroCard = null;
+  // Filtro de Cliente (2026-09-15, pedido da usuária) — LOCAL desta tela, seleção exata (não é
+  // busca por texto parcial como despesasExtraBusca, que já casa Cliente também).
+  let despesasExtraFiltroCliente = '';
   const DESPESAS_EXTRA_TABLE_IDS = {
     tbody: 'despesas-extra-table-body', info: 'despesas-extra-table-info',
     pageLabel: 'despesas-extra-table-page-label', prev: 'despesas-extra-table-prev',
@@ -2606,6 +2609,7 @@ const Dashboard = (() => {
     popularFiltroTransportadoraIndicadorFreteTransportadora();
     popularFiltroUFIndicadorFreteTransportadora();
     popularFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
+    popularFiltroClienteDespesasExtra();
     render(DataStore.getFilteredRecords());
   }
 
@@ -3949,6 +3953,25 @@ const Dashboard = (() => {
       (r.transportadora || '').toLowerCase().includes(alvo));
   }
 
+  /** Filtro de Cliente (2026-09-15) — seleção exata via <select>, aplicado igual aos filtros
+   * globais de Transportadora/Motorista (afeta KPIs, ranking e tabela, não só a tabela). */
+  function aplicarFiltroClienteDespesasExtra(records) {
+    if (!despesasExtraFiltroCliente) return records;
+    return records.filter(r => r.cliente === despesasExtraFiltroCliente);
+  }
+
+  /** Reconstrói o <select> de Cliente com os clientes que aparecem nos registros ATUAIS
+   * (mesmo padrão de popularFiltrosCabecalhoEmbutido) — chamada de dentro de renderAll(). */
+  function popularFiltroClienteDespesasExtra() {
+    const el = document.getElementById('despesas-extra-filtro-cliente');
+    if (!el) return;
+    const valorAtual = el.value;
+    const nomes = DataStore.getDistinctValues('cliente');
+    el.innerHTML = '<option value="">Todos</option>' +
+      nomes.filter(Boolean).map(n => `<option value="${escapeAttr(n)}">${escapeAttr(n)}</option>`).join('');
+    el.value = valorAtual;
+  }
+
   /** Filtro extra do card clicado no topo (2026-09-12) — aplicado DEPOIS da busca, mesma ordem de
    * sempre (filtros globais -> busca própria da tela -> este). Reaproveitado por
    * renderDespesasExtra (o que aparece na tabela) e exportarDespesasExtra (pra exportar
@@ -4043,7 +4066,7 @@ const Dashboard = (() => {
   /** Exporta exatamente o que está na tabela AGORA (mesmo filtro global + busca própria da tela +
    * o card clicado no topo, se algum estiver ativo — igual ao que aparece em tela). */
   async function exportarDespesasExtra() {
-    const registros = aplicarFiltroCardDespesasExtra(aplicarBuscaDespesasExtra(DataStore.getFilteredRecords()));
+    const registros = aplicarFiltroCardDespesasExtra(aplicarFiltroClienteDespesasExtra(aplicarBuscaDespesasExtra(DataStore.getFilteredRecords())));
     if (!registros.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
     const colunas = [
       { label: 'NF', value: r => r.nf || '—' },
@@ -4071,7 +4094,7 @@ const Dashboard = (() => {
     const { dataInicio, dataFim, transportadora, motorista } = DataStore.getFilters();
     sincronizarFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS, dataInicio, dataFim, transportadora, motorista);
 
-    const registros = aplicarBuscaDespesasExtra(records);
+    const registros = aplicarFiltroClienteDespesasExtra(aplicarBuscaDespesasExtra(records));
     const comValor = registros.filter(r => r.valorDescargaAprovado != null);
     const totalValor = Utils.sum(comValor, r => r.valorDescargaAprovado);
     document.getElementById('despesas-extra-total-valor').textContent = Utils.formatCurrency(totalValor);
@@ -4122,13 +4145,21 @@ const Dashboard = (() => {
 
   function bindDespesasExtraAcoes() {
     bindFiltrosCabecalhoEmbutido(DESPESAS_EXTRA_FILTROS_CABECALHO_IDS);
+    const selectCliente = document.getElementById('despesas-extra-filtro-cliente');
+    if (selectCliente) {
+      selectCliente.addEventListener('change', (e) => {
+        despesasExtraFiltroCliente = e.target.value;
+        despesasExtraTable.page = 1;
+        renderDespesasExtra(DataStore.getFilteredRecords());
+      });
+    }
     const btnExport = document.getElementById('btn-export-despesas-extra');
     if (btnExport) btnExport.addEventListener('click', () => exportarDespesasExtra());
 
     const tbody = document.getElementById(DESPESAS_EXTRA_TABLE_IDS.tbody);
     if (!tbody) return;
 
-    bindTableControlsFor(despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, () => aplicarFiltroCardDespesasExtra(aplicarBuscaDespesasExtra(DataStore.getFilteredRecords())), rowHtmlDespesasExtra);
+    bindTableControlsFor(despesasExtraTable, DESPESAS_EXTRA_TABLE_IDS, () => aplicarFiltroCardDespesasExtra(aplicarFiltroClienteDespesasExtra(aplicarBuscaDespesasExtra(DataStore.getFilteredRecords()))), rowHtmlDespesasExtra);
 
     // Cards clicáveis do topo (2026-09-12) — mesmo padrão de Controle de Cargas: clicar no card já
     // ativo desmarca (volta a mostrar tudo), clicar noutro troca direto.
