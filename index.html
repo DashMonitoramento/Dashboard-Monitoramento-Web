@@ -1999,7 +1999,23 @@ Segue anexo o relatório atualizado.</textarea>
              (existiam na versão por Embarque). -->
         <h3 class="chart-card__title" style="margin:24px 0 4px;">Indicador Frete Transportadora</h3>
         <p class="chart-card__hint" style="text-align:left; margin-top:0;">Auditoria por CT-e: valor de frete calculado x valor efetivamente cobrado pela transportadora.</p>
-        <div class="indicador-frete-kpis-principais" style="margin-bottom: 14px;">
+        <!-- grid-template-columns via auto-fit (não repeat(7,1fr) fixo) — inline style tem
+             especificidade maior que as media queries de .indicador-frete-kpis-principais em
+             css/style.css, então um valor FIXO aqui nunca encolheria no celular; auto-fit se
+             adapta sozinho à largura disponível, sem depender de nenhuma media query. -->
+        <div class="indicador-frete-kpis-principais" style="margin-bottom: 14px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
+          <!-- "Total de CT-es" (2026-09-15, pedido da usuária) — quantidade BRUTA de CT-es no
+               período/filtro atual, sem separar auditado/aguardando (diferente de "CT-es
+               Auditados", que é só a fatia já com cobrança confirmada). -->
+          <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#0EA5E9">
+            <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="4" x2="8" y2="9"></line></svg></span>
+            <span class="indicador-frete-kpi__texto">
+              <span class="kpi-card__label">Total de CT-es</span>
+              <span class="kpi-card__value" id="indicador-frete-transportadora-total-ctes">0</span>
+              <span class="indicador-frete-kpi__comparativo" id="indicador-frete-transportadora-total-ctes-comparativo"></span>
+              <span class="kpi-card__sub">inclui aguardando cobrança</span>
+            </span>
+          </article>
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#2563EB">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="11" x2="16" y2="11"></line><line x1="8" y1="15" x2="12" y2="15"></line></svg></span>
             <span class="indicador-frete-kpi__texto">
@@ -2374,7 +2390,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260915a"></script>
 <script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260915a"></script>
+<script src="js/dashboard.js?v=20260915b"></script>
 <script src="js/script.js?v=20260912a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
