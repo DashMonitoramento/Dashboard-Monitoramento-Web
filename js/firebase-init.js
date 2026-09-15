@@ -17,7 +17,9 @@ import {
   browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import {
-  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc,
   getDoc,
   setDoc,
@@ -45,7 +47,14 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+// Cache local persistente (2026-09-15) -- sem isso, cada F5/recarregamento relia do zero TODA
+// coleção assinada por onSnapshot (Controle de Cargas, etc.), mesmo sem nada ter mudado desde a
+// última visita. Isso estourou a cota gratuita diária do Firestore (50 mil leituras) sozinho,
+// com uso normal. Com o cache, o app reaproveita o que já baixou no aparelho e só lê do servidor
+// o que realmente mudou. Mesmo fix aplicado em motoristas/index.html e Manifesto/index.html.
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 
 // Atualizar a página (F5) NÃO deve pedir login de novo se ela já estava logada — pedido do
 // usuário (2026-08-27), substitui a decisão anterior (2026-08-1x, inMemoryPersistence) de
