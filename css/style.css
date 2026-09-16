@@ -1076,10 +1076,16 @@ ul { list-style: none; margin: 0; padding: 0; }
    Calculado x Cobrado) acompanha via align-items:stretch da própria .indicador-frete-analises,
    sem precisar de regra própria. */
 #chart-indicador-frete-cidades-rskg,
-#chart-indicador-frete-evolucao,
-#chart-indicador-frete-transportadora-evolucao-dif {
+#chart-indicador-frete-evolucao {
   min-height: 460px;
 }
+/* "Evolução da Diferença de Frete" (2026-09-16) -- virou 2 mini-gráficos empilhados (R$ e %)
+   em vez de 1 combo só, cada um na própria escala/altura, mais fácil de ler que a versão
+   anterior (barra e linha disputando a mesma área). */
+.indicador-frete-evolucao-dif { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+.indicador-frete-evolucao-dif__bloco { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.indicador-frete-evolucao-dif__rotulo { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
+.indicador-frete-analise-card .indicador-frete-evolucao-dif__chart.chart-root { min-height: 190px; flex: 1; }
 /* Por padrão .chart-root empilha em coluna (pizza em cima, legenda embaixo, ver regra genérica
    no topo deste arquivo) — só a pizza desta tela vira uma linha, pizza + legenda lado a lado,
    com a legenda forçada em 2 colunas fixas (o grid auto-fit padrão abriria 3+ colunas num
@@ -1108,6 +1114,12 @@ ul { list-style: none; margin: 0; padding: 0; }
    pizza da tela, "Cidades com maior gasto de frete", que continua em 44%). */
 #indicador-frete-view #chart-indicador-frete-transportadora-status .chart-plot-area {
   flex-basis: 58%;
+}
+/* "Status dos CT-es" em 1 coluna só (2026-09-16, pedido da usuária, referência visual igual à
+   "Situação de agendamento") -- ID específico pra não afetar a outra pizza da tela ("Cidades
+   com maior gasto de frete"), que continua em 2 colunas via a regra genérica acima. */
+#indicador-frete-view #chart-indicador-frete-transportadora-status .chart-legend--tiles {
+  grid-template-columns: 1fr;
 }
 
 /* "Oportunidades de Redução" (2026-09-10, Fase 5) — lista de alertas automáticos, reaproveita
