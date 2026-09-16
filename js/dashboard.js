@@ -6055,8 +6055,14 @@ const Dashboard = (() => {
       }
     }
 
-    // Chip "Filtrando: <status> ×" (clique na rosca de Status) — só a TABELA (e exportação)
-    // respeitam essa seleção, mesmo padrão do chip de região do relatório irmão.
+    // Select "Status" no cabeçalho fica sincronizado com o clique na rosca (2026-09-16) — sem
+    // isso, clicar na rosca mudaria o filtro sem o <select> refletir a seleção atual.
+    const elFiltroStatusSync = document.getElementById('indicador-frete-transportadora-filtro-status');
+    if (elFiltroStatusSync) elFiltroStatusSync.value = indicadorFreteTransportadoraStatusSelecionado || '';
+
+    // Chip "Filtrando: <status> ×" (clique na rosca de Status, ou seleção no <select> acima) —
+    // só a TABELA (e exportação) respeitam essa seleção, mesmo padrão do chip de região do
+    // relatório irmão.
     const chipStatus = document.getElementById('indicador-frete-transportadora-status-chip');
     if (chipStatus) {
       if (indicadorFreteTransportadoraStatusSelecionado) {
@@ -6231,6 +6237,20 @@ const Dashboard = (() => {
     if (elFiltroUF) {
       elFiltroUF.addEventListener('change', (e) => {
         indicadorFreteTransportadoraUFSelecionada = e.target.value || null;
+        indicadorFreteTransportadoraTable.page = 1;
+        renderIndicadorFreteTransportadora();
+      });
+    }
+    // Filtro "Status" (2026-09-16, pedido da usuária) — mesma variável já usada pelo clique na
+    // rosca "Status dos CT-es" (indicadorFreteTransportadoraStatusSelecionado), só que agora
+    // também dá pra escolher direto num <select> explícito, sem precisar clicar no gráfico. Os
+    // dois ficam sincronizados nos dois sentidos: escolher aqui reflete no chip/rosca (via
+    // renderIndicadorFreteTransportadora), e clicar na rosca também atualiza este <select> (ver
+    // sincronização logo abaixo do chip, dentro de renderIndicadorFreteTransportadora).
+    const elFiltroStatus = document.getElementById('indicador-frete-transportadora-filtro-status');
+    if (elFiltroStatus) {
+      elFiltroStatus.addEventListener('change', (e) => {
+        indicadorFreteTransportadoraStatusSelecionado = e.target.value || null;
         indicadorFreteTransportadoraTable.page = 1;
         renderIndicadorFreteTransportadora();
       });
