@@ -156,7 +156,7 @@ const Dashboard = (() => {
     tbody: 'auditoria-embarques-table-body', info: 'auditoria-embarques-table-info',
     pageLabel: 'auditoria-embarques-table-page-label', prev: 'auditoria-embarques-table-prev',
     next: 'auditoria-embarques-table-next', theadSelector: '#auditoria-embarques-table thead th[data-field]',
-    colspan: 13
+    colspan: 14
   };
   const AUDITORIA_EMBARQUES_FILTROS_CABECALHO_IDS = {
     dataInicio: 'auditoria-embarques-filtro-data-inicio', dataFim: 'auditoria-embarques-filtro-data-fim'
@@ -4935,6 +4935,7 @@ const Dashboard = (() => {
         ...g,
         linhaChave: g.chave,
         embarqueId: item ? item.embarque : null,
+        identificadorViagemLinha: item ? item.identificadorViagem : null,
         pesoEmbarqueLinha: item ? item.peso : null,
         valorEmbarqueLinha: item ? item.valorTotalNFs : null
       }];
@@ -4943,6 +4944,7 @@ const Dashboard = (() => {
       ...g,
       linhaChave: `${g.chave}|${idx}`,
       embarqueId: item.embarque,
+      identificadorViagemLinha: item.identificadorViagem,
       pesoEmbarqueLinha: item.peso,
       valorEmbarqueLinha: item.valorTotalNFs
     }));
@@ -4992,6 +4994,7 @@ const Dashboard = (() => {
       <td>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</td>
       <td><span class="badge-status ${classe}">${label}</span></td>
       <td>${g.embarqueId ? escapeAttr(g.embarqueId) : '—'}</td>
+      <td>${g.identificadorViagemLinha ? escapeAttr(g.identificadorViagemLinha) : '—'}</td>
       <td class="text-right">${fmtPeso(g.pesoBluesoft)}</td>
       <td class="text-right">${fmtPeso(g.pesoEmbarqueLinha)}</td>
       <td class="text-right${pesoDivergente ? ' celula-divergente' : ''}">${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3)}</td>
@@ -5168,6 +5171,7 @@ const Dashboard = (() => {
       { label: 'Data', value: g => g.data.toLocaleDateString('pt-BR') },
       { label: 'Status', value: g => AUDITORIA_EMBARQUES_STATUS_LABEL[g.status] },
       { label: 'Embarque', value: g => g.embarqueId || '—' },
+      { label: 'Número da Viagem', value: g => g.identificadorViagemLinha || '—' },
       { label: 'Peso Bluesoft', value: g => g.pesoBluesoft.toFixed(3).replace('.', ',') },
       { label: 'Peso Embarque', value: g => g.pesoEmbarqueLinha != null ? g.pesoEmbarqueLinha.toFixed(3).replace('.', ',') : '' },
       { label: 'Diferença de Peso', value: g => g.diferencaPeso != null ? g.diferencaPeso.toFixed(3).replace('.', ',') : '' },
