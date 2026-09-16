@@ -364,7 +364,12 @@ class DashChart {
 
     const allValues = series.flatMap(s => s.data);
     const totalsPorLabel = this.labels.map((_, i) => series.reduce((soma, s) => soma + (s.data[i] || 0), 0));
-    const maxValue = stacked ? Math.max(...totalsPorLabel, 1) : Math.max(...allValues, 1) * 1.15;
+    // Math.abs (2026-09-16): série com valor NEGATIVO (ex.: "Diferença de Frete", cobrado a
+    // menor) agora sempre cresce a partir da MESMA base (bottom/left), do mesmo jeito que valor
+    // positivo — só a COR (via s.colors[i] abaixo) muda com o sinal. Antes, uma barra negativa
+    // dava `ratio` negativo e `_roundRect` simplesmente não desenhava nada (h<=0). Pra série já
+    // positiva (todo gráfico de barra existente até aqui), abs(v)=v, zero mudança visual.
+    const maxValue = stacked ? Math.max(...totalsPorLabel, 1) : Math.max(...allValues.map(Math.abs), 1) * 1.15;
 
     // options.thickBars: pedido do usuário pros rankings de transportadoras (entregues vs.
     // vencidas) — barras mais grossas, com menos espaço vazio entre elas.
@@ -388,8 +393,11 @@ class DashChart {
       let offsetAcumulado = 0; // só usado em modo empilhado (stacked)
       series.forEach((s, si) => {
         const value = s.data[i] || 0;
-        const ratio = value / maxValue;
-        const color = s.color;
+        const ratio = Math.abs(value) / maxValue;
+        // s.colors[i] (array paralelo, opcional): cor POR BARRA — mesmo padrão já usado no
+        // combo (_drawCombo), agora também aqui pra série com sinal (ex.: vermelho quando
+        // cobrou a mais, verde quando cobrou a menos, dentro da MESMA série).
+        const color = (Array.isArray(s.colors) && s.colors[i]) ? s.colors[i] : s.color;
         // Linhas extras opcionais no tooltip (ex.: "Ranking de entregas sem Devolução" mostra
         // total saído + % de entrega, além do valor da própria barra) — série que não define
         // tooltipExtra fica com o tooltip simples de sempre (só "série: valor").
