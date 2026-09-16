@@ -2014,6 +2014,16 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="filtro-cabecalho__label">UF Destino</span>
             <select id="indicador-frete-transportadora-filtro-uf"><option value="">Todos</option></select>
           </label>
+          <label class="filtro-cabecalho">
+            <span class="filtro-cabecalho__label">Status</span>
+            <select id="indicador-frete-transportadora-filtro-status">
+              <option value="">Todos</option>
+              <option value="auditado_ok">Auditado OK</option>
+              <option value="cobrado_maior">Cobrado a maior</option>
+              <option value="cobrado_menor">Cobrado a menor</option>
+              <option value="aguardando">Aguardando</option>
+            </select>
+          </label>
           <button id="btn-export-indicador-frete-transportadora" class="btn" type="button">⬇️ Exportar Excel</button>
         </div>
         <!-- Painel de Auditoria de Frete (2026-09-10, reformulação completa, Fase 1; REESCRITO
@@ -2437,7 +2447,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260915a"></script>
 <script src="js/charts.js?v=20260916a"></script>
-<script src="js/dashboard.js?v=20260916a"></script>
+<script src="js/dashboard.js?v=20260916b"></script>
 <script src="js/script.js?v=20260915a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
