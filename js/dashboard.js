@@ -2874,16 +2874,22 @@ const Dashboard = (() => {
     });
     // "Evolução da Diferença de Frete" (2026-09-16, pedido da usuária: "não está com um visual
     // muito bom de entender") — era 1 combo só (barra R$ + linha % na mesma área), difícil de
-    // ler; virou 2 mini-gráficos empilhados, cada um na própria escala. A barra "Diferença (R$)"
-    // continua via 'combo' com uma ÚNICA série tipo 'bar' (sem série de linha), só pra reusar o
-    // suporte a barra bidirecional que o combo já tinha (pode ser negativa = cobrado a menor).
-    // A % vira um 'line' normal — ganhou o mesmo suporte bidirecional nesta rodada (ver
-    // calcularEscala em charts.js _drawLineArea), já que % Diferença também pode ser negativa.
+    // ler; virou 2 mini-gráficos empilhados, cada um na própria escala.
+    // Barra "Diferença (R$)": tentei reusar a barra bidirecional do combo (zeroY no meio,
+    // positivo pra cima/negativo pra baixo) — só que com quase TODOS os buckets negativos (é o
+    // caso comum: cobrado a menor), o zeroY calculado ficava perto do TOPO do gráfico, e toda
+    // barra parecia "pendurada de cabeça pra baixo" (reportado pela usuária). Trocado pra 'bar'
+    // normal: `_drawBars` ganhou suporte a valor negativo (cresce pela mesma base, ver
+    // Math.abs em charts.js) + cor por barra (`s.colors[i]`) — visual "normal" de sempre
+    // (base embaixo, cresce pra cima), só a COR muda com o sinal.
     charts.indicadorFreteTransportadoraEvolucaoDifValor = new DashChart(document.getElementById('chart-indicador-frete-transportadora-evolucao-dif-valor'), {
-      type: 'combo', labels: [], series: []
+      type: 'bar', labels: [], series: []
     });
+    // % Diferença: 'area' (não 'line' seco) — pedido da usuária pra bater com o visual de
+    // "Evolução mensal (valor faturado)" (gradiente roxo por baixo da linha, já existente em
+    // _drawLineArea, mesmo estilo usado em outros ~5 gráficos do site).
     charts.indicadorFreteTransportadoraEvolucaoDifPercentual = new DashChart(document.getElementById('chart-indicador-frete-transportadora-evolucao-dif-percentual'), {
-      type: 'line', labels: [], series: []
+      type: 'area', labels: [], series: []
     });
     // Rosca "Status dos Embarques" — clique na legenda filtra a TABELA (mesmo padrão da pizza de
     // cidades do relatório irmão), a rosca em si sempre mostra os 4 estados do período inteiro.
@@ -6156,7 +6162,7 @@ const Dashboard = (() => {
       series: [{
         name: 'Diferença (R$)', data: ordenados.map(b => b.dif),
         colors: ordenados.map(b => b.dif >= 0 ? '#DC2626' : '#16A34A'),
-        color: '#DC2626', tipo: 'bar', format: 'currency'
+        color: '#DC2626', format: 'currency'
       }]
     });
     charts.indicadorFreteTransportadoraEvolucaoDifPercentual.update({
