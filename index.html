@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260914a">
+<link rel="stylesheet" href="css/style.css?v=20260916a">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -2183,8 +2183,21 @@ Segue anexo o relatório atualizado.</textarea>
           </div>
           <div class="indicador-frete-analise-card">
             <h3 class="chart-card__title" style="margin-bottom:4px;">Evolução da Diferença de Frete</h3>
-            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Barra: Diferença em R$ (vermelho = saldo cobrado a maior no período, verde = a menor). Linha: % Diferença. Mesmo Diário/Semanal/Mensal do gráfico ao lado. Só CT-es auditados.</p>
-            <div class="chart-root" id="chart-indicador-frete-transportadora-evolucao-dif"></div>
+            <p class="chart-card__hint" style="margin-top:0; text-align:left;">Valor cobrado a mais (vermelho) ou a menos (verde) que o calculado, e o quanto isso representa em %. Mesmo Diário/Semanal/Mensal do gráfico ao lado. Só CT-es auditados.</p>
+            <!-- 2 mini-gráficos empilhados, cada um na própria escala (2026-09-16, pedido da
+                 usuária: "não está com um visual muito bom de entender") -- antes era 1 combo só
+                 (barra R$ + linha % dividindo a mesma área), difícil de ler; agora cada medida
+                 tem seu próprio espaço, sem misturar régua. -->
+            <div class="indicador-frete-evolucao-dif">
+              <div class="indicador-frete-evolucao-dif__bloco">
+                <span class="indicador-frete-evolucao-dif__rotulo">Diferença em R$</span>
+                <div class="chart-root indicador-frete-evolucao-dif__chart" id="chart-indicador-frete-transportadora-evolucao-dif-valor"></div>
+              </div>
+              <div class="indicador-frete-evolucao-dif__bloco">
+                <span class="indicador-frete-evolucao-dif__rotulo">% Diferença sobre o calculado</span>
+                <div class="chart-root indicador-frete-evolucao-dif__chart" id="chart-indicador-frete-transportadora-evolucao-dif-percentual"></div>
+              </div>
+            </div>
           </div>
           <div class="indicador-frete-analise-card">
             <h3 class="chart-card__title" style="margin-bottom:4px;">Status dos CT-es</h3>
@@ -2423,8 +2436,8 @@ Segue anexo o relatório atualizado.</textarea>
 <script type="module" src="js/firebase-init.js?v=20260915c"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260915a"></script>
-<script src="js/charts.js?v=20260911a"></script>
-<script src="js/dashboard.js?v=20260915f"></script>
+<script src="js/charts.js?v=20260916a"></script>
+<script src="js/dashboard.js?v=20260916a"></script>
 <script src="js/script.js?v=20260915a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
