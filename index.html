@@ -2423,7 +2423,7 @@ Segue anexo o relatório atualizado.</textarea>
             <button id="btn-export-auditoria-embarques" class="btn" type="button">⬇️ Exportar Excel</button>
           </div>
         </div>
-        <p class="chart-card__hint">Compara viagens já faturadas (Base Bluesoft) contra os embarques do "Indicador de Frete", por Placa + Data. O período aqui segue o mesmo filtro do menu lateral. Vem filtrado por "Agregado" (só essa categoria precisa ter embarque criado) — troque em Tipo de Transporte se precisar ver as outras.</p>
+        <p class="chart-card__hint">Compara viagens já faturadas (Base Bluesoft) contra os embarques do "Indicador de Frete", por Placa + Data (tolerância de até 3 dias entre Data de Faturamento e Data de Embarque — é comum o embarque ser criado antes da nota ser faturada). O período aqui segue o mesmo filtro do menu lateral. Vem filtrado por "Agregado" (só essa categoria precisa ter embarque criado) — troque em Tipo de Transporte se precisar ver as outras.</p>
 
         <div class="cargas-cards">
           <article class="kpi-card kpi-card--mini kpi-card--clickable" data-auditoria-embarques-filtro="NAO_CRIADO" style="--kpi-accent:#DC2626" title="Viagens faturadas sem embarque correspondente">
@@ -2502,7 +2502,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260915c"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260916a"></script>
+<script src="js/data.js?v=20260916b"></script>
 <script src="js/charts.js?v=20260916b"></script>
 <script src="js/dashboard.js?v=20260916f"></script>
 <script src="js/script.js?v=20260915a"></script>
