@@ -2857,12 +2857,18 @@ const Dashboard = (() => {
     charts.indicadorFreteTransportadoraCalculadoCobrado = new DashChart(document.getElementById('chart-indicador-frete-transportadora-calculado-cobrado'), {
       type: 'bar', labels: [], series: []
     });
-    // Combo (barra+linha, escalas independentes) — a barra "Diferença (R$)" pode ser NEGATIVA
-    // (cobrado a menor), por isso _drawCombo ganhou suporte a barra bidirecional nesta mesma
-    // rodada (ver comentário em charts.js) — sem essa mudança a barra desenharia errado (pra
-    // cima da régua) pra qualquer bucket com saldo negativo.
-    charts.indicadorFreteTransportadoraEvolucaoDif = new DashChart(document.getElementById('chart-indicador-frete-transportadora-evolucao-dif'), {
+    // "Evolução da Diferença de Frete" (2026-09-16, pedido da usuária: "não está com um visual
+    // muito bom de entender") — era 1 combo só (barra R$ + linha % na mesma área), difícil de
+    // ler; virou 2 mini-gráficos empilhados, cada um na própria escala. A barra "Diferença (R$)"
+    // continua via 'combo' com uma ÚNICA série tipo 'bar' (sem série de linha), só pra reusar o
+    // suporte a barra bidirecional que o combo já tinha (pode ser negativa = cobrado a menor).
+    // A % vira um 'line' normal — ganhou o mesmo suporte bidirecional nesta rodada (ver
+    // calcularEscala em charts.js _drawLineArea), já que % Diferença também pode ser negativa.
+    charts.indicadorFreteTransportadoraEvolucaoDifValor = new DashChart(document.getElementById('chart-indicador-frete-transportadora-evolucao-dif-valor'), {
       type: 'combo', labels: [], series: []
+    });
+    charts.indicadorFreteTransportadoraEvolucaoDifPercentual = new DashChart(document.getElementById('chart-indicador-frete-transportadora-evolucao-dif-percentual'), {
+      type: 'line', labels: [], series: []
     });
     // Rosca "Status dos Embarques" — clique na legenda filtra a TABELA (mesmo padrão da pizza de
     // cidades do relatório irmão), a rosca em si sempre mostra os 4 estados do período inteiro.
@@ -6105,11 +6111,12 @@ const Dashboard = (() => {
     });
   }
 
-  /** Evolução da Diferença de Frete, agrupado por período (Fase 2, 2026-09-10) — combo (barra +
-   * linha, escalas independentes). Barra vermelha/verde POR BUCKET (não por série inteira) —
-   * usa o `s.colors[i]` novo em _drawCombo. Só embarques AUDITADOS. */
+  /** Evolução da Diferença de Frete, agrupado por período (Fase 2, 2026-09-10; virou 2 mini-
+   * gráficos empilhados em 2026-09-16 — ver comentário em createCharts). Barra vermelha/verde
+   * POR BUCKET (não por série inteira) — usa o `s.colors[i]` novo em _drawCombo. Só embarques
+   * AUDITADOS. */
   function renderIndicadorFreteTransportadoraEvolucaoDif(auditados) {
-    if (!charts.indicadorFreteTransportadoraEvolucaoDif) return;
+    if (!charts.indicadorFreteTransportadoraEvolucaoDifValor || !charts.indicadorFreteTransportadoraEvolucaoDifPercentual) return;
     const def = INDICADOR_FRETE_GRANULARIDADES[indicadorFreteTransportadoraGranularidade];
     const buckets = new Map();
     auditados.forEach(i => {
@@ -6122,16 +6129,18 @@ const Dashboard = (() => {
       b.calc += i.freteCalc;
     });
     const ordenados = Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
-    charts.indicadorFreteTransportadoraEvolucaoDif.update({
-      labels: ordenados.map(b => b.label),
-      series: [
-        {
-          name: 'Diferença (R$)', data: ordenados.map(b => b.dif),
-          colors: ordenados.map(b => b.dif >= 0 ? '#DC2626' : '#16A34A'),
-          color: '#DC2626', tipo: 'bar', format: 'currency'
-        },
-        { name: '% Diferença', data: ordenados.map(b => b.calc > 0 ? (b.dif / b.calc) * 100 : 0), color: '#EA580C', format: 'percent' }
-      ]
+    const labels = ordenados.map(b => b.label);
+    charts.indicadorFreteTransportadoraEvolucaoDifValor.update({
+      labels,
+      series: [{
+        name: 'Diferença (R$)', data: ordenados.map(b => b.dif),
+        colors: ordenados.map(b => b.dif >= 0 ? '#DC2626' : '#16A34A'),
+        color: '#DC2626', tipo: 'bar', format: 'currency'
+      }]
+    });
+    charts.indicadorFreteTransportadoraEvolucaoDifPercentual.update({
+      labels,
+      series: [{ name: '% Diferença', data: ordenados.map(b => b.calc > 0 ? (b.dif / b.calc) * 100 : 0), color: '#EA580C', format: 'percent' }]
     });
   }
 
