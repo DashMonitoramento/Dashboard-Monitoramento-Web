@@ -9,7 +9,10 @@ const Dashboard = (() => {
   const charts = {};
 
   function createTableState() {
-    return { sortField: 'dataEntrega', sortDir: 'desc', page: 1, pageSize: 25 };
+    // pageSize default 100 (2026-09-16, pedido da usuária: era 25, fixo, difícil de navegar
+    // relatório grande) — ela escolhe 100/300/500 no <select> "Linhas por página" de cada
+    // tabela (ver bindTableControlsFor), este é só o valor inicial antes de ela mexer.
+    return { sortField: 'dataEntrega', sortDir: 'desc', page: 1, pageSize: 100 };
   }
   let table = createTableState();
   // NFs marcadas na tabela "Registros detalhados" (2026-08-30, "Enviar Ocorrência") — só nessa
@@ -821,6 +824,22 @@ const Dashboard = (() => {
     document.getElementById(ids.next).addEventListener('click', () => {
       state.page++; renderTableGeneric(getRecords(), state, ids, rowRenderer);
     });
+
+    // "Linhas por página" (2026-09-16, pedido da usuária: 25 fixo tornava relatórios grandes
+    // ruins de navegar) — <select> genérico em TODA tabela paginada do dashboard, sem precisar
+    // listar cada tela aqui: o id do <select> segue o MESMO padrão "<prefixo>-table-prev" ->
+    // "<prefixo>-table-page-size" já usado em toda tabela (ver index.html). Se algum relatório
+    // não tiver esse <select> no HTML, simplesmente não faz nada (nunca quebra).
+    const idPageSize = ids.prev.replace(/-prev$/, '-page-size');
+    const elPageSize = document.getElementById(idPageSize);
+    if (elPageSize) {
+      elPageSize.value = String(state.pageSize);
+      elPageSize.addEventListener('change', (e) => {
+        state.pageSize = Number(e.target.value);
+        state.page = 1;
+        renderTableGeneric(getRecords(), state, ids, rowRenderer);
+      });
+    }
   }
 
   function bindTableControls() {
@@ -833,13 +852,9 @@ const Dashboard = (() => {
     // (Próxima/Anterior) desenharia as linhas sem a coluna de checkbox (2026-08-30).
     // aplicarFiltroOcorrenciasDoDia é passthrough fora do modo "Ocorrências do Dia" — sem isso,
     // ordenar/paginar nessa tela voltaria a mostrar TODAS as notas, não só as filtradas.
+    // "Linhas por página" da tabela principal agora é genérico (ver bindTableControlsFor) —
+    // removido o listener manual que só existia aqui pra esta tabela.
     bindTableControlsFor(table, MAIN_TABLE_IDS, () => aplicarFiltroOcorrenciasDoDia(DataStore.getFilteredRecords()), rowHtmlComSelecao);
-
-    document.getElementById('table-page-size').addEventListener('change', (e) => {
-      table.pageSize = Number(e.target.value);
-      table.page = 1;
-      renderTable(DataStore.getFilteredRecords());
-    });
 
     bindTableControlsFor(detailTable, DETAIL_TABLE_IDS, () => detailRecords, (r) => rowHtml(r, false));
 
