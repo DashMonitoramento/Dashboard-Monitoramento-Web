@@ -2066,6 +2066,15 @@ const DataStore = (() => {
 
   const AUDITORIA_EMBARQUES_TOLERANCIA_PESO = 0.05;
   const AUDITORIA_EMBARQUES_TOLERANCIA_VALOR = 0.05;
+  // Achado com dado real (2026-09-16, caso concreto trazido pela usuária: embarque 6133816,
+  // placa FOF1I46 — peso e valor batiam EXATAMENTE com um registro faturado da Bluesoft, só a
+  // data divergia por 1 dia — Data Embarque 16/09 vs Data Faturamento 15/09) — mesmo viés já
+  // demonstrado quando esta auditoria foi criada (Data Embarque tende a vir ANTES da Data de
+  // Faturamento, "carrega o caminhão, fatura dias depois"). Mesma tolerância (3 dias) já usada
+  // no cruzamento Placa+Dia de Transportadora/Motorista do Indicador de Frete
+  // (TOLERANCIA_DIAS_CRUZAMENTO_FRETE, js/dashboard.js) — consistente com o resto do dashboard,
+  // e testado contra dado real antes de publicar: cai de 3.363 pra 2.176 "Não Criado" (Agregado).
+  const AUDITORIA_EMBARQUES_TOLERANCIA_DIAS = 3;
 
   /** "Auditoria de Embarques" (2026-09-14) — verifica se toda viagem já FATURADA (Base
    * Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", comparando Peso e
@@ -2101,13 +2110,16 @@ const DataStore = (() => {
       gruposBluesoft.get(chave).registros.push(r);
     }
 
-    const gruposIndicador = new Map(); // mesma chave -> itens[]
+    // Indexado só por PLACA (não mais placa+dia exato) — o cruzamento abaixo busca o(s)
+    // embarque(s) mais PRÓXIMO(s) da Data de Faturamento dentro da tolerância, mesmo padrão já
+    // usado em cruzarPlacaDiaMaisProximo (dashboard.js) pro cruzamento de Transportadora/
+    // Motorista desta mesma fonte.
+    const indicadorPorPlaca = new Map(); // placa -> [{ tempo, item }]
     for (const i of indicadorFreteRecords) {
       if (!i.placa || !i.dataEmbarque) continue;
-      const data = Utils.startOfDay(i.dataEmbarque);
-      const chave = `${i.placa}|${data.getTime()}`;
-      if (!gruposIndicador.has(chave)) gruposIndicador.set(chave, []);
-      gruposIndicador.get(chave).push(i);
+      const tempo = Utils.startOfDay(i.dataEmbarque).getTime();
+      if (!indicadorPorPlaca.has(i.placa)) indicadorPorPlaca.set(i.placa, []);
+      indicadorPorPlaca.get(i.placa).push({ tempo, item: i });
     }
 
     const grupos = [];
@@ -2126,7 +2138,42 @@ const DataStore = (() => {
       }
       const viagens = Array.from(viagensMap.values());
 
-      const itensIndicador = gruposIndicador.get(chave) || [];
+      // Embarque(s) mais próximo(s) da Data de Faturamento, dentro da tolerância de dias.
+      // Agrupa candidatos por DIA exato primeiro (embarques do MESMO dia continuam juntos, é o
+      // caso normal de "2 embarques criados pra mesma placa no mesmo dia") — só quando o empate
+      // de distância é entre DIAS DIFERENTES (ex.: 1 dia antes e 1 dia depois, achado com dado
+      // real: placa FOF1I46, embarque 6122442 em 14/09 vs 6133816 em 16/09, ambos a 1 dia de uma
+      // Bluesoft faturada em 15/09) é que desempata pelo dia cujo peso/valor somado fica mais
+      // perto do que já foi faturado — nunca soma os dois dias como se fossem o mesmo embarque,
+      // isso inflaria peso/valor e classificaria como INCOMPLETO um caso que na verdade bate
+      // certinho com só um dos dois.
+      const candidatosIndicador = (indicadorPorPlaca.get(g.placa) || [])
+        .filter(c => Math.abs(c.tempo - g.data.getTime()) / 86400000 <= AUDITORIA_EMBARQUES_TOLERANCIA_DIAS);
+      let itensIndicador = [];
+      if (candidatosIndicador.length) {
+        const porDia = new Map(); // tempo -> itens[]
+        candidatosIndicador.forEach(c => {
+          if (!porDia.has(c.tempo)) porDia.set(c.tempo, []);
+          porDia.get(c.tempo).push(c.item);
+        });
+        const dias = Array.from(porDia.keys());
+        const menorDistancia = Math.min(...dias.map(t => Math.abs(t - g.data.getTime())));
+        const diasEmpatados = dias.filter(t => Math.abs(t - g.data.getTime()) === menorDistancia);
+        if (diasEmpatados.length === 1) {
+          itensIndicador = porDia.get(diasEmpatados[0]);
+        } else {
+          let melhorDia = diasEmpatados[0];
+          let melhorScore = Infinity;
+          diasEmpatados.forEach(t => {
+            const itens = porDia.get(t);
+            const pesoDia = Utils.sum(itens, i => i.peso);
+            const valorDia = Utils.sum(itens, i => i.valorTotalNFs);
+            const score = Math.abs(pesoBluesoft - pesoDia) + Math.abs(valorBluesoft - valorDia);
+            if (score < melhorScore) { melhorScore = score; melhorDia = t; }
+          });
+          itensIndicador = porDia.get(melhorDia);
+        }
+      }
       const existeEmbarque = itensIndicador.length > 0;
       const pesoEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.peso) : null;
       const valorEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.valorTotalNFs) : null;
