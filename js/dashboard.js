@@ -4918,6 +4918,36 @@ const Dashboard = (() => {
     NAO_CRIADO: 'badge-status--erro', CRIADO: 'badge-status--ok', INCOMPLETO: 'badge-status--alerta', ERRO_DADOS: 'badge-status--neutro'
   };
 
+  /** Um grupo (placa+dia) pode ter mais de 1 embarque batendo na mesma chave (2 embarques
+   * criados pra mesma placa no mesmo dia) — antes ficavam consolidados numa linha só (peso/
+   * valor somados, embarques concatenados por vírgula). Pedido da usuária (2026-09-16): "não
+   * consolide... não tem problema repetir e ficar um embaixo do outro, cada um com seus dados
+   * do embarque". A CLASSIFICAÇÃO (status/diferença) continua no nível placa+dia — só dá pra
+   * comparar contra o Bluesoft de forma agregada, não existe informação pra saber qual NF
+   * pertence a qual embarque especificamente — só a EXIBIÇÃO quebra em 1 linha por embarque,
+   * repetindo os dados do grupo (placa/data/status/Bluesoft consolidado/diferença/qtd viagens/
+   * nfs) e trazendo peso/valor só DAQUELE embarque na coluna do Indicador de Frete. Grupo sem
+   * nenhum embarque (NAO_CRIADO) continua sendo 1 linha só, sem peso/valor de embarque. */
+  function desmembrarGrupoAuditoriaEmbarques(g) {
+    if (g.itensIndicador.length <= 1) {
+      const item = g.itensIndicador[0] || null;
+      return [{
+        ...g,
+        linhaChave: g.chave,
+        embarqueId: item ? item.embarque : null,
+        pesoEmbarqueLinha: item ? item.peso : null,
+        valorEmbarqueLinha: item ? item.valorTotalNFs : null
+      }];
+    }
+    return g.itensIndicador.map((item, idx) => ({
+      ...g,
+      linhaChave: `${g.chave}|${idx}`,
+      embarqueId: item.embarque,
+      pesoEmbarqueLinha: item.peso,
+      valorEmbarqueLinha: item.valorTotalNFs
+    }));
+  }
+
   function auditoriaEmbarquesGruposFiltrados() {
     let lista = auditoriaEmbarquesGrupos;
     if (auditoriaEmbarquesFiltroStatus) lista = lista.filter(g => g.status === auditoriaEmbarquesFiltroStatus);
@@ -4933,32 +4963,41 @@ const Dashboard = (() => {
         )
       );
     }
-    return lista;
+    return lista.flatMap(desmembrarGrupoAuditoriaEmbarques);
   }
 
   /** Linha-resumo (sempre visível) + linha de detalhe (escondida por padrão, alternada num
    * clique na linha-resumo — ver bindAuditoriaEmbarquesAcoes). Não usa modal nenhum: o mesmo
-   * conteúdo do "detalhamento" pedido (seção 10) entra dentro da própria linha expandida. */
+   * conteúdo do "detalhamento" pedido (seção 10) entra dentro da própria linha expandida.
+   * `g` já vem DESMEMBRADO por embarque (ver desmembrarGrupoAuditoriaEmbarques) — Placa/Data/
+   * Status/Bluesoft/Diferença/Qtd Viagens/Qtd NFs são do GRUPO (repetidos em toda linha-irmã de
+   * propósito, pedido da usuária), só Embarque/Peso Embarque/Valor Embarque são desta linha
+   * específica. */
   function rowHtmlAuditoriaEmbarques(g) {
     const label = AUDITORIA_EMBARQUES_STATUS_LABEL[g.status];
     const classe = AUDITORIA_EMBARQUES_STATUS_CLASSE[g.status];
-    const divergente = (a, b) => a != null && b != null && Math.abs(a - b) > 0.05 ? ' class="text-right celula-divergente"' : ' class="text-right"';
+    // Divergente = o GRUPO como um todo está fora da tolerância (g.diferencaPeso/Valor, já
+    // calculado sobre o consolidado) — não compara o peso/valor MOSTRADO nesta linha (que é só
+    // de 1 embarque) contra o Bluesoft consolidado, porque isso acusaria divergência em toda
+    // linha de um grupo com 2+ embarques mesmo quando a SOMA bate certinho.
+    const pesoDivergente = g.diferencaPeso != null && Math.abs(g.diferencaPeso) > 0.05;
+    const valorDivergente = g.diferencaValor != null && Math.abs(g.diferencaValor) > 0.05;
     const fmtPeso = v => v == null ? '—' : `${Utils.formatNumber(v, 3)} kg`;
     const fmtValor = v => v == null ? '—' : Utils.formatCurrency(v);
-    const expandido = auditoriaEmbarquesExpandidos.has(g.chave);
+    const expandido = auditoriaEmbarquesExpandidos.has(g.linhaChave);
 
-    const linhaResumo = `<tr class="auditoria-embarques-linha-resumo" data-auditoria-embarques-toggle="${escapeAttr(g.chave)}">
+    const linhaResumo = `<tr class="auditoria-embarques-linha-resumo" data-auditoria-embarques-toggle="${escapeAttr(g.linhaChave)}">
       <td><button type="button" class="auditoria-embarques-expandir" aria-label="Expandir detalhe">${expandido ? '▾' : '▸'}</button></td>
       <td>${escapeAttr(g.placaOriginal)}</td>
       <td>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</td>
       <td><span class="badge-status ${classe}">${label}</span></td>
-      <td>${g.embarques.length ? escapeAttr(g.embarques.join(', ')) : '—'}</td>
+      <td>${g.embarqueId ? escapeAttr(g.embarqueId) : '—'}</td>
       <td class="text-right">${fmtPeso(g.pesoBluesoft)}</td>
-      <td class="text-right">${fmtPeso(g.pesoEmbarque)}</td>
-      <td${divergente(g.pesoBluesoft, g.pesoEmbarque)}>${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3)}</td>
+      <td class="text-right">${fmtPeso(g.pesoEmbarqueLinha)}</td>
+      <td class="text-right${pesoDivergente ? ' celula-divergente' : ''}">${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3)}</td>
       <td class="text-right">${fmtValor(g.valorBluesoft)}</td>
-      <td class="text-right">${fmtValor(g.valorEmbarque)}</td>
-      <td${divergente(g.valorBluesoft, g.valorEmbarque)}>${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</td>
+      <td class="text-right">${fmtValor(g.valorEmbarqueLinha)}</td>
+      <td class="text-right${valorDivergente ? ' celula-divergente' : ''}">${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</td>
       <td class="text-right">${Utils.formatNumber(g.qtdViagens)}</td>
       <td class="text-right">${Utils.formatNumber(g.qtdNfs)}</td>
     </tr>`;
@@ -5036,8 +5075,11 @@ const Dashboard = (() => {
       return true;
     });
 
+    // Conta por EMBARQUE (desmembrado), não por grupo placa+dia (2026-09-16) — consistente com
+    // a tabela abaixo, que também desmembra: um grupo com 2 embarques "Criado" conta como 2
+    // aqui, não 1. Sem isso o card diria "1" enquanto a tabela mostrasse 2 linhas "Criado".
     const contagem = { NAO_CRIADO: 0, CRIADO: 0, INCOMPLETO: 0, ERRO_DADOS: 0 };
-    auditoriaEmbarquesGrupos.forEach(g => { contagem[g.status]++; });
+    auditoriaEmbarquesGrupos.flatMap(desmembrarGrupoAuditoriaEmbarques).forEach(linha => { contagem[linha.status]++; });
     document.getElementById('auditoria-embarques-count-nao-criado').textContent = Utils.formatNumber(contagem.NAO_CRIADO);
     document.getElementById('auditoria-embarques-count-criado').textContent = Utils.formatNumber(contagem.CRIADO);
     document.getElementById('auditoria-embarques-count-incompleto').textContent = Utils.formatNumber(contagem.INCOMPLETO);
@@ -5117,24 +5159,26 @@ const Dashboard = (() => {
   }
 
   async function exportarAuditoriaEmbarques() {
-    const grupos = auditoriaEmbarquesGruposFiltrados();
-    if (!grupos.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
+    // Já desmembrado por embarque (auditoriaEmbarquesGruposFiltrados), mesma granularidade da
+    // tabela na tela — 1 linha por embarque, não por grupo placa+dia.
+    const linhas = auditoriaEmbarquesGruposFiltrados();
+    if (!linhas.length) { Utils.showToast('Não há dados para exportar.', 'warning'); return; }
     const colunas = [
       { label: 'Placa', value: g => g.placaOriginal },
       { label: 'Data', value: g => g.data.toLocaleDateString('pt-BR') },
       { label: 'Status', value: g => AUDITORIA_EMBARQUES_STATUS_LABEL[g.status] },
-      { label: 'Embarque(s)', value: g => g.embarques.join(', ') || '—' },
+      { label: 'Embarque', value: g => g.embarqueId || '—' },
       { label: 'Peso Bluesoft', value: g => g.pesoBluesoft.toFixed(3).replace('.', ',') },
-      { label: 'Peso Embarque', value: g => g.pesoEmbarque != null ? g.pesoEmbarque.toFixed(3).replace('.', ',') : '' },
+      { label: 'Peso Embarque', value: g => g.pesoEmbarqueLinha != null ? g.pesoEmbarqueLinha.toFixed(3).replace('.', ',') : '' },
       { label: 'Diferença de Peso', value: g => g.diferencaPeso != null ? g.diferencaPeso.toFixed(3).replace('.', ',') : '' },
       { label: 'Valor Bluesoft', value: g => g.valorBluesoft.toFixed(2).replace('.', ',') },
-      { label: 'Valor Embarque', value: g => g.valorEmbarque != null ? g.valorEmbarque.toFixed(2).replace('.', ',') : '' },
+      { label: 'Valor Embarque', value: g => g.valorEmbarqueLinha != null ? g.valorEmbarqueLinha.toFixed(2).replace('.', ',') : '' },
       { label: 'Diferença de Valor', value: g => g.diferencaValor != null ? g.diferencaValor.toFixed(2).replace('.', ',') : '' },
       { label: 'Qtd Viagens', value: g => g.qtdViagens },
       { label: 'Qtd NFs', value: g => g.qtdNfs }
     ];
-    await Utils.exportToStyledExcel('auditoria-embarques.xlsx', 'Auditoria de Embarques', colunas, grupos);
-    Utils.showToast(`${grupos.length} grupos exportados para Excel.`, 'success');
+    await Utils.exportToStyledExcel('auditoria-embarques.xlsx', 'Auditoria de Embarques', colunas, linhas);
+    Utils.showToast(`${linhas.length} embarques exportados para Excel.`, 'success');
   }
 
   /** Chamada de dentro do render() central (qualquer filtro global mudando) E ao entrar na
