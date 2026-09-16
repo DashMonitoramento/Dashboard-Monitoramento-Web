@@ -2146,6 +2146,12 @@ const DataStore = (() => {
         embarques: Utils.uniqueSorted(itensIndicador.map(i => i.embarque)),
         transportadoras: Utils.uniqueSorted(itensIndicador.map(i => i.transportadora)),
         identificadoresViagem: Utils.uniqueSorted(itensIndicador.map(i => i.identificadorViagem)),
+        // Itens individuais do Indicador de Frete que bateram nesta chave (2026-09-16, pedido da
+        // usuária: quando cai mais de 1 embarque na mesma placa+dia, ela quer cada um na sua
+        // própria linha, não consolidado) — dashboard.js usa isso pra "desmembrar" o grupo em 1
+        // linha por embarque na hora de exibir/exportar; pesoEmbarque/valorEmbarque acima
+        // continuam sendo o CONSOLIDADO (soma), usado pra classificação (status).
+        itensIndicador,
         viagens,
         qtdViagens: viagens.length,
         qtdNfs: g.registros.length,
