@@ -4703,38 +4703,29 @@ const Dashboard = (() => {
     return mapa;
   }
 
-  // "Ver todas" (2026-09-10) — lista começa limitada a 8 (mesma quantidade do mockup dela),
-  // expande sob demanda pra não empurrar o resto da tela pra baixo quando há muitos alertas.
-  let indicadorFreteOportunidadesExpandido = false;
-  const INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL = 8;
-
   /** oportunidades já vem CALCULADA (renderIndicadorFrete calcula uma vez só e reaproveita aqui
-   * e no mapa de alertas da tabela, 2026-09-10) — evita rodar o motor duas vezes por render. */
+   * e no mapa de alertas da tabela, 2026-09-10) — evita rodar o motor duas vezes por render.
+   * Mostra TODAS sempre (2026-09-16, pedido da usuária) — a lista rola dentro do card
+   * (`.indicador-frete-oportunidades-lista`, max-height + overflow-y:auto em style.css) em vez
+   * do antigo botão "Ver todas"/"Ver menos", que ela reportou ruim de desativar. */
   function renderIndicadorFreteOportunidades(oportunidades) {
     const lista = document.getElementById('indicador-frete-oportunidades-lista');
     if (!lista) return;
     const contagemEl = document.getElementById('indicador-frete-oportunidades-contagem');
     if (contagemEl) contagemEl.textContent = oportunidades.length ? `${Utils.formatNumber(oportunidades.length)} encontrada${oportunidades.length === 1 ? '' : 's'}` : '';
-    const btnVerTodas = document.getElementById('indicador-frete-oportunidades-ver-todas');
     if (!oportunidades.length) {
       lista.innerHTML = '<p class="chart-card__hint" style="margin:0; text-align:left;">Nenhuma oportunidade de redução identificada no período/filtro selecionado.</p>';
-      if (btnVerTodas) btnVerTodas.hidden = true;
       return;
     }
-    const mostrar = indicadorFreteOportunidadesExpandido ? oportunidades : oportunidades.slice(0, INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL);
     const NIVEL_LABEL = { alto: 'ALTO', medio: 'MÉDIO', baixo: 'BAIXO' };
     const NIVEL_CLASSE = { alto: 'badge--danger', medio: 'badge--warning', baixo: 'badge--success' };
-    lista.innerHTML = mostrar.map((o, idx) => `
+    lista.innerHTML = oportunidades.map((o, idx) => `
       <div class="indicador-frete-oportunidade">
         <span class="indicador-frete-oportunidade__pos">${idx + 1}</span>
         <span class="badge ${NIVEL_CLASSE[o.nivel]}">${NIVEL_LABEL[o.nivel]}</span>
         <span class="indicador-frete-oportunidade__desc">${escapeAttr(o.descricao)}</span>
         <span class="indicador-frete-oportunidade__impacto">${o.impacto !== null && o.impacto > 0 ? `Impacto estimado: ${Utils.formatCurrency(o.impacto)}` : ''}</span>
       </div>`).join('');
-    if (btnVerTodas) {
-      btnVerTodas.hidden = oportunidades.length <= INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL;
-      btnVerTodas.textContent = indicadorFreteOportunidadesExpandido ? 'Ver menos' : `Ver todas (${Utils.formatNumber(oportunidades.length)})`;
-    }
   }
 
   // Tolerância do cruzamento Placa+Data (dias) — pedido implícito descoberto testando com dado
@@ -5688,8 +5679,6 @@ const Dashboard = (() => {
     tendenciaMinSemanas: 4,
     tendenciaAumentoMinimoPP: 5 // pontos percentuais de aumento na % Diferença, 1ª metade x 2ª metade do período
   };
-  let indicadorFreteTransportadoraOportunidadesExpandido = false;
-
   function calcularOportunidadesReducaoFreteTransportadora(auditados) {
     const L = INDICADOR_FRETE_TRANSPORTADORA_LIMIARES_OPORTUNIDADE;
     const oportunidades = [];
@@ -5781,32 +5770,26 @@ const Dashboard = (() => {
   }
 
   /** Espelha renderIndicadorFreteOportunidades (relatório irmão) — mesma UI (badge Alto/Médio/
-   * Baixo, "Ver todas/Ver menos"), containers próprios desta tela. */
+   * Baixo, lista rolável), containers próprios desta tela. Mostra TODAS sempre (2026-09-16,
+   * mesmo motivo do relatório irmão: o antigo "Ver todas"/"Ver menos" era ruim de desativar). */
   function renderIndicadorFreteTransportadoraOportunidades(oportunidades) {
     const lista = document.getElementById('indicador-frete-transportadora-oportunidades-lista');
     if (!lista) return;
     const contagemEl = document.getElementById('indicador-frete-transportadora-oportunidades-contagem');
     if (contagemEl) contagemEl.textContent = oportunidades.length ? `${Utils.formatNumber(oportunidades.length)} encontrada${oportunidades.length === 1 ? '' : 's'}` : '';
-    const btnVerTodas = document.getElementById('indicador-frete-transportadora-oportunidades-ver-todas');
     if (!oportunidades.length) {
       lista.innerHTML = '<p class="chart-card__hint" style="margin:0; text-align:left;">Nenhuma oportunidade de redução identificada no período/filtro selecionado.</p>';
-      if (btnVerTodas) btnVerTodas.hidden = true;
       return;
     }
-    const mostrar = indicadorFreteTransportadoraOportunidadesExpandido ? oportunidades : oportunidades.slice(0, INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL);
     const NIVEL_LABEL = { alto: 'ALTO', medio: 'MÉDIO', baixo: 'BAIXO' };
     const NIVEL_CLASSE = { alto: 'badge--danger', medio: 'badge--warning', baixo: 'badge--success' };
-    lista.innerHTML = mostrar.map((o, idx) => `
+    lista.innerHTML = oportunidades.map((o, idx) => `
       <div class="indicador-frete-oportunidade">
         <span class="indicador-frete-oportunidade__pos">${idx + 1}</span>
         <span class="badge ${NIVEL_CLASSE[o.nivel]}">${NIVEL_LABEL[o.nivel]}</span>
         <span class="indicador-frete-oportunidade__desc">${escapeAttr(o.descricao)}</span>
         <span class="indicador-frete-oportunidade__impacto">${o.impacto !== null && o.impacto > 0 ? `Impacto estimado: ${Utils.formatCurrency(o.impacto)}` : ''}</span>
       </div>`).join('');
-    if (btnVerTodas) {
-      btnVerTodas.hidden = oportunidades.length <= INDICADOR_FRETE_OPORTUNIDADES_LIMITE_INICIAL;
-      btnVerTodas.textContent = indicadorFreteTransportadoraOportunidadesExpandido ? 'Ver menos' : `Ver todas (${Utils.formatNumber(oportunidades.length)})`;
-    }
   }
 
   function agregarPorTransportadoraFreteTransportadora(itens) {
@@ -6341,14 +6324,6 @@ const Dashboard = (() => {
         renderIndicadorFreteTransportadora();
       });
     }
-    // "Ver todas"/"Ver menos" das Oportunidades de Redução (Fase 4).
-    const btnVerTodasOportunidadesTransportadora = document.getElementById('indicador-frete-transportadora-oportunidades-ver-todas');
-    if (btnVerTodasOportunidadesTransportadora) {
-      btnVerTodasOportunidadesTransportadora.addEventListener('click', () => {
-        indicadorFreteTransportadoraOportunidadesExpandido = !indicadorFreteTransportadoraOportunidadesExpandido;
-        renderIndicadorFreteTransportadora();
-      });
-    }
   }
 
   /** Botão "Limpar filtro de região" (dentro do chip, HTML gerado a cada render — por isso
@@ -6411,15 +6386,6 @@ const Dashboard = (() => {
           barraOrdenacaoTransp.querySelectorAll('[data-indicador-frete-ordenar-transportadoras]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
           renderIndicadorFrete();
         });
-      });
-    }
-
-    // "Ver todas"/"Ver menos" das Oportunidades de Redução (2026-09-10, Fase 5).
-    const btnVerTodasOportunidades = document.getElementById('indicador-frete-oportunidades-ver-todas');
-    if (btnVerTodasOportunidades) {
-      btnVerTodasOportunidades.addEventListener('click', () => {
-        indicadorFreteOportunidadesExpandido = !indicadorFreteOportunidadesExpandido;
-        renderIndicadorFrete();
       });
     }
   }
