@@ -518,20 +518,34 @@ class DashChart {
     const plotH = this.height - padding.top - padding.bottom;
 
     const allValues = series.flatMap(s => s.data);
-    const maxValue = Math.max(...allValues, 1) * 1.25;
+    // Bidirecional (2026-09-16, achado no "% Diferença" do Indicador de Frete: uma série de
+    // linha com valor NEGATIVO ficava invisível, desenhada fora da área visível — a conta
+    // antiga (`padding.top + plotH*(1-v/maxValue)`) não tinha baseline zero pra valor negativo,
+    // só pra positivo). Mesma ideia já usada nas barras do combo (_drawCombo): zeroY marca onde
+    // fica o 0 de verdade, cada lado (positivo/negativo) ganha sua fatia proporcional da altura.
+    // Quando todos os valores são >=0 (todo gráfico de linha existente até aqui), a conta se
+    // reduz exatamente à de antes (zeroY = base do gráfico) — nenhum gráfico já publicado muda
+    // de posição.
+    const calcularEscala = (valores) => {
+      const maiorPositivo = Math.max(0, ...valores) * 1.25 || 1;
+      const maiorNegativoAbs = Math.abs(Math.min(0, ...valores)) * 1.25;
+      const alcance = maiorPositivo + maiorNegativoAbs;
+      return { alcance, zeroY: padding.top + plotH * (maiorPositivo / alcance) };
+    };
+    const escalaGeral = calcularEscala(allValues);
     const stepX = n > 1 ? plotW / (n - 1) : 0;
     const labelFont = '700 11px Inter, system-ui, sans-serif';
 
     this._points = [];
 
     series.forEach((s, si) => {
-      // perSeriesScale: cada série usa o PRÓPRIO máximo pra posicionar os pontos no eixo Y —
+      // perSeriesScale: cada série usa a PRÓPRIA escala (e o PRÓPRIO zero) pra se posicionar —
       // o valor real (não normalizado) continua saindo certo na etiqueta/tooltip (this._fmt
       // usa s.format, não a posição no eixo).
-      const serieMax = this.options.perSeriesScale ? Math.max(...s.data, 1) * 1.25 : maxValue;
+      const { alcance, zeroY } = this.options.perSeriesScale ? calcularEscala(s.data) : escalaGeral;
       const pts = s.data.map((v, i) => ({
         x: padding.left + i * stepX,
-        y: padding.top + plotH * (1 - v / serieMax),
+        y: zeroY - plotH * (v / alcance),
         value: v
       }));
 
@@ -540,10 +554,10 @@ class DashChart {
         grad.addColorStop(0, 'rgba(139,92,246,.55)');
         grad.addColorStop(1, 'rgba(139,92,246,.04)');
         ctx.beginPath();
-        ctx.moveTo(pts[0].x, padding.top + plotH);
+        ctx.moveTo(pts[0].x, zeroY);
         ctx.lineTo(pts[0].x, pts[0].y);
         this._tracePath(ctx, pts);
-        ctx.lineTo(pts[pts.length - 1].x, padding.top + plotH);
+        ctx.lineTo(pts[pts.length - 1].x, zeroY);
         ctx.closePath();
         ctx.fillStyle = grad;
         ctx.fill();
