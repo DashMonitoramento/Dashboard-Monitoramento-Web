@@ -380,8 +380,12 @@ function mostrarTela(nome) {
 const filtroPlacaPorStatus = { SEPARADO: '', EM_SEPARACAO: '', NAO_INICIADA: '' };
 
 function renderListaStatus(status, idLista, idContagem, idBusca) {
+  // `visivel !== false` (2026-09-17) -- motorista auto-adicionado em "Separação Não Iniciada"
+  // (ver autoPopularSeparacaoNaoIniciada, firebase-init.js do painel admin) só aparece aqui
+  // depois que alguém clicar "Ativar p/ Motorista" no painel; até lá some deste app, mesmo já
+  // tendo um doc em statusCarga.
   const itens = Array.from(statusCarga.values())
-    .filter(s => s.status === status)
+    .filter(s => s.status === status && s.visivel !== false)
     .sort((a, b) => {
       const da = timestampParaData(a.atualizadoEm), db_ = timestampParaData(b.atualizadoEm);
       return (da ? da.getTime() : 0) - (db_ ? db_.getTime() : 0);
