@@ -746,6 +746,44 @@ async function encerrarDisponibilidade(placaBruta, motivo) {
   await lote.commit();
 }
 
+/** Move um motorista da lista de "Disponível" direto pra uma categoria de separação (2026-09-17,
+ * pedido da usuária: "ter a opção de colocar o motorista em alguma categoria de Separação" a
+ * partir do próprio card "Motoristas Disponíveis") — grava o novo statusCarga (mesmo formato de
+ * definirStatusCarga, com histórico) E encerra a disponibilidade, tudo num ÚNICO lote atômico —
+ * nunca existe um instante em que o motorista apareça nas duas listas ao mesmo tempo (ou em
+ * nenhuma, se só uma das escritas falhasse). Precisa de podeEditarCargas (não só
+ * podeGerenciarDisponibilidade — ver Firestore rules) porque grava em statusCarga. */
+async function moverDisponibilidadeParaSeparacao(placaBruta, novoStatus, rota) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+
+  const refStatus = doc(db, STATUS_CARGA_COLECAO, placa);
+  const snapStatus = await getDoc(refStatus);
+  const statusAnterior = snapStatus.exists() ? snapStatus.data().status : null;
+
+  const lote = writeBatch(db);
+  lote.set(refStatus, {
+    placa, status: novoStatus, rota: rota || '', visivel: true, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+  });
+  const refHistoricoStatus = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
+  lote.set(refHistoricoStatus, {
+    placa, statusAnterior, statusNovo: novoStatus, dataHora: serverTimestamp(), alteradoPorEmail: usuario.email
+  });
+
+  const refDisponibilidade = doc(db, DISPONIBILIDADE_COLECAO, placa);
+  lote.update(refDisponibilidade, {
+    status: 'ENCERRADO', encerradoEm: serverTimestamp(), encerradoPorEmail: usuario.email
+  });
+  const refHistoricoDisp = doc(collection(db, DISPONIBILIDADE_HISTORICO_COLECAO));
+  lote.set(refHistoricoDisp, {
+    placa, evento: 'encerrado', dataHora: serverTimestamp(), origem: 'site', porEmail: usuario.email,
+    motivo: `Movido para ${novoStatus}`
+  });
+
+  await lote.commit();
+}
+
 /** Reconciliação automática Disponível -> Carregou/No-Show (pedido da usuária, 2026-09-04):
  * "quando você vê o nome do motorista na Base Bluesoft é porque ele já carregou... se passar
  * a data de hoje e ele não tiver carregado, precisa dar o retorno NO-SHOW". Só o Site
@@ -863,7 +901,7 @@ window.Firebase = {
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga, ativarStatusCarga, autoPopularSeparacaoNaoIniciada,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
-  assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote,
+  assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote, moverDisponibilidadeParaSeparacao,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico
 };
 window.dispatchEvent(new Event('firebase-ready'));
