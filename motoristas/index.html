@@ -162,6 +162,13 @@ h1,h2,h3,p{margin:0;}
   border-radius:12px; padding:12px 14px; font-size:13.5px; font-weight:700; margin-bottom:18px;
 }
 
+.localizacao-status{
+  display:flex; align-items:center; gap:8px; background:var(--surface-soft); color:var(--ink-soft);
+  border-radius:12px; padding:12px 14px; font-size:13.5px; font-weight:600; margin-bottom:12px;
+}
+.localizacao-status--ok{background:var(--sucesso-bg); color:var(--sucesso);}
+.localizacao-status--erro{background:var(--erro-bg); color:var(--erro);}
+
 .tela-resultado{text-align:center; padding-top:30px;}
 .tela-resultado__icone{font-size:56px; margin-bottom:16px;}
 .tela-resultado__titulo{font-size:19px; font-weight:800; margin-bottom:10px;}
@@ -264,7 +271,9 @@ h1,h2,h3,p{margin:0;}
       <div class="card-confirmacao__linha"><span class="card-confirmacao__label">Rodízio</span><span class="card-confirmacao__valor" id="confirmar-rodizio"></span></div>
     </div>
     <div id="confirmar-aviso-rodizio" class="aviso-rodizio" hidden>⚠️ Atenção: este veículo possui rodízio hoje.</div>
-    <button type="button" id="btn-confirmar-disponibilidade" class="btn-primario">CONFIRMAR DISPONIBILIDADE</button>
+    <div id="confirmar-localizacao-status" class="localizacao-status">📍 Obtendo sua localização…</div>
+    <button type="button" id="btn-tentar-localizacao" class="btn-secundario" hidden>Tentar novamente</button>
+    <button type="button" id="btn-confirmar-disponibilidade" class="btn-primario" disabled>CONFIRMAR DISPONIBILIDADE</button>
     <button type="button" class="btn-secundario" data-voltar-home>CANCELAR</button>
   </div>
 
@@ -532,6 +541,44 @@ $('btn-avisar-disponibilidade').addEventListener('click', () => {
 $('input-placa').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
 $('input-placa').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-continuar-placa').click(); });
 
+// Localização é obrigatória pra avisar disponibilidade (pedido dela: usada pra estimar
+// distância/tempo até a Terrinha e priorizar separação de quem está mais perto). Sem
+// localização liberada, o botão de confirmar fica travado — não existe caminho alternativo.
+let localizacaoAtual = null;
+
+function solicitarLocalizacao() {
+  localizacaoAtual = null;
+  $('btn-confirmar-disponibilidade').disabled = true;
+  $('btn-tentar-localizacao').hidden = true;
+  const statusEl = $('confirmar-localizacao-status');
+  statusEl.className = 'localizacao-status';
+  statusEl.textContent = '📍 Obtendo sua localização…';
+
+  if (!navigator.geolocation) {
+    statusEl.className = 'localizacao-status localizacao-status--erro';
+    statusEl.textContent = '❌ Seu navegador não suporta localização. Não é possível avisar disponibilidade neste aparelho.';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      localizacaoAtual = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      statusEl.className = 'localizacao-status localizacao-status--ok';
+      statusEl.textContent = '✅ Localização obtida';
+      $('btn-confirmar-disponibilidade').disabled = false;
+    },
+    (err) => {
+      console.error('Falha ao obter localização', err);
+      statusEl.className = 'localizacao-status localizacao-status--erro';
+      statusEl.textContent = '❌ Ative a localização do navegador/celular para avisar disponibilidade.';
+      $('btn-tentar-localizacao').hidden = false;
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+  );
+}
+
+$('btn-tentar-localizacao').addEventListener('click', solicitarLocalizacao);
+
 $('btn-continuar-placa').addEventListener('click', () => {
   const placa = normalizarPlaca($('input-placa').value);
   if (!placa) return;
@@ -554,17 +601,24 @@ $('btn-continuar-placa').addEventListener('click', () => {
   $('confirmar-rodizio').textContent = motorista.rodizio || 'Sem rodízio cadastrado';
   $('confirmar-aviso-rodizio').hidden = !rodizioEhHoje(motorista.rodizio);
   mostrarTela('confirmar');
+  solicitarLocalizacao();
 });
 
 $('btn-confirmar-disponibilidade').addEventListener('click', async () => {
   if (!placaEmFluxo) return;
+  if (!localizacaoAtual) {
+    alert('Ative a localização para avisar sua disponibilidade.');
+    solicitarLocalizacao();
+    return;
+  }
   const btn = $('btn-confirmar-disponibilidade');
   btn.disabled = true;
   btn.textContent = 'Enviando…';
   try {
     const lote = writeBatch(db);
     lote.set(doc(db, 'disponibilidade', placaEmFluxo), {
-      placa: placaEmFluxo, status: 'DISPONIVEL', disponibilizadoEm: serverTimestamp(), origem: 'motorista'
+      placa: placaEmFluxo, status: 'DISPONIVEL', disponibilizadoEm: serverTimestamp(), origem: 'motorista',
+      latitude: localizacaoAtual.latitude, longitude: localizacaoAtual.longitude
     });
     lote.set(doc(collection(db, 'disponibilidadeHistorico')), {
       placa: placaEmFluxo, evento: 'disponibilizado', dataHora: serverTimestamp(), origem: 'motorista'
@@ -580,7 +634,7 @@ $('btn-confirmar-disponibilidade').addEventListener('click', async () => {
     console.error('Falha ao registrar disponibilidade', err);
     alert('Não consegui registrar sua disponibilidade agora. Verifique sua internet e tente de novo.');
   } finally {
-    btn.disabled = false;
+    btn.disabled = localizacaoAtual ? false : true;
     btn.textContent = 'CONFIRMAR DISPONIBILIDADE';
   }
 });
