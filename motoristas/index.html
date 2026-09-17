@@ -338,14 +338,37 @@ function rodizioEhHoje(rodizio) {
 function timestampParaData(ts) {
   return ts && typeof ts.toDate === 'function' ? ts.toDate() : null;
 }
+/** Reconhece se um texto sem hífen parece PESO ("4.500 TONS", "600 KG", só números) em vez de
+ * nome de veículo ("FIORINO", "3/4") -- mesma lógica de cargasPareceSerPeso (js/dashboard.js). */
+function pareceSerPeso(texto) {
+  const t = texto.toUpperCase();
+  if (/\b(TON|TONS|KG)\b/.test(t)) return true;
+  if (/^[\d.,\s]+$/.test(t)) return true;
+  return false;
+}
 /** Mesmo split de "Carro"/"Peso" usado no painel administrativo (js/dashboard.js,
- * cargasParseVeiculo) -- app autocontido, sem módulo compartilhado, por isso copiado aqui. */
+ * cargasParseVeiculo) -- app autocontido, sem módulo compartilhado, por isso copiado aqui.
+ * 2026-09-17: sem hífen, decide carro x peso por pareceSerPeso (antes sempre caía em peso, o que
+ * mostrava "Carro: —, Peso: FIORINO" pra quem só tinha o nome do veículo cadastrado). */
 function parseVeiculo(texto) {
   const limpo = String(texto || '').trim();
   if (!limpo) return { carro: '', peso: '' };
   const m = limpo.match(/^(.*?)\s*-\s*(.+)$/);
   if (m && m[1].trim()) return { carro: m[1].trim(), peso: m[2].trim() };
-  return { carro: '', peso: limpo };
+  if (pareceSerPeso(limpo)) return { carro: '', peso: limpo };
+  return { carro: limpo, peso: '' };
+}
+/** Peso padrão por tipo de carro (2026-09-17) -- mesma ideia de cargasCalcularPesoPadraoPorCarro
+ * (js/dashboard.js): pra quem tem carro reconhecido mas sem peso no próprio cadastro, usa o
+ * peso que outro motorista com o MESMO carro já tem cadastrado. */
+function calcularPesoPadraoPorCarro() {
+  const mapa = new Map();
+  motoristas.forEach(m => {
+    const { carro, peso } = parseVeiculo(m.veiculo);
+    const chave = carro.toUpperCase();
+    if (chave && peso && !mapa.has(chave)) mapa.set(chave, peso);
+  });
+  return mapa;
 }
 /** "Há X min"/"Há Xh Ymin"/"Há X dia(s)" -- mesma lógica do painel administrativo
  * (cargasFormatarTempoDecorrido), copiada aqui pelo mesmo motivo acima. */
@@ -394,6 +417,7 @@ function renderListaStatus(status, idLista, idContagem, idBusca) {
 
   const termo = normalizarPlaca(filtroPlacaPorStatus[status]);
   const itensFiltrados = termo ? itens.filter(item => item.id.includes(termo)) : itens;
+  const pesoPadraoPorCarro = calcularPesoPadraoPorCarro();
 
   const wrap = $(idLista);
   if (!itens.length) {
@@ -404,7 +428,8 @@ function renderListaStatus(status, idLista, idContagem, idBusca) {
     wrap.innerHTML = itensFiltrados.map(item => {
       const m = motoristas.get(item.id);
       const nome = m ? m.nome : item.id;
-      const { carro, peso } = parseVeiculo(m && m.veiculo);
+      const { carro, peso: pesoProprio } = parseVeiculo(m && m.veiculo);
+      const peso = pesoProprio || (carro ? (pesoPadraoPorCarro.get(carro.toUpperCase()) || '') : '');
       const rodizio = m ? m.rodizio : '';
       const badgeRodizio = rodizioEhHoje(rodizio) ? '<span class="status-card__badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
       const rodizioTexto = rodizio
