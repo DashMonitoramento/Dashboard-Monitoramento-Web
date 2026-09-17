@@ -4928,6 +4928,18 @@ const Dashboard = (() => {
    * repetindo os dados do grupo (placa/data/status/Bluesoft consolidado/diferença/qtd viagens/
    * nfs) e trazendo peso/valor só DAQUELE embarque na coluna do Indicador de Frete. Grupo sem
    * nenhum embarque (NAO_CRIADO) continua sendo 1 linha só, sem peso/valor de embarque. */
+  /** Conta viagens a partir do texto "Identificador (Viagem)" do Indicador de Frete, não mais
+   * do status "Viagem" da Bluesoft (2026-09-17, pedido da usuária — a coluna "Viagens" contava
+   * valores distintos de STATUS tipo "Em trânsito"/"Finalizado", quase sempre 1, sem relação
+   * nenhuma com quantas viagens físicas o embarque representa). Formato real confirmado com
+   * ela: "VIAGEM - 437625 / 437628" = 2 viagens (números separados por "/"). Sem "/" ou sem
+   * identificador nenhum preenchido = 1 (o embarque em si já é pelo menos 1 viagem). */
+  function contarViagensDoIdentificador(identificadorViagem) {
+    const texto = (identificadorViagem || '').trim();
+    if (!texto) return 1;
+    return texto.split('/').map(s => s.trim()).filter(Boolean).length || 1;
+  }
+
   function desmembrarGrupoAuditoriaEmbarques(g) {
     if (g.itensIndicador.length <= 1) {
       const item = g.itensIndicador[0] || null;
@@ -4936,6 +4948,7 @@ const Dashboard = (() => {
         linhaChave: g.chave,
         embarqueId: item ? item.embarque : null,
         identificadorViagemLinha: item ? item.identificadorViagem : null,
+        qtdViagensLinha: item ? contarViagensDoIdentificador(item.identificadorViagem) : null,
         pesoEmbarqueLinha: item ? item.peso : null,
         valorEmbarqueLinha: item ? item.valorTotalNFs : null
       }];
@@ -4945,6 +4958,7 @@ const Dashboard = (() => {
       linhaChave: `${g.chave}|${idx}`,
       embarqueId: item.embarque,
       identificadorViagemLinha: item.identificadorViagem,
+      qtdViagensLinha: contarViagensDoIdentificador(item.identificadorViagem),
       pesoEmbarqueLinha: item.peso,
       valorEmbarqueLinha: item.valorTotalNFs
     }));
@@ -5001,7 +5015,7 @@ const Dashboard = (() => {
       <td class="text-right">${fmtValor(g.valorBluesoft)}</td>
       <td class="text-right">${fmtValor(g.valorEmbarqueLinha)}</td>
       <td class="text-right${valorDivergente ? ' celula-divergente' : ''}">${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</td>
-      <td class="text-right">${Utils.formatNumber(g.qtdViagens)}</td>
+      <td class="text-right">${g.qtdViagensLinha == null ? '—' : Utils.formatNumber(g.qtdViagensLinha)}</td>
       <td class="text-right">${Utils.formatNumber(g.qtdNfs)}</td>
     </tr>`;
 
@@ -5024,7 +5038,7 @@ const Dashboard = (() => {
           <div class="auditoria-embarques-detalhe__bloco">
             <h4>Auditoria do embarque</h4>
             <p>Placa: <strong>${escapeAttr(g.placaOriginal)}</strong> · Data de faturamento: <strong>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</strong></p>
-            <p>Viagens: ${g.qtdViagens} · NFs: ${g.qtdNfs}${g.transportadoras.length ? ` · Transportador(es) no embarque: ${escapeAttr(g.transportadoras.join(', '))}` : ''}${g.identificadoresViagem.length ? ` · Identificador de viagem: ${escapeAttr(g.identificadoresViagem.join(', '))}` : ''}</p>
+            <p>Viagens: ${g.qtdViagensLinha == null ? '—' : g.qtdViagensLinha} · NFs: ${g.qtdNfs}${g.transportadoras.length ? ` · Transportador(es) no embarque: ${escapeAttr(g.transportadoras.join(', '))}` : ''}${g.identificadorViagemLinha ? ` · Identificador de viagem: ${escapeAttr(g.identificadorViagemLinha)}` : ''}</p>
           </div>
           <div class="auditoria-embarques-detalhe__grid">
             <div>
@@ -5178,7 +5192,7 @@ const Dashboard = (() => {
       { label: 'Valor Bluesoft', value: g => g.valorBluesoft.toFixed(2).replace('.', ',') },
       { label: 'Valor Embarque', value: g => g.valorEmbarqueLinha != null ? g.valorEmbarqueLinha.toFixed(2).replace('.', ',') : '' },
       { label: 'Diferença de Valor', value: g => g.diferencaValor != null ? g.diferencaValor.toFixed(2).replace('.', ',') : '' },
-      { label: 'Qtd Viagens', value: g => g.qtdViagens },
+      { label: 'Qtd Viagens', value: g => g.qtdViagensLinha == null ? '—' : g.qtdViagensLinha },
       { label: 'Qtd NFs', value: g => g.qtdNfs }
     ];
     await Utils.exportToStyledExcel('auditoria-embarques.xlsx', 'Auditoria de Embarques', colunas, linhas);
