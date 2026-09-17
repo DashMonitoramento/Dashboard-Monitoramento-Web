@@ -1484,6 +1484,15 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
         <p class="chart-card__hint" id="cargas-sincronizar-status" hidden></p>
 
+        <!-- "Onde está esse motorista?" (2026-09-17, pedido da usuária) — busca rápida por nome
+             ou placa, mostra a etapa atual (ou "não está cadastrado") direto na sugestão, sem
+             precisar clicar em nada. Reaproveita .cargas-autocomplete/.cargas-sugestoes (mesmo
+             padrão de "Buscar motorista", mais abaixo) -- só exibe, nunca adiciona/edita nada. -->
+        <div class="cargas-autocomplete" style="margin-bottom:16px; max-width:420px;">
+          <input type="text" id="cargas-onde-esta-input" placeholder="🔍 Onde está esse motorista? Nome ou placa..." autocomplete="off">
+          <div id="cargas-onde-esta-sugestoes" class="cargas-sugestoes"></div>
+        </div>
+
         <!-- Aviso aos motoristas (2026-09-13) — card enviado daqui aparece no topo do Painel do
              Motorista por 24h (ou até enviar outro / remover). -->
         <div class="cargas-aviso" id="cargas-aviso-bloco" hidden>
@@ -2506,7 +2515,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260916b"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260917c"></script>
+<script src="js/dashboard.js?v=20260917d"></script>
 <script src="js/script.js?v=20260915a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
