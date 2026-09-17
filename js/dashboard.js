@@ -7184,6 +7184,59 @@ const Dashboard = (() => {
     SEPARADO: 'Separado', CARREGADO: 'Carregado', DISPONIVEL: 'Motoristas Disponíveis',
     NOSHOW: 'No Show'
   };
+  // Mesmas cores dos cards KPI (--kpi-accent) desta tela, via classe .badge já genérica do
+  // resto do site — mantém a mesma semântica de cor (vermelho=não iniciado, amarelo=em
+  // andamento, verde=pronto) na busca "Onde está esse motorista?" abaixo.
+  const CARGAS_BADGE_CLASSE_STATUS = {
+    NAO_INICIADA: 'badge--danger', EM_SEPARACAO: 'badge--warning', SEPARADO: 'badge--success',
+    CARREGADO: 'badge--info'
+  };
+
+  /** "Onde está esse motorista?" (2026-09-17, pedido da usuária): devolve o HTML da etapa atual
+   * de UMA placa — olha primeiro statusCarga (as 4 etapas de separação, o que ela pediu), depois
+   * disponibilidade (avisou disponível, ainda sem carga) como complemento, e por fim "sem etapa
+   * no momento" se não está em nenhum dos dois. Não confundir com "motorista não cadastrado"
+   * (isso é decidido por quem chama, com base em cargasMotoristas — esta função assume que o
+   * motorista JÁ existe no cadastro). */
+  function cargasDescreverEtapaMotorista(placa) {
+    const status = cargasStatusCarga.get(placa);
+    if (status && CARGAS_LABEL_FILTRO[status.status]) {
+      const classe = CARGAS_BADGE_CLASSE_STATUS[status.status] || 'badge--info';
+      const dataRef = cargasTimestampParaData(status.atualizadoEm);
+      const tempo = dataRef ? ` · ${cargasFormatarTempoDecorrido(dataRef)}` : '';
+      return `<span class="badge ${classe}">${escapeAttr(CARGAS_LABEL_FILTRO[status.status])}</span>${tempo}`;
+    }
+    const disponibilidade = cargasDisponibilidade.get(placa);
+    if (disponibilidade && disponibilidade.status === 'DISPONIVEL') {
+      return '<span class="badge badge--info">Disponível</span> · avisou disponibilidade, ainda sem carga';
+    }
+    return '<span class="cargas-sugestao-vazia" style="padding:0;">Sem etapa no momento (não está em nenhuma fila)</span>';
+  }
+
+  function bindCargasOndeEstaAutocomplete() {
+    const input = document.getElementById('cargas-onde-esta-input');
+    const sugestoes = document.getElementById('cargas-onde-esta-sugestoes');
+    if (!input || !sugestoes) return;
+
+    function renderSugestoes() {
+      const termo = cargasNormalizarTexto(input.value);
+      if (!termo) { sugestoes.classList.remove('aberta'); return; }
+      const candidatos = Array.from(cargasMotoristas.values())
+        .filter(m => cargasNormalizarTexto(m.nome).includes(termo) || m.placa.toLowerCase().includes(termo))
+        .slice(0, 8);
+      sugestoes.innerHTML = candidatos.length
+        ? candidatos.map(m => `
+            <div class="cargas-sugestao-item">
+              <span>${escapeAttr(m.nome)} <span class="cargas-sugestao-item__placa">${escapeAttr(m.placa)}</span></span>
+              <span>${cargasDescreverEtapaMotorista(m.placa)}</span>
+            </div>`).join('')
+        : '<div class="cargas-sugestao-vazia">Motorista não está cadastrado.</div>';
+      sugestoes.classList.add('aberta');
+    }
+    input.addEventListener('input', renderSugestoes);
+    input.addEventListener('focus', renderSugestoes);
+    input.addEventListener('blur', () => setTimeout(() => sugestoes.classList.remove('aberta'), 150));
+  }
 
   function renderControleCargasLista() {
     const wrap = document.getElementById('cargas-lista');
@@ -7683,11 +7736,28 @@ const Dashboard = (() => {
     // o onSnapshot de novo e tentava a MESMA placa outra vez indefinidamente. Marcando a placa
     // como "já tentada" ANTES de escrever, ela só é tentada 1x por carregamento de página,
     // sucesso ou falha — se falhar, mostra um aviso visível em vez de ficar tentando calado.
-    const candidatos = separados.filter(s => !cargasCarregamentoTentativas.has(s.id) &&
-      registros.some(r => r.placa && r.dataEntrega &&
+    //
+    // Prazo de carência de 2 min (2026-09-17, bug real reportado por ela): quando ela adicionava
+    // um motorista manualmente direto em "Separado" e a placa JÁ aparecia "Em trânsito" na Base
+    // Bluesoft hoje (comum — o caminhão já estava rodando), essa função rodava no PRÓXIMO
+    // onSnapshot (disparado pela própria escrita dela) e promovia a placa pra "Carregado" quase
+    // instantaneamente — na prática, o motorista "não entrava" em Separado (sumia pra Carregado
+    // rápido demais pra perceber). Repetir a operação "funcionava" só porque a trava por placa
+    // (acima) já tinha marcado essa placa como tentada na 1ª vez, então a 2ª vez não disparava a
+    // promoção de novo. Exigir que o status SEPARADO já tenha pelo menos 2 min (via
+    // `atualizadoEm`) antes de considerar a promoção automática resolve isso sem tirar a
+    // automação de quem já está Separado há mais tempo (o caso de uso original, 2026-09-08).
+    const candidatos = separados.filter(s => {
+      if (cargasCarregamentoTentativas.has(s.id)) return false;
+      const dataAtualizacao = cargasTimestampParaData(s.atualizadoEm);
+      // Sem timestamp resolvido ainda (serverTimestamp() pendente de confirmação do servidor)
+      // conta como "recente demais" — espera o próximo snapshot, não arrisca promover cedo.
+      if (!dataAtualizacao || (Date.now() - dataAtualizacao.getTime()) < 120000) return false;
+      return registros.some(r => r.placa && r.dataEntrega &&
         cargasNormalizarPlaca(r.placa) === s.id &&
         r.dataEntrega >= hoje && r.dataEntrega <= fimHoje &&
-        cargasNormalizarTexto(r.viagem) === 'em transito'));
+        cargasNormalizarTexto(r.viagem) === 'em transito');
+    });
     if (!candidatos.length) return;
 
     for (const s of candidatos) {
@@ -7722,6 +7792,7 @@ const Dashboard = (() => {
     bindControleCargasAcoes();
     bindControleCargasAutocomplete();
     bindCargasRotaAutocomplete();
+    bindCargasOndeEstaAutocomplete();
     bindModalCadastrarMotorista();
     bindModalNoShowMotivo();
     bindCargasNoShowPeriodo();
