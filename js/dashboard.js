@@ -6857,17 +6857,48 @@ const Dashboard = (() => {
   function cargasRodizioEhHoje(rodizio) {
     return !!rodizio && CARGAS_DIA_SEMANA_PARA_RODIZIO[new Date().getDay()] === rodizio;
   }
+  /** Reconhece se um texto SEM hífen (ver cargasParseVeiculo abaixo) parece ser um PESO (ex.:
+   * "4.500 TONS", "600 KG", ou só números tipo "4.500") em vez de nome de veículo (ex.:
+   * "FIORINO", "3/4" — esse último tem dígito mas não é peso nenhum, é uma classe de caminhão). */
+  function cargasPareceSerPeso(texto) {
+    const t = texto.toUpperCase();
+    if (/\b(TON|TONS|KG)\b/.test(t)) return true;
+    if (/^[\d.,\s]+$/.test(t)) return true;
+    return false;
+  }
+
   /** A planilha guarda "Carro" e "Peso" juntos num campo só (ex.: "FIORINO- 600", "VUC - 2.7
    * TONS", "3/4 - 3.5 TONS") -- pedido da usuária (2026-09-04): mostrar separado, com rótulo
-   * próprio pra cada um. Divide no primeiro hífen com conteúdo dos dois lados; "3/4" (nome de
-   * veículo real, não tem hífen) e casos sem hífen nenhum (ex.: "4.500 TONS", sem nome de
-   * veículo na planilha) caem no fallback -- carro fica vazio, peso é o texto inteiro. */
+   * próprio pra cada um. Divide no primeiro hífen com conteúdo dos dois lados.
+   * Sem hífen (2026-09-17, bug real corrigido: motorista com cadastro só "FIORINO" — sem peso
+   * nenhum na planilha — aparecia como "Carro: —, Peso: FIORINO", o inteiro contrário do
+   * esperado): usa cargasPareceSerPeso pra decidir se o texto sozinho é peso ("4.500 TONS") ou
+   * nome de veículo ("FIORINO", "3/4") — carro vazio só quando realmente é peso puro. */
   function cargasParseVeiculo(texto) {
     const limpo = String(texto || '').trim();
     if (!limpo) return { carro: '', peso: '' };
     const m = limpo.match(/^(.*?)\s*-\s*(.+)$/);
     if (m && m[1].trim()) return { carro: m[1].trim(), peso: m[2].trim() };
-    return { carro: '', peso: limpo };
+    if (cargasPareceSerPeso(limpo)) return { carro: '', peso: limpo };
+    return { carro: limpo, peso: '' };
+  }
+
+  /** Peso PADRÃO por tipo de carro (2026-09-17, pedido da usuária: "o peso pegar a quantidade
+   * que a fiorino suporta, em outros cadastros já tem se esse não tiver") — varre todo motorista
+   * já carregado em memória, pega o PRIMEIRO peso não vazio cadastrado pra cada tipo de carro
+   * (normalizado em maiúsculo), e usa isso como padrão pra quem tem o mesmo tipo de carro mas
+   * ficou sem peso especificado no próprio cadastro. Não é uma tabela fixa/hardcoded de
+   * capacidade por veículo — vem do que a própria equipe já cadastrou de verdade em outros
+   * motoristas, então se ninguém tiver Fiorino com peso preenchido ainda, fica vazio mesmo (não
+   * inventa um número sem fonte). */
+  function cargasCalcularPesoPadraoPorCarro() {
+    const mapa = new Map();
+    cargasMotoristas.forEach(m => {
+      const { carro, peso } = cargasParseVeiculo(m.veiculo);
+      const chave = carro.toUpperCase();
+      if (chave && peso && !mapa.has(chave)) mapa.set(chave, peso);
+    });
+    return mapa;
   }
 
   function cargasInicioDoDia(data) {
@@ -7195,10 +7226,15 @@ const Dashboard = (() => {
       return;
     }
 
+    const pesoPadraoPorCarro = cargasCalcularPesoPadraoPorCarro();
+
     wrap.innerHTML = itens.map(item => {
       const motorista = cargasMotoristas.get(item.placa);
       const nome = motorista ? motorista.nome : '(motorista não encontrado no cadastro)';
-      const { carro, peso } = cargasParseVeiculo(motorista && motorista.veiculo);
+      const { carro, peso: pesoProprio } = cargasParseVeiculo(motorista && motorista.veiculo);
+      // Sem peso no PRÓPRIO cadastro, mas com carro reconhecido: usa o peso padrão desse tipo
+      // de carro, vindo de outro motorista que já tem (ver cargasCalcularPesoPadraoPorCarro).
+      const peso = pesoProprio || (carro ? (pesoPadraoPorCarro.get(carro.toUpperCase()) || '') : '');
       const rodizio = motorista ? motorista.rodizio : '';
       const badgeRodizio = cargasRodizioEhHoje(rodizio) ? '<span class="cargas-badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
       const rodizioTexto = rodizio
@@ -7239,7 +7275,7 @@ const Dashboard = (() => {
         <div class="cargas-item">
           <div class="cargas-item__info">
             <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}${badgeAguardandoAtivacao}</div>
-            <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
+            <div class="cargas-item__meta">Motorista: ${escapeAttr(nome)} · Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
           </div>
           <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
           <div class="cargas-item__acoes">${acoes}</div>
