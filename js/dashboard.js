@@ -6857,6 +6857,32 @@ const Dashboard = (() => {
   function cargasRodizioEhHoje(rodizio) {
     return !!rodizio && CARGAS_DIA_SEMANA_PARA_RODIZIO[new Date().getDay()] === rodizio;
   }
+
+  /* --- Distância/tempo estimado até a Terrinha (2026-09-17, pedido da usuária) ---
+   * Endereço dela: Av. Rodrigues Vilares, 80 - Jardim Iporanga, São Paulo - SP, 04828-100.
+   * Cálculo em linha reta (Haversine) — de propósito, sem API de rota paga (ela pediu
+   * explicitamente pra não correr risco de cobrança); é só uma NOÇÃO aproximada de proximidade
+   * pra priorizar separação, não é tempo real de trânsito/rota rodoviária. */
+  const CARGAS_TERRINHA_LAT = -23.7270901;
+  const CARGAS_TERRINHA_LNG = -46.7011525;
+  const CARGAS_VELOCIDADE_MEDIA_KMH = 40; // estimativa (mix cidade/rodovia); linha reta subestima km rodado, velocidade mais baixa compensa em parte
+
+  function cargasDistanciaKm(lat, lng) {
+    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return null;
+    const R = 6371;
+    const toRad = (g) => (g * Math.PI) / 180;
+    const dLat = toRad(CARGAS_TERRINHA_LAT - lat);
+    const dLng = toRad(CARGAS_TERRINHA_LNG - lng);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat)) * Math.cos(toRad(CARGAS_TERRINHA_LAT)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function cargasFormatarDistanciaTempoDeKm(km) {
+    if (km === null || km === undefined) return '';
+    const minutos = Math.round((km / CARGAS_VELOCIDADE_MEDIA_KMH) * 60);
+    return `📍 ~${km.toFixed(0)} km · ~${minutos} min até a Terrinha`;
+  }
   /** Reconhece se um texto SEM hífen (ver cargasParseVeiculo abaixo) parece ser um PESO (ex.:
    * "4.500 TONS", "600 KG", ou só números tipo "4.500") em vez de nome de veículo (ex.:
    * "FIORINO", "3/4" — esse último tem dígito mas não é peso nenhum, é uma classe de caminhão). */
@@ -7265,14 +7291,29 @@ const Dashboard = (() => {
     if (cargasFiltroAtivo === 'DISPONIVEL') {
       itens = Array.from(cargasDisponibilidade.values())
         .filter(d => d.status === 'DISPONIVEL')
-        .map(d => ({ placa: d.id, dataRef: cargasTimestampParaData(d.disponibilizadoEm) }));
+        .map(d => ({
+          placa: d.id, dataRef: cargasTimestampParaData(d.disponibilizadoEm),
+          distanciaKm: cargasDistanciaKm(d.latitude, d.longitude)
+        }));
     } else {
       itens = Array.from(cargasStatusCarga.values())
         .filter(s => s.status === cargasFiltroAtivo)
         .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm), rota: s.rota || '', visivel: s.visivel !== false }));
     }
-    // Quem avisou/entrou primeiro aparece primeiro (pedido explícito da usuária).
-    itens.sort((a, b) => (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0));
+    if (cargasFiltroAtivo === 'DISPONIVEL') {
+      // Quem chega primeiro (mais perto) aparece primeiro (pedido explícito da usuária, pra
+      // priorizar separação de quem está mais próximo) — motoristas sem localização (avisos
+      // antigos, de antes desta funcionalidade) ficam por último, não somem da lista.
+      itens.sort((a, b) => {
+        if (a.distanciaKm === null && b.distanciaKm === null) return (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0);
+        if (a.distanciaKm === null) return 1;
+        if (b.distanciaKm === null) return -1;
+        return a.distanciaKm - b.distanciaKm;
+      });
+    } else {
+      // Quem avisou/entrou primeiro aparece primeiro (pedido explícito da usuária).
+      itens.sort((a, b) => (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0));
+    }
 
     if (!itens.length) {
       wrap.innerHTML = '<div class="cargas-vazio">Nenhum motorista aqui agora.</div>';
@@ -7298,6 +7339,12 @@ const Dashboard = (() => {
       // usado pro tempo relativo, só formatado diferente, não é um campo novo.
       const dataTexto = item.dataRef ? `<div class="cargas-item__data">${cargasFormatarData(item.dataRef)}</div>` : '';
       const rotaTexto = item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '';
+      // Distância/tempo estimado até a Terrinha (só no card Disponíveis) — noção aproximada em
+      // linha reta (ver cargasDistanciaKm), não é rota real; "sem localização" cobre avisos
+      // enviados antes desta funcionalidade existir.
+      const distanciaTexto = (cargasFiltroAtivo === 'DISPONIVEL')
+        ? `<div class="cargas-item__distancia">${item.distanciaKm !== null ? cargasFormatarDistanciaTempoDeKm(item.distanciaKm) : '📍 Localização não informada'}</div>`
+        : '';
 
       // Badge "Aguardando ativação" (2026-09-17) — só aparece pra quem foi auto-populado e
       // ainda não foi ativado (item.visivel === false); some do Painel do Motorista até esse
@@ -7344,6 +7391,7 @@ const Dashboard = (() => {
           <div class="cargas-item__info">
             <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}${badgeAguardandoAtivacao}</div>
             <div class="cargas-item__meta">Motorista: ${escapeAttr(nome)} · Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
+            ${distanciaTexto}
           </div>
           <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
           <div class="cargas-item__acoes">${acoes}</div>
