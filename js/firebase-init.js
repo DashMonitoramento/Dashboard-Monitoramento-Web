@@ -571,7 +571,7 @@ function assinarStatusCarga(callback, aoFalhar) {
  * dashboard.js, quando a placa aparece "Em Trânsito" na Base Bluesoft no dia). Sobrescreve o doc
  * atual (nunca duplica, nunca deixa o motorista em 2 status ao mesmo tempo, já que é sempre o
  * MESMO documento `statusCarga/{placa}`) e grava a transição no histórico no mesmo lote. */
-async function definirStatusCarga(placaBruta, novoStatus, rota) {
+async function definirStatusCarga(placaBruta, novoStatus, rota, visivel = true) {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
   const placa = normalizarPlaca(placaBruta);
@@ -584,8 +584,13 @@ async function definirStatusCarga(placaBruta, novoStatus, rota) {
   // rota manualmente do mesmo jeito que incluo as informações de Separação") -- grava junto do
   // MESMO documento de status, pra ficar disponível tanto no painel quanto no app do motorista
   // sem precisar de outra leitura.
+  // `visivel` (2026-09-17, default true — todo uso já existente continua exatamente igual):
+  // só autoPopularSeparacaoNaoIniciada (abaixo) passa `false` explicitamente. Qualquer mudança
+  // de status manual (Iniciar Separação, Marcar como Separado, o auto-CARREGADO de
+  // verificarCarregamentoStatusCarga) sobrescreve pra `true` de novo -- não tem porque esconder
+  // do motorista alguém que já está sendo mexido de verdade.
   lote.set(refAtual, {
-    placa, status: novoStatus, rota: rota || '', atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    placa, status: novoStatus, rota: rota || '', visivel, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistorico, {
@@ -612,6 +617,50 @@ async function retirarStatusCarga(placaBruta) {
     placa, statusAnterior, statusNovo: null, dataHora: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   await lote.commit();
+}
+
+/** Ativa a visibilidade de um status pro Painel do Motorista (2026-09-17) — ver
+ * autoPopularSeparacaoNaoIniciada logo abaixo: motorista auto-adicionado em "Separação Não
+ * Iniciada" nasce com `visivel:false` (some do app do motorista até ela clicar "Ativar p/
+ * Motorista" no painel admin). Não grava histórico — diferente de definirStatusCarga, isto não
+ * é uma mudança de STATUS, só de visibilidade. */
+async function ativarStatusCarga(placaBruta) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+  await updateDoc(doc(db, STATUS_CARGA_COLECAO, placa), { visivel: true });
+}
+
+const CONFIG_CARGAS_COLECAO = 'configCargas';
+const AUTO_POPULAR_SEPARACAO_DOC_ID = 'autoPopularSeparacaoNaoIniciada';
+
+function cargasHojeAAAAMMDD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Auto-popula "Separação Não Iniciada" com todo motorista ativo que ainda não está em NENHUM
+ * status hoje (2026-09-17, pedido da usuária: "ganhar tempo pra não ficar digitando manualmente
+ * todo motorista que a gente colocar carga"). `placasFaltantes` já vem calculado por quem chama
+ * (dashboard.js já tem os motoristas/status em memória via onSnapshot, não precisa reconsultar
+ * aqui). Roda no máximo 1x por dia de verdade (controlado pelo doc `configCargas/
+ * autoPopularSeparacaoNaoIniciada` — compartilhado entre qualquer sessão/computador que abrir a
+ * tela, não é "1x por navegador"); site é estático, sem servidor pra agendar isso numa hora
+ * fixa, então quem dispara é a PRIMEIRA pessoa com acesso que abrir Controle de Cargas depois
+ * da virada do dia. Só ADICIONA quem está faltando — nunca mexe em quem já tem status hoje
+ * (aditivo, nunca reseta/sobrescreve progresso em andamento). Cada doc novo nasce com
+ * `visivel:false` — só aparece no Painel do Motorista depois do "Ativar" (ver
+ * ativarStatusCarga acima). */
+async function autoPopularSeparacaoNaoIniciada(placasFaltantes) {
+  const hoje = cargasHojeAAAAMMDD();
+  const refConfig = doc(db, CONFIG_CARGAS_COLECAO, AUTO_POPULAR_SEPARACAO_DOC_ID);
+  const snapConfig = await getDoc(refConfig);
+  if (snapConfig.exists() && snapConfig.data().ultimaExecucao === hoje) return;
+
+  if (placasFaltantes.length) {
+    await Promise.all(placasFaltantes.map(placa => definirStatusCarga(placa, 'NAO_INICIADA', '', false)));
+  }
+  await setDoc(refConfig, { ultimaExecucao: hoje, atualizadoEm: serverTimestamp() });
 }
 
 /** Tempo real do histórico de No Show (motorista com carga Separada que não chegou a
@@ -812,7 +861,7 @@ window.Firebase = {
   definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
-  assinarStatusCarga, definirStatusCarga, retirarStatusCarga,
+  assinarStatusCarga, definirStatusCarga, retirarStatusCarga, ativarStatusCarga, autoPopularSeparacaoNaoIniciada,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico
