@@ -6932,19 +6932,23 @@ const Dashboard = (() => {
       console.warn('Não consegui verificar permissões do Controle de Cargas:', err.message);
     }
     renderControleCargasAcoesGlobais();
-    cargasPopularSelectRotas();
+    cargasCarregarRotasSP();
 
     fb.assinarMotoristas((lista) => {
       cargasMotoristas = new Map(lista.filter(m => m.ativo !== false).map(m => [m.id, m]));
+      cargasMotoristasCarregado = true;
       renderControleCargasCards();
       renderControleCargasLista();
+      verificarAutoPopularSeparacaoNaoIniciada();
     }, (err) => Utils.showToast('Falha ao sincronizar motoristas: ' + err.message, 'error'));
 
     fb.assinarStatusCarga((lista) => {
       cargasStatusCarga = new Map(lista.map(s => [s.id, s]));
+      cargasStatusCargaCarregado = true;
       renderControleCargasCards();
       renderControleCargasLista();
       verificarCarregamentoStatusCarga();
+      verificarAutoPopularSeparacaoNaoIniciada();
     }, (err) => Utils.showToast('Falha ao sincronizar status de carga: ' + err.message, 'error'));
 
     fb.assinarStatusCargaNoShow((lista) => {
@@ -7072,19 +7076,49 @@ const Dashboard = (() => {
   }
 
   /** Pedido da usuária, 2026-09-04: "as opções tem na planilha Base do Monitoramento -
-   * consolidado na aba Base Bluesoft" -- em vez de texto livre, o campo Rota da barra
-   * "Adicionar" vira um <select> com as rotas que já existem de verdade nos dados da Base
-   * Bluesoft (mesma coluna `r.rota` usada no painel de Lead Time), pra ela só escolher, nunca
-   * digitar errado. Populado 1x quando o Controle de Cargas é aberto (dado da Base Bluesoft já
-   * carregado no boot da página; "Atualizar dados" recarrega a página inteira, então uma nova
-   * abertura já pega a lista atualizada sozinha). */
-  function cargasPopularSelectRotas() {
-    const select = document.getElementById('cargas-input-rota');
-    if (!select) return;
-    const rotas = Array.from(new Set(DataStore.getRecords().map(r => r.rota).filter(Boolean)))
+   * consolidado na aba Base Bluesoft" -- as rotas vêm dos dados reais da Base Bluesoft (mesma
+   * coluna `r.rota` usada no painel de Lead Time), pra ela nunca digitar errado. Recarregada 1x
+   * quando o Controle de Cargas é aberto (dado da Base Bluesoft já carregado no boot da página;
+   * "Atualizar dados" recarrega a página inteira, então uma nova abertura já pega a lista
+   * atualizada sozinha).
+   * 2026-09-17 (pedido da usuária): virou busca com sugestões (`bindCargasRotaAutocomplete`
+   * abaixo, mesmo padrão `.cargas-autocomplete` já usado pra "Buscar motorista") em vez de
+   * `<select>` — mais fácil de achar digitando do que rolando uma lista longa. E filtrado só
+   * pro estado de SP (`r.uf === 'SP'`) — a coluna Rota já vem prefixada com o UF (ex.: "SP -
+   * REGIAO SUL - 04", "PR - ESTADO PARANA"), confirmado com dado real: 48 das 75 rotas
+   * distintas são de SP. Continua sendo um campo livre (digitar um valor fora da lista
+   * continua funcionando, a sugestão é só um atalho) — mesmo espírito do autocomplete de
+   * Cliente do Manifesto. */
+  let cargasRotasSP = [];
+
+  function cargasCarregarRotasSP() {
+    cargasRotasSP = Array.from(new Set(DataStore.getRecords().filter(r => r.uf === 'SP').map(r => r.rota).filter(Boolean)))
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    select.innerHTML = '<option value="">Rota (opcional)</option>'
-      + rotas.map(r => `<option value="${escapeAttr(r)}">${escapeAttr(r)}</option>`).join('');
+  }
+
+  function bindCargasRotaAutocomplete() {
+    const input = document.getElementById('cargas-input-rota');
+    const sugestoes = document.getElementById('cargas-sugestoes-rota');
+    if (!input || !sugestoes) return;
+
+    function renderSugestoesRota() {
+      const termo = cargasNormalizarTexto(input.value);
+      if (!termo) { sugestoes.classList.remove('aberta'); return; }
+      const candidatos = cargasRotasSP.filter(r => cargasNormalizarTexto(r).includes(termo)).slice(0, 8);
+      sugestoes.innerHTML = candidatos.length
+        ? candidatos.map(r => `<div class="cargas-sugestao-item" data-rota="${escapeAttr(r)}">${escapeAttr(r)}</div>`).join('')
+        : '<div class="cargas-sugestao-vazia">Nenhuma rota encontrada — pode digitar livremente.</div>';
+      sugestoes.classList.add('aberta');
+    }
+    input.addEventListener('input', renderSugestoesRota);
+    input.addEventListener('focus', renderSugestoesRota);
+    input.addEventListener('blur', () => setTimeout(() => sugestoes.classList.remove('aberta'), 150));
+    sugestoes.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('[data-rota]');
+      if (!item) return;
+      input.value = item.dataset.rota;
+      sugestoes.classList.remove('aberta');
+    });
   }
 
   function renderControleCargasCards() {
@@ -7151,7 +7185,7 @@ const Dashboard = (() => {
     } else {
       itens = Array.from(cargasStatusCarga.values())
         .filter(s => s.status === cargasFiltroAtivo)
-        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm), rota: s.rota || '' }));
+        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm), rota: s.rota || '', visivel: s.visivel !== false }));
     }
     // Quem avisou/entrou primeiro aparece primeiro (pedido explícito da usuária).
     itens.sort((a, b) => (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0));
@@ -7176,9 +7210,18 @@ const Dashboard = (() => {
       const dataTexto = item.dataRef ? `<div class="cargas-item__data">${cargasFormatarData(item.dataRef)}</div>` : '';
       const rotaTexto = item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '';
 
+      // Badge "Aguardando ativação" (2026-09-17) — só aparece pra quem foi auto-populado e
+      // ainda não foi ativado (item.visivel === false); some do Painel do Motorista até esse
+      // ponto (ver renderListaStatus em motoristas/index.html).
+      const badgeAguardandoAtivacao = (cargasFiltroAtivo === 'NAO_INICIADA' && !item.visivel)
+        ? '<span class="badge badge--warning">Aguardando ativação</span>' : '';
+
       let acoes = '';
       if (cargasPodeEditar && cargasFiltroAtivo === 'NAO_INICIADA') {
-        acoes = `<button class="btn btn--primary" data-cargas-acao="iniciar" data-cargas-placa="${escapeAttr(item.placa)}">Iniciar Separação</button>
+        const botaoAtivar = !item.visivel
+          ? `<button class="btn btn--primary" data-cargas-acao="ativar" data-cargas-placa="${escapeAttr(item.placa)}">Ativar p/ Motorista</button>`
+          : '';
+        acoes = `${botaoAtivar}<button class="btn btn--primary" data-cargas-acao="iniciar" data-cargas-placa="${escapeAttr(item.placa)}">Iniciar Separação</button>
                  <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
       } else if (cargasPodeEditar && cargasFiltroAtivo === 'EM_SEPARACAO') {
         acoes = `<button class="btn btn--primary" data-cargas-acao="separar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Separado</button>
@@ -7195,7 +7238,7 @@ const Dashboard = (() => {
       return `
         <div class="cargas-item">
           <div class="cargas-item__info">
-            <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}</div>
+            <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}${badgeAguardandoAtivacao}</div>
             <div class="cargas-item__meta">Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
           </div>
           <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
@@ -7307,6 +7350,7 @@ const Dashboard = (() => {
         if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', rotaAtual);
         else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual);
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
+        else if (acao === 'ativar') await cargasDashFirebase.ativarStatusCarga(placa);
         else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao atualizar.', 'error');
@@ -7556,6 +7600,32 @@ const Dashboard = (() => {
    * Trânsito ele precisa aparecer no card Carregado e sumir do card Separado"). Roda sempre que
    * statusCarga muda (ver inicializarControleCargas) — mesma limitação já aceita em
    * verificarNoShowDisponibilidade: não decide nada se a Base Bluesoft ainda não carregou. */
+  // Trava de sessão (2026-09-17) pro auto-popular de "Separação Não Iniciada" — só TENTA (a
+  // trava de verdade, "já rodou hoje", é o doc configCargas/autoPopularSeparacaoNaoIniciada no
+  // Firestore, compartilhado entre computadores) 1x por carregamento de página, depois que os
+  // dois onSnapshot (motoristas E statusCarga) já entregaram pelo menos 1 leitura — sem isso
+  // corre risco de calcular "quem está faltando" com um dos dois ainda vazio (tudo pareceria
+  // faltando) e escrever por cima de status que já existem de verdade.
+  let cargasMotoristasCarregado = false;
+  let cargasStatusCargaCarregado = false;
+  let cargasAutoPopularTentado = false;
+
+  /** Ver comentário de autoPopularSeparacaoNaoIniciada (firebase-init.js) pro racional completo
+   * — aqui só calcula quem está faltando (com os dados já em memória via onSnapshot) e delega a
+   * escrita de verdade. */
+  async function verificarAutoPopularSeparacaoNaoIniciada() {
+    if (cargasAutoPopularTentado) return;
+    if (!cargasMotoristasCarregado || !cargasStatusCargaCarregado) return;
+    if (!cargasDashFirebase) return;
+    cargasAutoPopularTentado = true;
+    try {
+      const placasFaltantes = Array.from(cargasMotoristas.keys()).filter(p => !cargasStatusCarga.has(p));
+      await cargasDashFirebase.autoPopularSeparacaoNaoIniciada(placasFaltantes);
+    } catch (err) {
+      console.error('Falha ao auto-popular Separação Não Iniciada', err);
+    }
+  }
+
   async function verificarCarregamentoStatusCarga() {
     if (!cargasDashFirebase) return;
     const separados = Array.from(cargasStatusCarga.values()).filter(s => s.status === 'SEPARADO');
@@ -7615,6 +7685,7 @@ const Dashboard = (() => {
     bindControleCargasCards();
     bindControleCargasAcoes();
     bindControleCargasAutocomplete();
+    bindCargasRotaAutocomplete();
     bindModalCadastrarMotorista();
     bindModalNoShowMotivo();
     bindCargasNoShowPeriodo();
