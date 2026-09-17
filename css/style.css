@@ -1641,6 +1641,13 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface); color: var(--text-primary); font-size: 14px;
 }
+/* "Mover pra Separação" (2026-09-17), select dentro do próprio card de "Motoristas
+   Disponíveis" -- mesmo visual do select da barra Adicionar acima, só um pouco menor pra
+   caber ao lado dos botões de ação de cada card. */
+.cargas-mover-select {
+  padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-primary); font-size: 13px;
+}
 .cargas-autocomplete { position: relative; flex: 1 1 260px; min-width: 220px; }
 .cargas-autocomplete input { width: 100%; }
 .cargas-sugestoes {
