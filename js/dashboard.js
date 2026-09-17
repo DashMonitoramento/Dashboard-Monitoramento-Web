@@ -7320,8 +7320,23 @@ const Dashboard = (() => {
         // quando o motorista não carregou; ver marcarNoShowStatusCarga (firebase-init.js).
         acoes = `<button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>
                  <button class="btn btn--danger" data-cargas-acao="no-show" data-cargas-placa="${escapeAttr(item.placa)}">No Show</button>`;
-      } else if (cargasPodeGerenciarDisponibilidade && cargasFiltroAtivo === 'DISPONIVEL') {
-        acoes = `<button class="btn" data-cargas-acao="encerrar-disponibilidade" data-cargas-placa="${escapeAttr(item.placa)}">Retirar da lista</button>`;
+      } else if (cargasFiltroAtivo === 'DISPONIVEL') {
+        // "Mover pra Separação" (2026-09-17, pedido da usuária: "ter a opção de colocar o
+        // motorista em alguma categoria de Separação" direto no card de Disponíveis) — precisa
+        // de cargasPodeEditar (não só cargasPodeGerenciarDisponibilidade) porque grava em
+        // statusCarga, ver moverDisponibilidadeParaSeparacao (firebase-init.js).
+        const moverHtml = cargasPodeEditar
+          ? `<select class="cargas-mover-select" data-cargas-mover-select="${escapeAttr(item.placa)}">
+               <option value="NAO_INICIADA">Separação Não Iniciada</option>
+               <option value="EM_SEPARACAO">Separação Iniciada</option>
+               <option value="SEPARADO">Separado</option>
+             </select>
+             <button class="btn btn--primary" data-cargas-acao="mover-separacao" data-cargas-placa="${escapeAttr(item.placa)}">Mover</button>`
+          : '';
+        const retirarHtml = cargasPodeGerenciarDisponibilidade
+          ? `<button class="btn" data-cargas-acao="encerrar-disponibilidade" data-cargas-placa="${escapeAttr(item.placa)}">Retirar da lista</button>`
+          : '';
+        acoes = `${moverHtml}${retirarHtml}`;
       }
 
       return `
@@ -7441,6 +7456,11 @@ const Dashboard = (() => {
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
         else if (acao === 'ativar') await cargasDashFirebase.ativarStatusCarga(placa);
         else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
+        else if (acao === 'mover-separacao') {
+          const selectMover = wrap.querySelector(`[data-cargas-mover-select="${CSS.escape(placa)}"]`);
+          const novoStatus = selectMover ? selectMover.value : 'NAO_INICIADA';
+          await cargasDashFirebase.moverDisponibilidadeParaSeparacao(placa, novoStatus, '');
+        }
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao atualizar.', 'error');
         botao.disabled = false;
