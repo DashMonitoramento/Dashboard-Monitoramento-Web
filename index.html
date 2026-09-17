@@ -1547,9 +1547,10 @@ Segue anexo o relatório atualizado.</textarea>
             <option value="EM_SEPARACAO">Separação Iniciada</option>
             <option value="SEPARADO">Separado</option>
           </select>
-          <select id="cargas-input-rota">
-            <option value="">Rota (opcional)</option>
-          </select>
+          <div class="cargas-autocomplete">
+            <input type="text" id="cargas-input-rota" placeholder="Rota (opcional)" autocomplete="off">
+            <div id="cargas-sugestoes-rota" class="cargas-sugestoes"></div>
+          </div>
           <button id="cargas-btn-adicionar" class="btn btn--primary" disabled>Adicionar</button>
         </div>
 
@@ -2501,11 +2502,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260915c"></script>
+<script type="module" src="js/firebase-init.js?v=20260917a"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260916b"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260917a"></script>
+<script src="js/dashboard.js?v=20260917b"></script>
 <script src="js/script.js?v=20260915a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
