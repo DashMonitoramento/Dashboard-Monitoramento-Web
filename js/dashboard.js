@@ -7179,12 +7179,13 @@ const Dashboard = (() => {
   }
 
   function renderControleCargasCards() {
-    const contagem = { NAO_INICIADA: 0, EM_SEPARACAO: 0, SEPARADO: 0, CARREGADO: 0, DISPONIVEL: 0 };
+    const contagem = { NAO_INICIADA: 0, EM_SEPARACAO: 0, SEPARADO: 0, CARREGADO: 0, RETORNOU: 0, DISPONIVEL: 0 };
     cargasStatusCarga.forEach(s => { if (contagem[s.status] !== undefined) contagem[s.status]++; });
     cargasDisponibilidade.forEach(d => { if (d.status === 'DISPONIVEL') contagem.DISPONIVEL++; });
     const mapaIds = {
       NAO_INICIADA: 'cargas-count-nao-iniciada', EM_SEPARACAO: 'cargas-count-em-separacao',
-      SEPARADO: 'cargas-count-separado', CARREGADO: 'cargas-count-carregado', DISPONIVEL: 'cargas-count-disponiveis'
+      SEPARADO: 'cargas-count-separado', CARREGADO: 'cargas-count-carregado',
+      RETORNOU: 'cargas-count-retornou', DISPONIVEL: 'cargas-count-disponiveis'
     };
     Object.entries(mapaIds).forEach(([chave, id]) => {
       const el = document.getElementById(id);
@@ -7207,15 +7208,15 @@ const Dashboard = (() => {
 
   const CARGAS_LABEL_FILTRO = {
     NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada',
-    SEPARADO: 'Separado', CARREGADO: 'Carregado', DISPONIVEL: 'Motoristas Disponíveis',
-    NOSHOW: 'No Show'
+    SEPARADO: 'Separado', CARREGADO: 'Carregado', RETORNOU: 'Retornou p/ Nova Carga',
+    DISPONIVEL: 'Motoristas Disponíveis', NOSHOW: 'No Show'
   };
   // Mesmas cores dos cards KPI (--kpi-accent) desta tela, via classe .badge já genérica do
   // resto do site — mantém a mesma semântica de cor (vermelho=não iniciado, amarelo=em
   // andamento, verde=pronto) na busca "Onde está esse motorista?" abaixo.
   const CARGAS_BADGE_CLASSE_STATUS = {
     NAO_INICIADA: 'badge--danger', EM_SEPARACAO: 'badge--warning', SEPARADO: 'badge--success',
-    CARREGADO: 'badge--info'
+    CARREGADO: 'badge--info', RETORNOU: 'badge--neutral'
   };
 
   /** "Onde está esse motorista?" (2026-09-17, pedido da usuária): devolve o HTML da etapa atual
@@ -7367,6 +7368,25 @@ const Dashboard = (() => {
         // quando o motorista não carregou; ver marcarNoShowStatusCarga (firebase-init.js).
         acoes = `<button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>
                  <button class="btn btn--danger" data-cargas-acao="no-show" data-cargas-placa="${escapeAttr(item.placa)}">No Show</button>`;
+      } else if (cargasPodeEditar && cargasFiltroAtivo === 'CARREGADO') {
+        // "Voltou p/ Nova Carga" (2026-09-17, pedido da usuária: motorista já entregou a rota e
+        // já voltou pra carregar outra mercadoria no mesmo dia) — transição de status como
+        // qualquer outra (definirStatusCarga), só que pro status novo RETORNOU.
+        acoes = `<button class="btn btn--primary" data-cargas-acao="retornou" data-cargas-placa="${escapeAttr(item.placa)}">Voltou p/ Nova Carga</button>`;
+      } else if (cargasFiltroAtivo === 'RETORNOU') {
+        // Mesmo padrão "mover" do card Disponível (seletor + botão Mover) — mas aqui a origem já
+        // é um doc de statusCarga, então o clique chama definirStatusCarga direto (sem lote
+        // atômico com disponibilidade), ver bindControleCargasAcoes.
+        const moverHtml = cargasPodeEditar
+          ? `<select class="cargas-mover-select" data-cargas-mover-select="${escapeAttr(item.placa)}">
+               <option value="NAO_INICIADA">Separação Não Iniciada</option>
+               <option value="EM_SEPARACAO">Separação Iniciada</option>
+               <option value="SEPARADO">Separado</option>
+             </select>
+             <button class="btn btn--primary" data-cargas-acao="mover-separacao" data-cargas-placa="${escapeAttr(item.placa)}">Mover</button>
+             <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`
+          : '';
+        acoes = moverHtml;
       } else if (cargasFiltroAtivo === 'DISPONIVEL') {
         // "Mover pra Separação" (2026-09-17, pedido da usuária: "ter a opção de colocar o
         // motorista em alguma categoria de Separação" direto no card de Disponíveis) — precisa
@@ -7501,13 +7521,22 @@ const Dashboard = (() => {
         const rotaAtual = (cargasStatusCarga.get(placa) || {}).rota || '';
         if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', rotaAtual);
         else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual);
+        else if (acao === 'retornou') await cargasDashFirebase.definirStatusCarga(placa, 'RETORNOU', rotaAtual);
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
         else if (acao === 'ativar') await cargasDashFirebase.ativarStatusCarga(placa);
         else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
         else if (acao === 'mover-separacao') {
           const selectMover = wrap.querySelector(`[data-cargas-mover-select="${CSS.escape(placa)}"]`);
           const novoStatus = selectMover ? selectMover.value : 'NAO_INICIADA';
-          await cargasDashFirebase.moverDisponibilidadeParaSeparacao(placa, novoStatus, '');
+          // Vindo do card Disponível, ainda não existe doc em statusCarga — precisa do lote
+          // atômico que também encerra a disponibilidade. Vindo do card Retornou, já existe um
+          // doc de statusCarga (status RETORNOU) — só muda o status dele, como qualquer outra
+          // transição de separação.
+          if (cargasFiltroAtivo === 'DISPONIVEL') {
+            await cargasDashFirebase.moverDisponibilidadeParaSeparacao(placa, novoStatus, '');
+          } else {
+            await cargasDashFirebase.definirStatusCarga(placa, novoStatus, rotaAtual);
+          }
         }
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao atualizar.', 'error');
