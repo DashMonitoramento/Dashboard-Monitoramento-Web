@@ -425,6 +425,15 @@ const Dashboard = (() => {
   let cargasPodeGerenciarDisponibilidade = false;
   let cargasUltimaVerificacaoNoShow = '';
   let cargasCarregamentoTentativas = new Set(); // placas já tentadas nesta sessão de página (ver verificarCarregamentoStatusCarga)
+  // Placa -> Date.now() (relógio LOCAL do navegador) de quando ESTA aba acabou de marcar essa
+  // placa como SEPARADO (2026-09-19, bug real: promoção automática pra Carregado acontecendo em
+  // segundos, não nos 2min de carência esperados). O prazo de carência original compara
+  // Date.now() (relógio do CLIENTE) contra o `atualizadoEm` (relógio do SERVIDOR do Firestore) —
+  // se o relógio do computador dela estiver adiantado (comum, sem sincronização automática),
+  // toda escrita nova já nasce "parecendo" ter mais de 2min de idade, furando a carência na
+  // hora. Este mapa é um 2º reforço que NUNCA mistura relógio local com relógio de servidor —
+  // só compara Date.now() com outro Date.now() anotado segundos antes, na mesma aba.
+  let cargasSeparadoTocadoLocalmente = new Map();
   let cargasNoShowPlacaAlvo = null; // placa aguardando confirmação no modal "Motivo do No Show"
   let cargasAvisoAtual = null; // aviso aos motoristas em vigor (ou null) — ver renderControleCargasAviso
   let cargasAvisoHistorico = []; // últimos 20 avisos já enviados — ver renderControleCargasAvisoHistorico
@@ -7520,7 +7529,10 @@ const Dashboard = (() => {
         // -- aqui, ao só mover de status, mantém a rota que já estava salva nesse documento.
         const rotaAtual = (cargasStatusCarga.get(placa) || {}).rota || '';
         if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', rotaAtual);
-        else if (acao === 'separar') await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual);
+        else if (acao === 'separar') {
+          cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(placa), Date.now());
+          await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual);
+        }
         else if (acao === 'retornou') await cargasDashFirebase.definirStatusCarga(placa, 'RETORNOU', rotaAtual);
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
         else if (acao === 'ativar') await cargasDashFirebase.ativarStatusCarga(placa);
@@ -7528,6 +7540,7 @@ const Dashboard = (() => {
         else if (acao === 'mover-separacao') {
           const selectMover = wrap.querySelector(`[data-cargas-mover-select="${CSS.escape(placa)}"]`);
           const novoStatus = selectMover ? selectMover.value : 'NAO_INICIADA';
+          if (novoStatus === 'SEPARADO') cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(placa), Date.now());
           // Vindo do card Disponível, ainda não existe doc em statusCarga — precisa do lote
           // atômico que também encerra a disponibilidade. Vindo do card Retornou, já existe um
           // doc de statusCarga (status RETORNOU) — só muda o status dele, como qualquer outra
@@ -7607,6 +7620,7 @@ const Dashboard = (() => {
       const rota = inputRota ? inputRota.value.trim() : '';
       btnAdicionar.disabled = true;
       try {
+        if (status === 'SEPARADO') cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(cargasMotoristaSelecionadoParaAdicionar), Date.now());
         await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status, rota);
         input.value = '';
         if (inputRota) inputRota.value = '';
@@ -7846,6 +7860,11 @@ const Dashboard = (() => {
     // automação de quem já está Separado há mais tempo (o caso de uso original, 2026-09-08).
     const candidatos = separados.filter(s => {
       if (cargasCarregamentoTentativas.has(s.id)) return false;
+      // Reforço com relógio 100% local (ver cargasSeparadoTocadoLocalmente acima) — checado
+      // ANTES do relógio de servidor, pra nunca depender de o relógio do computador dela estar
+      // certo.
+      const tocadoLocalmente = cargasSeparadoTocadoLocalmente.get(s.id);
+      if (tocadoLocalmente && (Date.now() - tocadoLocalmente) < 120000) return false;
       const dataAtualizacao = cargasTimestampParaData(s.atualizadoEm);
       // Sem timestamp resolvido ainda (serverTimestamp() pendente de confirmação do servidor)
       // conta como "recente demais" — espera o próximo snapshot, não arrisca promover cedo.
