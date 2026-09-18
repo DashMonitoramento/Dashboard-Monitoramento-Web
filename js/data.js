@@ -2066,47 +2066,41 @@ const DataStore = (() => {
 
   const AUDITORIA_EMBARQUES_TOLERANCIA_PESO = 0.05;
   const AUDITORIA_EMBARQUES_TOLERANCIA_VALOR = 0.05;
-  // Achado com dado real (2026-09-16, caso concreto trazido pela usuária: embarque 6133816,
-  // placa FOF1I46 — peso e valor batiam EXATAMENTE com um registro faturado da Bluesoft, só a
-  // data divergia por 1 dia — Data Embarque 16/09 vs Data Faturamento 15/09) — mesmo viés já
-  // demonstrado quando esta auditoria foi criada (Data Embarque tende a vir ANTES da Data de
-  // Faturamento, "carrega o caminhão, fatura dias depois"). Mesma tolerância (3 dias) já usada
-  // no cruzamento Placa+Dia de Transportadora/Motorista do Indicador de Frete
-  // (TOLERANCIA_DIAS_CRUZAMENTO_FRETE, js/dashboard.js) — consistente com o resto do dashboard,
-  // e testado contra dado real antes de publicar: cai de 3.363 pra 2.176 "Não Criado" (Agregado).
-  const AUDITORIA_EMBARQUES_TOLERANCIA_DIAS = 3;
+  // A tolerância de dias que existia aqui (pra cruzar contra `r.dataFaturamento`) foi removida
+  // em 2026-09-18 — a chave trocou pra Data de Coleta x Data Embarque, que bate exato (ver
+  // comentário de calcularAuditoriaEmbarques abaixo), tolerância de dias deixou de fazer sentido.
 
-  /** "Auditoria de Embarques" (2026-09-14) — verifica se toda viagem já FATURADA (Base
+  /** "Auditoria de Embarques" (2026-09-14) — verifica se toda viagem já COLETADA (Base
    * Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", comparando Peso e
-   * Valor consolidados. Chave: placa normalizada + data (Data de Faturamento do lado Bluesoft —
-   * e Data Embarque do lado Indicador), só a parte de data, sem hora.
+   * Valor consolidados. Chave: placa normalizada + data, só a parte de data, sem hora.
    *
-   * **Bug real corrigido (2026-09-18)**: a data usada aqui era só `r.dataFaturamento` (resultado
-   * do cruzamento com a Base BI em applyFaturamentoEnrichment) — mas essa função SÓ preenche
-   * esse campo quando a NF (pelo número base, sem o "-N") existe na planilha separada de
-   * Faturamento; sem essa entrada, `r.dataFaturamento` fica `null` PRA SEMPRE, mesmo a Bluesoft
-   * já tendo sua PRÓPRIA "Data Faturamento Bluesoft" (`r.dataFaturamentoBluesoft`) preenchida.
-   * Caso real que expôs o bug: embarque 6135215/Viagem 449622 aparecia "Incompleto" citando as
-   * notas 691-2/692-2 — essas notas são de OUTRA viagem (450726/embarque 6144288); as 4 notas
-   * irmãs de 691-2/692-2 dentro da viagem 450726 (196345-1/196346-1/196347-1/196348-1) não
-   * tinham entrada na planilha de Faturamento e sumiam silenciosamente em `semChave`, deixando
-   * só 691-2/692-2 formarem um grupo incompleto (peso/valor de só 2 das 6 notas) que, dentro da
-   * tolerância de dias, acabou batendo por acaso com o embarque errado (6135215) em vez do certo
-   * (6144288). Fix: usa `r.dataFaturamento || r.dataFaturamentoBluesoft` só AQUI (não mexe em
-   * `applyFaturamentoEnrichment`, que serve outros relatórios com semântica própria) — mantém a
-   * data mais confiável (Base BI) quando ela existe, e cai pra data própria da Bluesoft só
-   * quando a Base BI nunca teve essa NF, garantindo que TODA nota com alguma data de faturamento
-   * entre no agrupamento, nunca uma viagem real ficando pela metade.
+   * **Chave corrigida (2026-09-18, pedido explícito dela)**: o lado Bluesoft usa `r.dataEntrega`
+   * — que apesar do nome é a "Data de Coleta" (coluna H da aba "Base Bluesoft"; nome trocado
+   * entre reimportações, ver `Achar-ColunaPorCabecalho $sheet @('Data de Entrega', 'Data de
+   * Coleta')` no script de extração, e [[project_dashboard_january_gap]]) — contra `i.dataEmbarque`
+   * ("Data Embarque", coluna N da aba "Indicador de Frete"). Ela confirmou que essas duas datas
+   * SEMPRE batem exato pra um embarque real (validado com dado real: quando existe embarque
+   * verdadeiro pra uma coleta, a distância é 0 dias em ~83% dos casos e cai rapidamente pra
+   * poucos dias nos raros restantes — bem diferente da tentativa anterior, que cruzava contra
+   * `r.dataFaturamento`, um campo mais tardio e SEM relação direta de 1 dia com a Data Embarque,
+   * daí a necessidade da janela de tolerância de 3 dias + desempate por peso/valor que existia
+   * antes). Confirmado nos 2 casos reais da conversa: embarque 6135215 (Viagem 449622) e 6144288
+   * (Viagem 450726) — as duas batem em peso E valor EXATOS usando Data de Coleta = Data Embarque
+   * no mesmo dia, sem nenhuma tolerância.
    *
-   * Universo = todo grupo que existe do lado Bluesoft (viagens faturadas); um embarque sem
-   * nenhuma NF faturada correspondente fica de fora (a pergunta é "toda viagem faturada tem
-   * embarque", não o inverso).
-   * Registro Bluesoft sem placa OU sem nenhuma Data de Faturamento (nem Base BI, nem Bluesoft)
-   * não forma chave nenhuma — cai em `semChave` (não auditável, nem dá pra saber de qual
-   * dia/placa seria). Registro com placa+data mas peso/valor ausente ou <= 0 vira status
-   * ERRO_DADOS pro grupo inteiro (não silenciosamente 0 nem "viagem grátis" legítima —
-   * `parseMoney('')` já devolve 0 por padrão em todo o resto do dashboard, mas aqui isso precisa
-   * ficar visível como problema).
+   * Cruzamento agora é EXATO (mesma chave placa+dia dos dois lados, sem janela de dias nem
+   * desempate por score) — mais simples E mais preciso pra este par de datas específico. A
+   * tentativa anterior (`r.dataFaturamento`, com fallback pra `r.dataFaturamentoBluesoft` e
+   * tolerância de 3 dias) fica só de referência histórica no changelog, não é mais usada aqui.
+   *
+   * Universo = todo grupo que existe do lado Bluesoft (viagens coletadas); um embarque sem
+   * nenhuma NF correspondente fica de fora (a pergunta é "toda viagem já coletada tem embarque
+   * criado", não o inverso).
+   * Registro Bluesoft sem placa OU sem Data de Coleta não forma chave nenhuma — cai em
+   * `semChave` (não auditável, nem dá pra saber de qual dia/placa seria). Registro com
+   * placa+data mas peso/valor ausente ou <= 0 vira status ERRO_DADOS pro grupo inteiro (não
+   * silenciosamente 0 nem "viagem grátis" legítima — `parseMoney('')` já devolve 0 por padrão
+   * em todo o resto do dashboard, mas aqui isso precisa ficar visível como problema).
    * `tipoTransporte` (2026-09-15, pedido da usuária) filtra os registros da Base Bluesoft por
    * `r.tipoTransporte` (coluna "Categoria") ANTES de agrupar — só "Agregado" realmente precisa
    * ter embarque criado no Indicador de Frete; Transportadora (CT-e)/Próprio Retira/Exportação
@@ -2119,9 +2113,8 @@ const DataStore = (() => {
     for (const r of rawRecords) {
       if (tipoTransporte && r.tipoTransporte !== tipoTransporte) continue;
       const placaNormalizada = String(r.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      const dataFaturamentoAuditoria = r.dataFaturamento || r.dataFaturamentoBluesoft;
-      if (!placaNormalizada || !dataFaturamentoAuditoria) { semChave++; continue; }
-      const data = Utils.startOfDay(dataFaturamentoAuditoria);
+      if (!placaNormalizada || !r.dataEntrega) { semChave++; continue; }
+      const data = Utils.startOfDay(r.dataEntrega);
       const chave = `${placaNormalizada}|${data.getTime()}`;
       if (!gruposBluesoft.has(chave)) {
         gruposBluesoft.set(chave, { placa: placaNormalizada, placaOriginal: r.placa, data, registros: [] });
@@ -2129,16 +2122,14 @@ const DataStore = (() => {
       gruposBluesoft.get(chave).registros.push(r);
     }
 
-    // Indexado só por PLACA (não mais placa+dia exato) — o cruzamento abaixo busca o(s)
-    // embarque(s) mais PRÓXIMO(s) da Data de Faturamento dentro da tolerância, mesmo padrão já
-    // usado em cruzarPlacaDiaMaisProximo (dashboard.js) pro cruzamento de Transportadora/
-    // Motorista desta mesma fonte.
-    const indicadorPorPlaca = new Map(); // placa -> [{ tempo, item }]
+    // Mesma chave placa+dia exato dos dois lados (ver comentário da função) — cruzamento direto
+    // por Map, sem busca por proximidade nem desempate.
+    const indicadorPorChave = new Map(); // chave -> item[]
     for (const i of indicadorFreteRecords) {
       if (!i.placa || !i.dataEmbarque) continue;
-      const tempo = Utils.startOfDay(i.dataEmbarque).getTime();
-      if (!indicadorPorPlaca.has(i.placa)) indicadorPorPlaca.set(i.placa, []);
-      indicadorPorPlaca.get(i.placa).push({ tempo, item: i });
+      const chave = `${i.placa}|${Utils.startOfDay(i.dataEmbarque).getTime()}`;
+      if (!indicadorPorChave.has(chave)) indicadorPorChave.set(chave, []);
+      indicadorPorChave.get(chave).push(i);
     }
 
     const grupos = [];
@@ -2157,42 +2148,7 @@ const DataStore = (() => {
       }
       const viagens = Array.from(viagensMap.values());
 
-      // Embarque(s) mais próximo(s) da Data de Faturamento, dentro da tolerância de dias.
-      // Agrupa candidatos por DIA exato primeiro (embarques do MESMO dia continuam juntos, é o
-      // caso normal de "2 embarques criados pra mesma placa no mesmo dia") — só quando o empate
-      // de distância é entre DIAS DIFERENTES (ex.: 1 dia antes e 1 dia depois, achado com dado
-      // real: placa FOF1I46, embarque 6122442 em 14/09 vs 6133816 em 16/09, ambos a 1 dia de uma
-      // Bluesoft faturada em 15/09) é que desempata pelo dia cujo peso/valor somado fica mais
-      // perto do que já foi faturado — nunca soma os dois dias como se fossem o mesmo embarque,
-      // isso inflaria peso/valor e classificaria como INCOMPLETO um caso que na verdade bate
-      // certinho com só um dos dois.
-      const candidatosIndicador = (indicadorPorPlaca.get(g.placa) || [])
-        .filter(c => Math.abs(c.tempo - g.data.getTime()) / 86400000 <= AUDITORIA_EMBARQUES_TOLERANCIA_DIAS);
-      let itensIndicador = [];
-      if (candidatosIndicador.length) {
-        const porDia = new Map(); // tempo -> itens[]
-        candidatosIndicador.forEach(c => {
-          if (!porDia.has(c.tempo)) porDia.set(c.tempo, []);
-          porDia.get(c.tempo).push(c.item);
-        });
-        const dias = Array.from(porDia.keys());
-        const menorDistancia = Math.min(...dias.map(t => Math.abs(t - g.data.getTime())));
-        const diasEmpatados = dias.filter(t => Math.abs(t - g.data.getTime()) === menorDistancia);
-        if (diasEmpatados.length === 1) {
-          itensIndicador = porDia.get(diasEmpatados[0]);
-        } else {
-          let melhorDia = diasEmpatados[0];
-          let melhorScore = Infinity;
-          diasEmpatados.forEach(t => {
-            const itens = porDia.get(t);
-            const pesoDia = Utils.sum(itens, i => i.peso);
-            const valorDia = Utils.sum(itens, i => i.valorTotalNFs);
-            const score = Math.abs(pesoBluesoft - pesoDia) + Math.abs(valorBluesoft - valorDia);
-            if (score < melhorScore) { melhorScore = score; melhorDia = t; }
-          });
-          itensIndicador = porDia.get(melhorDia);
-        }
-      }
+      const itensIndicador = indicadorPorChave.get(chave) || [];
       const existeEmbarque = itensIndicador.length > 0;
       const pesoEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.peso) : null;
       const valorEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.valorTotalNFs) : null;
