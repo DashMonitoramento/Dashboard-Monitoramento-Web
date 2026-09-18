@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260917b">
+<link rel="stylesheet" href="css/style.css?v=20260919a">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1536,10 +1536,6 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__label">Carregado</span>
             <span class="kpi-card__value" id="cargas-count-carregado">0</span>
           </article>
-          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="RETORNOU" style="--kpi-accent:#64748B" title="Ver motoristas que já entregaram e voltaram pra carregar outra carga">
-            <span class="kpi-card__label">Retornou p/ Nova Carga</span>
-            <span class="kpi-card__value" id="cargas-count-retornou">0</span>
-          </article>
           <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="DISPONIVEL" style="--kpi-accent:#2563EB" title="Ver motoristas que avisaram disponibilidade">
             <span class="kpi-card__label">Motoristas Disponíveis</span>
             <span class="kpi-card__value" id="cargas-count-disponiveis">0</span>
@@ -2515,11 +2511,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260917b"></script>
+<script type="module" src="js/firebase-init.js?v=20260919a"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260918b"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260919a"></script>
+<script src="js/dashboard.js?v=20260919b"></script>
 <script src="js/script.js?v=20260915a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
