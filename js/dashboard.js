@@ -7810,7 +7810,14 @@ const Dashboard = (() => {
 
   async function verificarCarregamentoStatusCarga() {
     if (!cargasDashFirebase) return;
-    const separados = Array.from(cargasStatusCarga.values()).filter(s => s.status === 'SEPARADO');
+    // `duplicado` (2026-09-19, bug real reportado por ela) fica de fora da automação — essa
+    // placa já tinha uma 1ª carga "Em trânsito" hoje (foi exatamente por isso que virou
+    // Carregado antes); a automação abaixo só sabe checar "essa placa está Em Trânsito hoje?",
+    // sem noção de "1ª ou 2ª carga do dia" — pra uma placa duplicada isso é SEMPRE verdadeiro,
+    // então promovia de volta pra Carregado assim que os 2min de carência passavam, apagando a
+    // 2ª carga que ela acabou de separar. Enquanto for `duplicado`, só uma ação manual dela (ex.:
+    // barra "Adicionar", escolhendo Carregado) deve tirar essa placa do Separado.
+    const separados = Array.from(cargasStatusCarga.values()).filter(s => s.status === 'SEPARADO' && !s.duplicado);
     if (!separados.length) return;
     const registros = DataStore.getRecords();
     if (!registros.length) return;
