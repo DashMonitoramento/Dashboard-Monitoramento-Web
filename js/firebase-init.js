@@ -578,6 +578,11 @@ async function definirStatusCarga(placaBruta, novoStatus, rota, visivel = true) 
   const refAtual = doc(db, STATUS_CARGA_COLECAO, placa);
   const snapAtual = await getDoc(refAtual);
   const statusAnterior = snapAtual.exists() ? snapAtual.data().status : null;
+  // `duplicado` (2026-09-19, pedido da usuária): motorista que JÁ tinha ido pra Carregado hoje e
+  // está sendo colocado de novo em Separado (2ª carga no mesmo dia) — ela pediu pra deixar essa
+  // duplicidade acontecer normalmente (sem etapa/card intermediário — removeu o "Retornou p/
+  // Nova Carga" de propósito), só sinalizando visualmente (nome em verde, ver dashboard.js).
+  const duplicado = statusAnterior === 'CARREGADO' && novoStatus === 'SEPARADO';
 
   const lote = writeBatch(db);
   // Rota é digitada manualmente pela equipe (pedido da usuária, 2026-09-04: "quero adicionar a
@@ -590,7 +595,7 @@ async function definirStatusCarga(placaBruta, novoStatus, rota, visivel = true) 
   // verificarCarregamentoStatusCarga) sobrescreve pra `true` de novo -- não tem porque esconder
   // do motorista alguém que já está sendo mexido de verdade.
   lote.set(refAtual, {
-    placa, status: novoStatus, rota: rota || '', visivel, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    placa, status: novoStatus, rota: rota || '', visivel, duplicado, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistorico, {
@@ -761,10 +766,15 @@ async function moverDisponibilidadeParaSeparacao(placaBruta, novoStatus, rota) {
   const refStatus = doc(db, STATUS_CARGA_COLECAO, placa);
   const snapStatus = await getDoc(refStatus);
   const statusAnterior = snapStatus.exists() ? snapStatus.data().status : null;
+  // `duplicado` (2026-09-19) — mesmo critério de definirStatusCarga: cobre o caso raro dessa
+  // placa já ter um doc de statusCarga CARREGADO (de uma carga anterior no mesmo dia) enquanto
+  // também aparecia em Disponível (avisou disponibilidade de novo antes de alguém retirar o
+  // status antigo).
+  const duplicado = statusAnterior === 'CARREGADO' && novoStatus === 'SEPARADO';
 
   const lote = writeBatch(db);
   lote.set(refStatus, {
-    placa, status: novoStatus, rota: rota || '', visivel: true, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    placa, status: novoStatus, rota: rota || '', visivel: true, duplicado, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistoricoStatus = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistoricoStatus, {
