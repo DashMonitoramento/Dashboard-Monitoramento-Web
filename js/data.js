@@ -2079,16 +2079,34 @@ const DataStore = (() => {
   /** "Auditoria de Embarques" (2026-09-14) — verifica se toda viagem já FATURADA (Base
    * Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", comparando Peso e
    * Valor consolidados. Chave: placa normalizada + data (Data de Faturamento do lado Bluesoft —
-   * `r.dataFaturamento` já é o resultado do cruzamento com a Base BI que roda em
-   * applyFaturamentoEnrichment, não precisa refazer esse join aqui — e Data Embarque do lado
-   * Indicador), só a parte de data, sem hora. Universo = todo grupo que existe do lado Bluesoft
-   * (viagens faturadas); um embarque sem nenhuma NF faturada correspondente fica de fora (a
-   * pergunta é "toda viagem faturada tem embarque", não o inverso).
-   * Registro Bluesoft sem placa OU sem Data de Faturamento não forma chave nenhuma — cai em
-   * `semChave` (não auditável, nem dá pra saber de qual dia/placa seria). Registro com
-   * placa+data mas peso/valor ausente ou <= 0 vira status ERRO_DADOS pro grupo inteiro (não
-   * silenciosamente 0 nem "viagem grátis" legítima — `parseMoney('')` já devolve 0 por padrão
-   * em todo o resto do dashboard, mas aqui isso precisa ficar visível como problema).
+   * e Data Embarque do lado Indicador), só a parte de data, sem hora.
+   *
+   * **Bug real corrigido (2026-09-18)**: a data usada aqui era só `r.dataFaturamento` (resultado
+   * do cruzamento com a Base BI em applyFaturamentoEnrichment) — mas essa função SÓ preenche
+   * esse campo quando a NF (pelo número base, sem o "-N") existe na planilha separada de
+   * Faturamento; sem essa entrada, `r.dataFaturamento` fica `null` PRA SEMPRE, mesmo a Bluesoft
+   * já tendo sua PRÓPRIA "Data Faturamento Bluesoft" (`r.dataFaturamentoBluesoft`) preenchida.
+   * Caso real que expôs o bug: embarque 6135215/Viagem 449622 aparecia "Incompleto" citando as
+   * notas 691-2/692-2 — essas notas são de OUTRA viagem (450726/embarque 6144288); as 4 notas
+   * irmãs de 691-2/692-2 dentro da viagem 450726 (196345-1/196346-1/196347-1/196348-1) não
+   * tinham entrada na planilha de Faturamento e sumiam silenciosamente em `semChave`, deixando
+   * só 691-2/692-2 formarem um grupo incompleto (peso/valor de só 2 das 6 notas) que, dentro da
+   * tolerância de dias, acabou batendo por acaso com o embarque errado (6135215) em vez do certo
+   * (6144288). Fix: usa `r.dataFaturamento || r.dataFaturamentoBluesoft` só AQUI (não mexe em
+   * `applyFaturamentoEnrichment`, que serve outros relatórios com semântica própria) — mantém a
+   * data mais confiável (Base BI) quando ela existe, e cai pra data própria da Bluesoft só
+   * quando a Base BI nunca teve essa NF, garantindo que TODA nota com alguma data de faturamento
+   * entre no agrupamento, nunca uma viagem real ficando pela metade.
+   *
+   * Universo = todo grupo que existe do lado Bluesoft (viagens faturadas); um embarque sem
+   * nenhuma NF faturada correspondente fica de fora (a pergunta é "toda viagem faturada tem
+   * embarque", não o inverso).
+   * Registro Bluesoft sem placa OU sem nenhuma Data de Faturamento (nem Base BI, nem Bluesoft)
+   * não forma chave nenhuma — cai em `semChave` (não auditável, nem dá pra saber de qual
+   * dia/placa seria). Registro com placa+data mas peso/valor ausente ou <= 0 vira status
+   * ERRO_DADOS pro grupo inteiro (não silenciosamente 0 nem "viagem grátis" legítima —
+   * `parseMoney('')` já devolve 0 por padrão em todo o resto do dashboard, mas aqui isso precisa
+   * ficar visível como problema).
    * `tipoTransporte` (2026-09-15, pedido da usuária) filtra os registros da Base Bluesoft por
    * `r.tipoTransporte` (coluna "Categoria") ANTES de agrupar — só "Agregado" realmente precisa
    * ter embarque criado no Indicador de Frete; Transportadora (CT-e)/Próprio Retira/Exportação
@@ -2101,8 +2119,9 @@ const DataStore = (() => {
     for (const r of rawRecords) {
       if (tipoTransporte && r.tipoTransporte !== tipoTransporte) continue;
       const placaNormalizada = String(r.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (!placaNormalizada || !r.dataFaturamento) { semChave++; continue; }
-      const data = Utils.startOfDay(r.dataFaturamento);
+      const dataFaturamentoAuditoria = r.dataFaturamento || r.dataFaturamentoBluesoft;
+      if (!placaNormalizada || !dataFaturamentoAuditoria) { semChave++; continue; }
+      const data = Utils.startOfDay(dataFaturamentoAuditoria);
       const chave = `${placaNormalizada}|${data.getTime()}`;
       if (!gruposBluesoft.has(chave)) {
         gruposBluesoft.set(chave, { placa: placaNormalizada, placaOriginal: r.placa, data, registros: [] });
