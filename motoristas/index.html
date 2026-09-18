@@ -260,6 +260,16 @@ h1,h2,h3,p{margin:0;}
     </div>
   </div>
 
+  <!-- ===================== TELA: JÁ ESTÁ EM SEPARAÇÃO ===================== -->
+  <div id="tela-ja-em-separacao" class="tela">
+    <div class="tela-resultado">
+      <div class="tela-resultado__icone badge-azul">ℹ️</div>
+      <h2 class="tela-resultado__titulo">Este veículo já está em separação</h2>
+      <p class="tela-resultado__texto">Etapa atual: <strong id="ja-em-separacao-etapa"></strong>. Não é possível avisar disponibilidade enquanto a carga estiver nessa etapa.</p>
+      <button type="button" class="btn-secundario" data-voltar-home>Voltar ao início</button>
+    </div>
+  </div>
+
   <!-- ===================== TELA: CONFIRMAR DADOS ===================== -->
   <div id="tela-confirmar" class="tela">
     <button type="button" class="tela-voltar" data-voltar-placa>← Voltar</button>
@@ -587,6 +597,22 @@ $('btn-continuar-placa').addEventListener('click', () => {
   if (!motorista) { mostrarTela('nao-encontrada'); return; }
 
   placaEmFluxo = placa;
+
+  // Bloqueio de disponibilidade durante a separação (2026-09-19, pedido da usuária): motorista
+  // avisando disponibilidade de novo enquanto já está numa etapa de separação confundia o
+  // painel dela — ele passava a aparecer só em "Motoristas Disponíveis", como se tivesse saído
+  // da separação. Carregado fica de fora do bloqueio de propósito (nesse ponto ele já entregou,
+  // avisar disponibilidade de novo é legítimo).
+  const ETAPAS_SEPARACAO_BLOQUEIAM = {
+    NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada', SEPARADO: 'Separado'
+  };
+  const statusAtual = statusCarga.get(placa);
+  if (statusAtual && ETAPAS_SEPARACAO_BLOQUEIAM[statusAtual.status]) {
+    $('ja-em-separacao-etapa').textContent = ETAPAS_SEPARACAO_BLOQUEIAM[statusAtual.status];
+    mostrarTela('ja-em-separacao');
+    return;
+  }
+
   const disp = disponibilidade.get(placa);
   if (disp && disp.status === 'DISPONIVEL') {
     const data = timestampParaData(disp.disponibilizadoEm);
