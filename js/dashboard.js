@@ -5037,7 +5037,7 @@ const Dashboard = (() => {
         <div class="auditoria-embarques-detalhe">
           <div class="auditoria-embarques-detalhe__bloco">
             <h4>Auditoria do embarque</h4>
-            <p>Placa: <strong>${escapeAttr(g.placaOriginal)}</strong> · Data de faturamento: <strong>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</strong></p>
+            <p>Placa: <strong>${escapeAttr(g.placaOriginal)}</strong> · Data de coleta: <strong>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</strong></p>
             <p>Viagens: ${g.qtdViagensLinha == null ? '—' : g.qtdViagensLinha} · NFs: ${g.qtdNfs}${g.transportadoras.length ? ` · Transportador(es) no embarque: ${escapeAttr(g.transportadoras.join(', '))}` : ''}${g.identificadorViagemLinha ? ` · Identificador de viagem: ${escapeAttr(g.identificadorViagemLinha)}` : ''}</p>
           </div>
           <div class="auditoria-embarques-detalhe__grid">
@@ -5105,7 +5105,7 @@ const Dashboard = (() => {
     if (hintSemChave) {
       hintSemChave.hidden = auditoriaEmbarquesSemChave === 0;
       hintSemChave.textContent = auditoriaEmbarquesSemChave > 0
-        ? `${Utils.formatNumber(auditoriaEmbarquesSemChave)} nota(s) faturada(s) sem placa ou sem Data de Faturamento não entraram nesta auditoria (não é possível formar a chave Placa+Data).`
+        ? `${Utils.formatNumber(auditoriaEmbarquesSemChave)} nota(s) sem placa ou sem Data de Coleta não entraram nesta auditoria (não é possível formar a chave Placa+Data).`
         : '';
     }
 
