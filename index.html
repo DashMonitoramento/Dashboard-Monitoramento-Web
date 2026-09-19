@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260919a">
+<link rel="stylesheet" href="css/style.css?v=20260919b">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -1780,11 +1780,10 @@ Segue anexo o relatório atualizado.</textarea>
              R$/kg novo). Grid 2x3 preenchendo a altura toda — ver .indicador-frete-kpis-principais
              em style.css. Só layout: os IDs dos valores continuam os mesmos, renderIndicadorFrete()
              não mudou nada. -->
-        <!-- grid-template-columns via auto-fit (não fixo) — inline style tem especificidade
-             maior que as media queries de .indicador-frete-kpis-principais em css/style.css;
-             como essa linha ganhou 2 cards novos (8 no total), auto-fit se adapta sozinho ao
-             invés de depender de um valor fixo que quebraria no celular. -->
-        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
+        <!-- 4 colunas fixas (2026-09-19, pedido da usuária: 8 cards em 2 linhas de 4, em vez de
+             8 numa linha só) — ver .indicador-frete-kpis-principais--4col em css/style.css pra
+             detalhe de por que não precisa de media query própria aqui. -->
+        <div class="indicador-frete-kpis-principais indicador-frete-kpis-principais--4col">
             <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#0D9488">
               <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
               <span class="indicador-frete-kpi__texto">
@@ -2099,11 +2098,11 @@ Segue anexo o relatório atualizado.</textarea>
              (existiam na versão por Embarque). -->
         <h3 class="chart-card__title" style="margin:24px 0 4px;">Indicador Frete Transportadora</h3>
         <p class="chart-card__hint" style="text-align:left; margin-top:0;">Auditoria por CT-e: valor de frete calculado x valor efetivamente cobrado pela transportadora.</p>
-        <!-- grid-template-columns via auto-fit (não repeat(7,1fr) fixo) — inline style tem
-             especificidade maior que as media queries de .indicador-frete-kpis-principais em
-             css/style.css, então um valor FIXO aqui nunca encolheria no celular; auto-fit se
-             adapta sozinho à largura disponível, sem depender de nenhuma media query. -->
-        <div class="indicador-frete-kpis-principais" style="margin-bottom: 14px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
+        <!-- As 3 linhas (7+3+1 cards) viraram UM grid só de 4 colunas fixas (2026-09-19, pedido
+             da usuária: "a visualização dos números fique melhor" — 7+3+1 ficava desbalanceado;
+             11 cards em 4 colunas dá 4+4+3, bem mais parelho). Ver
+             .indicador-frete-kpis-principais--4col em css/style.css. -->
+        <div class="indicador-frete-kpis-principais indicador-frete-kpis-principais--4col">
           <!-- "Total de CT-es" (2026-09-15, pedido da usuária) — quantidade BRUTA de CT-es no
                período/filtro atual, sem separar auditado/aguardando (diferente de "CT-es
                Auditados", que é só a fatia já com cobrança confirmada). -->
@@ -2169,12 +2168,9 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="kpi-card__sub" id="indicador-frete-transportadora-sub-divergencia">—</span>
             </span>
           </article>
-        </div>
 
-        <!-- Segunda linha — resultado da auditoria (2026-09-10, pedido dela: NUNCA compensar
-             cobrado a maior com cobrado a menor, mostrar os dois valores separados). Cards
-             maiores (3 colunas, não 6) e horizontais, mesmo componente .indicador-frete-kpi. -->
-        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+          <!-- Resultado da auditoria (2026-09-10, pedido dela: NUNCA compensar cobrado a maior
+               com cobrado a menor, mostrar os dois valores separados). -->
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#DC2626">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg></span>
             <span class="indicador-frete-kpi__texto">
@@ -2202,18 +2198,12 @@ Segue anexo o relatório atualizado.</textarea>
               <span class="kpi-card__sub" id="indicador-frete-transportadora-aguardando-pct">—</span>
             </span>
           </article>
-        </div>
 
-        <!-- "Indicadores de Custo" (R$/kg Calculado/Cobrado, % Frete sobre NF) existiam aqui na
-             versão por Embarque (Fase 4, 2026-09-10) — REMOVIDOS na reescrita de 2026-09-11: a
-             fonte nova (por CT-e) não tem Peso/Volumes/Valor Doc. Fiscais, então esses 3
-             indicadores não são mais calculáveis com o dado disponível.
-             "% Frete sobre Valor das Notas" volta aqui em 2026-09-14, mas calculado DIFERENTE
-             da versão antiga: cruza contra a Base Bluesoft por Estado Destino + Período (não
-             tem como cruzar por Transportadora — nome não bate entre as 2 fontes, ver
-             calcularValorNotasFreteTransportadora em dashboard.js). auto-fit faz o card
-             esticar full-width sozinho mesmo sendo 1 só nessa linha. -->
-        <div class="indicador-frete-kpis-principais" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-bottom: 20px;">
+          <!-- "% Frete sobre Valor das Notas" (2026-09-14): calculado DIFERENTE da versão antiga
+               (Fase 4, removida na reescrita de 2026-09-11 por falta de Peso/Volumes na fonte
+               nova) — cruza contra a Base Bluesoft por Estado Destino + Período (não tem como
+               cruzar por Transportadora — nome não bate entre as 2 fontes, ver
+               calcularValorNotasFreteTransportadora em dashboard.js). -->
           <article class="kpi-card indicador-frete-kpi" style="--kpi-accent:#0D9488">
             <span class="indicador-frete-kpi__icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg></span>
             <span class="indicador-frete-kpi__texto">
