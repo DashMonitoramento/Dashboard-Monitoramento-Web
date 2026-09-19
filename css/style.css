@@ -1001,6 +1001,14 @@ ul { list-style: none; margin: 0; padding: 0; }
 .indicador-frete-kpis-principais {
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-bottom: 20px;
 }
+/* Modificador (2026-09-19, pedido da usuária: reorganizar os KPIs do Indicador de Frete pra
+   ficarem em linhas parelhas de 4, em vez de 8-numa-linha-só ou 7+3+1) — 4 colunas FIXAS no
+   desktop (não auto-fit: com contagem de card variável, auto-fit deixaria de dar 4 por linha
+   dependendo da largura da tela). Sem media query própria de propósito: como é aplicado JUNTO
+   com .indicador-frete-kpis-principais (nunca sozinho), as media queries dela mais abaixo neste
+   arquivo (1100px/720px/480px) continuam vencendo nesses tamanhos — o responsivo de sempre
+   continua funcionando sem duplicar nada aqui. */
+.indicador-frete-kpis-principais--4col { grid-template-columns: repeat(4, 1fr); }
 .indicador-frete-kpi { display: flex; flex-direction: row; align-items: center; gap: 14px; min-height: 100px; }
 .indicador-frete-kpi__icone {
   flex: 0 0 auto; width: 44px; height: 44px; border-radius: var(--radius-md);
