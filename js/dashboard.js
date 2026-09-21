@@ -7375,7 +7375,12 @@ const Dashboard = (() => {
       } else if (cargasPodeEditar && cargasFiltroAtivo === 'SEPARADO') {
         // Botão "No Show" (pedido da usuária, 2026-09-08) — pra ela mesma acionar manualmente
         // quando o motorista não carregou; ver marcarNoShowStatusCarga (firebase-init.js).
-        acoes = `<button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>
+        // Botão "Marcar como Carregado" (2026-09-21, pedido da usuária) — até aqui só existia a
+        // promoção AUTOMÁTICA (verificarCarregamentoStatusCarga, quando a Bluesoft mostra "Em
+        // trânsito" hoje); ela também quer poder mover manualmente, sem depender da Bluesoft já
+        // ter processado a viagem. Mesma transição de sempre (definirStatusCarga), preserva rota.
+        acoes = `<button class="btn btn--primary" data-cargas-acao="carregar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Carregado</button>
+                 <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>
                  <button class="btn btn--danger" data-cargas-acao="no-show" data-cargas-placa="${escapeAttr(item.placa)}">No Show</button>`;
       } else if (cargasFiltroAtivo === 'DISPONIVEL') {
         // "Mover pra Separação" (2026-09-17, pedido da usuária: "ter a opção de colocar o
@@ -7521,6 +7526,7 @@ const Dashboard = (() => {
           cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(placa), Date.now());
           await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual);
         }
+        else if (acao === 'carregar') await cargasDashFirebase.definirStatusCarga(placa, 'CARREGADO', rotaAtual);
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
         else if (acao === 'ativar') await cargasDashFirebase.ativarStatusCarga(placa);
         else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
