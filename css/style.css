@@ -1656,6 +1656,15 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface); color: var(--text-primary); font-size: 13px;
 }
+/* "Hora limite de carregamento" (2026-09-22) — input inline no card Separado, mesmo visual
+   compacto do select "Mover pra Separação" acima, pra caber ao lado dos botões de ação. */
+.cargas-hora-limite {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary);
+}
+.cargas-hora-limite-input {
+  padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-primary); font-size: 13px;
+}
 .cargas-autocomplete { position: relative; flex: 1 1 260px; min-width: 220px; }
 .cargas-autocomplete input { width: 100%; }
 .cargas-sugestoes {
