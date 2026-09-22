@@ -7113,15 +7113,12 @@ const Dashboard = (() => {
     if (blocoAviso) blocoAviso.hidden = !cargasPodeEditar;
   }
 
-  /** "Vencido" = passou de 24h desde `criadoEm` — mesma regra tanto aqui (painel) quanto no
-   * Painel do Motorista (motoristas/index.html, copiada lá por ser um app autocontido sem
-   * módulo compartilhado). Sem `criadoEm` ainda resolvido (gravação otimista, serverTimestamp
-   * ainda não veio do servidor) trata como recém-criado, não vencido. */
+  /** "Vencido" (2026-09-22: tirado o limite de 24h, pedido da usuária — agora só vence quando
+   * ela mesma envia outro aviso ou clica em "Remover aviso"; período indeterminado) — mesma
+   * regra tanto aqui (painel) quanto no Painel do Motorista (motoristas/index.html, copiada lá
+   * por ser um app autocontido sem módulo compartilhado). */
   function cargasAvisoExpirado(aviso) {
-    if (!aviso) return true;
-    const data = cargasTimestampParaData(aviso.criadoEm);
-    if (!data) return false;
-    return (Date.now() - data.getTime()) > 24 * 60 * 60 * 1000;
+    return !aviso;
   }
 
   const CARGAS_AVISO_PRIORIDADE_LABEL = { info: '📘 Informativo', atencao: '⚠️ Atenção', urgente: '🚨 Urgente' };
@@ -7364,7 +7361,7 @@ const Dashboard = (() => {
     } else {
       itens = Array.from(cargasStatusCarga.values())
         .filter(s => s.status === cargasFiltroAtivo)
-        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm), rota: s.rota || '', visivel: s.visivel !== false, duplicado: !!s.duplicado }));
+        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm), rota: s.rota || '', visivel: s.visivel !== false, duplicado: !!s.duplicado, horaLimiteCarregamento: s.horaLimiteCarregamento || '' }));
     }
     if (cargasFiltroAtivo === 'DISPONIVEL') {
       // Quem chega primeiro (mais perto) aparece primeiro (pedido explícito da usuária, pra
@@ -7435,7 +7432,15 @@ const Dashboard = (() => {
         // promoção AUTOMÁTICA (verificarCarregamentoStatusCarga, quando a Bluesoft mostra "Em
         // trânsito" hoje); ela também quer poder mover manualmente, sem depender da Bluesoft já
         // ter processado a viagem. Mesma transição de sempre (definirStatusCarga), preserva rota.
-        acoes = `<button class="btn btn--primary" data-cargas-acao="carregar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Carregado</button>
+        // "Hora limite de carregamento" (2026-09-22, pedido da usuária: escalonar o horário de
+        // chegada dos motoristas, pra não vir todo mundo carregar junto) — input inline, salva
+        // no focusout (mesmo padrão do Motivo do No Show, ver bindControleCargasAcoes), aparece
+        // também pro motorista no Painel dele (motoristas/index.html, renderListaStatus).
+        const horaLimiteHtml = `<label class="cargas-hora-limite" title="Hora limite pra esse motorista carregar">⏰
+                 <input type="time" class="cargas-hora-limite-input" data-hora-limite-placa="${escapeAttr(item.placa)}" value="${escapeAttr(item.horaLimiteCarregamento)}">
+               </label>`;
+        acoes = `${horaLimiteHtml}
+                 <button class="btn btn--primary" data-cargas-acao="carregar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Carregado</button>
                  <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>
                  <button class="btn btn--danger" data-cargas-acao="no-show" data-cargas-placa="${escapeAttr(item.placa)}">No Show</button>`;
       } else if (cargasFiltroAtivo === 'DISPONIVEL') {
@@ -7619,6 +7624,24 @@ const Dashboard = (() => {
         Utils.showToast('Motivo do No Show salvo.', 'success', 2000);
       } catch (err) {
         Utils.showToast('Falha ao salvar motivo do No Show: ' + err.message, 'error');
+      }
+    });
+
+    // "Hora limite de carregamento" editável (2026-09-22) — mesmo padrão inline de sempre
+    // (Motivo do No Show acima/Observação de Despesas Extra): salva no focusout, só se o valor
+    // mudou de verdade. Sem re-render manual — o onSnapshot de statusCarga já redesenha a lista.
+    wrap.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('[data-hora-limite-placa]');
+      if (!input) return;
+      const placa = input.dataset.horaLimitePlaca;
+      const novoValor = input.value;
+      const atual = (cargasStatusCarga.get(placa) || {}).horaLimiteCarregamento || '';
+      if (novoValor === atual) return;
+      try {
+        await cargasDashFirebase.atualizarHoraLimiteCarregamento(placa, novoValor);
+        Utils.showToast('Hora limite salva.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast('Falha ao salvar hora limite: ' + err.message, 'error');
       }
     });
   }
