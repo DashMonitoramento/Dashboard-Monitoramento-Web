@@ -116,6 +116,7 @@ h1,h2,h3,p{margin:0;}
 .status-card__meta{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
 .status-card__tempo{font-size:12.5px; color:var(--ink-soft); white-space:nowrap; margin-left:auto;}
 .status-card__rodizio-destaque{font-weight:700; color:var(--brand);}
+.status-card__hora-limite{font-size:12.5px; font-weight:700; color:var(--alerta); margin-top:4px;}
 .status-card__badge-rodizio-hoje{
   display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
   color:#fff; background:var(--alerta); border-radius:999px; padding:2px 9px;
@@ -456,10 +457,17 @@ function renderListaStatus(status, idLista, idContagem, idBusca) {
         : 'Sem rodízio cadastrado';
       const rotaTexto = item.rota ? ` · Rota: ${escapeHtml(item.rota)}` : '';
       const tempo = formatarTempoDecorrido(timestampParaData(item.atualizadoEm));
+      // "Hora limite de carregamento" (2026-09-22, pedido da usuária): só aparece no card
+      // Separado, e só quando ela de fato preencheu um horário pra essa placa (evita "Hora
+      // limite: —" poluindo todo mundo que ainda não tem horário definido).
+      const horaLimiteTexto = (status === 'SEPARADO' && item.horaLimiteCarregamento)
+        ? `<div class="status-card__hora-limite">⏰ Hora limite pra carregar: <strong>${escapeHtml(item.horaLimiteCarregamento)}</strong></div>`
+        : '';
       return `<div class="status-card">
         <div class="status-card__info">
           <div class="status-card__nome">${escapeHtml(nome)}${badgeRodizio}</div>
           <div class="status-card__meta">Placa: ${escapeHtml(item.id)} · Carro: ${escapeHtml(carro || '—')} · Peso: ${escapeHtml(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
+          ${horaLimiteTexto}
         </div>
         <div class="status-card__tempo">${tempo}</div>
       </div>`;
@@ -507,9 +515,9 @@ function iniciarApp() {
     renderAviso();
   }, () => {});
 
-  // "Vencido" (24h) não dispara evento novo do Firestore sozinho — reavalia periodicamente pra
-  // o card sumir na hora certa mesmo se o motorista deixar o app aberto (mesma ideia do relógio
-  // "Há X min" dos cards de status, formatarTempoDecorrido acima).
+  // Sem vencimento por tempo (2026-09-22, tirado o limite de 24h) — o setInterval continua só
+  // pra atualizar o relógio "Há X min" do card, mesmo ideia do formatarTempoDecorrido dos cards
+  // de status acima; o card em si só some quando ela envia outro aviso ou remove.
   setInterval(renderAviso, 60000);
 }
 
@@ -519,7 +527,7 @@ let avisoAtual = null;
 function renderAviso() {
   const card = $('aviso-card');
   const data = avisoAtual ? timestampParaData(avisoAtual.criadoEm) : null;
-  const vencido = !avisoAtual || (data && (Date.now() - data.getTime()) > 24 * 60 * 60 * 1000);
+  const vencido = !avisoAtual;
   card.hidden = vencido;
   if (vencido) return;
   const nivel = ['info', 'atencao', 'urgente'].includes(avisoAtual.prioridade) ? avisoAtual.prioridade : 'info';
