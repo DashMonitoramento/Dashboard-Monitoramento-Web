@@ -4399,7 +4399,7 @@ const Dashboard = (() => {
     tbody: 'indicador-frete-table-body', info: 'indicador-frete-table-info',
     pageLabel: 'indicador-frete-table-page-label', prev: 'indicador-frete-table-prev',
     next: 'indicador-frete-table-next', theadSelector: '#indicador-frete-table thead th[data-field]',
-    colspan: 16, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
+    colspan: 18, emptyMessage: 'Nenhuma viagem no período/filtro selecionado.'
   };
 
   // "Evolução do Frete" (2026-09-10, Fase 3) — granularidade do gráfico combo (Mensal/Semanal/
@@ -5214,6 +5214,13 @@ const Dashboard = (() => {
     const view = document.getElementById('indicador-frete-view');
     if (!view || view.hidden) return;
 
+    // Cadastro de motoristas (2026-09-22) — só pra cruzar "Modelo de Carro" por Placa na
+    // tabela abaixo; idempotente (ver inicializarCadastroMotoristas), não assina de novo se o
+    // Controle de Cargas já tiver aberto antes. Assíncrono: a 1ª renderização acontece sem o
+    // cruzamento (cargasMotoristas ainda vazio), e a própria assinatura chama renderIndicadorFrete()
+    // de novo assim que o cadastro chegar.
+    inicializarCadastroMotoristas();
+
     // Filtro de Período (ver comentário no topo da seção) — mesma lógica de getFilteredRecords
     // (data.js), aplicada aqui em cima de item.dataEmbarque.
     const { dataInicio, dataFim, mes, ano, transportadora, motorista } = DataStore.getFilters();
@@ -5238,6 +5245,16 @@ const Dashboard = (() => {
       const cruzado = cruzarPlacaDiaMaisProximo(mapaPorPlaca, item.placa, item.dataEmbarque);
       const chaveDescarga = `${item.placa}|${inicioDoDia(item.dataEmbarque).getTime()}`;
       const valorDescargaAprovado = mapaValorDescargaAprovado.get(chaveDescarga) || 0;
+      // "Modelo de Carro" (2026-09-22, pedido da usuária) — a aba Indicador de Frete tem sua
+      // PRÓPRIA coluna "Tipo de Veículo" reservada desde 2026-09-10, mas ela confirmou que ainda
+      // está 100% vazia (nunca preenchida) — sem dado nenhum pra mostrar. Em vez disso, cruza
+      // pela Placa com o MESMO cadastro de motoristas usado no Controle de Cargas (Firestore,
+      // ver inicializarCadastroMotoristas/cargasMotoristas abaixo), que já tem o campo Veículo
+      // preenchido de verdade pra cada placa ativa — mesmo parser (cargasParseVeiculo) que separa
+      // Carro/Peso já usado em Controle de Cargas.
+      const motoristaCadastro = cargasMotoristas.get(item.placa);
+      const modeloCarro = motoristaCadastro ? cargasParseVeiculo(motoristaCadastro.veiculo).carro : '';
+      const valorFrete = item.valorFrete;
       return {
         ...item,
         transportadora: cruzado ? cruzado.transportadora : '',
@@ -5251,7 +5268,17 @@ const Dashboard = (() => {
         // "Valor Descarga Aprovado" e "Frete + Descarga" (2026-09-15) — ver
         // construirMapaValorDescargaAprovadoPorPlacaData acima.
         valorDescargaAprovado,
-        freteMaisDescarga: item.valorFrete + valorDescargaAprovado
+        freteMaisDescarga: valorFrete + valorDescargaAprovado,
+        modeloCarro: modeloCarro || '',
+        // "Número da Viagem" reaproveita item.identificadorViagem (já vem de "Identificador
+        // (Viagem)" da própria aba, mesmo campo já usado na Auditoria de Embarques) — sem
+        // cruzamento novo, só passa adiante via "...item" acima; aqui só documentando.
+        //
+        // % Frete e R$/Kg (2026-09-22): antes calculados só dentro de rowHtmlIndicadorFrete
+        // (nunca ficavam no objeto do item) — precisam existir como campo de verdade aqui pra
+        // virarem colunas ORDENÁVEIS (renderTableGeneric ordena por item[sortField] direto).
+        percentualFrete: item.valorTotalNFs > 0 ? (valorFrete / item.valorTotalNFs) * 100 : 0,
+        rsPorKg: item.peso > 0 ? valorFrete / item.peso : 0
       };
       // Transportadora/Motorista da barra lateral (pedido da usuária, 2026-09-09) filtram DEPOIS
       // do cruzamento acima — são campos cruzados, não nativos da planilha de viagens. Viagem sem
@@ -5415,6 +5442,14 @@ const Dashboard = (() => {
     const oportunidadesReducao = calcularOportunidadesReducaoIndicadorFrete(itensCruzados);
     indicadorFreteAlertasPorViagem = construirMapaAlertasPorViagem(oportunidadesReducao);
     renderIndicadorFreteOportunidades(oportunidadesReducao);
+    // "riscoNivel" (2026-09-22): rank numérico (0=sem alerta, 1=Baixo, 2=Médio, 3=Alto) só pra
+    // dar pra ORDENAR a coluna "Riscos/Alertas" clicando no título — o mesmo critério de "nível
+    // mais grave da viagem" já usado em rowHtmlIndicadorFrete pra decidir a cor do badge.
+    const RISCO_NIVEL_RANK = { alto: 3, medio: 2, baixo: 1 };
+    itensCruzados.forEach(item => {
+      const alertas = indicadorFreteAlertasPorViagem.get(chaveViagemIndicadorFrete(item)) || [];
+      item.riscoNivel = alertas.length ? Math.max(...alertas.map(a => RISCO_NIVEL_RANK[a.nivel] || 0)) : 0;
+    });
 
     // "Auditoria de Frete por Nota" (2026-09-10) — fonte SEPARADA (por NOTA, não por viagem),
     // sem cruzamento nenhum com itensCruzados acima; tem seu próprio filtro de Período/
@@ -5459,11 +5494,11 @@ const Dashboard = (() => {
   const INDICADOR_FRETE_NIVEL_CLASSE = { alto: 'badge--danger', medio: 'badge--warning', baixo: 'badge--success' };
 
   function rowHtmlIndicadorFrete(i) {
-    const rsPorKg = i.peso > 0 ? i.valorFrete / i.peso : 0;
-    // Percentual do frete (pedido da usuária, 2026-09-09): Valor Frete Calculado dividido
-    // pelo Valor Total das NFs, 1 casa decimal — Utils.formatPercent já espera o valor NA
-    // ESCALA de porcentagem (ex.: 3.2, não 0.032), por isso o *100 aqui.
-    const percentualFrete = i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0;
+    // % Frete e R$/Kg (2026-09-09) já vêm PRONTOS do item (ver itensCruzados em
+    // renderIndicadorFrete) desde 2026-09-22 — precisaram virar campo de verdade no objeto pra
+    // a coluna dar pra ordenar clicando no título (renderTableGeneric ordena por item[campo]).
+    const rsPorKg = i.rsPorKg;
+    const percentualFrete = i.percentualFrete;
     const classePlaca = i.semCruzamento ? ' class="text-danger"' : '';
 
     // Coluna "Riscos/Alertas" (2026-09-10, Fase 6) — cidade voltou pra tabela e ganhou 2 colunas
@@ -5481,7 +5516,8 @@ const Dashboard = (() => {
 
     // Ordem das colunas pedida pela usuária na reformulação completa (2026-09-10): Embarque,
     // Placa, Data Embarque, Cidade Destino, Peso, Volumes, Valor Total NFs, Transportadora,
-    // Motorista, Valor Frete, % Frete, R$/Kg, Riscos/Alertas, Ações.
+    // Motorista, Valor Frete, % Frete, R$/Kg, Riscos/Alertas, Ações. Modelo de Carro e Número da
+    // Viagem entraram depois de Motorista (2026-09-22, pedido da usuária).
     return `
       <tr>
         <td>${escapeAttr(i.embarque || '—')}</td>
@@ -5493,6 +5529,8 @@ const Dashboard = (() => {
         <td class="text-right">${Utils.formatCurrency(i.valorTotalNFs)}</td>
         <td class="truncate" title="${escapeAttr(i.transportadora)}">${escapeAttr(i.transportadora || '—')}</td>
         <td class="truncate" title="${escapeAttr(i.motorista)}">${escapeAttr(i.motorista || '—')}</td>
+        <td>${escapeAttr(i.modeloCarro || '—')}</td>
+        <td>${escapeAttr(i.identificadorViagem || '—')}</td>
         <td class="text-right text-orange">${Utils.formatCurrency(i.valorFrete)}</td>
         <td class="text-right">${Utils.formatCurrency(i.valorDescargaAprovado)}</td>
         <td class="text-right text-orange">${Utils.formatCurrency(i.freteMaisDescarga)}</td>
@@ -6476,11 +6514,13 @@ const Dashboard = (() => {
       { label: 'Valor Total NFs', value: i => i.valorTotalNFs.toFixed(2).replace('.', ',') },
       { label: 'Transportadora', value: i => i.transportadora || '—' },
       { label: 'Motorista', value: i => i.motorista || '—' },
+      { label: 'Modelo de Carro', value: i => i.modeloCarro || '—' },
+      { label: 'Número da Viagem', value: i => i.identificadorViagem || '—' },
       { label: 'Valor Frete', value: i => i.valorFrete.toFixed(2).replace('.', ',') },
       { label: 'Valor Descarga Aprovado', value: i => i.valorDescargaAprovado.toFixed(2).replace('.', ',') },
       { label: 'Frete + Descarga', value: i => i.freteMaisDescarga.toFixed(2).replace('.', ',') },
-      { label: '% Frete', value: i => (i.valorTotalNFs > 0 ? (i.valorFrete / i.valorTotalNFs) * 100 : 0).toFixed(1).replace('.', ',') },
-      { label: 'R$/Kg', value: i => (i.peso > 0 ? i.valorFrete / i.peso : 0).toFixed(2).replace('.', ',') }
+      { label: '% Frete', value: i => i.percentualFrete.toFixed(1).replace('.', ',') },
+      { label: 'R$/Kg', value: i => i.rsPorKg.toFixed(2).replace('.', ',') }
     ];
     await Utils.exportToStyledExcel('indicador-de-frete.xlsx', 'Indicador de Frete', colunas, itens);
     Utils.showToast(`${itens.length} viagens exportadas para Excel.`, 'success');
@@ -6977,7 +7017,29 @@ const Dashboard = (() => {
     });
   }
 
-  /** Só assina os 4 onSnapshot na PRIMEIRA vez que ela abre essa tela — evita listeners em
+  let motoristasCadastroInicializado = false;
+  /** Assina o cadastro de motoristas (Firestore) — extraído em função própria (2026-09-22) pra
+   * poder ser chamado tanto pelo Controle de Cargas quanto pelo Indicador de Frete (cruzamento
+   * de "Modelo de Carro" por Placa, ver renderIndicadorFrete), sem duplicar a assinatura se as
+   * duas telas forem abertas na mesma sessão. Idempotente: só assina de verdade na 1ª chamada,
+   * não importa qual tela chamou primeiro. `cargasDashFirebase` só é setado aqui se ainda não
+   * tiver sido (Controle de Cargas pode setar o dele próprio com mais coisa, ver abaixo). */
+  async function inicializarCadastroMotoristas() {
+    if (motoristasCadastroInicializado) return;
+    motoristasCadastroInicializado = true;
+    const fb = await cargasWaitFirebaseReady();
+    if (!cargasDashFirebase) cargasDashFirebase = fb;
+    fb.assinarMotoristas((lista) => {
+      cargasMotoristas = new Map(lista.filter(m => m.ativo !== false).map(m => [m.id, m]));
+      cargasMotoristasCarregado = true;
+      renderControleCargasCards();
+      renderControleCargasLista();
+      verificarAutoPopularSeparacaoNaoIniciada();
+      renderIndicadorFrete();
+    }, (err) => Utils.showToast('Falha ao sincronizar motoristas: ' + err.message, 'error'));
+  }
+
+  /** Só assina os onSnapshot na PRIMEIRA vez que ela abre essa tela — evita listeners em
    * tempo real rodando a sessão inteira pra quem nunca usa esse módulo. */
   async function inicializarControleCargas() {
     if (cargasInicializado) return;
@@ -7000,13 +7062,7 @@ const Dashboard = (() => {
     renderControleCargasAcoesGlobais();
     cargasCarregarRotasSP();
 
-    fb.assinarMotoristas((lista) => {
-      cargasMotoristas = new Map(lista.filter(m => m.ativo !== false).map(m => [m.id, m]));
-      cargasMotoristasCarregado = true;
-      renderControleCargasCards();
-      renderControleCargasLista();
-      verificarAutoPopularSeparacaoNaoIniciada();
-    }, (err) => Utils.showToast('Falha ao sincronizar motoristas: ' + err.message, 'error'));
+    await inicializarCadastroMotoristas();
 
     fb.assinarStatusCarga((lista) => {
       cargasStatusCarga = new Map(lista.map(s => [s.id, s]));
