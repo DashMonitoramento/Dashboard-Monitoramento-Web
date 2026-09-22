@@ -624,6 +624,20 @@ async function retirarStatusCarga(placaBruta) {
   await lote.commit();
 }
 
+/** "Hora limite de carregamento" (2026-09-22, pedido da usuária: um horário-alvo por motorista
+ * no card Separado, pra escalonar a chegada — evitar todo mundo vindo carregar na mesma hora).
+ * Campo simples no MESMO doc de statusCarga (nunca reseta sozinho ao trocar de status — só ela
+ * apaga manualmente, limpando o campo). Não grava histórico (mesmo critério de ativarStatusCarga
+ * acima: não é uma mudança de STATUS, só um dado auxiliar). */
+async function atualizarHoraLimiteCarregamento(placaBruta, horaLimite) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+  await updateDoc(doc(db, STATUS_CARGA_COLECAO, placa), {
+    horaLimiteCarregamento: horaLimite || '', horaLimiteAtualizadaPorEmail: usuario.email
+  });
+}
+
 /** Ativa a visibilidade de um status pro Painel do Motorista (2026-09-17) — ver
  * autoPopularSeparacaoNaoIniciada logo abaixo: motorista auto-adicionado em "Separação Não
  * Iniciada" nasce com `visivel:false` (some do app do motorista até ela clicar "Ativar p/
@@ -910,6 +924,7 @@ window.Firebase = {
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga, ativarStatusCarga, autoPopularSeparacaoNaoIniciada,
+  atualizarHoraLimiteCarregamento,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote, moverDisponibilidadeParaSeparacao,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico
