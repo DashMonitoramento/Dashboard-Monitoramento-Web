@@ -2580,6 +2580,104 @@ const DataStore = (() => {
     notify();
   }
 
+  /* ============================================================
+   * HISTÓRICO DE AGENDAMENTO POR PEDIDO + PEDIDO X NOTA — (2026-09-23, pedido da usuária):
+   * "Pedidos não Faturados" só mostra o pedido ENQUANTO ele não vira nota fiscal — assim que
+   * fatura, ele some da planilha e a Data de Agendamento que ela já tinha preenchido se perdia,
+   * dando retrabalho de digitar de novo na nota em "Aguardando Agendamento". O script de
+   * extração (scripts/atualizar-dados-dashboard.ps1, Extrair-HistoricoAgendamentoPedidos) já
+   * guarda um histórico que só CRESCE (numero do pedido -> última Data de Agendamento real
+   * vista antes de sumir da planilha de pendentes). A aba nova "Pedido X Nota (agendamento)" dá
+   * a ponte que faltava: quando um pedido é faturado, ela mostra o número da nota gerada pra
+   * aquele mesmo número de pedido. Cruzando as duas, dá pra "herdar" a data original pra dentro
+   * da nota fiscal recém-faturada — só quando NENHUMA outra fonte (Agendamentos nativo,
+   * Firestore manual) já preencheu uma data pra essa nota, ver aplicarHistoricoAgendamentoNasNotas.
+   * ============================================================ */
+
+  let pedidoXNotaPorNf = new Map(); // nf sem sufixo -> numero do pedido do cliente
+  let historicoAgendamentoPorPedido = new Map(); // numero do pedido -> { dataAgendamento, cliente }
+
+  async function loadPedidoXNotaFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexPedidoXNota(rawRows);
+    aplicarHistoricoAgendamentoNasNotas();
+    notify();
+  }
+
+  async function loadPedidoXNotaFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexPedidoXNota(rawRows);
+    aplicarHistoricoAgendamentoNasNotas();
+    notify();
+  }
+
+  function indexPedidoXNota(rawRows) {
+    const map = new Map();
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const get = (nome) => { const h = headerIndex[normalizeHeaderKey(nome)]; return h !== undefined ? row[h] : ''; };
+      const numeroPedido = String(get('Numero Pedido Cliente') || '').trim();
+      const nfCf = String(get('NF CF') || '').trim();
+      if (!numeroPedido || !nfCf) continue;
+      // A coluna já traz o número puro da nota — mesmo assim tira um eventual sufixo de
+      // viagem/item ("-1", "-2"), igual já é feito em applyAgendamentoManual/
+      // applyAgendamentoEnrichment, pra casar certo com r.nf da Base Bluesoft.
+      map.set(nfCf.split('-')[0].trim(), numeroPedido);
+    }
+    pedidoXNotaPorNf = map;
+  }
+
+  async function loadHistoricoAgendamentoPedidosFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexHistoricoAgendamentoPedidos(rawRows);
+    aplicarHistoricoAgendamentoNasNotas();
+    notify();
+  }
+
+  async function loadHistoricoAgendamentoPedidosFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const format = ext === 'json' ? 'json' : 'csv';
+    const rawRows = await DataAdapters[format].loadFromFile(file);
+    indexHistoricoAgendamentoPedidos(rawRows);
+    aplicarHistoricoAgendamentoNasNotas();
+    notify();
+  }
+
+  function indexHistoricoAgendamentoPedidos(rawRows) {
+    const map = new Map();
+    for (const row of rawRows) {
+      const headerIndex = buildHeaderIndex(row);
+      const get = (nome) => { const h = headerIndex[normalizeHeaderKey(nome)]; return h !== undefined ? row[h] : ''; };
+      const numeroPedido = String(get('Numero Pedido') || '').trim();
+      const dataAgendamento = Utils.parseDate(get('Data Agendamento'));
+      if (!numeroPedido || !dataAgendamento) continue;
+      map.set(numeroPedido, { dataAgendamento, cliente: String(get('Cliente') || '').trim() });
+    }
+    historicoAgendamentoPorPedido = map;
+  }
+
+  /** NF sem NENHUMA data de agendamento (nem nativo, nem manual) -> tenta herdar a data que o
+   * PEDIDO já tinha antes de virar nota (Pedido x Nota -> numero do pedido -> Histórico). Só
+   * preenche o que está vazio (`!r.dataAgendamento`) — nunca sobrescreve Agendamentos nativo
+   * nem edição manual do Firestore, que continuam sendo as fontes autoritativas de verdade. */
+  function aplicarHistoricoAgendamentoNasNotas() {
+    if (pedidoXNotaPorNf.size === 0 || historicoAgendamentoPorPedido.size === 0) return;
+    for (const r of rawRecords) {
+      if (r.dataAgendamento) continue;
+      const numeroPedido = pedidoXNotaPorNf.get(r.nf.split('-')[0]);
+      if (!numeroPedido) continue;
+      const info = historicoAgendamentoPorPedido.get(numeroPedido);
+      if (!info) continue;
+      r.dataAgendamento = info.dataAgendamento;
+      r.statusAgendamento = 'Agendado';
+    }
+    recomputarPrazoStatus(); // a Data de Agendamento pode ter mudado acima
+  }
+
   /**
    * Mescla "Valor Descarga Aprovado", "Ajudante", "QTD Ajudante" e "Necessita Ajudante" (mesmo
    * doc por NF, ver comentário em firebase-init.js sobre por que essa coleção é separada de
@@ -2653,6 +2751,8 @@ const DataStore = (() => {
     loadPedidosNaoFaturadosFromUrl, loadPedidosNaoFaturadosFromFile, getPedidosNaoFaturadosStats, getPedidosNaoFaturados,
     calcularLeadTimePedido, calcularLeadTimePedidos, listarPedidosDuplicadosLeadTime, listarLeadTimesInvalidos,
     applyAgendamentoManual, applyValorDescargaAprovado, applyClienteNecessitaAjudante,
+    loadPedidoXNotaFromUrl, loadPedidoXNotaFromFile,
+    loadHistoricoAgendamentoPedidosFromUrl, loadHistoricoAgendamentoPedidosFromFile,
     applyClienteObservacaoDescarga, normalizeClienteKey,
     loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
     calcularAuditoriaEmbarques,
