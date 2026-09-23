@@ -21,6 +21,8 @@ const DEFAULT_LEADTIME_URL = 'assets/data/sample-data-leadtime.csv';
 const DEFAULT_FERIADOS_URL = 'assets/data/feriados.json';
 const DEFAULT_CANHOTOS_URL = 'assets/data/canhotos-index.json';
 const DEFAULT_PEDIDOS_NAO_FATURADOS_URL = 'assets/data/sample-data-pedidos-nao-faturados.csv';
+const DEFAULT_PEDIDO_X_NOTA_URL = 'assets/data/sample-data-pedido-x-nota.csv';
+const DEFAULT_HISTORICO_AGENDAMENTO_PEDIDOS_URL = 'assets/data/sample-data-pedidos-agendamento-historico.csv';
 const DEFAULT_INDICADOR_FRETE_URL = 'assets/data/sample-data-indicador-frete.csv';
 const DEFAULT_INDICADOR_FRETE_TRANSPORTADORA_URL = 'assets/data/sample-data-indicador-frete-transportadora.csv';
 
@@ -324,6 +326,31 @@ async function loadPedidosNaoFaturadosDataSilently(cacheBust) {
   }
 }
 
+/** Aba nova (2026-09-23) — ponte Pedido -> Nota Fiscal: quando um pedido de "Pedidos não
+ * Faturados" é faturado, essa aba mostra o número da nota gerada pra aquele mesmo pedido.
+ * Opcional: sem ela, só não dá pra herdar a Data de Agendamento na nota (ver
+ * loadHistoricoAgendamentoPedidosDataSilently abaixo e aplicarHistoricoAgendamentoNasNotas em
+ * data.js), o resto do dashboard funciona normalmente. */
+async function loadPedidoXNotaDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_PEDIDO_X_NOTA_URL}?t=${Date.now()}` : DEFAULT_PEDIDO_X_NOTA_URL;
+    await DataStore.loadPedidoXNotaFromUrl(url);
+  } catch (err) {
+    console.warn('Pedido x Nota (agendamento) não carregado automaticamente:', err.message);
+  }
+}
+
+/** Histórico (só cresce) de Data de Agendamento por Pedido, gerado pelo próprio script de
+ * extração (scripts/atualizar-dados-dashboard.ps1) — opcional, mesma ideia da função acima. */
+async function loadHistoricoAgendamentoPedidosDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_HISTORICO_AGENDAMENTO_PEDIDOS_URL}?t=${Date.now()}` : DEFAULT_HISTORICO_AGENDAMENTO_PEDIDOS_URL;
+    await DataStore.loadHistoricoAgendamentoPedidosFromUrl(url);
+  } catch (err) {
+    console.warn('Histórico de agendamento de pedidos não carregado automaticamente:', err.message);
+  }
+}
+
 /** "Indicador de Frete" (2026-09-09) — opcional, planilha nova/ainda em construção; sem ela o
  * indicador só fica vazio, não afeta nada mais do dashboard. */
 async function loadIndicadorFreteDataSilently(cacheBust) {
@@ -480,6 +507,8 @@ async function loadInitialData() {
     await loadLeadTimeDataSilently(false);
     await loadFeriadosDataSilently(false);
     await loadPedidosNaoFaturadosDataSilently(false);
+    await loadPedidoXNotaDataSilently(false);
+    await loadHistoricoAgendamentoPedidosDataSilently(false);
     await loadIndicadorFreteDataSilently(false);
     await loadIndicadorFreteTransportadoraDataSilently(false);
     // Índice de canhotos (~20MB) NÃO entra no await — não alimenta nenhum registro/gráfico/KPI,
