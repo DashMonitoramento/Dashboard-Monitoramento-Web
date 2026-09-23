@@ -434,6 +434,14 @@ const Dashboard = (() => {
   // hora. Este mapa é um 2º reforço que NUNCA mistura relógio local com relógio de servidor —
   // só compara Date.now() com outro Date.now() anotado segundos antes, na mesma aba.
   let cargasSeparadoTocadoLocalmente = new Map();
+  // Desliga QUALQUER automação de Controle de Cargas (2026-09-23, pedido explícito dela: "preciso
+  // que no menu 'Controle de cargas' desabilite qualquer automação" — sintoma relatado: motorista
+  // movido manualmente pra "Separado" sumia sozinho pra "Carregado" minutos depois). Cobre as 2
+  // automações que existiam (ver os `if` logo no topo de verificarCarregamentoStatusCarga/
+  // verificarAutoPopularSeparacaoNaoIniciada abaixo) — deixei o CÓDIGO delas intacto (só
+  // desligado por esta flag), pra reativar rápido se ela pedir de volta no futuro, sem precisar
+  // reescrever a lógica.
+  const CARGAS_AUTOMACAO_DESABILITADA = true;
   let cargasNoShowPlacaAlvo = null; // placa aguardando confirmação no modal "Motivo do No Show"
   let cargasAvisoAtual = null; // aviso aos motoristas em vigor (ou null) — ver renderControleCargasAviso
   let cargasAvisoHistorico = []; // últimos 20 avisos já enviados — ver renderControleCargasAvisoHistorico
@@ -7401,7 +7409,18 @@ const Dashboard = (() => {
       // Data calendário acima do "Há X dias" (pedido da usuária, 2026-09-08) — mesmo dataRef já
       // usado pro tempo relativo, só formatado diferente, não é um campo novo.
       const dataTexto = item.dataRef ? `<div class="cargas-item__data">${cargasFormatarData(item.dataRef)}</div>` : '';
-      const rotaTexto = item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '';
+      // Rota editável manualmente (2026-09-23, pedido dela: "na opção de rota possa editar
+      // manualmente também, como por exemplo... colocar Santo Andre" em vez do texto cru da Base
+      // Bluesoft tipo "SP - REGIAO ABCD") — até aqui só dava pra definir a rota na hora de
+      // "Adicionar" (bindCargasRotaAutocomplete), sem jeito de corrigir depois. Mesmo padrão
+      // inline de sempre (Motivo do No Show/Hora limite): salva no focusout, só se mudou de
+      // verdade (ver bindControleCargasAcoes). Só nos 4 cards que têm doc em statusCarga de
+      // verdade (não em Disponível — ali o item ainda é só `disponibilidade`, sem rota nenhuma,
+      // e um `updateDoc` em statusCarga pra uma placa sem doc lá falharia). Sem permissão,
+      // mantém o texto fixo de antes.
+      const rotaTexto = (cargasPodeEditar && cargasFiltroAtivo !== 'DISPONIVEL')
+        ? ` · Rota: <input type="text" class="observacao-descarga-inline" data-cargas-rota-placa="${escapeAttr(item.placa)}" value="${escapeAttr(item.rota || '')}" placeholder="Rota...">`
+        : (item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '');
       // Distância/tempo estimado até a Terrinha (só no card Disponíveis) — noção aproximada em
       // linha reta (ver cargasDistanciaKm), não é rota real; "sem localização" cobre avisos
       // enviados antes desta funcionalidade existir.
@@ -7644,6 +7663,23 @@ const Dashboard = (() => {
         Utils.showToast('Falha ao salvar hora limite: ' + err.message, 'error');
       }
     });
+
+    // Rota editável (2026-09-23) — mesmo padrão inline de sempre: salva no focusout, só se o
+    // valor mudou de verdade. Sem re-render manual — o onSnapshot de statusCarga já redesenha.
+    wrap.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('[data-cargas-rota-placa]');
+      if (!input) return;
+      const placa = input.dataset.cargasRotaPlaca;
+      const novoValor = input.value.trim();
+      const atual = (cargasStatusCarga.get(placa) || {}).rota || '';
+      if (novoValor === atual) return;
+      try {
+        await cargasDashFirebase.atualizarRotaStatusCarga(placa, novoValor);
+        Utils.showToast('Rota salva.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast('Falha ao salvar rota: ' + err.message, 'error');
+      }
+    });
   }
 
   function bindControleCargasAutocomplete() {
@@ -7881,6 +7917,7 @@ const Dashboard = (() => {
    * — aqui só calcula quem está faltando (com os dados já em memória via onSnapshot) e delega a
    * escrita de verdade. */
   async function verificarAutoPopularSeparacaoNaoIniciada() {
+    if (CARGAS_AUTOMACAO_DESABILITADA) return;
     if (cargasAutoPopularTentado) return;
     if (!cargasMotoristasCarregado || !cargasStatusCargaCarregado) return;
     if (!cargasDashFirebase) return;
@@ -7894,6 +7931,7 @@ const Dashboard = (() => {
   }
 
   async function verificarCarregamentoStatusCarga() {
+    if (CARGAS_AUTOMACAO_DESABILITADA) return;
     if (!cargasDashFirebase) return;
     // `duplicado` (2026-09-19, bug real reportado por ela) fica de fora da automação — essa
     // placa já tinha uma 1ª carga "Em trânsito" hoje (foi exatamente por isso que virou
