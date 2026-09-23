@@ -638,6 +638,20 @@ async function atualizarHoraLimiteCarregamento(placaBruta, horaLimite) {
   });
 }
 
+/** Rota editável manualmente (2026-09-23, pedido da usuária) — até aqui só dava pra definir na
+ * hora de "Adicionar" (texto livre com sugestões da Base Bluesoft); isto permite corrigir depois,
+ * direto no card, ex.: trocar "SP - REGIAO ABCD" por "Santo André". Mesmo padrão de
+ * atualizarHoraLimiteCarregamento/atualizarMotivoNoShow acima — `statusCarga` nunca teve
+ * `hasOnly()` restringindo campos, não precisa de regra nova. */
+async function atualizarRotaStatusCarga(placaBruta, rota) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+  await updateDoc(doc(db, STATUS_CARGA_COLECAO, placa), {
+    rota: rota || '', rotaAtualizadaPorEmail: usuario.email
+  });
+}
+
 /** Ativa a visibilidade de um status pro Painel do Motorista (2026-09-17) — ver
  * autoPopularSeparacaoNaoIniciada logo abaixo: motorista auto-adicionado em "Separação Não
  * Iniciada" nasce com `visivel:false` (some do app do motorista até ela clicar "Ativar p/
@@ -925,6 +939,7 @@ window.Firebase = {
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga, ativarStatusCarga, autoPopularSeparacaoNaoIniciada,
   atualizarHoraLimiteCarregamento,
+  atualizarRotaStatusCarga,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote, moverDisponibilidadeParaSeparacao,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico
