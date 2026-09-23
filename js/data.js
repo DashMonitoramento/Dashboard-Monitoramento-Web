@@ -2591,7 +2591,9 @@ const DataStore = (() => {
    * a ponte que faltava: quando um pedido é faturado, ela mostra o número da nota gerada pra
    * aquele mesmo número de pedido. Cruzando as duas, dá pra "herdar" a data original pra dentro
    * da nota fiscal recém-faturada — só quando NENHUMA outra fonte (Agendamentos nativo,
-   * Firestore manual) já preencheu uma data pra essa nota, ver aplicarHistoricoAgendamentoNasNotas.
+   * Firestore manual) já preencheu uma data pra essa nota. A mesma ponte Pedido X Nota também
+   * finalmente preenche a coluna "Número do Pedido" nas tabelas (sempre "—" até agora, sem
+   * nenhuma fonte prévia). Ver aplicarPedidoXNotaNasNotas abaixo.
    * ============================================================ */
 
   let pedidoXNotaPorNf = new Map(); // nf sem sufixo -> numero do pedido do cliente
@@ -2601,7 +2603,7 @@ const DataStore = (() => {
     const adapter = DataAdapters[format];
     const rawRows = await adapter.loadFromUrl(url);
     indexPedidoXNota(rawRows);
-    aplicarHistoricoAgendamentoNasNotas();
+    aplicarPedidoXNotaNasNotas();
     notify();
   }
 
@@ -2610,7 +2612,7 @@ const DataStore = (() => {
     const format = ext === 'json' ? 'json' : 'csv';
     const rawRows = await DataAdapters[format].loadFromFile(file);
     indexPedidoXNota(rawRows);
-    aplicarHistoricoAgendamentoNasNotas();
+    aplicarPedidoXNotaNasNotas();
     notify();
   }
 
@@ -2634,7 +2636,7 @@ const DataStore = (() => {
     const adapter = DataAdapters[format];
     const rawRows = await adapter.loadFromUrl(url);
     indexHistoricoAgendamentoPedidos(rawRows);
-    aplicarHistoricoAgendamentoNasNotas();
+    aplicarPedidoXNotaNasNotas();
     notify();
   }
 
@@ -2643,7 +2645,7 @@ const DataStore = (() => {
     const format = ext === 'json' ? 'json' : 'csv';
     const rawRows = await DataAdapters[format].loadFromFile(file);
     indexHistoricoAgendamentoPedidos(rawRows);
-    aplicarHistoricoAgendamentoNasNotas();
+    aplicarPedidoXNotaNasNotas();
     notify();
   }
 
@@ -2660,16 +2662,22 @@ const DataStore = (() => {
     historicoAgendamentoPorPedido = map;
   }
 
-  /** NF sem NENHUMA data de agendamento (nem nativo, nem manual) -> tenta herdar a data que o
-   * PEDIDO já tinha antes de virar nota (Pedido x Nota -> numero do pedido -> Histórico). Só
-   * preenche o que está vazio (`!r.dataAgendamento`) — nunca sobrescreve Agendamentos nativo
-   * nem edição manual do Firestore, que continuam sendo as fontes autoritativas de verdade. */
-  function aplicarHistoricoAgendamentoNasNotas() {
-    if (pedidoXNotaPorNf.size === 0 || historicoAgendamentoPorPedido.size === 0) return;
+  /** Duas coisas, as duas só possíveis graças à aba "Pedido X Nota" (nenhuma outra fonte liga
+   * Pedido a Nota Fiscal, ver comentário no topo desta seção):
+   * 1. "Número do Pedido" (`r.numeroPedido`) — coluna que já existia nas tabelas (principal e
+   *    de detalhe, ver index.html) mas ficava sempre "—": nenhuma fonte preenchia esse campo
+   *    pra NF nenhuma até agora. Preenche sempre que achar a NF em Pedido X Nota, sem guarda —
+   *    nenhum outro código escreve nesse campo.
+   * 2. Data de Agendamento herdada — só quando a NF ainda não tem NENHUMA (nem nativo, nem
+   *    manual): `!r.dataAgendamento`, nunca sobrescreve Agendamentos nativo nem edição manual
+   *    do Firestore, que continuam sendo as fontes autoritativas de verdade. */
+  function aplicarPedidoXNotaNasNotas() {
+    if (pedidoXNotaPorNf.size === 0) return;
     for (const r of rawRecords) {
-      if (r.dataAgendamento) continue;
       const numeroPedido = pedidoXNotaPorNf.get(r.nf.split('-')[0]);
       if (!numeroPedido) continue;
+      r.numeroPedido = numeroPedido;
+      if (r.dataAgendamento) continue;
       const info = historicoAgendamentoPorPedido.get(numeroPedido);
       if (!info) continue;
       r.dataAgendamento = info.dataAgendamento;
