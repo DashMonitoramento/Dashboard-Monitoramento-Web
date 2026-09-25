@@ -6128,22 +6128,22 @@ const Dashboard = (() => {
    * com o filtro, sobe pra ~0,9%, população bem mais parecida com a do CT-e (mesma categoria
    * que dá nome ao próprio relatório e ao valor "TRANSPORTADORA" da coluna Categoria/Z).
    *
-   * `r.transportadora` precisa ser um nome de verdade (2026-09-25, bug real reportado pela
-   * usuária: "0,8% é praticamente impossível"). Achado contra dado real: 75% do valor somado
-   * (R$178,7 milhões de R$238,8 milhões) vinha de notas com `Categoria=Transportadora` mas
-   * `Transportadora` vazia/"Não informado" (58%, R$138M) ou literalmente "PRÓPRIO RETIRA" (17%,
-   * R$40,6M — contradição: categoria diz Transportadora, nome diz o oposto). Isso não é uma nota
-   * de Transportadora de verdade pra comparar contra o CT-e, é resíduo/erro de categorização na
-   * Base Bluesoft — incluir inflava o denominador e achatava o % artificialmente. Excluindo os
-   * dois casos, validado contra dado real: 1,11% (com o resíduo) vira 4,39% (só transportadora
-   * de verdade) — número plausível, não mais "impossível". */
+   * `r.transportadora` não pode ser "PRÓPRIO RETIRA" (2026-09-25, bug real reportado pela
+   * usuária: "0,8% é praticamente impossível"). Achado contra dado real: 17% do valor somado
+   * (R$40,6 milhões de R$238,8 milhões) vinha de notas com `Categoria=Transportadora` mas
+   * `Transportadora` literalmente "PRÓPRIO RETIRA" — contradição direta (categoria diz
+   * Transportadora, nome diz o oposto), não é uma nota de Transportadora de verdade pra comparar
+   * contra o CT-e. Decisão dela (2026-09-25): notas com `Transportadora` vazia/"Não informado"
+   * CONTINUAM entrando por enquanto (são 58% do total, R$138M — grande demais pra excluir sem
+   * antes investigar/corrigir a causa; ela vai apurar isso à parte). Validado contra dado real:
+   * excluindo só "Próprio Retira", 1,11% (sem excluir nada) vira 1,33%. */
   function calcularValorNotasFreteTransportadora(ufs, dataInicio, dataFim, mes, ano) {
     if (!ufs || !ufs.length) return 0;
     const registros = DataStore.getRecords().filter(r => {
       if (!ufs.includes(r.uf)) return false;
       if (r.tipoTransporte !== 'Transportadora') return false;
       const nomeTransportadora = normalizeHeaderKey(r.transportadora || '');
-      if (!nomeTransportadora || nomeTransportadora === 'nao informado' || nomeTransportadora === 'proprio retira') return false;
+      if (nomeTransportadora === 'proprio retira') return false;
       const ref = r.dataEntrega;
       if (!ref) return false;
       if (dataInicio && ref < dataInicio) return false;
