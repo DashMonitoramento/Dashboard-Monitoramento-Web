@@ -2341,12 +2341,28 @@ const DataStore = (() => {
    * Nota concluída: prioriza Data de Faturamento (decisão do usuário, 2026-08-17), com a
    * tentativa Bluesoft mais recente/Data de Coleta como reserva. Nota ainda em andamento:
    * prioriza a tentativa Bluesoft mais recente (reflete o mês real da pendência), só caindo pra
-   * Data de Faturamento como último recurso se nem isso existir. */
+   * Data de Faturamento como último recurso se nem isso existir.
+   *
+   * `r.dataCriacao` entra ANTES de `r.dataFaturamento` pra nota ainda em andamento (bug real
+   * reportado 2026-09-25, Registro Dinâmico mostrando 84 notas "Em aberto" em ABR/2024): notas
+   * "Carregado WMS"/Próprio Retira recém-criadas (21-22/09/2026) ainda não têm Data de Entrega
+   * NEM Data Faturamento Bluesoft preenchidas na Base Bluesoft (coleta ainda não aconteceu) — sem
+   * `dataCriacao` no meio, a fórmula caía direto pra `r.dataFaturamento`, que vinha de um NÚMERO
+   * DE NF RECICLADO na planilha de Faturamento separada (uma nota de verdade antiga, 05/04/2024,
+   * sob o mesmo número — mesma classe de problema já vista em
+   * [[project_dashboard_auditoria_embarques]]) — a nota "voltava" 2 anos no tempo mesmo ainda
+   * sendo um pedido de agora. `dataCriacao` é o próprio campo "Data de Criação" da Bluesoft
+   * (quando ela conhece a NF, esse campo é o único que está SEMPRE preenchido, mesmo antes da
+   * coleta), então cai nele antes de arriscar um valor de outra planilha que pode estar
+   * contaminado por reuso de número de NF. Validado contra os 2 CSVs publicados: resolveu
+   * exatamente as 84 notas afetadas (0 notas "Em aberto" sobrando em meses antigos por essa
+   * causa, restando só 1 caso genuinamente diferente — NF 145017, situação nunca atualizada no
+   * sistema de origem, já conhecido). */
   function dataReferenciaPeriodo(r) {
     const concluida = SITUACOES_FATURAMENTO_CONCLUIDO.includes(r.situacao);
     return concluida
       ? (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao)
-      : (r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataFaturamento || r.dataAgendamento || r.dataEmissao);
+      : (r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataCriacao || r.dataFaturamento || r.dataAgendamento || r.dataEmissao);
   }
 
   /** "Em Trânsito" no filtro de Status da barra lateral (pedido do usuário, 2026-09-07: "no meio
