@@ -466,6 +466,20 @@ async function loadClientesObservacaoDescargaSilently() {
   }
 }
 
+/** "Observação" da tela Auditoria de Embarques (2026-09-24) — mesma ideia de
+ * loadClientesObservacaoDescargaSilently acima, coleção própria por chave real (embarque ou
+ * Placa+Data, ver firebase-init.js/dashboard.js). Opcional: sem Firestore disponível, a coluna
+ * só fica vazia/sem valor salvo, nada mais quebra. */
+async function loadObservacoesAuditoriaEmbarquesSilently() {
+  try {
+    const fb = await waitFirebaseReady();
+    const porChave = await fb.getObservacoesAuditoriaEmbarques();
+    Dashboard.setObservacoesAuditoriaEmbarques(porChave);
+  } catch (err) {
+    console.warn('Observação da Auditoria de Embarques (Firestore) não carregada:', err.message);
+  }
+}
+
 /** Dispara todas as buscas de CSV/JSON em PARALELO, só pra esquentar o cache HTTP do
  * navegador — a cadeia abaixo continua buscando e processando cada fonte na mesma ordem
  * sequencial de sempre (não muda nenhuma lógica de enriquecimento/dependência entre elas),
@@ -528,7 +542,8 @@ async function loadInitialData() {
       loadValoresDescargaAprovadosSilently(),
       loadPermissaoEdicaoValorDescargaSilently(),
       loadClientesNecessitamAjudanteSilently(),
-      loadClientesObservacaoDescargaSilently()
+      loadClientesObservacaoDescargaSilently(),
+      loadObservacoesAuditoriaEmbarquesSilently()
     ]);
     Dashboard.renderAll();
     Utils.showToast(`${DataStore.getRecords().length} registros carregados com sucesso.`, 'success');
