@@ -6207,7 +6207,24 @@ const Dashboard = (() => {
     const ufsFiltroAtual = indicadorFreteTransportadoraUFSelecionada
       ? [indicadorFreteTransportadoraUFSelecionada]
       : Array.from(new Set(itens.map(i => i.estadoDestino).filter(Boolean)));
-    const valorNotasCorrespondente = calcularValorNotasFreteTransportadora(ufsFiltroAtual, dataInicio, dataFim, mes, ano);
+    // Bug real encontrado 2026-09-25 (ela reportou 0,8% "impossível de estar certo"): sem
+    // filtro de Período ativo, dataInicio/dataFim/mes/ano chegam todos nulos aqui, e
+    // calcularValorNotasFreteTransportadora somava a Base Bluesoft SEM limite de data nenhum
+    // (9 meses inteiros) — enquanto o numerador (freteCalculadoTotal) só cobre o que essa fonte
+    // de CT-es realmente tem (~5 meses, a fonte é mais nova). Denominador maior que o
+    // universo real do numerador achatava o % artificialmente (confirmado contra dado real:
+    // restringindo a mesma janela, 0,78% virava 1,11%). Fix: sem filtro de Período explícito,
+    // usa a janela real dos PRÓPRIOS itens em tela (dataEmissao mín/máx) como limite — nunca
+    // deixa o denominador sair do universo que o numerador é capaz de cobrir.
+    let dataInicioNotas = dataInicio, dataFimNotas = dataFim;
+    if (!dataInicio && !dataFim && !mes && !ano && itens.length) {
+      const datasEmissao = itens.map(i => i.dataEmissao).filter(Boolean).map(d => d.getTime());
+      if (datasEmissao.length) {
+        dataInicioNotas = new Date(Math.min(...datasEmissao));
+        dataFimNotas = new Date(Math.max(...datasEmissao));
+      }
+    }
+    const valorNotasCorrespondente = calcularValorNotasFreteTransportadora(ufsFiltroAtual, dataInicioNotas, dataFimNotas, mes, ano);
     const percentualFreteSobreNotas = valorNotasCorrespondente > 0 ? (freteCalculadoTotal / valorNotasCorrespondente) * 100 : null;
 
     const setTexto = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
