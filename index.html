@@ -1545,6 +1545,15 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__label">No Show (hoje)</span>
             <span class="kpi-card__value" id="cargas-count-noshow">0</span>
           </article>
+          <!-- "Motoristas Cadastrados" (2026-09-24, pedido da usuária) — mostra TODO o cadastro
+               (cargasMotoristas, não filtrado por status/fila atual), com edição inline de
+               Nome/Carro/Peso Suportado/Rodízio pra quem tem a MESMA permissão que já controla o
+               resto desta tela (cargasPodeEditar, "Pode editar Controle de Cargas" em "Gerenciar
+               usuários") — ver renderControleCargasListaCadastrados (dashboard.js). -->
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="CADASTRADOS" style="--kpi-accent:#7C3AED" title="Ver todos os motoristas cadastrados e editar os dados">
+            <span class="kpi-card__label">Motoristas Cadastrados</span>
+            <span class="kpi-card__value" id="cargas-count-cadastrados">0</span>
+          </article>
         </div>
 
         <div class="cargas-adicionar">
@@ -2487,6 +2496,7 @@ Segue anexo o relatório atualizado.</textarea>
                 <th data-field="diferencaValor" class="text-right">Dif. Valor</th>
                 <th data-field="qtdViagensLinha" class="text-right">Viagens</th>
                 <th data-field="qtdNfs" class="text-right">NFs</th>
+                <th data-field="observacaoAuditoriaEmbarques">Observação</th>
               </tr>
             </thead>
             <tbody id="auditoria-embarques-table-body"></tbody>
@@ -2521,12 +2531,12 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260923a"></script>
+<script type="module" src="js/firebase-init.js?v=20260924a"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260923b"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260923a"></script>
-<script src="js/script.js?v=20260923a"></script>
+<script src="js/dashboard.js?v=20260924a"></script>
+<script src="js/script.js?v=20260924a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
   // guarda nada em cache de propósito (ver sw.js), então não tem risco de mostrar tela antiga
