@@ -927,6 +927,39 @@ function assinarAvisoMotoristasHistorico(callback, aoFalhar) {
   );
 }
 
+/* ============================================================
+ * OBSERVAÇÃO — AUDITORIA DE EMBARQUES (2026-09-24, pedido da usuária)
+ * ------------------------------------------------------------
+ * 1 doc por CHAVE REAL: número do embarque no Indicador de Frete (a maioria dos casos), ou
+ * Placa+Data (mesma `chave` de DataStore.calcularAuditoriaEmbarques, data.js) quando o grupo não
+ * tem nenhum embarque ("Não Criado") — nunca um índice de linha, que mudaria sozinho se a ordem
+ * dos embarques do grupo mudasse numa reextração futura. Mesma coleção "simples" (getDocs 1x no
+ * boot, sem onSnapshot) de CLIENTES_OBSERVACAO_DESCARGA_COLECAO acima — essa tela já recalcula
+ * tudo em memória a cada render, sem tempo real; ver DataStore/dashboard.js pro resto do
+ * cruzamento. Sem controle de permissão próprio (diferente de Manifesto/Cargas/Valor Descarga):
+ * a tela inteira já é assim, qualquer usuário logado que a vê também edita a Observação.
+ * ============================================================ */
+const AUDITORIA_EMBARQUES_OBSERVACAO_COLECAO = 'auditoriaEmbarquesObservacoes';
+
+async function getObservacoesAuditoriaEmbarques() {
+  const snapshot = await getDocs(collection(db, AUDITORIA_EMBARQUES_OBSERVACAO_COLECAO));
+  const porChave = {};
+  snapshot.forEach(docSnap => { porChave[docSnap.id] = docSnap.data(); });
+  return porChave;
+}
+
+async function salvarObservacaoAuditoriaEmbarques(chave, observacao) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const chaveDoc = String(chave || '').trim();
+  if (!chaveDoc) throw new Error('Registro sem chave — não é possível salvar a Observação.');
+  await setDoc(doc(db, AUDITORIA_EMBARQUES_OBSERVACAO_COLECAO, chaveDoc), {
+    observacao: observacao || '',
+    atualizadoPorEmail: usuario.email,
+    atualizadoEm: serverTimestamp()
+  }, { merge: true });
+}
+
 window.Firebase = {
   auth, db, createUser, signIn, signOutUser, sendPasswordReset, onAuthChange, garantirPerfilUsuario,
   getAgendamentosManuais, salvarAgendamentoManual, salvarAgendamentoManualPedido, salvarObservacaoNota,
@@ -942,6 +975,7 @@ window.Firebase = {
   atualizarRotaStatusCarga,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote, moverDisponibilidadeParaSeparacao,
-  assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico
+  assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico,
+  getObservacoesAuditoriaEmbarques, salvarObservacaoAuditoriaEmbarques
 };
 window.dispatchEvent(new Event('firebase-ready'));
