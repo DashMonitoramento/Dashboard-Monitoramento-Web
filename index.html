@@ -1651,6 +1651,23 @@ Segue anexo o relatório atualizado.</textarea>
 
         <div id="despesas-extra-controle-descarga" style="margin-bottom:16px;"></div>
 
+        <!-- "Top Motoristas"/"Top Clientes" por Valor Descarga Aprovado (2026-09-24, pedido da
+             usuária) — mesmo padrão de charts-grid/chart-card usado em Ranking/Lead Time,
+             ranking simples (1 dimensão, top 10), diferente do "Controle de Descarga" acima
+             (que agrupa pela combinação de 3 campos). Segue os mesmos filtros da tela. -->
+        <div class="charts-grid" style="margin-bottom:16px;">
+          <div class="chart-card">
+            <div class="chart-card__header"><h2 class="chart-card__title">Motoristas com maior gasto de descarga</h2></div>
+            <div class="chart-root" id="chart-despesas-extra-top-motoristas"></div>
+            <p class="chart-card__hint">Soma de Valor Descarga Aprovado por Motorista (top 10).</p>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card__header"><h2 class="chart-card__title">Clientes com maior gasto de descarga</h2></div>
+            <div class="chart-root" id="chart-despesas-extra-top-clientes"></div>
+            <p class="chart-card__hint">Soma de Valor Descarga Aprovado por Cliente (top 10).</p>
+          </div>
+        </div>
+
         <div class="table-card__header">
           <div class="table-search" style="margin-left:auto;">
             🔎 <input type="search" id="despesas-extra-table-search" placeholder="Pesquisar por NF, cliente, motorista...">
