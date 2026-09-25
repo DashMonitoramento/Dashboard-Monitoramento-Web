@@ -152,11 +152,18 @@ const Dashboard = (() => {
   // Chaves de grupo com a linha de detalhe aberta (clique na linha-resumo) — Set, não índice de
   // página, pra sobreviver a reordenação/paginação sem fechar sozinho.
   let auditoriaEmbarquesExpandidos = new Set();
+  // "Observação" (2026-09-24, pedido da usuária) — por CHAVE REAL (número do embarque no
+  // Indicador de Frete, ou Placa+Data quando o grupo não tem embarque nenhum/"Não Criado" — ver
+  // desmembrarGrupoAuditoriaEmbarques), carregada 1x no boot (script.js/firebase-init.js, mesmo
+  // padrão simples de CLIENTES_OBSERVACAO_DESCARGA_COLECAO — esta tela recalcula tudo em memória
+  // a cada render, sem Firestore em tempo real). Objeto simples ({chave: {observacao}}), não Map,
+  // pra bater com o formato já devolvido por getObservacoesAuditoriaEmbarques.
+  let auditoriaEmbarquesObservacoesPorChave = {};
   const AUDITORIA_EMBARQUES_TABLE_IDS = {
     tbody: 'auditoria-embarques-table-body', info: 'auditoria-embarques-table-info',
     pageLabel: 'auditoria-embarques-table-page-label', prev: 'auditoria-embarques-table-prev',
     next: 'auditoria-embarques-table-next', theadSelector: '#auditoria-embarques-table thead th[data-field]',
-    colspan: 14
+    colspan: 15
   };
   const AUDITORIA_EMBARQUES_FILTROS_CABECALHO_IDS = {
     dataInicio: 'auditoria-embarques-filtro-data-inicio', dataFim: 'auditoria-embarques-filtro-data-fim'
@@ -383,6 +390,14 @@ const Dashboard = (() => {
     renderStatusDetail(); // no-op se a tela de detalhe não estiver aberta
   }
   /** Idem, pro "Valor Descarga Aprovado" — atualiza o painel de edição na hora, se já aberto. */
+  /** Chamado de fora (script.js) assim que a Observação da Auditoria de Embarques for lida do
+   * Firestore no boot — atualiza a tela na hora, caso já esteja aberta (mesmo padrão dos outros
+   * setters "de fora" desta seção). */
+  function setObservacoesAuditoriaEmbarques(porChave) {
+    auditoriaEmbarquesObservacoesPorChave = porChave || {};
+    renderAuditoriaEmbarques(); // no-op se a tela não estiver aberta
+  }
+
   function setPermissaoEdicaoValorDescarga(pode) {
     podeEditarValorDescargaUsuarioAtual = !!pode;
     renderRegistrosDetalhadosValorDescargaEdicao();
@@ -4998,28 +5013,47 @@ const Dashboard = (() => {
     return texto.split('/').map(s => s.trim()).filter(Boolean).length || 1;
   }
 
+  /** Valor atual da Observação salva pra uma chave (ver auditoriaEmbarquesObservacoesPorChave
+   * acima) — string vazia quando nunca foi preenchida, nunca undefined. */
+  function auditoriaEmbarquesObservacaoAtual(chave) {
+    return (auditoriaEmbarquesObservacoesPorChave[chave] || {}).observacao || '';
+  }
+
   function desmembrarGrupoAuditoriaEmbarques(g) {
     if (g.itensIndicador.length <= 1) {
       const item = g.itensIndicador[0] || null;
+      const embarqueId = item ? item.embarque : null;
+      // Sem embarque (Não Criado): a única chave real do grupo é Placa+Data (g.chave) — nunca um
+      // índice de linha, que mudaria sozinho se a ordem dos embarques do grupo mudasse depois.
+      const observacaoChave = embarqueId || g.chave;
       return [{
         ...g,
         linhaChave: g.chave,
-        embarqueId: item ? item.embarque : null,
+        embarqueId,
         identificadorViagemLinha: item ? item.identificadorViagem : null,
         qtdViagensLinha: item ? contarViagensDoIdentificador(item.identificadorViagem) : null,
         pesoEmbarqueLinha: item ? item.peso : null,
-        valorEmbarqueLinha: item ? item.valorTotalNFs : null
+        valorEmbarqueLinha: item ? item.valorTotalNFs : null,
+        observacaoChave,
+        observacaoAuditoriaEmbarques: auditoriaEmbarquesObservacaoAtual(observacaoChave)
       }];
     }
-    return g.itensIndicador.map((item, idx) => ({
-      ...g,
-      linhaChave: `${g.chave}|${idx}`,
-      embarqueId: item.embarque,
-      identificadorViagemLinha: item.identificadorViagem,
-      qtdViagensLinha: contarViagensDoIdentificador(item.identificadorViagem),
-      pesoEmbarqueLinha: item.peso,
-      valorEmbarqueLinha: item.valorTotalNFs
-    }));
+    return g.itensIndicador.map((item, idx) => {
+      // Cada linha já tem um embarque de verdade aqui (item.embarque) — chave estável por si só,
+      // sem precisar do índice; o fallback só cobre um item sem número de embarque preenchido.
+      const observacaoChave = item.embarque || `${g.chave}|${idx}`;
+      return {
+        ...g,
+        linhaChave: `${g.chave}|${idx}`,
+        embarqueId: item.embarque,
+        identificadorViagemLinha: item.identificadorViagem,
+        qtdViagensLinha: contarViagensDoIdentificador(item.identificadorViagem),
+        pesoEmbarqueLinha: item.peso,
+        valorEmbarqueLinha: item.valorTotalNFs,
+        observacaoChave,
+        observacaoAuditoriaEmbarques: auditoriaEmbarquesObservacaoAtual(observacaoChave)
+      };
+    });
   }
 
   function auditoriaEmbarquesGruposFiltrados() {
@@ -5075,6 +5109,7 @@ const Dashboard = (() => {
       <td class="text-right${valorDivergente ? ' celula-divergente' : ''}">${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</td>
       <td class="text-right">${g.qtdViagensLinha == null ? '—' : Utils.formatNumber(g.qtdViagensLinha)}</td>
       <td class="text-right">${Utils.formatNumber(g.qtdNfs)}</td>
+      <td><input type="text" class="observacao-descarga-inline" data-auditoria-embarques-observacao-chave="${escapeAttr(g.observacaoChave)}" value="${escapeAttr(g.observacaoAuditoriaEmbarques)}" placeholder="Observação"></td>
     </tr>`;
 
     if (!expandido) return linhaResumo;
@@ -5217,12 +5252,43 @@ const Dashboard = (() => {
     const tbody = document.getElementById('auditoria-embarques-table-body');
     if (tbody) {
       tbody.addEventListener('click', (e) => {
+        // Ignora clique dentro do campo de Observação (2026-09-24) — ele também é filho da
+        // linha-resumo (data-auditoria-embarques-toggle fica no <tr> inteiro), sem isso clicar
+        // no campo pra digitar expandia/recolhia o detalhe a cada clique.
+        if (e.target.closest('[data-auditoria-embarques-observacao-chave]')) return;
         const linha = e.target.closest('[data-auditoria-embarques-toggle]');
         if (!linha) return;
         const chave = linha.dataset.auditoriaEmbarquesToggle;
         if (auditoriaEmbarquesExpandidos.has(chave)) auditoriaEmbarquesExpandidos.delete(chave);
         else auditoriaEmbarquesExpandidos.add(chave);
         renderTableGeneric(auditoriaEmbarquesGruposFiltrados(), auditoriaEmbarquesTable, AUDITORIA_EMBARQUES_TABLE_IDS, rowHtmlAuditoriaEmbarques);
+      });
+
+      // Observação (2026-09-24, pedido da usuária) — editável por qualquer usuário logado (esta
+      // tela nunca teve controle de permissão próprio, diferente de Manifesto/Cargas/Valor
+      // Descarga). Salva no focusout, só se o texto mudou de verdade (mesmo padrão de sempre).
+      // Sem re-render manual: só atualiza o Map local, o próprio <input> já mostra o valor certo
+      // (evita perder página/busca/linhas expandidas só por causa de 1 campo salvo).
+      tbody.addEventListener('focusout', async (e) => {
+        const input = e.target.closest('[data-auditoria-embarques-observacao-chave]');
+        if (!input) return;
+        const texto = input.value.trim();
+        if (texto === (input.defaultValue || '').trim()) return;
+        const chave = input.dataset.auditoriaEmbarquesObservacaoChave;
+        input.disabled = true;
+        try {
+          const fb = await new Promise((resolve) => {
+            if (window.Firebase) return resolve(window.Firebase);
+            window.addEventListener('firebase-ready', () => resolve(window.Firebase), { once: true });
+          });
+          await fb.salvarObservacaoAuditoriaEmbarques(chave, texto);
+          auditoriaEmbarquesObservacoesPorChave = { ...auditoriaEmbarquesObservacoesPorChave, [chave]: { observacao: texto } };
+          input.defaultValue = texto;
+          Utils.showToast('Observação salva.', 'success', 2000);
+        } catch (err) {
+          Utils.showToast(err.message || 'Falha ao salvar a Observação.', 'error', 5000);
+        }
+        input.disabled = false;
       });
     }
 
@@ -5251,7 +5317,8 @@ const Dashboard = (() => {
       { label: 'Valor Embarque', value: g => g.valorEmbarqueLinha != null ? g.valorEmbarqueLinha.toFixed(2).replace('.', ',') : '' },
       { label: 'Diferença de Valor', value: g => g.diferencaValor != null ? g.diferencaValor.toFixed(2).replace('.', ',') : '' },
       { label: 'Qtd Viagens', value: g => g.qtdViagensLinha == null ? '—' : g.qtdViagensLinha },
-      { label: 'Qtd NFs', value: g => g.qtdNfs }
+      { label: 'Qtd NFs', value: g => g.qtdNfs },
+      { label: 'Observação', value: g => g.observacaoAuditoriaEmbarques || '—' }
     ];
     await Utils.exportToStyledExcel('auditoria-embarques.xlsx', 'Auditoria de Embarques', colunas, linhas);
     Utils.showToast(`${linhas.length} embarques exportados para Excel.`, 'success');
@@ -7007,6 +7074,18 @@ const Dashboard = (() => {
     return { carro: limpo, peso: '' };
   }
 
+  /** Inverso de cargasParseVeiculo — remonta o campo único `veiculo` a partir de Carro/Peso
+   * editados separadamente na lista "Motoristas Cadastrados" (ver
+   * renderControleCargasListaCadastrados/salvarCampoCadastroMotorista abaixo). Mesmo formato
+   * "Carro - Peso" já usado em todo cadastro existente, pra continuar reconhecido por
+   * cargasParseVeiculo/cargasCalcularPesoPadraoPorCarro depois de salvo. */
+  function cargasMontarVeiculo(carro, peso) {
+    const c = String(carro || '').trim();
+    const p = String(peso || '').trim();
+    if (c && p) return `${c} - ${p}`;
+    return c || p;
+  }
+
   /** Peso PADRÃO por tipo de carro (2026-09-17, pedido da usuária: "o peso pegar a quantidade
    * que a fiorino suporta, em outros cadastros já tem se esse não tiver") — varre todo motorista
    * já carregado em memória, pega o PRIMEIRO peso não vazio cadastrado pra cada tipo de carro
@@ -7315,12 +7394,18 @@ const Dashboard = (() => {
     });
     const elNoShow = document.getElementById('cargas-count-noshow');
     if (elNoShow) elNoShow.textContent = Utils.formatNumber(noShowHoje);
+
+    // "Motoristas Cadastrados" (2026-09-24) — TODO o cadastro (cargasMotoristas já vem filtrado
+    // só por ativo!==false, ver inicializarCadastroMotoristas), não uma fila/status específico.
+    const elCadastrados = document.getElementById('cargas-count-cadastrados');
+    if (elCadastrados) elCadastrados.textContent = Utils.formatNumber(cargasMotoristas.size);
   }
 
   const CARGAS_LABEL_FILTRO = {
     NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada',
     SEPARADO: 'Separado', CARREGADO: 'Carregado',
-    DISPONIVEL: 'Motoristas Disponíveis', NOSHOW: 'No Show'
+    DISPONIVEL: 'Motoristas Disponíveis', NOSHOW: 'No Show',
+    CADASTRADOS: 'Motoristas Cadastrados'
   };
   // Mesmas cores dos cards KPI (--kpi-accent) desta tela, via classe .badge já genérica do
   // resto do site — mantém a mesma semântica de cor (vermelho=não iniciado, amarelo=em
@@ -7396,6 +7481,10 @@ const Dashboard = (() => {
 
     if (cargasFiltroAtivo === 'NOSHOW') {
       renderControleCargasListaNoShow(wrap);
+      return;
+    }
+    if (cargasFiltroAtivo === 'CADASTRADOS') {
+      renderControleCargasListaCadastrados(wrap);
       return;
     }
 
@@ -7616,6 +7705,70 @@ const Dashboard = (() => {
     wrap.innerHTML = rankingHtml + listaHtml;
   }
 
+  /** Lista do card "Motoristas Cadastrados" (2026-09-24, pedido da usuária) — DIFERENTE dos
+   * outros cards desta tela: não é uma fila/status (statusCarga/disponibilidade), é o cadastro
+   * inteiro (cargasMotoristas), com Nome/Carro/Peso Suportado/Rodízio editáveis inline (mesma
+   * permissão cargasPodeEditar de sempre — "Pode editar Controle de Cargas" em "Gerenciar
+   * usuários" já cobre esta tela inteira). Placa não é editável aqui: é o ID do documento no
+   * Firestore, e nem o cadastro nem statusCarga/disponibilidade (que também usam placa como ID)
+   * têm suporte a "renomear" — corrigir placa errada continua sendo recadastrar pelo modal
+   * "+ Cadastrar motorista". */
+  function renderControleCargasListaCadastrados(wrap) {
+    const itens = Array.from(cargasMotoristas.values()).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+    if (!itens.length) {
+      wrap.innerHTML = '<div class="cargas-vazio">Nenhum motorista cadastrado ainda.</div>';
+      return;
+    }
+    const opcoesRodizio = ['', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+
+    wrap.innerHTML = itens.map(m => {
+      const { carro, peso } = cargasParseVeiculo(m.veiculo);
+      const badgeRodizio = cargasRodizioEhHoje(m.rodizio) ? '<span class="cargas-badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
+
+      const nomeHtml = cargasPodeEditar
+        ? `<input type="text" class="observacao-descarga-inline" data-cargas-cadastro-campo="nome" data-cargas-cadastro-placa="${escapeAttr(m.placa)}" value="${escapeAttr(m.nome)}" placeholder="Nome...">`
+        : escapeAttr(m.nome);
+      const carroHtml = cargasPodeEditar
+        ? `<input type="text" class="observacao-descarga-inline" data-cargas-cadastro-campo="carro" data-cargas-cadastro-placa="${escapeAttr(m.placa)}" value="${escapeAttr(carro)}" placeholder="Carro...">`
+        : escapeAttr(carro || '—');
+      const pesoHtml = cargasPodeEditar
+        ? `<input type="text" class="observacao-descarga-inline" data-cargas-cadastro-campo="peso" data-cargas-cadastro-placa="${escapeAttr(m.placa)}" value="${escapeAttr(peso)}" placeholder="Peso suportado...">`
+        : escapeAttr(peso || '—');
+      const rodizioHtml = cargasPodeEditar
+        ? `<select class="cargas-mover-select" data-cargas-cadastro-campo="rodizio" data-cargas-cadastro-placa="${escapeAttr(m.placa)}">
+             ${opcoesRodizio.map(op => `<option value="${escapeAttr(op)}"${m.rodizio === op ? ' selected' : ''}>${op || 'Sem rodízio'}</option>`).join('')}
+           </select>`
+        : (m.rodizio ? escapeAttr(m.rodizio) : 'Sem rodízio cadastrado');
+
+      return `
+        <div class="cargas-item">
+          <div class="cargas-item__info">
+            <div class="cargas-item__nome">${nomeHtml}${badgeRodizio}</div>
+            <div class="cargas-item__meta">Placa: ${escapeAttr(m.placa)} · Carro: ${carroHtml} · Peso: ${pesoHtml} · Rodízio: ${rodizioHtml}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  /** Salva UM campo (nome/carro/peso/rodizio) de um motorista já cadastrado — reconstrói o
+   * registro INTEIRO a partir do que já está em cargasMotoristas (nunca manda campo vazio por
+   * engano) e reaproveita cadastrarMotorista (mesma escrita já usada pelo modal "+ Cadastrar
+   * motorista", já autorizada pela mesma regra do Firestore, sem precisar de nenhuma permissão
+   * nova). Carro/Peso remontam o campo único `veiculo` (ver cargasMontarVeiculo). Sem re-render
+   * manual — o onSnapshot de assinarMotoristas já redesenha a lista assim que o Firestore
+   * confirmar (mesmo padrão do resto desta tela). */
+  async function salvarCampoCadastroMotorista(placa, campo, valor) {
+    const motorista = cargasMotoristas.get(placa);
+    if (!motorista) return;
+    const { carro, peso } = cargasParseVeiculo(motorista.veiculo);
+    const dados = { nome: motorista.nome, placa, veiculo: motorista.veiculo, rodizio: motorista.rodizio || '' };
+    if (campo === 'nome') dados.nome = valor;
+    else if (campo === 'carro') dados.veiculo = cargasMontarVeiculo(valor, peso);
+    else if (campo === 'peso') dados.veiculo = cargasMontarVeiculo(carro, valor);
+    else if (campo === 'rodizio') dados.rodizio = valor;
+    await cargasDashFirebase.cadastrarMotorista(dados);
+  }
+
   function bindControleCargasCards() {
     document.querySelectorAll('#cargas-view [data-cargas-filtro]').forEach(card => {
       card.addEventListener('click', () => {
@@ -7720,6 +7873,41 @@ const Dashboard = (() => {
       } catch (err) {
         Utils.showToast('Falha ao salvar rota: ' + err.message, 'error');
       }
+    });
+
+    // Edição inline de Nome/Carro/Peso Suportado (2026-09-24) — mesmo padrão de sempre: salva no
+    // focusout, só se o valor mudou de verdade. Sem re-render manual — o onSnapshot de
+    // assinarMotoristas já redesenha a lista "Motoristas Cadastrados" assim que confirmar.
+    wrap.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('input[data-cargas-cadastro-campo]');
+      if (!input) return;
+      const novoValor = input.value.trim();
+      if (novoValor === (input.defaultValue || '').trim()) return;
+      const placa = input.dataset.cargasCadastroPlaca;
+      const campo = input.dataset.cargasCadastroCampo;
+      input.disabled = true;
+      try {
+        await salvarCampoCadastroMotorista(placa, campo, novoValor);
+        Utils.showToast('Dados do motorista salvos.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast('Falha ao salvar: ' + err.message, 'error');
+      }
+      input.disabled = false;
+    });
+
+    // Rodízio (<select>, 2026-09-24) — salva no change, mesmo campo único de sempre.
+    wrap.addEventListener('change', async (e) => {
+      const select = e.target.closest('select[data-cargas-cadastro-campo="rodizio"]');
+      if (!select) return;
+      const placa = select.dataset.cargasCadastroPlaca;
+      select.disabled = true;
+      try {
+        await salvarCampoCadastroMotorista(placa, 'rodizio', select.value);
+        Utils.showToast('Rodízio salvo.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast('Falha ao salvar rodízio: ' + err.message, 'error');
+      }
+      select.disabled = false;
     });
   }
 
@@ -8072,7 +8260,7 @@ const Dashboard = (() => {
 
   return {
     init, renderAll, loadCanhotosIndex, isSuperAdminAgendamento, isSuperAdminEmailAgendamento, setPermissaoEdicaoAgendamento,
-    setPermissaoEdicaoValorDescarga,
+    setPermissaoEdicaoValorDescarga, setObservacoesAuditoriaEmbarques,
     computarDadosRegioesAoVivo, enviarDadosRegioesParaIframe,
     calcularRegistroDinamico, calcularRegistroDinamicoPorMes, calcularRegistroDinamicoPorTransportadora,
   };
