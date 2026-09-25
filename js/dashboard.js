@@ -6126,12 +6126,24 @@ const Dashboard = (() => {
    * real: sem ele, o percentual saía de ~0,5% (a Base Bluesoft inteira tem AGREGADO/PRÓPRIO
    * RETIRA/EXPORTAÇÃO misturados, categorias que o relatório de Transportadora nem audita) —
    * com o filtro, sobe pra ~0,9%, população bem mais parecida com a do CT-e (mesma categoria
-   * que dá nome ao próprio relatório e ao valor "TRANSPORTADORA" da coluna Categoria/Z). */
+   * que dá nome ao próprio relatório e ao valor "TRANSPORTADORA" da coluna Categoria/Z).
+   *
+   * `r.transportadora` precisa ser um nome de verdade (2026-09-25, bug real reportado pela
+   * usuária: "0,8% é praticamente impossível"). Achado contra dado real: 75% do valor somado
+   * (R$178,7 milhões de R$238,8 milhões) vinha de notas com `Categoria=Transportadora` mas
+   * `Transportadora` vazia/"Não informado" (58%, R$138M) ou literalmente "PRÓPRIO RETIRA" (17%,
+   * R$40,6M — contradição: categoria diz Transportadora, nome diz o oposto). Isso não é uma nota
+   * de Transportadora de verdade pra comparar contra o CT-e, é resíduo/erro de categorização na
+   * Base Bluesoft — incluir inflava o denominador e achatava o % artificialmente. Excluindo os
+   * dois casos, validado contra dado real: 1,11% (com o resíduo) vira 4,39% (só transportadora
+   * de verdade) — número plausível, não mais "impossível". */
   function calcularValorNotasFreteTransportadora(ufs, dataInicio, dataFim, mes, ano) {
     if (!ufs || !ufs.length) return 0;
     const registros = DataStore.getRecords().filter(r => {
       if (!ufs.includes(r.uf)) return false;
       if (r.tipoTransporte !== 'Transportadora') return false;
+      const nomeTransportadora = normalizeHeaderKey(r.transportadora || '');
+      if (!nomeTransportadora || nomeTransportadora === 'nao informado' || nomeTransportadora === 'proprio retira') return false;
       const ref = r.dataEntrega;
       if (!ref) return false;
       if (dataInicio && ref < dataInicio) return false;
