@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -217,6 +217,57 @@
     position:absolute; left:10px; top:50%; transform:translateY(-50%);
     width:15px;height:15px; color:var(--ink-faint);
   }
+  /* Filtro de período (pedido do usuário, 2026-09-24) -- ao lado da busca em Registros, e uma
+     segunda instância própria (mesmo CSS, ids diferentes) no topo de Indicadores. */
+  .periodo{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .periodo select{
+    padding:10px 10px;
+    border-radius:var(--radius-sm);
+    border:1px solid var(--line);
+    background:var(--surface);
+    font-size:13px;
+    color:var(--ink);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  .periodo-custom{ display:flex; align-items:center; gap:6px; }
+  .periodo-custom input[type="date"]{
+    padding:9px 8px;
+    border-radius:var(--radius-sm);
+    border:1px solid var(--line);
+    background:var(--surface);
+    font-size:13px;
+    color:var(--ink);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  .periodo-custom span{ font-size:12px; color:var(--ink-soft); }
+  /* ---------- indicadores ---------- */
+  .ind-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:4px solid var(--stat-accent, var(--brand));
+    border-radius:var(--radius-md);
+    padding:16px;
+    margin-bottom:14px;
+  }
+  .ind-card[data-tipo="recusa"]{ --stat-accent:var(--recusa); --stat-accent-bg:var(--recusa-bg); }
+  .ind-card[data-tipo="reentrega"]{ --stat-accent:var(--reentrega); --stat-accent-bg:var(--reentrega-bg); }
+  .ind-card[data-tipo="agendamento"]{ --stat-accent:var(--agendamento); --stat-accent-bg:var(--agendamento-bg); }
+  .ind-card-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .ind-card-head h3{ margin:0; font-size:15px; color:var(--ink); }
+  .ind-card-head .ind-total{
+    font-size:22px; font-weight:700; color:var(--stat-accent);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  .ind-vazio{ font-size:13px; color:var(--ink-soft); margin:0; }
+  .ind-linha{ margin-bottom:10px; }
+  .ind-linha:last-child{ margin-bottom:0; }
+  .ind-linha-topo{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; margin-bottom:4px; }
+  .ind-linha-label{ color:var(--ink); flex:1 1 auto; min-width:0; }
+  .ind-linha-valor{ color:var(--ink-soft); flex:none; font-variant-numeric:tabular-nums; }
+  .ind-barra-trilha{ height:10px; border-radius:5px; background:var(--stat-accent-bg); overflow:hidden; }
+  .ind-barra-fill{ height:100%; border-radius:5px; background:var(--stat-accent); }
+  .ind-linha-variantes{ margin-top:4px; font-size:11.5px; color:var(--ink-faint); cursor:pointer; }
+  .ind-variantes-lista{ margin:4px 0 0; padding-left:16px; color:var(--ink-soft); font-size:12px; }
   select#filtroStatus{
     padding:10px 10px;
     border-radius:var(--radius-sm);
@@ -986,6 +1037,7 @@
   <div class="main-nav" id="mainNav">
     <button type="button" class="active" data-view="registros">Registros</button>
     <button type="button" data-view="estoque">Estoque 3D</button>
+    <button type="button" data-view="indicadores" id="navIndicadores">Indicadores</button>
     <button type="button" data-view="exportar" id="navExportar">Exportar</button>
     <button type="button" data-view="importar" id="navImportar">Importar</button>
   </div>
@@ -997,8 +1049,44 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" id="busca" placeholder="Buscar por NF ou cliente">
       </div>
+      <div class="periodo">
+        <select id="filtroPeriodo">
+          <option value="todos" selected>Todo o período</option>
+          <option value="hoje">Hoje</option>
+          <option value="ontem">Ontem</option>
+          <option value="semana">Esta semana</option>
+          <option value="mes">Este mês</option>
+          <option value="personalizado">Personalizado…</option>
+        </select>
+        <div class="periodo-custom" id="periodoCustomWrap" style="display:none;">
+          <input type="date" id="periodoIni">
+          <span>até</span>
+          <input type="date" id="periodoFim">
+        </div>
+      </div>
     </div>
     <div class="lista" id="lista"></div>
+  </div>
+  <div id="viewIndicadores" style="display:none;">
+    <div class="export-card">
+      <h2>Indicadores de ocorrência</h2>
+      <p class="hint">Quantidade de notas e principais motivos por categoria (Recusa, Reentrega e Agendamento), no período selecionado.</p>
+      <div class="periodo">
+        <select id="indPeriodo">
+          <option value="hoje">Hoje</option>
+          <option value="semana">Esta semana</option>
+          <option value="mes" selected>Este mês</option>
+          <option value="todos">Todo o período</option>
+          <option value="personalizado">Personalizado…</option>
+        </select>
+        <div class="periodo-custom" id="indPeriodoCustomWrap" style="display:none;">
+          <input type="date" id="indPeriodoIni">
+          <span>até</span>
+          <input type="date" id="indPeriodoFim">
+        </div>
+      </div>
+    </div>
+    <div id="indicadoresConteudo"></div>
   </div>
   <div id="viewEstoque" style="display:none;">
     <div class="estoque-submodo" id="estoqueSubmodo">
@@ -1440,12 +1528,16 @@ let editId = null;
 let tipoAtual = 'recusa';
 let filtroTipo = 'todos';
 let filtroStatus = 'todos';
-// Tipos cujo card/aba só contam e mostram notas AINDA PENDENTES (2026-09-12, pedido da usuária:
-// Recusa e Reentrega resolvidas devem "ir para" o card Já tratado, não continuar contando/
-// aparecendo no card do próprio Tipo) -- mesmo tratamento que "sem_tratativa" já tinha desde
-// 2026-09-03 (esse não mudou, só ganhou companhia). Fonte única usada em renderStats/renderLista/
-// renderHistorico, pra nunca divergir entre a contagem do card e o que aparece ao clicar nele.
-const TIPOS_SO_PENDENTE = ['recusa','reentrega','sem_tratativa'];
+let filtroPeriodo = 'todos';
+// Tipos cujo card/aba só contam e mostram notas AINDA PENDENTES -- "sem_tratativa" está aqui
+// desde 2026-09-03. Recusa e Reentrega passaram por aqui entre 2026-09-12 e 2026-09-24 (pedido
+// da usuária na época: notas resolvidas "iam para" o card Já tratado e paravam de contar no
+// card do próprio Tipo); voltaram a contar TUDO (pendente + resolvida) a partir de 2026-09-24,
+// a pedido dela, pra o card mostrar "a quantidade de notas nesse status" de verdade -- igual
+// Agendamento já fazia o tempo todo e continua fazendo. Fonte única usada em renderStats/
+// renderLista/renderHistorico, pra nunca divergir entre a contagem do card e o que aparece ao
+// clicar nele.
+const TIPOS_SO_PENDENTE = ['sem_tratativa'];
 // Id do registro cuja Observação está em edição inline na lista (pedido do usuário, 2026-09-01)
 // — mesmo padrão de "clique pra editar" já usado no dashboard principal, só 1 por vez.
 let obsEditandoId = null;
@@ -1489,16 +1581,19 @@ function renderStats(){
   // como "1" no card "Já tratado", só que clicar no card não mostrava nada, porque a lista
   // filtra pelo estado da ocorrência mais recente -- o número do card tem que bater SEMPRE
   // com o que aparece ao clicar nele).
-  const grupos = agruparPorNota(entries).map(g => g.principal);
+  // Respeita o filtro de período (pedido do usuário, 2026-09-24): com 'todos' selecionado
+  // (padrão), intervaloPeriodo() volta null e dataDentroDoIntervalo() deixa tudo passar --
+  // comportamento idêntico a antes de o filtro existir.
+  const intervalo = intervaloPeriodo(filtroPeriodo, $('periodoIni').value, $('periodoFim').value);
+  const grupos = agruparPorNota(entries).map(g => g.principal).filter(e => dataDentroDoIntervalo(e.data, intervalo));
   const tipos = ['recusa','reentrega','agendamento','sem_tratativa'];
   const wrap = $('stats');
   wrap.innerHTML = '';
   tipos.forEach(t=>{
-    // Recusa/Reentrega/Sem tratativa (TIPOS_SO_PENDENTE) só contam quem ainda está pendente --
-    // uma vez resolvida, a nota sai da contagem/lista do próprio Tipo e passa a contar só em
-    // "Já tratado" (pedido da usuária, 2026-09-12, estendendo a mesma regra que "Sem tratativa"
-    // já tinha desde 2026-09-03). "Agendamento" continua contando TUDO (resolvido ou não) --
-    // ela não pediu essa mudança pra ele.
+    // "Sem tratativa" (TIPOS_SO_PENDENTE) só conta quem ainda está pendente -- uma vez resolvida,
+    // a nota sai da contagem/lista do próprio Tipo e passa a contar só em "Já tratado" (regra
+    // desde 2026-09-03). Recusa/Reentrega/Agendamento contam TUDO (pendente + resolvida) -- ver
+    // comentário de TIPOS_SO_PENDENTE mais acima pro histórico dessa regra.
     const total = TIPOS_SO_PENDENTE.includes(t)
       ? grupos.filter(e=>e.tipo===t && e.status==='pendente').length
       : grupos.filter(e=>e.tipo===t).length;
@@ -1555,6 +1650,30 @@ function renderTabsStatus(){
     wrap.appendChild(b);
   });
 }
+// Filtro de período (pedido do usuário, 2026-09-24) -- comparação direta de strings 'YYYY-MM-DD'
+// (mesmo truque já usado em todo o resto do arquivo, ex. o localeCompare de e.data em
+// agruparPorNota logo abaixo: ordenação lexicográfica de data ISO já é ordenação cronológica).
+// ymdLocal() existe pra não cair no bug clássico de toISOString() (que usa UTC) empurrar o dia
+// errado perto da meia-noite aqui no fuso de Brasília (GMT-3).
+function ymdLocal(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function intervaloPeriodo(periodo, iniPersonalizado, fimPersonalizado){
+  const hoje = new Date();
+  if(periodo==='hoje'){ const s = ymdLocal(hoje); return { ini:s, fim:s }; }
+  if(periodo==='ontem'){ const d = new Date(hoje); d.setDate(d.getDate()-1); const s = ymdLocal(d); return { ini:s, fim:s }; }
+  if(periodo==='semana'){ const ini = new Date(hoje); ini.setDate(hoje.getDate() - hoje.getDay()); return { ini:ymdLocal(ini), fim:ymdLocal(hoje) }; }
+  if(periodo==='mes'){ const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1); return { ini:ymdLocal(ini), fim:ymdLocal(hoje) }; }
+  if(periodo==='personalizado') return { ini: iniPersonalizado || '', fim: fimPersonalizado || '' };
+  return null; // 'todos' -- sem filtro de período
+}
+function dataDentroDoIntervalo(dataStr, intervalo){
+  if(!intervalo) return true;
+  if(!dataStr) return false;
+  if(intervalo.ini && dataStr < intervalo.ini) return false;
+  if(intervalo.fim && dataStr > intervalo.fim) return false;
+  return true;
+}
 // Consolida ocorrências da MESMA nota (mesma NF) num grupo só -- pedido do usuário, 2026-09-02.
 // Sem NF (registro antigo), cada uma vira seu próprio grupo de 1 (não consolida, não tem uma
 // chave confiável pra isso). "principal" = ocorrência mais recente (maior data) -- é ela que
@@ -1574,19 +1693,21 @@ function agruparPorNota(lista){
 function renderLista(){
   if(filtroStatus==='historico'){ renderHistorico(); return; }
   const busca = normalizarTexto($('busca').value);
+  const intervalo = intervaloPeriodo(filtroPeriodo, $('periodoIni').value, $('periodoFim').value);
   const wrap = $('lista');
   wrap.innerHTML = '';
-  // Filtro de Tipo/Status/busca usa a ocorrência PRINCIPAL (mais recente) do grupo -- é o
-  // "estado atual" dessa nota que decide se ela aparece em Pendente/Resolvido etc.
+  // Filtro de Tipo/Status/busca/período usa a ocorrência PRINCIPAL (mais recente) do grupo -- é
+  // o "estado atual" dessa nota que decide se ela aparece em Pendente/Resolvido etc.
   let grupos = agruparPorNota(entries).filter(({ principal: e })=>{
     // "ja_tratado" é o filtro especial do card "Já tratado" (pedido do usuário, 2026-09-03) --
     // não é um Tipo de verdade, filtra por Status ao invés de por Tipo.
     if(filtroTipo==='ja_tratado'){ if(e.status!=='resolvido') return false; }
     else if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
-    // Mesma regra de TIPOS_SO_PENDENTE do card (ver renderStats) -- clicar em Recusa/Reentrega/
-    // Sem tratativa nunca mostra uma nota já resolvida (essa já foi "embora" pro Já tratado).
+    // Mesma regra de TIPOS_SO_PENDENTE do card (ver renderStats) -- clicar em Sem tratativa
+    // nunca mostra uma nota já resolvida (essa já foi "embora" pro Já tratado).
     else if(TIPOS_SO_PENDENTE.includes(filtroTipo) && e.status!=='pendente') return false;
     if(filtroStatus!=='todos' && e.status!==filtroStatus) return false;
+    if(!dataDentroDoIntervalo(e.data, intervalo)) return false;
     if(busca){
       // Busca por número de nota ou cliente (pedido do usuário, 2026-09-02) -- endereço saiu
       // da busca junto com o campo, que também saiu do formulário.
@@ -1716,6 +1837,7 @@ function renderLista(){
 // busca (NF ou cliente) e o filtro de Tipo dos cartões de cima, igual a lista normal.
 function renderHistorico(){
   const busca = normalizarTexto($('busca').value);
+  const intervalo = intervaloPeriodo(filtroPeriodo, $('periodoIni').value, $('periodoFim').value);
   const wrap = $('lista');
   wrap.innerHTML = '';
   const filtradas = entries.filter(e=>{
@@ -1723,6 +1845,7 @@ function renderHistorico(){
     else if(filtroTipo!=='todos' && e.tipo!==filtroTipo) return false;
     // Mesma regra de TIPOS_SO_PENDENTE do card (ver renderStats/renderLista).
     else if(TIPOS_SO_PENDENTE.includes(filtroTipo) && e.status!=='pendente') return false;
+    if(!dataDentroDoIntervalo(e.data, intervalo)) return false;
     if(busca){
       const alvo = normalizarTexto((e.nf || '') + ' ' + (e.cliente || ''));
       if(!alvo.includes(busca)) return false;
@@ -1769,6 +1892,97 @@ function renderHistorico(){
       `).join('')}
     `;
     wrap.appendChild(div);
+  });
+}
+// Indicadores (pedido do usuário, 2026-09-24): quantidade por categoria (Recusa/Reentrega/
+// Agendamento, mesmas 3 que ela pediu -- Sem tratativa e Já tratado ficam de fora) e por
+// "ocorrência" dentro de cada uma, no período selecionado (própria seleção de período desta
+// tela, independente da de Registros -- padrão "Este mês").
+// Não existe um campo padronizado de motivo pras 3 categorias: só Recusa tem o campo "Motivo"
+// dedicado no formulário; Reentrega e Agendamento só têm a Observação livre. Por isso o texto
+// usado pra agrupar é motivo || obs (o que a nota tiver preenchido), e o agrupamento em si
+// usa normalizarTexto (mesma função da busca) só pra ignorar maiúscula/acento/espaço nas
+// pontas -- sem tentar um agrupamento "esperto" por similaridade de texto, que juntaria coisas
+// diferentes sem ela perceber. Cada linha mostra a variante de texto mais comum como rótulo e
+// guarda as outras variantes que caíram no mesmo grupo (toque pra ver), pra ela conseguir
+// auditar se o agrupamento fez sentido.
+const CATEGORIAS_INDICADOR = ['recusa','reentrega','agendamento'];
+function textoOcorrencia(e){
+  const motivo = (e.motivo || '').trim();
+  if(motivo) return motivo;
+  return (e.obs || '').trim();
+}
+// normalizarTexto() sozinha não junta "Cliente fechado" com "Cliente  fechado" (espaço duplo no
+// meio -- comum de digitar sem querer) nem com "Cliente fechado." (ponto no fim) -- ela só cuida
+// de maiúscula/acento e trim nas pontas. Aqui em cima disso, sem inventar nenhum agrupamento por
+// similaridade (só normalização mais completa de espaço/pontuação de fechamento).
+function normalizarOcorrencia(s){
+  return normalizarTexto(s).replace(/\s+/g, ' ').replace(/[.,;!?]+$/, '');
+}
+function renderIndicadores(){
+  const periodo = $('indPeriodo').value;
+  const intervalo = intervaloPeriodo(periodo, $('indPeriodoIni').value, $('indPeriodoFim').value);
+  const grupos = agruparPorNota(entries).map(g => g.principal).filter(e => dataDentroDoIntervalo(e.data, intervalo));
+  const wrap = $('indicadoresConteudo');
+  wrap.innerHTML = '';
+  CATEGORIAS_INDICADOR.forEach(tipo=>{
+    const notas = grupos.filter(e=>e.tipo===tipo);
+    const card = document.createElement('div');
+    card.className = 'ind-card';
+    card.dataset.tipo = tipo;
+    if(notas.length===0){
+      card.innerHTML = `
+        <div class="ind-card-head"><h3>${labelTipo(tipo)}</h3><span class="ind-total">0</span></div>
+        <p class="ind-vazio">Nenhuma nota nesse período.</p>`;
+      wrap.appendChild(card);
+      return;
+    }
+    // Agrupa por texto normalizado; guarda todas as variantes originais (com contagem própria)
+    // pra saber qual delas é a mais comum e usar como rótulo da linha.
+    const buckets = new Map();
+    notas.forEach(e=>{
+      const textoOriginal = textoOcorrencia(e);
+      const chave = textoOriginal ? normalizarOcorrencia(textoOriginal) : '__sem_detalhe__';
+      if(!buckets.has(chave)) buckets.set(chave, new Map());
+      const variantes = buckets.get(chave);
+      const rotulo = textoOriginal || 'Sem detalhe registrado';
+      variantes.set(rotulo, (variantes.get(rotulo) || 0) + 1);
+    });
+    const linhas = Array.from(buckets.values()).map(variantes=>{
+      const variantesOrdenadas = Array.from(variantes.entries()).sort((a,b)=>b[1]-a[1]);
+      const count = variantesOrdenadas.reduce((soma,[,qtd])=>soma+qtd, 0);
+      return { rotulo: variantesOrdenadas[0][0], count, variantes: variantesOrdenadas };
+    }).sort((a,b)=>b.count-a.count);
+    const maiorContagem = linhas[0].count;
+    card.innerHTML = `
+      <div class="ind-card-head"><h3>${labelTipo(tipo)}</h3><span class="ind-total">${notas.length}</span></div>
+      ${linhas.map((l,i)=>{
+        const pct = Math.round((l.count/notas.length)*100);
+        const largura = Math.max(6, Math.round((l.count/maiorContagem)*100));
+        const idLinha = `ind_${tipo}_${i}`;
+        const temVariantes = l.variantes.length>1;
+        return `
+          <div class="ind-linha">
+            <div class="ind-linha-topo">
+              <span class="ind-linha-label">${escapeHtml(l.rotulo)}</span>
+              <span class="ind-linha-valor">${l.count} (${pct}%)</span>
+            </div>
+            <div class="ind-barra-trilha"><div class="ind-barra-fill" style="width:${largura}%"></div></div>
+            ${temVariantes ? `
+              <div class="ind-linha-variantes" data-toggle="${idLinha}">${l.variantes.length} variações de texto agrupadas aqui — toque para ver</div>
+              <ul class="ind-variantes-lista" id="${idLinha}" style="display:none;">
+                ${l.variantes.map(([texto,qtd])=>`<li>${escapeHtml(texto)} — ${qtd}×</li>`).join('')}
+              </ul>` : ''}
+          </div>`;
+      }).join('')}
+    `;
+    wrap.appendChild(card);
+  });
+  wrap.querySelectorAll('[data-toggle]').forEach(el=>{
+    el.onclick = ()=>{
+      const alvo = document.getElementById(el.dataset.toggle);
+      if(alvo) alvo.style.display = alvo.style.display==='none' ? 'block' : 'none';
+    };
   });
 }
 function focarObsInput(id){
@@ -1824,6 +2038,7 @@ function render(){
   renderLista();
   if($('viewExportar').style.display !== 'none'){ atualizarContagemExport(); renderDiagnosticoNf(); renderLimpezaClienteVazio(); }
   if($('viewEstoque').style.display !== 'none' && estoqueIniciado) refreshEstoqueData();
+  if($('viewIndicadores').style.display !== 'none') renderIndicadores();
 }
 async function marcarResolvido(id){
   const e = entries.find(x=>x.id===id);
@@ -2344,6 +2559,22 @@ $('busca').oninput = () => {
   if($('busca').value.trim() && filtroTipo !== 'todos') filtroTipo = 'todos';
   render();
 };
+// Filtro de período da tela de Registros (pedido do usuário, 2026-09-24) -- "Personalizado"
+// revela os dois campos de data; qualquer outra opção some com eles de novo.
+$('filtroPeriodo').addEventListener('change', ()=>{
+  filtroPeriodo = $('filtroPeriodo').value;
+  $('periodoCustomWrap').style.display = filtroPeriodo==='personalizado' ? 'flex' : 'none';
+  render();
+});
+$('periodoIni').addEventListener('change', render);
+$('periodoFim').addEventListener('change', render);
+// Mesmo padrão pro período (independente) da tela de Indicadores.
+$('indPeriodo').addEventListener('change', ()=>{
+  $('indPeriodoCustomWrap').style.display = $('indPeriodo').value==='personalizado' ? 'flex' : 'none';
+  renderIndicadores();
+});
+$('indPeriodoIni').addEventListener('change', renderIndicadores);
+$('indPeriodoFim').addEventListener('change', renderIndicadores);
 $('etiquetaClose').onclick = fecharEtiqueta;
 $('etiquetaOverlay').onclick = (ev)=>{ if(ev.target.id==='etiquetaOverlay') fecharEtiqueta(); };
 $('etiquetaImprimirBtn').onclick = ()=> window.print();
@@ -2495,8 +2726,10 @@ document.querySelectorAll('#mainNav button').forEach(b=>{
     const v = b.dataset.view;
     $('viewRegistros').style.display = v==='registros' ? 'block' : 'none';
     $('viewEstoque').style.display = v==='estoque' ? 'block' : 'none';
+    $('viewIndicadores').style.display = v==='indicadores' ? 'block' : 'none';
     $('viewExportar').style.display = v==='exportar' ? 'block' : 'none';
     $('viewImportar').style.display = v==='importar' ? 'block' : 'none';
+    if(v==='indicadores') renderIndicadores();
     if(v==='exportar'){
       atualizarContagemExport();
       atualizarStatusExcel();
