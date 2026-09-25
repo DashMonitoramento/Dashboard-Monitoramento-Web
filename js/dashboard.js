@@ -2810,6 +2810,20 @@ const Dashboard = (() => {
 
     document.getElementById('ranking-dimension').addEventListener('change', () => renderCharts(DataStore.getFilteredRecords()));
 
+    // "Top Motoristas"/"Top Clientes" por Valor Descarga Aprovado (2026-09-24, pedido da
+    // usuária: "preciso ver os motoristas e clientes que nós mais gastamos com descarga") —
+    // mesmo padrão hbar de charts.ranking acima, atualizados em renderDespesasExtraTopGastos().
+    // fullLabels:true porque razão social de cliente/motorista costuma ser longa demais pro
+    // truncamento padrão do hbar.
+    charts.despesasExtraTopMotoristas = new DashChart(document.getElementById('chart-despesas-extra-top-motoristas'), {
+      type: 'hbar', labels: [], series: [{ name: 'Valor Descarga Aprovado', data: [], color: ChartPalette[4] }],
+      options: { currency: true, fullLabels: true }
+    });
+    charts.despesasExtraTopClientes = new DashChart(document.getElementById('chart-despesas-extra-top-clientes'), {
+      type: 'hbar', labels: [], series: [{ name: 'Valor Descarga Aprovado', data: [], color: ChartPalette[5] }],
+      options: { currency: true, fullLabels: true }
+    });
+
     // ---------- Lead Time de Pedidos e Entregas (2026-08-23) ----------
     charts.ltpFaturamentoMensal = new DashChart(document.getElementById('chart-ltp-faturamento-mensal'), {
       type: 'line', labels: [], series: [{ name: 'Dias úteis', data: [], color: ChartPalette[0] }]
@@ -4052,6 +4066,32 @@ const Dashboard = (() => {
       </div>`;
   }
 
+  /** Top 10 nomes de uma dimensão (motorista/cliente) por soma de Valor Descarga Aprovado
+   * (2026-09-24, pedido da usuária: "preciso ver os motoristas e clientes que nós mais gastamos
+   * com descarga"). Mesmo padrão de renderRanking() (linha ~3499), só que a fonte já vem
+   * filtrada (comValor, calculado em renderDespesasExtra) e a métrica é valorDescargaAprovado em
+   * vez de valorNF. Ranking simples — ao contrário de "Controle de Descarga" acima, não agrupa
+   * pela combinação de Transportadora+Motorista+Cliente, só por UMA dimensão de cada vez. */
+  function topPorDimensaoDespesasExtra(comValor, dimensao) {
+    const grouped = Utils.groupBy(comValor, r => r[dimensao] || `(sem ${dimensao})`);
+    return Array.from(grouped.entries())
+      .map(([name, items]) => ({ name, total: Utils.sum(items, r => r.valorDescargaAprovado) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  }
+  function renderDespesasExtraTopGastos(comValor) {
+    const topMotoristas = topPorDimensaoDespesasExtra(comValor, 'motorista');
+    charts.despesasExtraTopMotoristas.update({
+      labels: topMotoristas.map(e => e.name),
+      series: [{ name: 'Valor Descarga Aprovado', data: topMotoristas.map(e => e.total), color: ChartPalette[4] }]
+    });
+    const topClientes = topPorDimensaoDespesasExtra(comValor, 'cliente');
+    charts.despesasExtraTopClientes.update({
+      labels: topClientes.map(e => e.name),
+      series: [{ name: 'Valor Descarga Aprovado', data: topClientes.map(e => e.total), color: ChartPalette[5] }]
+    });
+  }
+
   function rowHtmlDespesasExtra(r) {
     const nfBase = r.nf ? r.nf.split('-')[0] : '';
     const autorizado = isAutorizadoValorDescarga();
@@ -4177,6 +4217,7 @@ const Dashboard = (() => {
       porParTransportadoraMotorista.get(chave).valor += r.valorDescargaAprovado;
     });
     renderControleDescarga(porParTransportadoraMotorista);
+    renderDespesasExtraTopGastos(comValor);
 
     // Destaca (outline, CSS já genérico de .cargas-cards) o card clicado, se algum estiver ativo
     // — mesmo padrão visual de Controle de Cargas.
