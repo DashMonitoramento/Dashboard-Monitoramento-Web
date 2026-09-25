@@ -4843,7 +4843,13 @@ const Dashboard = (() => {
       mapa.get(placa).push({
         tempo: inicioDoDia(r.dataEntrega).getTime(),
         transportadora: r.transportadora || '',
-        motorista: r.motorista || ''
+        motorista: r.motorista || '',
+        // Categoria da Bluesoft (2026-09-25, pedido da usuária) -- ver filtro em
+        // renderIndicadorFrete/obterItensCruzadosPorIntervalo abaixo: "Indicador de Frete
+        // Agregados" só faz sentido pra embarques de Agregado (antigamente também se criava
+        // embarque pra Transportadora, o que inflava o relatório errado; hoje isso não
+        // acontece mais, então qualquer viagem cruzada que NÃO seja Agregado é descartada).
+        tipoTransporte: r.tipoTransporte || ''
       });
     });
     return mapa;
@@ -4889,10 +4895,16 @@ const Dashboard = (() => {
         ...item,
         transportadora: cruzado ? cruzado.transportadora : '',
         motorista: cruzado ? cruzado.motorista : '',
+        tipoTransporte: cruzado ? cruzado.tipoTransporte : '',
         qtdNFsEstimada: cruzado ? cruzado.qtdNotas : 0,
         semCruzamento: !cruzado
       };
     }).filter(item => {
+      // Só Agregado (2026-09-25) — mesma regra de renderIndicadorFrete, precisa valer também
+      // pro período anterior pra "vs. período anterior" comparar as duas pontas com o mesmo
+      // recorte (sem isso o "atual" já filtrado ficaria comparado contra um "anterior" ainda
+      // misturado com Transportadora, inflando a variação mostrada).
+      if (item.tipoTransporte && item.tipoTransporte !== 'Agregado') return false;
       if (transportadora && transportadora.length && !transportadora.includes(item.transportadora)) return false;
       if (motorista && motorista.length && !motorista.includes(item.motorista)) return false;
       return true;
@@ -5378,6 +5390,7 @@ const Dashboard = (() => {
         ...item,
         transportadora: cruzado ? cruzado.transportadora : '',
         motorista: cruzado ? cruzado.motorista : '',
+        tipoTransporte: cruzado ? cruzado.tipoTransporte : '',
         // Placa some do cruzamento (nenhum registro da Bluesoft achado nem dentro da
         // tolerância) — pedido da usuária, 2026-09-09: destacar isso na tabela (placa em
         // vermelho) pra ela conseguir achar/investigar esses casos (normalmente erro de
@@ -5404,6 +5417,14 @@ const Dashboard = (() => {
       // cruzamento (transportadora/motorista vazios) some quando um desses filtros está ativo,
       // mesmo critério de "não bate com o filtro" usado no resto do dashboard.
     }).filter(item => {
+      // Só Agregado (2026-09-25, pedido da usuária): "antigamente era criado embarque para
+      // transportadora, mas hoje não é mais" — misturar as duas categorias inflava o relatório
+      // errado, ela sempre precisava filtrar manualmente. Vira regra fixa deste relatório (o
+      // nome da tela já é "Indicador de Frete AGREGADOS"), não um filtro opcional. Só descarta
+      // quando o cruzamento ACHOU uma categoria e ela não é Agregado -- viagem sem cruzamento
+      // nenhum (item.semCruzamento) continua aparecendo destacada em vermelho pra investigação,
+      // igual antes (não dá pra saber a categoria dela, não é o mesmo caso de "é Transportadora").
+      if (item.tipoTransporte && item.tipoTransporte !== 'Agregado') return false;
       if (transportadora && transportadora.length && !transportadora.includes(item.transportadora)) return false;
       if (motorista && motorista.length && !motorista.includes(item.motorista)) return false;
       return true;
@@ -5763,6 +5784,10 @@ const Dashboard = (() => {
     const nomes = new Set();
     DataStore.getIndicadorFrete().forEach(item => {
       const cruzado = cruzarPlacaDiaMaisProximo(mapaPorPlaca, item.placa, item.dataEmbarque);
+      // Só Agregado (2026-09-25) — mesma regra de renderIndicadorFrete: sem isso, o <select>
+      // continuaria oferecendo motorista de Transportadora que o relatório nunca mais mostra
+      // (mesma classe de bug "escolher um nome e zerar o relatório" já corrigida antes aqui).
+      if (cruzado && cruzado.tipoTransporte && cruzado.tipoTransporte !== 'Agregado') return;
       if (cruzado && cruzado.motorista) nomes.add(cruzado.motorista);
     });
     const lista = Utils.uniqueSorted([...nomes]);
