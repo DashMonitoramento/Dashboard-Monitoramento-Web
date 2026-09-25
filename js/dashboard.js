@@ -4918,7 +4918,10 @@ const Dashboard = (() => {
     'indicador-frete-transportadora-qtd-divergencia': true,
     // "Total de CT-es" (2026-09-15) — mesma semântica de "CT-es Auditados": é VOLUME/cobertura,
     // não custo, então crescer não é nem bom nem ruim (só informativo).
-    'indicador-frete-transportadora-total-ctes': false
+    'indicador-frete-transportadora-total-ctes': false,
+    // "Valor Total de Notas" (2026-09-25) — mesma semântica de "Total de CT-es": VOLUME/receita
+    // faturada, não custo.
+    'indicador-frete-transportadora-valor-notas': false
   };
 
   /** Preenche a linha "▲/▼ X% vs. período anterior" de um KPI card do Indicador de Frete.
@@ -6183,6 +6186,10 @@ const Dashboard = (() => {
     const percentualFreteSobreNotas = valorNotasCorrespondente > 0 ? (freteCalculadoTotal / valorNotasCorrespondente) * 100 : null;
 
     const setTexto = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
+    setTexto('indicador-frete-transportadora-valor-notas', Utils.formatCurrency(valorNotasCorrespondente));
+    setTexto('indicador-frete-transportadora-sub-valor-notas', valorNotasCorrespondente > 0
+      ? 'notas categoria Transportadora · mesmo Estado Destino/Período'
+      : 'sem notas da Base Bluesoft no Estado Destino/Período selecionado');
     setTexto('indicador-frete-transportadora-total-ctes', Utils.formatNumber(itens.length));
     setTexto('indicador-frete-transportadora-total-calculado', Utils.formatCurrency(freteCalculadoTotal));
     setTexto('indicador-frete-transportadora-total-cobrado', Utils.formatCurrency(freteCobradoTotal));
@@ -6204,12 +6211,18 @@ const Dashboard = (() => {
     // e já aplicada no relatório irmão (sem filtro, "atual" seria o histórico inteiro, comparar
     // isso contra só o mês anterior não faria sentido).
     const periodoFiltroAtivoTransportadora = !!(dataInicio || dataFim || mes || ano);
-    const itensAnteriorTransportadora = periodoFiltroAtivoTransportadora
-      ? (() => {
-          const janela = DataStore.calcularPeriodoAnterior({ dataInicio, dataFim, mes, ano });
-          return obterItensFreteTransportadoraPorIntervalo(janela.inicio, janela.fim, transportadora);
-        })()
+    // Janela do período anterior calculada 1x, reaproveitada tanto pra recalcular os itens do
+    // Indicador Frete Transportadora quanto (2026-09-25) o valor de notas correspondente na
+    // Base Bluesoft, pro card "Valor Total de Notas" também ter comparativo vs. período anterior.
+    const janelaAnteriorTransportadora = periodoFiltroAtivoTransportadora
+      ? DataStore.calcularPeriodoAnterior({ dataInicio, dataFim, mes, ano })
+      : null;
+    const itensAnteriorTransportadora = janelaAnteriorTransportadora
+      ? obterItensFreteTransportadoraPorIntervalo(janelaAnteriorTransportadora.inicio, janelaAnteriorTransportadora.fim, transportadora)
       : [];
+    const valorNotasCorrespondenteAnterior = janelaAnteriorTransportadora
+      ? calcularValorNotasFreteTransportadora(ufsFiltroAtual, janelaAnteriorTransportadora.inicio, janelaAnteriorTransportadora.fim, null, null)
+      : null;
     const auditadosAnteriorTransportadora = itensAnteriorTransportadora.filter(i => statusAuditoriaFreteTransportadora(i) !== 'aguardando');
     const temBaseAnteriorGeral = itensAnteriorTransportadora.length > 0;
     const temBaseAnteriorAuditados = auditadosAnteriorTransportadora.length > 0;
@@ -6223,6 +6236,7 @@ const Dashboard = (() => {
       : null;
 
     renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-ctes', itens.length, temBaseAnteriorGeral ? itensAnteriorTransportadora.length : null);
+    renderizarComparativoIndicadorFrete('indicador-frete-transportadora-valor-notas', valorNotasCorrespondente, valorNotasCorrespondenteAnterior);
     renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-calculado', freteCalculadoTotal, freteCalculadoTotalAnterior);
     renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-cobrado', freteCobradoTotal, freteCobradoTotalAnterior);
     renderizarComparativoIndicadorFrete('indicador-frete-transportadora-total-dif', diferencaTotal, diferencaTotalAnterior);
