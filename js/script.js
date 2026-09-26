@@ -654,9 +654,12 @@ function bindGerenciarUsuarios() {
       const marcadoDisponibilidade = ehSuperAdmin || u.podeGerenciarDisponibilidade;
       const marcadoValorDescarga = ehSuperAdmin || u.podeEditarValorDescarga;
       return `<div class="usuario-row${ehSuperAdmin ? ' usuario-row--super-admin' : ''}" data-uid="${escapeAttrLocal(u.uid)}">
-        <div>
-          <div class="usuario-row__nome">${escapeAttrLocal(u.nome)}</div>
-          <div class="usuario-row__email">${escapeAttrLocal(u.email)}</div>
+        <div class="usuario-row__cabecalho">
+          <div>
+            <div class="usuario-row__nome">${escapeAttrLocal(u.nome)}</div>
+            <div class="usuario-row__email">${escapeAttrLocal(u.email)}</div>
+          </div>
+          ${!ehSuperAdmin ? `<button type="button" class="icon-btn-cell icon-btn-cell--excluir" data-excluir-uid="${escapeAttrLocal(u.uid)}" title="Excluir usuário"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" style="vertical-align:middle"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></button>` : ''}
         </div>
         <div class="usuario-row__toggles">
           <label class="usuario-row__toggle">
@@ -700,6 +703,28 @@ function bindGerenciarUsuarios() {
   btnAbrir.addEventListener('click', abrirModal);
   btnFechar.addEventListener('click', () => { modal.hidden = true; });
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+  // Excluir usuário (2026-09-26, pedido dela) — remove só o perfil/permissões em
+  // `users/{uid}` (nunca a conta de autenticação em si, isso só o Admin SDK faz). Recarrega a
+  // lista depois de confirmar, mesmo padrão de "melhor esforço" do resto do modal.
+  lista.addEventListener('click', async (e) => {
+    const botao = e.target.closest('[data-excluir-uid]');
+    if (!botao) return;
+    const linha = botao.closest('.usuario-row');
+    const nome = linha ? linha.querySelector('.usuario-row__nome').textContent : '';
+    if (!confirm(`Excluir o usuário "${nome}"? Ele perde acesso e todas as permissões marcadas.`)) return;
+    botao.disabled = true;
+    try {
+      const fb = await waitFirebaseReady();
+      await fb.excluirUsuario(botao.dataset.excluirUid);
+      Utils.showToast('Usuário excluído.', 'success', 2500);
+      abrirModal();
+    } catch (err) {
+      console.error(err);
+      Utils.showToast(err.message || 'Falha ao excluir usuário.', 'error', 5000);
+      botao.disabled = false;
+    }
+  });
 
   lista.addEventListener('change', async (e) => {
     const checkbox = e.target.closest('.usuario-row__checkbox');
@@ -906,6 +931,25 @@ function initLogin() {
 
   // Fonte da verdade de "está logado ou não": o próprio Firebase, não um cache local.
   Auth.onAuthChange((fbUser) => {
+    // Sessão ANÔNIMA (2026-09-26, bug real achado por ela: "monte de usuário estranho" em
+    // Gerenciar Usuários) — o Painel do Motorista (motoristas/index.html) faz signInAnonymously()
+    // sozinho assim que abre; como os dois apps ficam no MESMO domínio (só o caminho muda,
+    // .../motoristas/ vs .../), a sessão anônima do motorista fica salva no MESMO localStorage
+    // do navegador (Firebase Auth persiste por ORIGEM, não por caminho) — se essa mesma aba/
+    // navegador algum dia abrir o site principal, o Firebase já chega "autenticado" com essa
+    // sessão sem nome/e-mail nenhum, e o código abaixo tratava isso como login de verdade
+    // (criava perfil vazio em users/{uid} via garantirPerfilUsuario, tentava iniciar o painel
+    // inteiro). Trata IGUAL a "não logado" — mostra a tela de login normal. NÃO chama signOut()
+    // aqui de propósito: como o Auth é compartilhado por origem, deslogar por aqui derrubaria
+    // também a sessão do motorista numa aba/aparelho onde o Painel dele estivesse aberto de
+    // verdade ao mesmo tempo.
+    if (fbUser && fbUser.isAnonymous) {
+      Auth.clearUser();
+      showView('login');
+      overlay.classList.remove('login-overlay--hidden');
+      hideBootOverlay();
+      return;
+    }
     if (fbUser) {
       const user = { name: fbUser.displayName || fbUser.email, email: fbUser.email, uid: fbUser.uid, photoURL: Auth.getPhoto(fbUser.uid) };
       Auth.setUser(user);
