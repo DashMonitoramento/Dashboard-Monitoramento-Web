@@ -473,7 +473,10 @@ async function getMotoristas() {
  * direto no painel virou o jeito PRINCIPAL de adicionar motorista novo (a sincronização em
  * lote continua existindo, só deixou de ser o fluxo do dia a dia). Devolve `{criado:boolean}`
  * pra quem chama saber se foi cadastro novo ou atualização de um já existente. */
-async function cadastrarMotorista({ nome, placa, veiculo, rodizio }) {
+async function cadastrarMotorista({ nome, placa, veiculo, transportadora, rodizio }) {
+  // Placa pode ser um ID temporário "SEMPLACA..." (2026-09-25, motorista colado só com o nome
+  // via "Adicionar motoristas do dia") — normalizarPlaca não mexe nele (só letras/números, sem
+  // hífen, ver cargasGerarIdTemporario em dashboard.js), passa igual por aqui.
   const placaNormalizada = normalizarPlaca(placa);
   if (!placaNormalizada) throw new Error('Placa inválida.');
   if (!nome || !nome.trim()) throw new Error('Nome é obrigatório.');
@@ -484,6 +487,7 @@ async function cadastrarMotorista({ nome, placa, veiculo, rodizio }) {
     placa: placaNormalizada,
     nome: nome.trim(),
     veiculo: (veiculo || '').trim(),
+    transportadora: (transportadora || '').trim(),
     rodizio: (rodizio || '').trim(),
     ativo: true,
     atualizadoEm: serverTimestamp(),
@@ -571,13 +575,14 @@ function assinarStatusCarga(callback, aoFalhar) {
  * dashboard.js, quando a placa aparece "Em Trânsito" na Base Bluesoft no dia). Sobrescreve o doc
  * atual (nunca duplica, nunca deixa o motorista em 2 status ao mesmo tempo, já que é sempre o
  * MESMO documento `statusCarga/{placa}`) e grava a transição no histórico no mesmo lote. */
-async function definirStatusCarga(placaBruta, novoStatus, rota, visivel = true) {
+async function definirStatusCarga(placaBruta, novoStatus, rota, visivel = true, transportadora = '') {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
   const placa = normalizarPlaca(placaBruta);
   const refAtual = doc(db, STATUS_CARGA_COLECAO, placa);
   const snapAtual = await getDoc(refAtual);
-  const statusAnterior = snapAtual.exists() ? snapAtual.data().status : null;
+  const dadosAntigos = snapAtual.exists() ? snapAtual.data() : {};
+  const statusAnterior = snapAtual.exists() ? dadosAntigos.status : null;
   // `duplicado` (2026-09-19, pedido da usuária): motorista que JÁ tinha ido pra Carregado hoje e
   // está sendo colocado de novo em Separado (2ª carga no mesmo dia) — ela pediu pra deixar essa
   // duplicidade acontecer normalmente (sem etapa/card intermediário — removeu o "Retornou p/
@@ -594,8 +599,15 @@ async function definirStatusCarga(placaBruta, novoStatus, rota, visivel = true) 
   // de status manual (Iniciar Separação, Marcar como Separado, o auto-CARREGADO de
   // verificarCarregamentoStatusCarga) sobrescreve pra `true` de novo -- não tem porque esconder
   // do motorista alguém que já está sendo mexido de verdade.
+  // `transportadora`/`observacao` (2026-09-25) — mesmo tratamento de sempre pra este doc: é um
+  // OVERWRITE completo (nunca merge), então quem chama é responsável por preservar o que já
+  // estava salvo (ver dashboard.js, cargasStatusCarga.get(placa)) igual já acontece com `rota`.
+  // `observacao` propositalmente NÃO entra aqui: só existe editada por
+  // atualizarObservacaoStatusCarga (updateDoc), pra uma mudança de status nunca apagar uma
+  // observação já escrita sem querer.
   lote.set(refAtual, {
-    placa, status: novoStatus, rota: rota || '', visivel, duplicado, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    placa, status: novoStatus, rota: rota || '', transportadora: transportadora || '', observacao: dadosAntigos.observacao || '',
+    visivel, duplicado, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistorico, {
@@ -650,6 +662,70 @@ async function atualizarRotaStatusCarga(placaBruta, rota) {
   await updateDoc(doc(db, STATUS_CARGA_COLECAO, placa), {
     rota: rota || '', rotaAtualizadaPorEmail: usuario.email
   });
+}
+
+/** Transportadora editável direto no card (2026-09-25, "Motoristas do Dia") — mesmo padrão de
+ * atualizarRotaStatusCarga acima. */
+async function atualizarTransportadoraStatusCarga(placaBruta, transportadora) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+  await updateDoc(doc(db, STATUS_CARGA_COLECAO, placa), {
+    transportadora: transportadora || '', transportadoraAtualizadaPorEmail: usuario.email
+  });
+}
+
+/** Observação editável direto no card (2026-09-25, "Motoristas do Dia") — mesmo padrão de
+ * atualizarRotaStatusCarga acima. */
+async function atualizarObservacaoStatusCarga(placaBruta, observacao) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+  await updateDoc(doc(db, STATUS_CARGA_COLECAO, placa), {
+    observacao: observacao || '', observacaoAtualizadaPorEmail: usuario.email
+  });
+}
+
+/** Completa o cadastro de um motorista que foi colado só com o nome (2026-09-25, "Adicionar
+ * motoristas do dia") — troca o ID temporário "SEMPLACA..." (ver cargasGerarIdTemporario,
+ * dashboard.js) pela placa real assim que ela informar. Como a placa É o ID do documento em
+ * `motoristas`/`statusCarga`, não dá pra só "editar um campo" — recria os 2 docs sob o ID novo
+ * (preservando tudo: rota/transportadora/observação/status atual) e apaga os antigos, tudo no
+ * mesmo lote. Se não existir doc em statusCarga ainda (motorista só cadastrado, sem fila hoje),
+ * só migra o cadastro mesmo. */
+async function definirPlacaMotorista(idAtual, placaNovaBruta) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placaNova = normalizarPlaca(placaNovaBruta);
+  if (!placaNova) throw new Error('Placa inválida.');
+  if (placaNova === idAtual) return;
+
+  const refMotoristaAntigo = doc(db, MOTORISTAS_COLECAO, idAtual);
+  const snapMotorista = await getDoc(refMotoristaAntigo);
+  if (!snapMotorista.exists()) throw new Error('Motorista não encontrado.');
+  const dadosMotorista = snapMotorista.data();
+
+  const refMotoristaNovo = doc(db, MOTORISTAS_COLECAO, placaNova);
+  const snapMotoristaNovo = await getDoc(refMotoristaNovo);
+  if (snapMotoristaNovo.exists()) throw new Error('Já existe um motorista cadastrado com essa placa.');
+
+  const refStatusAntigo = doc(db, STATUS_CARGA_COLECAO, idAtual);
+  const snapStatus = await getDoc(refStatusAntigo);
+
+  const lote = writeBatch(db);
+  lote.set(refMotoristaNovo, { ...dadosMotorista, placa: placaNova, atualizadoEm: serverTimestamp() });
+  lote.delete(refMotoristaAntigo);
+  if (snapStatus.exists()) {
+    const dadosStatus = snapStatus.data();
+    lote.set(doc(db, STATUS_CARGA_COLECAO, placaNova), { ...dadosStatus, placa: placaNova, atualizadoEm: serverTimestamp() });
+    lote.delete(refStatusAntigo);
+  }
+  const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
+  lote.set(refHistorico, {
+    placa: placaNova, statusAnterior: `placa definida (era ${idAtual})`, statusNovo: snapStatus.exists() ? snapStatus.data().status : null,
+    dataHora: serverTimestamp(), alteradoPorEmail: usuario.email
+  });
+  await lote.commit();
 }
 
 /** Ativa a visibilidade de um status pro Painel do Motorista (2026-09-17) — ver
@@ -786,7 +862,7 @@ async function encerrarDisponibilidade(placaBruta, motivo) {
  * nunca existe um instante em que o motorista apareça nas duas listas ao mesmo tempo (ou em
  * nenhuma, se só uma das escritas falhasse). Precisa de podeEditarCargas (não só
  * podeGerenciarDisponibilidade — ver Firestore rules) porque grava em statusCarga. */
-async function moverDisponibilidadeParaSeparacao(placaBruta, novoStatus, rota) {
+async function moverDisponibilidadeParaSeparacao(placaBruta, novoStatus, rota, transportadora = '') {
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
   const placa = normalizarPlaca(placaBruta);
@@ -802,7 +878,8 @@ async function moverDisponibilidadeParaSeparacao(placaBruta, novoStatus, rota) {
 
   const lote = writeBatch(db);
   lote.set(refStatus, {
-    placa, status: novoStatus, rota: rota || '', visivel: true, duplicado, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    placa, status: novoStatus, rota: rota || '', transportadora: transportadora || '', visivel: true, duplicado,
+    atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistoricoStatus = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistoricoStatus, {
@@ -972,7 +1049,7 @@ window.Firebase = {
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga, ativarStatusCarga, autoPopularSeparacaoNaoIniciada,
   atualizarHoraLimiteCarregamento,
-  atualizarRotaStatusCarga,
+  atualizarRotaStatusCarga, atualizarTransportadoraStatusCarga, atualizarObservacaoStatusCarga, definirPlacaMotorista,
   assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote, moverDisponibilidadeParaSeparacao,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico,
