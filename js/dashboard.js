@@ -7509,6 +7509,11 @@ const Dashboard = (() => {
     // só por ativo!==false, ver inicializarCadastroMotoristas), não uma fila/status específico.
     const elCadastrados = document.getElementById('cargas-count-cadastrados');
     if (elCadastrados) elCadastrados.textContent = Utils.formatNumber(cargasMotoristas.size);
+
+    // "Frota Cadastrada" (2026-09-26) — mesma contagem de veículos que Motoristas Cadastrados
+    // (1 motorista = 1 carro nesse cadastro), só rotulado pelo ângulo de frota/modelo/rodízio.
+    const elFrota = document.getElementById('cargas-count-frota');
+    if (elFrota) elFrota.textContent = Utils.formatNumber(cargasMotoristas.size);
   }
 
   const CARGAS_LABEL_FILTRO = {
@@ -7717,6 +7722,7 @@ const Dashboard = (() => {
     const wrap = document.getElementById('cargas-lista');
     const titulo = document.getElementById('cargas-lista-titulo');
     const barraNoShow = document.getElementById('cargas-noshow-periodo-bar');
+    const barraRanking = document.getElementById('cargas-ranking-periodo-bar');
     const barraFiltrosFila = document.getElementById('cargas-fila-filtros');
     if (!wrap || !titulo) return;
 
@@ -7728,6 +7734,7 @@ const Dashboard = (() => {
       card.classList.toggle('selecionado', ativo);
     });
     if (barraNoShow) barraNoShow.hidden = cargasFiltroAtivo !== 'NOSHOW';
+    if (barraRanking) barraRanking.hidden = cargasFiltroAtivo !== 'RANKING_CARGAS';
     if (barraFiltrosFila) barraFiltrosFila.hidden = cargasFiltroAtivo !== 'FILA';
 
     if (cargasFiltroAtivo === 'NOSHOW') {
@@ -7738,6 +7745,16 @@ const Dashboard = (() => {
     if (cargasFiltroAtivo === 'CADASTRADOS') {
       titulo.textContent = CARGAS_LABEL_FILTRO.CADASTRADOS;
       renderControleCargasListaCadastrados(wrap);
+      return;
+    }
+    if (cargasFiltroAtivo === 'FROTA') {
+      titulo.textContent = 'Frota Cadastrada — Modelos e Rodízio';
+      renderControleCargasListaFrota(wrap);
+      return;
+    }
+    if (cargasFiltroAtivo === 'RANKING_CARGAS') {
+      titulo.textContent = 'Cargas por Motorista (do que carregou menos pro que carregou mais)';
+      renderControleCargasListaRankingCargas(wrap);
       return;
     }
 
@@ -8131,6 +8148,133 @@ const Dashboard = (() => {
     await cargasDashFirebase.cadastrarMotorista(dados);
   }
 
+  /** "Frota Cadastrada" (2026-09-26, pedido da usuária: "quantidade de carros, o modelo e as
+   * datas de rodízio") — puro agregado de cargasMotoristas (já em memória, sem coleção nova nem
+   * leitura extra): quantos veículos por Modelo de carro (cargasParseVeiculo) e quantos
+   * motoristas por dia de Rodízio. */
+  function renderControleCargasListaFrota(wrap) {
+    const itens = Array.from(cargasMotoristas.values());
+    if (!itens.length) {
+      wrap.innerHTML = '<div class="cargas-vazio">Nenhum motorista cadastrado ainda.</div>';
+      return;
+    }
+    const porModelo = new Map();
+    const porRodizio = new Map();
+    itens.forEach(m => {
+      const { carro } = cargasParseVeiculo(m.veiculo);
+      const chaveModelo = carro || 'Sem modelo informado';
+      porModelo.set(chaveModelo, (porModelo.get(chaveModelo) || 0) + 1);
+      const chaveRodizio = m.rodizio || 'Sem rodízio cadastrado';
+      porRodizio.set(chaveRodizio, (porRodizio.get(chaveRodizio) || 0) + 1);
+    });
+    const ORDEM_RODIZIO = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sem rodízio cadastrado'];
+
+    const montarBloco = (titulo, mapaContagem, ordemFixa) => {
+      const chaves = ordemFixa
+        ? ordemFixa.filter(k => mapaContagem.has(k))
+        : Array.from(mapaContagem.keys()).sort((a, b) => mapaContagem.get(b) - mapaContagem.get(a));
+      return `
+        <div class="cargas-noshow-ranking">
+          <div class="cargas-noshow-ranking__titulo">${escapeAttr(titulo)}</div>
+          ${chaves.map(chave => `
+            <div class="cargas-noshow-ranking__item">
+              <span>${escapeAttr(chave)}</span>
+              <span class="cargas-noshow-ranking__valor">${Utils.formatNumber(mapaContagem.get(chave))}</span>
+            </div>`).join('')}
+        </div>`;
+    };
+
+    wrap.innerHTML = montarBloco(`Modelos de veículo (${itens.length} no total)`, porModelo, null)
+      + montarBloco('Dia de rodízio', porRodizio, ORDEM_RODIZIO);
+  }
+
+  // Histórico de transições de status (2026-09-26) — statusCargaHistorico já é gravado desde
+  // sempre (definirStatusCarga/retirarStatusCarga/etc.), só nunca tinha sido LIDO por ninguém.
+  // Busca sob demanda (getDocs, não onSnapshot) só quando ela abre o card "Cargas por
+  // Motorista" -- coleção cresce a cada transição de status, deliberadamente não assinada em
+  // tempo real o tempo todo pra não virar mais um listener ao vivo ligado sempre (mesma cautela
+  // de sempre com cota do Firestore, ver [[project_dashboard_firestore_cota_estourada]]).
+  let cargasRankingCarregado = false;
+  let cargasRankingCarregando = false;
+  let cargasHistoricoTransicoes = [];
+  let cargasRankingPeriodo = 'semana';
+
+  async function cargasCarregarHistoricoSeNecessario(wrap) {
+    if (cargasRankingCarregado || cargasRankingCarregando) return;
+    cargasRankingCarregando = true;
+    wrap.innerHTML = '<div class="cargas-vazio">Carregando histórico...</div>';
+    try {
+      cargasHistoricoTransicoes = await cargasDashFirebase.getStatusCargaHistoricoRecente();
+      cargasRankingCarregado = true;
+    } catch (err) {
+      wrap.innerHTML = `<div class="cargas-vazio">Falha ao carregar histórico: ${escapeAttr(err.message)}</div>`;
+    }
+    cargasRankingCarregando = false;
+    if (cargasRankingCarregado) renderControleCargasListaRankingCargas(wrap);
+  }
+
+  /** "Cargas por Motorista" (2026-09-26, pedido da usuária: "saber quanto cada motorista está
+   * carregando... pra saber quem tem menos está carregando pra poder equilibrar") — conta
+   * quantas vezes cada motorista ATIVO chegou em CARREGADO (statusNovo) dentro do período
+   * escolhido (Ontem/Hoje/Semana/Mês, mesmo padrão do No Show), incluindo quem carregou ZERO
+   * vezes (some justamente quem ela quer identificar) — ordenado do MENOR pro MAIOR de propósito. */
+  function renderControleCargasListaRankingCargas(wrap) {
+    if (!cargasRankingCarregado) { cargasCarregarHistoricoSeNecessario(wrap); return; }
+
+    const [inicio, fim] = periodoOcorrenciasDoDia(cargasRankingPeriodo);
+    const contagemPorPlaca = new Map();
+    cargasMotoristas.forEach((m, placa) => contagemPorPlaca.set(placa, 0));
+    cargasHistoricoTransicoes.forEach(t => {
+      if (t.statusNovo !== 'CARREGADO') return;
+      const data = cargasTimestampParaData(t.dataHora);
+      if (!data || data < inicio || data > fim) return;
+      if (!contagemPorPlaca.has(t.placa)) return; // só motorista ativo hoje entra no ranking
+      contagemPorPlaca.set(t.placa, contagemPorPlaca.get(t.placa) + 1);
+    });
+
+    const elContagem = document.getElementById('cargas-ranking-periodo-contagem');
+    if (elContagem) elContagem.textContent = `${Utils.formatNumber(contagemPorPlaca.size)} motorista(s)`;
+
+    // Total de cargas no período no próprio card KPI (2026-09-26) — só populado depois que o
+    // histórico carrega (o card começa em "—", ver HTML); reaproveita a mesma contagem já feita
+    // acima, sem leitura extra nenhuma do Firestore.
+    const elTotal = document.getElementById('cargas-count-ranking');
+    if (elTotal) {
+      const totalCargas = Array.from(contagemPorPlaca.values()).reduce((soma, qtd) => soma + qtd, 0);
+      elTotal.textContent = Utils.formatNumber(totalCargas);
+    }
+
+    if (!contagemPorPlaca.size) {
+      wrap.innerHTML = '<div class="cargas-vazio">Nenhum motorista cadastrado ainda.</div>';
+      return;
+    }
+
+    const lista = Array.from(contagemPorPlaca.entries())
+      .map(([placa, qtd]) => ({ placa, qtd, nome: (cargasMotoristas.get(placa) || {}).nome || placa }))
+      .sort((a, b) => a.qtd - b.qtd || a.nome.localeCompare(b.nome, 'pt-BR'));
+
+    wrap.innerHTML = `
+      <div class="cargas-noshow-ranking">
+        ${lista.map(item => `
+          <div class="cargas-noshow-ranking__item">
+            <span>${escapeAttr(item.nome)}</span>
+            <span class="cargas-noshow-ranking__valor">${Utils.formatNumber(item.qtd)} carga${item.qtd === 1 ? '' : 's'}</span>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function bindCargasRankingPeriodo() {
+    const barra = document.getElementById('cargas-ranking-periodo-bar');
+    if (!barra) return;
+    barra.querySelectorAll('[data-cargas-ranking-periodo]').forEach(botao => {
+      botao.addEventListener('click', () => {
+        cargasRankingPeriodo = botao.dataset.cargasRankingPeriodo;
+        barra.querySelectorAll('[data-cargas-ranking-periodo]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
+        renderControleCargasLista();
+      });
+    });
+  }
+
   /** "Adicionar motoristas do dia" (2026-09-25, item 9-16 do pedido dela: COPIAR → COLAR →
    * ESCOLHER STATUS → ADICIONAR TODOS) — separa cada linha colada, remove vazias/duplicadas
    * (mesmo nome duas vezes só conta 1x) e classifica contra o cadastro (cargasMotoristas):
@@ -8411,7 +8555,12 @@ const Dashboard = (() => {
           const select = document.getElementById('cargas-fila-filtro-status');
           if (select) select.value = cargasFilaFiltroStatus;
         } else {
+          const abrindoAgora = cargasFiltroAtivo !== filtro;
           cargasFiltroAtivo = cargasFiltroAtivo === filtro ? 'FILA' : filtro;
+          // Refaz a busca do histórico toda vez que ela ABRE o ranking de novo (não só na 1ª
+          // vez) — reflete cargas que aconteceram desde a última vez que olhou, sem precisar de
+          // um listener ao vivo ligado o tempo todo (ver cargasCarregarHistoricoSeNecessario).
+          if (filtro === 'RANKING_CARGAS' && abrindoAgora) cargasRankingCarregado = false;
         }
         renderControleCargasLista();
       });
@@ -8999,6 +9148,7 @@ const Dashboard = (() => {
     bindCargasEncerrarDia();
     bindCargasHistorico();
     bindCargasNoShowPeriodo();
+    bindCargasRankingPeriodo();
     bindControleCargasAviso();
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
     if (btnSincronizar) btnSincronizar.addEventListener('click', sincronizarCadastroMotoristas);
