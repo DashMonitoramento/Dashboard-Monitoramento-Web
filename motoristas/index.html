@@ -85,10 +85,15 @@ h1,h2,h3,p{margin:0;}
 .contador-card{
   display:flex; flex-direction:column; gap:4px; text-align:center;
   background:linear-gradient(135deg, rgba(255,122,26,.24), rgba(255,122,26,.06));
-  border:1px solid rgba(255,122,26,.5); border-radius:14px; padding:14px 16px; margin-bottom:18px;
+  border:2px solid var(--brand); border-radius:14px; padding:14px 16px; margin-bottom:18px;
+  animation: contador-brilho 1.6s ease-in-out infinite;
+}
+@keyframes contador-brilho{
+  0%,100%{ box-shadow:0 0 6px rgba(255,122,26,.55), 0 0 0 rgba(255,122,26,0); }
+  50%{ box-shadow:0 0 18px rgba(255,122,26,.95), 0 0 30px rgba(255,122,26,.5); }
 }
 .contador-card__titulo{font-size:13px; font-weight:800; color:var(--brand); letter-spacing:.02em;}
-.contador-card__texto{font-size:15px; color:var(--ink); line-height:1.5; font-weight:700;}
+.contador-card__texto{font-size:19px; color:var(--ink); line-height:1.5; font-weight:800; letter-spacing:.01em;}
 
 .btn-cta{
   display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
@@ -544,16 +549,16 @@ function atualizarContadorEncontro() {
   if (!texto) return;
   const diffMs = CONTADOR_ENCONTRO_DATA - new Date();
   if (diffMs <= 0) {
-    texto.textContent = 'O 1º Encontro com Agregados da Da Terrinha Alimentos já começou!';
+    texto.textContent = 'JÁ COMEÇOU!';
     return;
   }
   const dias = Math.floor(diffMs / 86400000);
   const horas = Math.floor((diffMs % 86400000) / 3600000);
   const minutos = Math.floor((diffMs % 3600000) / 60000);
-  const rotuloDias = dias === 1 ? 'dia' : 'dias';
+  const rotuloDias = dias === 1 ? 'DIA' : 'DIAS';
   const hh = String(horas).padStart(2, '0');
   const mm = String(minutos).padStart(2, '0');
-  texto.textContent = `Faltam ${dias} ${rotuloDias} e ${hh}:${mm} horas para o 1º Encontro com Agregados da Da Terrinha Alimentos`;
+  texto.textContent = `FALTAM ${dias} ${rotuloDias} E ${hh}:${mm} HRS`;
 }
 
 const AVISO_PRIORIDADE_TITULO = { info: '📘 Aviso', atencao: '⚠️ Atenção', urgente: '🚨 Urgente' };
