@@ -7336,9 +7336,13 @@ const Dashboard = (() => {
   function renderControleCargasAcoesGlobais() {
     const btnCadastrar = document.getElementById('cargas-btn-cadastrar');
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
+    const btnEncerrarDia = document.getElementById('cargas-btn-encerrar-dia');
     const blocoAviso = document.getElementById('cargas-aviso-bloco');
     if (btnCadastrar) btnCadastrar.hidden = !cargasPodeEditar;
     if (btnSincronizar) btnSincronizar.hidden = !cargasPodeEditar;
+    // "Histórico por data" fica visível pra qualquer um (só leitura); "Encerrar o dia" precisa da
+    // mesma permissão de sempre, já que apaga a fila ao vivo.
+    if (btnEncerrarDia) btnEncerrarDia.hidden = !cargasPodeEditar;
     if (blocoAviso) blocoAviso.hidden = !cargasPodeEditar;
   }
 
@@ -8294,6 +8298,89 @@ const Dashboard = (() => {
     bindCargasRotaAutocompleteGenerico('adicionar-motoristas-dia-rota', 'adicionar-motoristas-dia-sugestoes-rota');
   }
 
+  function cargasHojeAAAAMMDD() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  /** "Encerrar o dia" (2026-09-25, item 19 do pedido dela — decidido via pergunta: fechamento
+   * MANUAL, não automático à meia-noite) — arquiva a programação de hoje (os 4 status de fila
+   * juntos, mesmo critério de CARGAS_STATUS_FILA) num snapshot só em `programacaoDiaria/{data}`
+   * e limpa `statusCarga` (retiraStatusCarga em lote) pra começar amanhã do zero. Não mexe em
+   * `motoristas` (cadastro) nem `disponibilidade` — só a fila de separação. */
+  function bindCargasEncerrarDia() {
+    const btn = document.getElementById('cargas-btn-encerrar-dia');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const itens = Array.from(cargasStatusCarga.values()).filter(s => CARGAS_STATUS_FILA.includes(s.status));
+      if (!itens.length) { Utils.showToast('Não há motoristas na programação de hoje pra encerrar.', 'info', 3000); return; }
+      const confirmado = confirm(`Isso vai arquivar ${itens.length} motorista(s) no histórico de hoje e limpar a fila ao vivo. Confirma?`);
+      if (!confirmado) return;
+      btn.disabled = true;
+      try {
+        const payload = itens.map(s => {
+          const m = cargasMotoristas.get(s.id);
+          const dataRef = cargasTimestampParaData(s.atualizadoEm);
+          return {
+            placa: s.id, nome: m ? m.nome : '', transportadora: s.transportadora || '',
+            statusFinal: s.status, rota: s.rota || '', observacao: s.observacao || '',
+            atualizadoEm: dataRef ? dataRef.toISOString() : null
+          };
+        });
+        await cargasDashFirebase.encerrarDiaControleCargas(cargasHojeAAAAMMDD(), payload);
+        Utils.showToast('Dia encerrado — programação arquivada no histórico.', 'success', 3000);
+      } catch (err) {
+        Utils.showToast('Falha ao encerrar o dia: ' + err.message, 'error');
+      }
+      btn.disabled = false;
+    });
+  }
+
+  /** "Histórico por data" (2026-09-25) — só leitura, consulta um dia já encerrado (ver
+   * bindCargasEncerrarDia). Visível pra qualquer autenticado, sem gate de cargasPodeEditar. */
+  function bindCargasHistorico() {
+    const modal = document.getElementById('modal-cargas-historico');
+    const btnAbrir = document.getElementById('cargas-btn-historico');
+    const btnFechar = document.getElementById('btn-fechar-modal-cargas-historico');
+    const btnConsultar = document.getElementById('btn-consultar-cargas-historico');
+    const inputData = document.getElementById('cargas-historico-data');
+    const resultado = document.getElementById('cargas-historico-resultado');
+    if (!modal || !btnAbrir) return;
+
+    btnAbrir.addEventListener('click', () => {
+      inputData.value = cargasHojeAAAAMMDD();
+      resultado.innerHTML = '';
+      modal.hidden = false;
+    });
+    btnFechar.addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+    btnConsultar.addEventListener('click', async () => {
+      const data = inputData.value;
+      if (!data) return;
+      btnConsultar.disabled = true;
+      resultado.innerHTML = '<div class="cargas-vazio">Consultando...</div>';
+      try {
+        const registro = await cargasDashFirebase.getProgramacaoDiaria(data);
+        if (!registro || !registro.motoristas || !registro.motoristas.length) {
+          resultado.innerHTML = '<div class="cargas-vazio">Nenhum registro encerrado nessa data.</div>';
+        } else {
+          resultado.innerHTML = registro.motoristas.map(item => `
+            <div class="cargas-item">
+              <div class="cargas-item__info">
+                <div class="cargas-item__nome">${escapeAttr(item.nome || '(sem nome)')}</div>
+                <div class="cargas-item__meta">Placa: ${escapeAttr(cargasExibirPlaca(item.placa))} · Transportadora: ${escapeAttr(item.transportadora || '—')} · Status final: ${escapeAttr(CARGAS_LABEL_FILTRO[item.statusFinal] || item.statusFinal)} · Rota: ${escapeAttr(item.rota || '—')}</div>
+                ${item.observacao ? `<div class="cargas-item__meta">Observação: ${escapeAttr(item.observacao)}</div>` : ''}
+              </div>
+            </div>`).join('');
+        }
+      } catch (err) {
+        resultado.innerHTML = `<div class="cargas-vazio">Falha ao consultar: ${escapeAttr(err.message)}</div>`;
+      }
+      btnConsultar.disabled = false;
+    });
+  }
+
   const CARGAS_STATUS_FILA = ['NAO_INICIADA', 'EM_SEPARACAO', 'SEPARADO', 'CARREGADO'];
 
   function bindControleCargasCards() {
@@ -8869,6 +8956,8 @@ const Dashboard = (() => {
     bindModalNoShowMotivo();
     bindModalAdicionarMotoristasDia();
     bindCargasFilaFiltros();
+    bindCargasEncerrarDia();
+    bindCargasHistorico();
     bindCargasNoShowPeriodo();
     bindControleCargasAviso();
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
