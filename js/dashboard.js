@@ -8096,7 +8096,7 @@ const Dashboard = (() => {
       const acoesHtml = cargasPodeEditar
         ? `<div class="cargas-item__acoes">
              <button type="button" class="icon-btn-cell icon-btn-cell--editar" data-cargas-focar-nome="${escapeAttr(m.placa)}" title="Editar">✏️</button>
-             <button type="button" class="icon-btn-cell icon-btn-cell--excluir" data-cargas-acao="excluir-motorista" data-cargas-placa="${escapeAttr(m.placa)}" title="Excluir cadastro">🗑️</button>
+             <button type="button" class="icon-btn-cell icon-btn-cell--excluir" data-cargas-acao="excluir-motorista" data-cargas-placa="${escapeAttr(m.placa)}" title="Excluir cadastro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:middle"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></button>
            </div>`
         : '';
 
