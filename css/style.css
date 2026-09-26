@@ -1725,6 +1725,68 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cargas-noshow-ranking__celula-truncada { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .cargas-vazio { padding: 24px 12px; text-align: center; color: var(--text-secondary); font-size: 14px; }
 
+/* Consultar motorista por nome ou placa (2026-09-25) — evolução do antigo "Onde está esse
+   motorista?" (era só um autocomplete simples); agora tem botão Buscar + card de resultado
+   grande com as 3 etapas da separação em destaque. */
+.cargas-consulta {
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 16px; margin-bottom: 18px;
+}
+.cargas-consulta__titulo { font-size: 15px; font-weight: 800; color: var(--text-primary); margin: 0 0 4px; }
+.cargas-consulta__hint { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 12px; }
+.cargas-consulta__busca { display: flex; gap: 10px; align-items: flex-start; }
+.cargas-consulta__busca .cargas-autocomplete { flex: 1 1 auto; }
+.cargas-consulta__busca .btn { flex: 0 0 auto; padding: 9px 20px; }
+
+.cargas-resultado-card {
+  margin-top: 14px; padding: 16px; border-radius: var(--radius-md); border: 1.5px solid var(--border);
+  background: var(--surface);
+}
+.cargas-resultado-card--localizado { border-color: var(--color-success); background: rgba(22,163,74,.07); }
+.cargas-resultado-card--nao-encontrado { border-color: var(--color-danger); background: rgba(220,38,38,.06); }
+.cargas-resultado-card__titulo { font-size: 13px; font-weight: 800; letter-spacing: .02em; margin-bottom: 10px; }
+.cargas-resultado-card--localizado .cargas-resultado-card__titulo { color: var(--color-success); }
+.cargas-resultado-card--nao-encontrado .cargas-resultado-card__titulo { color: var(--color-danger); }
+.cargas-resultado-card__linha { display: flex; gap: 6px; font-size: 13.5px; color: var(--text-primary); margin-bottom: 4px; }
+.cargas-resultado-card__linha strong { color: var(--text-secondary); font-weight: 600; min-width: 120px; }
+.cargas-resultado-card__texto { font-size: 13.5px; color: var(--text-primary); margin-bottom: 10px; }
+.cargas-resultado-card .modal-actions, .cargas-resultado-card .cargas-resultado-card__acoes {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+}
+
+.cargas-etapa-tracker { display: flex; align-items: flex-start; gap: 0; margin: 14px 0; }
+.cargas-etapa-passo { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; text-align: center; }
+.cargas-etapa-passo:not(:last-child)::after {
+  content: ''; position: absolute; top: 13px; left: 50%; width: 100%; height: 2px; background: var(--border); z-index: 0;
+}
+.cargas-etapa-passo__numero {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--surface-alt); border: 2px solid var(--border);
+  color: var(--text-secondary); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 1;
+}
+.cargas-etapa-passo__label { font-size: 11px; color: var(--text-secondary); max-width: 90px; }
+.cargas-etapa-passo--atual .cargas-etapa-passo__label { color: var(--text-primary); font-weight: 700; }
+.cargas-etapa-passo--danger .cargas-etapa-passo__numero { border-color: var(--color-danger); color: var(--color-danger); }
+.cargas-etapa-passo--warning .cargas-etapa-passo__numero { border-color: var(--color-warning); color: #A16207; }
+.cargas-etapa-passo--success .cargas-etapa-passo__numero { border-color: var(--color-success); color: var(--color-success); }
+.cargas-etapa-passo--atual.cargas-etapa-passo--danger .cargas-etapa-passo__numero { background: var(--color-danger); color: #fff; }
+.cargas-etapa-passo--atual.cargas-etapa-passo--warning .cargas-etapa-passo__numero { background: var(--color-warning); color: #fff; }
+.cargas-etapa-passo--atual.cargas-etapa-passo--success .cargas-etapa-passo__numero { background: var(--color-success); color: #fff; }
+
+/* Modal "Adicionar motoristas do dia" (2026-09-25) — colar lista + prévia. */
+#adicionar-motoristas-dia-texto {
+  width: 100%; min-height: 180px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-primary); font-size: 13.5px; font-family: inherit; resize: vertical;
+  margin-bottom: 12px;
+}
+.cargas-previa-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); margin-bottom: 6px;
+}
+.cargas-previa-item__nome { font-weight: 700; font-size: 13.5px; color: var(--text-primary); }
+.cargas-previa-item__situacao { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.cargas-previa-item__select { padding: 5px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text-primary); font-size: 12px; }
+
 /* Campo de formulário simples, genérico (label + input/select) — usado no modal "Cadastrar
    motorista" (não existia um padrão assim fora do login/Manifesto, que têm CSS próprio). */
 .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
