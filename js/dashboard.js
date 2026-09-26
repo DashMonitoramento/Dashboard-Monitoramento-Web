@@ -432,7 +432,12 @@ const Dashboard = (() => {
   // ocorrência; nunca é filtrado por status como os outros 2 Maps, sempre entra inteiro aqui.
   let cargasNoShowHistorico = new Map();
   let cargasNoShowPeriodo = 'hoje'; // 'ontem' | 'hoje' | 'semana' | 'mes' — mesmas opções/lógica de periodoOcorrenciasDoDia
-  let cargasFiltroAtivo = null;
+  // 'FILA' (padrão, "Motoristas do Dia" combinando os 4 status) | 'DISPONIVEL' | 'NOSHOW' | 'CADASTRADOS'
+  let cargasFiltroAtivo = 'FILA';
+  let cargasFilaFiltroStatus = '';
+  let cargasFilaBusca = '';
+  let cargasFilaFiltroTransportadora = '';
+  let cargasFilaFiltroRota = '';
   let cargasMotoristaSelecionadoParaAdicionar = null;
   let cargasInicializado = false;
   let cargasDashFirebase = null;
@@ -7206,6 +7211,34 @@ const Dashboard = (() => {
     return String(texto || '').normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').toLowerCase().trim();
   }
 
+  /** Comparação de nome EXATA (não substring) — usada pra classificar "colar lista" (2026-09-25):
+   * diferente do autocomplete (que casa substring, pensado pra digitar e escolher), aqui um nome
+   * colado precisa bater o nome INTEIRO com o cadastro, senão "CARLOS" casaria com qualquer
+   * motorista que tenha "carlos" em algum pedaço do nome. Colapsa espaços múltiplos também (lista
+   * colada de fontes variadas costuma vir com espaçamento inconsistente). */
+  function cargasNormalizarNomeCompleto(nome) {
+    return cargasNormalizarTexto(nome).replace(/\s+/g, ' ');
+  }
+
+  /** ID temporário pra motorista colado só com o nome, sem placa ainda (2026-09-25, pedido da
+   * usuária: "não obrigar Placa/Transportadora, cadastrar apenas o nome"). Todo o modelo de dados
+   * (motoristas/statusCarga/disponibilidade) usa a placa normalizada como ID do documento — este
+   * prefixo entra no MESMO lugar até ela informar a placa real (ver definirPlacaMotorista,
+   * firebase-init.js). Só letras/números (sem hífen) de propósito, pra sobreviver intacto ao
+   * normalizarPlaca (que descarta qualquer caractere fora de A-Z0-9) sem virar outra coisa. */
+  const CARGAS_PREFIXO_PLACA_PENDENTE = 'SEMPLACA';
+  function cargasGerarIdTemporario() {
+    const aleatorio = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const tempo = Date.now().toString(36).toUpperCase();
+    return `${CARGAS_PREFIXO_PLACA_PENDENTE}${tempo}${aleatorio}`;
+  }
+  function cargasPlacaPendente(id) {
+    return String(id || '').toUpperCase().startsWith(CARGAS_PREFIXO_PLACA_PENDENTE);
+  }
+  function cargasExibirPlaca(id) {
+    return cargasPlacaPendente(id) ? '(pendente)' : id;
+  }
+
   async function cargasWaitFirebaseReady() {
     return new Promise((resolve) => {
       if (window.Firebase) return resolve(window.Firebase);
@@ -7411,9 +7444,11 @@ const Dashboard = (() => {
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }
 
-  function bindCargasRotaAutocomplete() {
-    const input = document.getElementById('cargas-input-rota');
-    const sugestoes = document.getElementById('cargas-sugestoes-rota');
+  /** Generalizada (2026-09-25) pra caber o campo de rota do modal "Adicionar motoristas do dia"
+   * além da barra "Adicionar" de sempre — mesmo comportamento, só ids parametrizados. */
+  function bindCargasRotaAutocompleteGenerico(idInput, idSugestoes) {
+    const input = document.getElementById(idInput);
+    const sugestoes = document.getElementById(idSugestoes);
     if (!input || !sugestoes) return;
 
     function renderSugestoesRota() {
@@ -7434,6 +7469,9 @@ const Dashboard = (() => {
       input.value = item.dataset.rota;
       sugestoes.classList.remove('aberta');
     });
+  }
+  function bindCargasRotaAutocomplete() {
+    bindCargasRotaAutocompleteGenerico('cargas-input-rota', 'cargas-sugestoes-rota');
   }
 
   function renderControleCargasCards() {
@@ -7507,6 +7545,7 @@ const Dashboard = (() => {
   function bindCargasOndeEstaAutocomplete() {
     const input = document.getElementById('cargas-onde-esta-input');
     const sugestoes = document.getElementById('cargas-onde-esta-sugestoes');
+    const btnBuscar = document.getElementById('cargas-btn-consultar');
     if (!input || !sugestoes) return;
 
     function renderSugestoes() {
@@ -7517,8 +7556,8 @@ const Dashboard = (() => {
         .slice(0, 8);
       sugestoes.innerHTML = candidatos.length
         ? candidatos.map(m => `
-            <div class="cargas-sugestao-item">
-              <span>${escapeAttr(m.nome)} <span class="cargas-sugestao-item__placa">${escapeAttr(m.placa)}</span></span>
+            <div class="cargas-sugestao-item" data-consulta-placa="${escapeAttr(m.placa)}">
+              <span>${escapeAttr(m.nome)} <span class="cargas-sugestao-item__placa">${escapeAttr(cargasExibirPlaca(m.placa))}</span></span>
               <span>${cargasDescreverEtapaMotorista(m.placa)}</span>
             </div>`).join('')
         : '<div class="cargas-sugestao-vazia">Motorista não está cadastrado.</div>';
@@ -7527,65 +7566,297 @@ const Dashboard = (() => {
     input.addEventListener('input', renderSugestoes);
     input.addEventListener('focus', renderSugestoes);
     input.addEventListener('blur', () => setTimeout(() => sugestoes.classList.remove('aberta'), 150));
+    sugestoes.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('[data-consulta-placa]');
+      if (!item) return;
+      input.value = item.dataset.consultaPlaca;
+      sugestoes.classList.remove('aberta');
+      renderConsultaMotorista(cargasBuscarMotoristaPorTexto(item.dataset.consultaPlaca));
+    });
+    if (btnBuscar) btnBuscar.addEventListener('click', () => renderConsultaMotorista(cargasBuscarMotoristaPorTexto(input.value)));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { sugestoes.classList.remove('aberta'); renderConsultaMotorista(cargasBuscarMotoristaPorTexto(input.value)); }
+    });
+  }
+
+  /** Resolve o texto digitado (nome OU placa) contra o cadastro pra "Consultar motorista"
+   * (2026-09-25) — placa bate exato (é chave única); nome precisa bater EXATO (não substring,
+   * ver cargasNormalizarNomeCompleto) já que aqui é uma decisão de qual motorista mostrar, não
+   * uma lista de sugestões pra escolher. */
+  function cargasBuscarMotoristaPorTexto(textoBruto) {
+    const texto = String(textoBruto || '').trim();
+    if (!texto) return { tipo: 'vazio' };
+    const placaNormalizada = cargasNormalizarPlaca(texto);
+    if (placaNormalizada && cargasMotoristas.has(placaNormalizada)) {
+      return { tipo: 'unico', motorista: cargasMotoristas.get(placaNormalizada) };
+    }
+    const nomeNormalizado = cargasNormalizarNomeCompleto(texto);
+    const candidatos = Array.from(cargasMotoristas.values()).filter(m => cargasNormalizarNomeCompleto(m.nome) === nomeNormalizado);
+    if (candidatos.length === 1) return { tipo: 'unico', motorista: candidatos[0] };
+    if (candidatos.length > 1) return { tipo: 'ambiguo', candidatos };
+    return { tipo: 'nao_encontrado' };
+  }
+
+  const CARGAS_ETAPA_ORDEM = ['NAO_INICIADA', 'EM_SEPARACAO', 'SEPARADO'];
+  const CARGAS_ETAPA_MENSAGEM = {
+    NAO_INICIADA: 'A separação da sua carga ainda não foi iniciada.',
+    EM_SEPARACAO: 'Sua carga está em separação.',
+    SEPARADO: 'Sua carga já está separada e aguardando carregamento.',
+    CARREGADO: 'Carregamento concluído.'
+  };
+  function cargasMontarTrackerEtapas(statusAtual) {
+    const rankAtual = statusAtual === 'CARREGADO' ? 3 : CARGAS_ETAPA_ORDEM.indexOf(statusAtual);
+    return `<div class="cargas-etapa-tracker">${CARGAS_ETAPA_ORDEM.map((st, i) => {
+      const classeCor = CARGAS_BADGE_CLASSE_STATUS[st].replace('badge--', '');
+      const alcancada = i <= rankAtual;
+      const classes = ['cargas-etapa-passo', `cargas-etapa-passo--${classeCor}`];
+      if (alcancada) classes.push('cargas-etapa-passo--atual');
+      return `<div class="${classes.join(' ')}"><span class="cargas-etapa-passo__numero">${i < rankAtual ? '✓' : i + 1}</span><span class="cargas-etapa-passo__label">${escapeAttr(CARGAS_LABEL_FILTRO[st])}</span></div>`;
+    }).join('')}</div>`;
+  }
+
+  function bindCargasNovaConsulta() {
+    const btn = document.getElementById('cargas-btn-nova-consulta');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const input = document.getElementById('cargas-onde-esta-input');
+      if (input) { input.value = ''; input.focus(); }
+      renderConsultaMotorista(null);
+    });
+  }
+
+  /** Card de resultado da "Consultar motorista por nome ou placa" (2026-09-25, item 2-5 do
+   * pedido dela) — 3 desfechos: ambíguo (mesmo nome em 2+ cadastros, escolhe a placa certa),
+   * não encontrado/sem carga hoje, e localizado (com o tracker de 3 etapas). */
+  function renderConsultaMotorista(resultado) {
+    const alvo = document.getElementById('cargas-consulta-resultado');
+    if (!alvo) return;
+    if (!resultado || resultado.tipo === 'vazio') { alvo.innerHTML = ''; return; }
+
+    if (resultado.tipo === 'ambiguo') {
+      alvo.innerHTML = `
+        <div class="cargas-resultado-card">
+          <div class="cargas-resultado-card__titulo">MAIS DE UM MOTORISTA COM ESSE NOME</div>
+          <p class="cargas-resultado-card__texto">Encontramos mais de um cadastro com esse nome — escolha a placa certa:</p>
+          ${resultado.candidatos.map(m => `<div class="cargas-previa-item" data-consulta-placa="${escapeAttr(m.placa)}" style="cursor:pointer;">
+            <span class="cargas-previa-item__nome">${escapeAttr(m.nome)}</span>
+            <span class="cargas-sugestao-item__placa">${escapeAttr(cargasExibirPlaca(m.placa))}</span>
+          </div>`).join('')}
+        </div>`;
+      alvo.querySelectorAll('[data-consulta-placa]').forEach(el => {
+        el.addEventListener('click', () => renderConsultaMotorista(cargasBuscarMotoristaPorTexto(el.dataset.consultaPlaca)));
+      });
+      return;
+    }
+
+    if (resultado.tipo === 'nao_encontrado') {
+      alvo.innerHTML = `
+        <div class="cargas-resultado-card cargas-resultado-card--nao-encontrado">
+          <div class="cargas-resultado-card__titulo">❌ MOTORISTA NÃO ENCONTRADO</div>
+          <p class="cargas-resultado-card__texto">Não encontramos cargas programadas para este motorista na data de hoje.</p>
+          <div class="cargas-resultado-card__acoes"><button type="button" class="btn" id="cargas-btn-nova-consulta">Nova consulta</button></div>
+        </div>`;
+      bindCargasNovaConsulta();
+      return;
+    }
+
+    const m = resultado.motorista;
+    const status = cargasStatusCarga.get(m.placa);
+    if (!status || !CARGAS_LABEL_FILTRO[status.status]) {
+      alvo.innerHTML = `
+        <div class="cargas-resultado-card">
+          <div class="cargas-resultado-card__titulo">MOTORISTA ENCONTRADO — SEM CARGA HOJE</div>
+          <div class="cargas-resultado-card__linha"><strong>Nome:</strong> ${escapeAttr(m.nome)}</div>
+          <div class="cargas-resultado-card__linha"><strong>Placa:</strong> ${escapeAttr(cargasExibirPlaca(m.placa))}</div>
+          ${m.transportadora ? `<div class="cargas-resultado-card__linha"><strong>Transportadora:</strong> ${escapeAttr(m.transportadora)}</div>` : ''}
+          <p class="cargas-resultado-card__texto">Não encontramos cargas programadas para este motorista na data de hoje.</p>
+          <div class="cargas-resultado-card__acoes"><button type="button" class="btn" id="cargas-btn-nova-consulta">Nova consulta</button></div>
+        </div>`;
+      bindCargasNovaConsulta();
+      return;
+    }
+
+    alvo.innerHTML = `
+      <div class="cargas-resultado-card cargas-resultado-card--localizado">
+        <div class="cargas-resultado-card__titulo">✅ MOTORISTA LOCALIZADO</div>
+        <div class="cargas-resultado-card__linha"><strong>Nome:</strong> ${escapeAttr(m.nome)}</div>
+        <div class="cargas-resultado-card__linha"><strong>Placa:</strong> ${escapeAttr(cargasExibirPlaca(m.placa))}</div>
+        <div class="cargas-resultado-card__linha"><strong>Transportadora:</strong> ${escapeAttr(status.transportadora || m.transportadora || '—')}</div>
+        <p class="cargas-resultado-card__texto">Você tem carga hoje</p>
+        ${cargasMontarTrackerEtapas(status.status)}
+        <p class="cargas-resultado-card__texto">${escapeAttr(CARGAS_ETAPA_MENSAGEM[status.status] || '')}</p>
+        <div id="cargas-consulta-detalhes" hidden></div>
+        <div class="cargas-resultado-card__acoes">
+          <button type="button" class="btn" id="cargas-btn-ver-detalhes">Ver detalhes da carga</button>
+          <button type="button" class="btn" id="cargas-btn-nova-consulta">Nova consulta</button>
+        </div>
+      </div>`;
+    bindCargasNovaConsulta();
+    const btnDetalhes = document.getElementById('cargas-btn-ver-detalhes');
+    if (btnDetalhes) {
+      btnDetalhes.addEventListener('click', () => {
+        const bloco = document.getElementById('cargas-consulta-detalhes');
+        const abrindo = bloco.hidden;
+        bloco.hidden = !abrindo;
+        btnDetalhes.textContent = abrindo ? 'Ocultar detalhes' : 'Ver detalhes da carga';
+        if (abrindo) {
+          bloco.innerHTML = `
+            <div class="cargas-resultado-card__linha"><strong>Rota:</strong> ${escapeAttr(status.rota || '—')}</div>
+            <div class="cargas-resultado-card__linha"><strong>Observação:</strong> ${escapeAttr(status.observacao || '—')}</div>
+            <div class="cargas-resultado-card__linha"><strong>Rodízio:</strong> ${escapeAttr(m.rodizio || 'Sem rodízio cadastrado')}</div>`;
+        }
+      });
+    }
   }
 
   function renderControleCargasLista() {
     const wrap = document.getElementById('cargas-lista');
     const titulo = document.getElementById('cargas-lista-titulo');
     const barraNoShow = document.getElementById('cargas-noshow-periodo-bar');
+    const barraFiltrosFila = document.getElementById('cargas-fila-filtros');
     if (!wrap || !titulo) return;
 
     document.querySelectorAll('#cargas-view [data-cargas-filtro]').forEach(card => {
-      card.classList.toggle('selecionado', card.dataset.cargasFiltro === cargasFiltroAtivo);
+      const filtro = card.dataset.cargasFiltro;
+      const ativo = CARGAS_STATUS_FILA.includes(filtro)
+        ? (cargasFiltroAtivo === 'FILA' && cargasFilaFiltroStatus === filtro)
+        : (cargasFiltroAtivo === filtro);
+      card.classList.toggle('selecionado', ativo);
     });
     if (barraNoShow) barraNoShow.hidden = cargasFiltroAtivo !== 'NOSHOW';
-
-    if (!cargasFiltroAtivo) {
-      titulo.textContent = 'Selecione um card acima pra ver a lista';
-      wrap.innerHTML = '';
-      return;
-    }
-    titulo.textContent = CARGAS_LABEL_FILTRO[cargasFiltroAtivo] || '';
+    if (barraFiltrosFila) barraFiltrosFila.hidden = cargasFiltroAtivo !== 'FILA';
 
     if (cargasFiltroAtivo === 'NOSHOW') {
+      titulo.textContent = CARGAS_LABEL_FILTRO.NOSHOW;
       renderControleCargasListaNoShow(wrap);
       return;
     }
     if (cargasFiltroAtivo === 'CADASTRADOS') {
+      titulo.textContent = CARGAS_LABEL_FILTRO.CADASTRADOS;
       renderControleCargasListaCadastrados(wrap);
       return;
     }
 
-    let itens;
     if (cargasFiltroAtivo === 'DISPONIVEL') {
-      itens = Array.from(cargasDisponibilidade.values())
-        .filter(d => d.status === 'DISPONIVEL')
-        .map(d => ({
-          placa: d.id, dataRef: cargasTimestampParaData(d.disponibilizadoEm),
-          distanciaKm: cargasDistanciaKm(d.latitude, d.longitude)
-        }));
-    } else {
-      itens = Array.from(cargasStatusCarga.values())
-        .filter(s => s.status === cargasFiltroAtivo)
-        .map(s => ({ placa: s.id, dataRef: cargasTimestampParaData(s.atualizadoEm), rota: s.rota || '', visivel: s.visivel !== false, duplicado: !!s.duplicado, horaLimiteCarregamento: s.horaLimiteCarregamento || '' }));
-    }
-    if (cargasFiltroAtivo === 'DISPONIVEL') {
-      // Quem chega primeiro (mais perto) aparece primeiro (pedido explícito da usuária, pra
-      // priorizar separação de quem está mais próximo) — motoristas sem localização (avisos
-      // antigos, de antes desta funcionalidade) ficam por último, não somem da lista.
-      itens.sort((a, b) => {
-        if (a.distanciaKm === null && b.distanciaKm === null) return (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0);
-        if (a.distanciaKm === null) return 1;
-        if (b.distanciaKm === null) return -1;
-        return a.distanciaKm - b.distanciaKm;
-      });
-    } else {
-      // Quem avisou/entrou primeiro aparece primeiro (pedido explícito da usuária).
-      itens.sort((a, b) => (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0));
+      titulo.textContent = CARGAS_LABEL_FILTRO.DISPONIVEL;
+      renderControleCargasListaDisponivel(wrap);
+      return;
     }
 
+    // FILA (padrão) — "Motoristas do Dia" (2026-09-25): os 4 status de separação combinados numa
+    // lista só, com busca/status/transportadora/rota (ver cargas-fila-filtros no index.html) em
+    // vez de precisar clicar um card por vez. Clicar num dos 4 cards de fila só ajusta o filtro
+    // de Status desta mesma lista (ver bindControleCargasCards) — nunca troca de "view".
+    titulo.textContent = 'Motoristas do Dia';
+    renderControleCargasFilaDoDia(wrap);
+  }
+
+  /** Lista "Motoristas Disponíveis" — extraída de renderControleCargasLista sem mudança de
+   * comportamento (só isolada em função própria pra caber a reforma de "Motoristas do Dia" ao
+   * lado, ver renderControleCargasFilaDoDia). */
+  function renderControleCargasListaDisponivel(wrap) {
+    const itens = Array.from(cargasDisponibilidade.values())
+      .filter(d => d.status === 'DISPONIVEL')
+      .map(d => ({
+        placa: d.id, dataRef: cargasTimestampParaData(d.disponibilizadoEm),
+        distanciaKm: cargasDistanciaKm(d.latitude, d.longitude)
+      }));
+    // Quem chega primeiro (mais perto) aparece primeiro (pedido explícito da usuária, pra
+    // priorizar separação de quem está mais próximo) — motoristas sem localização (avisos
+    // antigos, de antes desta funcionalidade) ficam por último, não somem da lista.
+    itens.sort((a, b) => {
+      if (a.distanciaKm === null && b.distanciaKm === null) return (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0);
+      if (a.distanciaKm === null) return 1;
+      if (b.distanciaKm === null) return -1;
+      return a.distanciaKm - b.distanciaKm;
+    });
     if (!itens.length) {
       wrap.innerHTML = '<div class="cargas-vazio">Nenhum motorista aqui agora.</div>';
+      return;
+    }
+    const pesoPadraoPorCarro = cargasCalcularPesoPadraoPorCarro();
+    wrap.innerHTML = itens.map(item => {
+      const motorista = cargasMotoristas.get(item.placa);
+      const nome = motorista ? motorista.nome : '(motorista não encontrado no cadastro)';
+      const { carro, peso: pesoProprio } = cargasParseVeiculo(motorista && motorista.veiculo);
+      const peso = pesoProprio || (carro ? (pesoPadraoPorCarro.get(carro.toUpperCase()) || '') : '');
+      const rodizio = motorista ? motorista.rodizio : '';
+      const badgeRodizio = cargasRodizioEhHoje(rodizio) ? '<span class="cargas-badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
+      const rodizioTexto = rodizio
+        ? `<span class="cargas-rodizio-destaque">Rodízio: ${escapeAttr(rodizio)}</span>`
+        : 'Sem rodízio cadastrado';
+      const tempo = item.dataRef ? cargasFormatarTempoDecorrido(item.dataRef) : '';
+      const dataTexto = item.dataRef ? `<div class="cargas-item__data">${cargasFormatarData(item.dataRef)}</div>` : '';
+      const distanciaTexto = `<div class="cargas-item__distancia">${item.distanciaKm !== null ? cargasFormatarDistanciaTempoDeKm(item.distanciaKm) : '📍 Localização não informada'}</div>`;
+
+      // "Mover pra Separação" (2026-09-17, pedido da usuária: "ter a opção de colocar o
+      // motorista em alguma categoria de Separação" direto no card de Disponíveis) — precisa
+      // de cargasPodeEditar (não só cargasPodeGerenciarDisponibilidade) porque grava em
+      // statusCarga, ver moverDisponibilidadeParaSeparacao (firebase-init.js).
+      const moverHtml = cargasPodeEditar
+        ? `<select class="cargas-mover-select" data-cargas-mover-select="${escapeAttr(item.placa)}">
+             <option value="NAO_INICIADA">Separação Não Iniciada</option>
+             <option value="EM_SEPARACAO">Separação Iniciada</option>
+             <option value="SEPARADO">Separado</option>
+           </select>
+           <button class="btn btn--primary" data-cargas-acao="mover-separacao" data-cargas-placa="${escapeAttr(item.placa)}">Mover</button>`
+        : '';
+      const retirarHtml = cargasPodeGerenciarDisponibilidade
+        ? `<button class="btn" data-cargas-acao="encerrar-disponibilidade" data-cargas-placa="${escapeAttr(item.placa)}">Retirar da lista</button>`
+        : '';
+      const acoes = `${moverHtml}${retirarHtml}`;
+
+      return `
+        <div class="cargas-item">
+          <div class="cargas-item__info">
+            <div class="cargas-item__nome">${escapeAttr(nome)}${badgeRodizio}</div>
+            <div class="cargas-item__meta">Motorista: ${escapeAttr(nome)} · Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}</div>
+            ${distanciaTexto}
+          </div>
+          <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
+          <div class="cargas-item__acoes">${acoes}</div>
+        </div>`;
+    }).join('');
+  }
+
+  /** "Motoristas do Dia" (2026-09-25, item 8 do pedido dela) — os 4 status de separação
+   * (NAO_INICIADA/EM_SEPARACAO/SEPARADO/CARREGADO) combinados numa lista só, com filtros de
+   * busca/status/transportadora/rota (barra #cargas-fila-filtros) em vez de precisar clicar um
+   * card de status por vez pra ver cada fila separada. Reaproveita o MESMO template de item
+   * (.cargas-item) e as MESMAS ações (Iniciar/Marcar Separado/Marcar Carregado/Retirar/No Show/
+   * hora limite) que já existiam por card — só troca a decisão de "quais botões mostrar" de
+   * `cargasFiltroAtivo` (era 1 card = 1 status) pra `item.status` (aqui cada linha tem o seu). */
+  function renderControleCargasFilaDoDia(wrap) {
+    const todosItens = Array.from(cargasStatusCarga.values())
+      .filter(s => CARGAS_STATUS_FILA.includes(s.status))
+      .map(s => ({
+        placa: s.id, status: s.status, dataRef: cargasTimestampParaData(s.atualizadoEm),
+        rota: s.rota || '', transportadora: s.transportadora || '', observacao: s.observacao || '',
+        visivel: s.visivel !== false, duplicado: !!s.duplicado, horaLimiteCarregamento: s.horaLimiteCarregamento || ''
+      }));
+
+    // Popula os <select> de Transportadora/Rota com os valores distintos REALMENTE presentes
+    // hoje (não é uma lista fixa) — preserva a seleção atual do usuário ao redesenhar.
+    cargasPopularSelectFila('cargas-fila-filtro-transportadora', todosItens.map(i => i.transportadora), cargasFilaFiltroTransportadora, 'Todas as transportadoras');
+    cargasPopularSelectFila('cargas-fila-filtro-rota', todosItens.map(i => i.rota), cargasFilaFiltroRota, 'Todas as rotas');
+
+    const termoBusca = cargasNormalizarTexto(cargasFilaBusca);
+    const itens = todosItens.filter(item => {
+      if (cargasFilaFiltroStatus && item.status !== cargasFilaFiltroStatus) return false;
+      if (cargasFilaFiltroTransportadora && item.transportadora !== cargasFilaFiltroTransportadora) return false;
+      if (cargasFilaFiltroRota && item.rota !== cargasFilaFiltroRota) return false;
+      if (termoBusca) {
+        const motorista = cargasMotoristas.get(item.placa);
+        const nome = motorista ? motorista.nome : '';
+        if (!cargasNormalizarTexto(nome).includes(termoBusca) && !item.placa.toLowerCase().includes(termoBusca)) return false;
+      }
+      return true;
+    });
+    // Quem avisou/entrou primeiro aparece primeiro (pedido explícito da usuária).
+    itens.sort((a, b) => (a.dataRef ? a.dataRef.getTime() : 0) - (b.dataRef ? b.dataRef.getTime() : 0));
+
+    if (!itens.length) {
+      wrap.innerHTML = `<div class="cargas-vazio">${todosItens.length ? 'Nenhum motorista bate com esse filtro.' : 'Nenhum motorista na programação de hoje.'}</div>`;
       return;
     }
 
@@ -7604,45 +7875,45 @@ const Dashboard = (() => {
         ? `<span class="cargas-rodizio-destaque">Rodízio: ${escapeAttr(rodizio)}</span>`
         : 'Sem rodízio cadastrado';
       const tempo = item.dataRef ? cargasFormatarTempoDecorrido(item.dataRef) : '';
-      // Data calendário acima do "Há X dias" (pedido da usuária, 2026-09-08) — mesmo dataRef já
-      // usado pro tempo relativo, só formatado diferente, não é um campo novo.
       const dataTexto = item.dataRef ? `<div class="cargas-item__data">${cargasFormatarData(item.dataRef)}</div>` : '';
-      // Rota editável manualmente (2026-09-23, pedido dela: "na opção de rota possa editar
-      // manualmente também, como por exemplo... colocar Santo Andre" em vez do texto cru da Base
-      // Bluesoft tipo "SP - REGIAO ABCD") — até aqui só dava pra definir a rota na hora de
-      // "Adicionar" (bindCargasRotaAutocomplete), sem jeito de corrigir depois. Mesmo padrão
-      // inline de sempre (Motivo do No Show/Hora limite): salva no focusout, só se mudou de
-      // verdade (ver bindControleCargasAcoes). Só nos 4 cards que têm doc em statusCarga de
-      // verdade (não em Disponível — ali o item ainda é só `disponibilidade`, sem rota nenhuma,
-      // e um `updateDoc` em statusCarga pra uma placa sem doc lá falharia). Sem permissão,
-      // mantém o texto fixo de antes.
-      const rotaTexto = (cargasPodeEditar && cargasFiltroAtivo !== 'DISPONIVEL')
-        ? ` · Rota: <input type="text" class="observacao-descarga-inline" data-cargas-rota-placa="${escapeAttr(item.placa)}" value="${escapeAttr(item.rota || '')}" placeholder="Rota...">`
+      // Transportadora/Rota/Observação editáveis inline (2026-09-25) — mesmo padrão de sempre:
+      // salva no focusout, só se mudou de verdade (ver bindControleCargasAcoes).
+      const transportadoraTexto = cargasPodeEditar
+        ? ` · Transportadora: <input type="text" class="observacao-descarga-inline" data-cargas-transportadora-placa="${escapeAttr(item.placa)}" value="${escapeAttr(item.transportadora)}" placeholder="Transportadora...">`
+        : (item.transportadora ? ` · Transportadora: ${escapeAttr(item.transportadora)}` : '');
+      const rotaTexto = cargasPodeEditar
+        ? ` · Rota: <input type="text" class="observacao-descarga-inline" data-cargas-rota-placa="${escapeAttr(item.placa)}" value="${escapeAttr(item.rota)}" placeholder="Rota...">`
         : (item.rota ? ` · Rota: ${escapeAttr(item.rota)}` : '');
-      // Distância/tempo estimado até a Terrinha (só no card Disponíveis) — noção aproximada em
-      // linha reta (ver cargasDistanciaKm), não é rota real; "sem localização" cobre avisos
-      // enviados antes desta funcionalidade existir.
-      const distanciaTexto = (cargasFiltroAtivo === 'DISPONIVEL')
-        ? `<div class="cargas-item__distancia">${item.distanciaKm !== null ? cargasFormatarDistanciaTempoDeKm(item.distanciaKm) : '📍 Localização não informada'}</div>`
-        : '';
+      const observacaoTexto = cargasPodeEditar
+        ? `<div class="cargas-item__meta">Observação: <input type="text" class="observacao-descarga-inline" data-cargas-observacao-placa="${escapeAttr(item.placa)}" value="${escapeAttr(item.observacao)}" placeholder="Observação..." style="width:260px;"></div>`
+        : (item.observacao ? `<div class="cargas-item__meta">Observação: ${escapeAttr(item.observacao)}</div>` : '');
 
       // Badge "Aguardando ativação" (2026-09-17) — só aparece pra quem foi auto-populado e
       // ainda não foi ativado (item.visivel === false); some do Painel do Motorista até esse
       // ponto (ver renderListaStatus em motoristas/index.html).
-      const badgeAguardandoAtivacao = (cargasFiltroAtivo === 'NAO_INICIADA' && !item.visivel)
+      const badgeAguardandoAtivacao = (item.status === 'NAO_INICIADA' && !item.visivel)
         ? '<span class="badge badge--warning">Aguardando ativação</span>' : '';
 
+      // Troca rápida de status (2026-09-25, item 14 do pedido dela: "permitir alterar
+      // diretamente na lista através de um seletor") — além dos botões específicos abaixo
+      // (que continuam existindo, cada um com sua própria regra: Ativar, hora limite, No Show).
+      const statusSelectHtml = cargasPodeEditar
+        ? `<select class="cargas-item__status-select" data-cargas-status-select="${escapeAttr(item.placa)}">
+             ${CARGAS_STATUS_FILA.map(st => `<option value="${st}" ${st === item.status ? 'selected' : ''}>${escapeAttr(CARGAS_LABEL_FILTRO[st])}</option>`).join('')}
+           </select>`
+        : `<span class="badge ${CARGAS_BADGE_CLASSE_STATUS[item.status] || 'badge--info'}">${escapeAttr(CARGAS_LABEL_FILTRO[item.status])}</span>`;
+
       let acoes = '';
-      if (cargasPodeEditar && cargasFiltroAtivo === 'NAO_INICIADA') {
+      if (cargasPodeEditar && item.status === 'NAO_INICIADA') {
         const botaoAtivar = !item.visivel
           ? `<button class="btn btn--primary" data-cargas-acao="ativar" data-cargas-placa="${escapeAttr(item.placa)}">Ativar p/ Motorista</button>`
           : '';
         acoes = `${botaoAtivar}<button class="btn btn--primary" data-cargas-acao="iniciar" data-cargas-placa="${escapeAttr(item.placa)}">Iniciar Separação</button>
                  <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
-      } else if (cargasPodeEditar && cargasFiltroAtivo === 'EM_SEPARACAO') {
+      } else if (cargasPodeEditar && item.status === 'EM_SEPARACAO') {
         acoes = `<button class="btn btn--primary" data-cargas-acao="separar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Separado</button>
                  <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>`;
-      } else if (cargasPodeEditar && cargasFiltroAtivo === 'SEPARADO') {
+      } else if (cargasPodeEditar && item.status === 'SEPARADO') {
         // Botão "No Show" (pedido da usuária, 2026-09-08) — pra ela mesma acionar manualmente
         // quando o motorista não carregou; ver marcarNoShowStatusCarga (firebase-init.js).
         // Botão "Marcar como Carregado" (2026-09-21, pedido da usuária) — até aqui só existia a
@@ -7660,23 +7931,6 @@ const Dashboard = (() => {
                  <button class="btn btn--primary" data-cargas-acao="carregar" data-cargas-placa="${escapeAttr(item.placa)}">Marcar como Carregado</button>
                  <button class="btn" data-cargas-acao="retirar" data-cargas-placa="${escapeAttr(item.placa)}">Retirar</button>
                  <button class="btn btn--danger" data-cargas-acao="no-show" data-cargas-placa="${escapeAttr(item.placa)}">No Show</button>`;
-      } else if (cargasFiltroAtivo === 'DISPONIVEL') {
-        // "Mover pra Separação" (2026-09-17, pedido da usuária: "ter a opção de colocar o
-        // motorista em alguma categoria de Separação" direto no card de Disponíveis) — precisa
-        // de cargasPodeEditar (não só cargasPodeGerenciarDisponibilidade) porque grava em
-        // statusCarga, ver moverDisponibilidadeParaSeparacao (firebase-init.js).
-        const moverHtml = cargasPodeEditar
-          ? `<select class="cargas-mover-select" data-cargas-mover-select="${escapeAttr(item.placa)}">
-               <option value="NAO_INICIADA">Separação Não Iniciada</option>
-               <option value="EM_SEPARACAO">Separação Iniciada</option>
-               <option value="SEPARADO">Separado</option>
-             </select>
-             <button class="btn btn--primary" data-cargas-acao="mover-separacao" data-cargas-placa="${escapeAttr(item.placa)}">Mover</button>`
-          : '';
-        const retirarHtml = cargasPodeGerenciarDisponibilidade
-          ? `<button class="btn" data-cargas-acao="encerrar-disponibilidade" data-cargas-placa="${escapeAttr(item.placa)}">Retirar da lista</button>`
-          : '';
-        acoes = `${moverHtml}${retirarHtml}`;
       }
 
       // Nome em verde (2026-09-19, pedido da usuária): motorista que já tinha ido pra Carregado
@@ -7690,13 +7944,24 @@ const Dashboard = (() => {
         <div class="cargas-item">
           <div class="cargas-item__info">
             <div class="cargas-item__nome${classeNomeDuplicado}">${escapeAttr(nome)}${badgeRodizio}${badgeAguardandoAtivacao}</div>
-            <div class="cargas-item__meta">Motorista: ${escapeAttr(nome)} · Placa: ${escapeAttr(item.placa)} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
-            ${distanciaTexto}
+            <div class="cargas-item__meta">${statusSelectHtml} · Placa: ${escapeAttr(cargasExibirPlaca(item.placa))} · Carro: ${escapeAttr(carro || '—')} · Peso: ${escapeAttr(peso || '—')} · ${rodizioTexto}${transportadoraTexto}${rotaTexto}</div>
+            ${observacaoTexto}
           </div>
           <div class="cargas-item__tempo">${dataTexto}<div>${tempo}</div></div>
           <div class="cargas-item__acoes">${acoes}</div>
         </div>`;
     }).join('');
+  }
+
+  /** Popula um <select> de filtro com os valores distintos não vazios de `valores`, preservando
+   * a seleção atual (`selecionado`) e sempre com 1 opção vazia (`rotuloVazio`) no topo — mesmo
+   * padrão de cargasPopularSelectRotas, mas genérico o bastante pra Transportadora/Rota da fila. */
+  function cargasPopularSelectFila(id, valores, selecionado, rotuloVazio) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    const distintos = Array.from(new Set(valores.filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    select.innerHTML = `<option value="">${escapeAttr(rotuloVazio)}</option>` + distintos.map(v => `<option value="${escapeAttr(v)}">${escapeAttr(v)}</option>`).join('');
+    select.value = distintos.includes(selecionado) ? selecionado : '';
   }
 
   /** Lista do card "No Show" — diferente dos outros (não é fila ao vivo, é histórico só de
@@ -7807,12 +8072,22 @@ const Dashboard = (() => {
              ${opcoesRodizio.map(op => `<option value="${escapeAttr(op)}"${m.rodizio === op ? ' selected' : ''}>${op || 'Sem rodízio'}</option>`).join('')}
            </select>`
         : (m.rodizio ? escapeAttr(m.rodizio) : 'Sem rodízio cadastrado');
+      const transportadoraHtml = cargasPodeEditar
+        ? `<input type="text" class="observacao-descarga-inline" data-cargas-cadastro-campo="transportadora" data-cargas-cadastro-placa="${escapeAttr(m.placa)}" value="${escapeAttr(m.transportadora || '')}" placeholder="Transportadora...">`
+        : escapeAttr(m.transportadora || '—');
+      // Motorista colado só com o nome (2026-09-25, ver cargasGerarIdTemporario) ainda não tem
+      // placa real — em vez do texto fixo de sempre (placa é o ID do doc, não editável), mostra
+      // um campo pra ela completar o cadastro; ver definirPlacaMotorista (firebase-init.js).
+      const placaHtml = cargasPlacaPendente(m.placa)
+        ? `<input type="text" class="observacao-descarga-inline" data-cargas-definir-placa-input="${escapeAttr(m.placa)}" placeholder="Informar placa real...">
+           <button class="btn" style="padding:4px 8px; font-size:11.5px;" data-cargas-acao="definir-placa" data-cargas-placa="${escapeAttr(m.placa)}">Definir placa</button>`
+        : escapeAttr(m.placa);
 
       return `
         <div class="cargas-item">
           <div class="cargas-item__info">
             <div class="cargas-item__nome">${nomeHtml}${badgeRodizio}</div>
-            <div class="cargas-item__meta">Placa: ${escapeAttr(m.placa)} · Carro: ${carroHtml} · Peso: ${pesoHtml} · Rodízio: ${rodizioHtml}</div>
+            <div class="cargas-item__meta">Placa: ${placaHtml} · Carro: ${carroHtml} · Peso: ${pesoHtml} · Transportadora: ${transportadoraHtml} · Rodízio: ${rodizioHtml}</div>
           </div>
         </div>`;
     }).join('');
@@ -7829,19 +8104,214 @@ const Dashboard = (() => {
     const motorista = cargasMotoristas.get(placa);
     if (!motorista) return;
     const { carro, peso } = cargasParseVeiculo(motorista.veiculo);
-    const dados = { nome: motorista.nome, placa, veiculo: motorista.veiculo, rodizio: motorista.rodizio || '' };
+    const dados = { nome: motorista.nome, placa, veiculo: motorista.veiculo, transportadora: motorista.transportadora || '', rodizio: motorista.rodizio || '' };
     if (campo === 'nome') dados.nome = valor;
     else if (campo === 'carro') dados.veiculo = cargasMontarVeiculo(valor, peso);
     else if (campo === 'peso') dados.veiculo = cargasMontarVeiculo(carro, valor);
+    else if (campo === 'transportadora') dados.transportadora = valor;
     else if (campo === 'rodizio') dados.rodizio = valor;
     await cargasDashFirebase.cadastrarMotorista(dados);
   }
+
+  /** "Adicionar motoristas do dia" (2026-09-25, item 9-16 do pedido dela: COPIAR → COLAR →
+   * ESCOLHER STATUS → ADICIONAR TODOS) — separa cada linha colada, remove vazias/duplicadas
+   * (mesmo nome duas vezes só conta 1x) e classifica contra o cadastro (cargasMotoristas):
+   * 'novo' (nenhum cadastro com esse nome — vai virar motorista com ID temporário, ver
+   * cargasGerarIdTemporario), 'cadastrado' (1 cadastro só, resolve a placa direto),
+   * 'ambiguo' (2+ cadastros com o MESMO nome — ela escolhe qual na prévia) ou 'ja_programado'
+   * (a placa resolvida já tem doc em statusCarga hoje — não sobrescreve, só avisa). Pura função
+   * de dados, não toca Firestore (ver confirmarAdicaoMotoristasDia). */
+  function analisarListaColada(textoBruto) {
+    const linhas = String(textoBruto || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const vistos = new Set();
+    const itens = [];
+    let duplicadosNaLista = 0;
+    linhas.forEach(nomeBruto => {
+      const chave = cargasNormalizarNomeCompleto(nomeBruto);
+      if (!chave) return;
+      if (vistos.has(chave)) { duplicadosNaLista++; return; }
+      vistos.add(chave);
+      const candidatos = Array.from(cargasMotoristas.values()).filter(m => cargasNormalizarNomeCompleto(m.nome) === chave);
+      const item = { nome: nomeBruto, situacao: '', placaResolvida: '', candidatos: [] };
+      if (candidatos.length === 0) {
+        item.situacao = 'novo';
+      } else if (candidatos.length === 1) {
+        item.placaResolvida = candidatos[0].placa;
+        item.situacao = cargasStatusCarga.has(candidatos[0].placa) ? 'ja_programado' : 'cadastrado';
+      } else {
+        item.situacao = 'ambiguo';
+        item.candidatos = candidatos;
+      }
+      itens.push(item);
+    });
+    return { itens, duplicadosNaLista };
+  }
+
+  let cargasPreviaItens = [];
+
+  const CARGAS_PREVIA_SITUACAO_HTML = {
+    novo: '<span class="badge badge--info">Novo motorista</span>',
+    cadastrado: '<span class="badge badge--success">Já cadastrado</span>',
+    ambiguo: '<span class="badge badge--warning">Ambíguo</span>',
+    ja_programado: '<span class="badge badge--neutral">Já está na programação de hoje</span>'
+  };
+
+  function renderPreviaAdicionarMotoristasDia() {
+    const lista = document.getElementById('adicionar-motoristas-dia-previa-lista');
+    const resumo = document.getElementById('adicionar-motoristas-dia-resumo');
+    const btnConfirmar = document.getElementById('btn-confirmar-adicionar-motoristas-dia');
+    if (!lista || !resumo) return;
+
+    const contagem = { novo: 0, cadastrado: 0, ambiguo: 0, ja_programado: 0 };
+    cargasPreviaItens.forEach(i => contagem[i.situacao]++);
+    const partes = [`${cargasPreviaItens.length} motoristas identificados`];
+    if (contagem.cadastrado) partes.push(`${contagem.cadastrado} já cadastrado(s)`);
+    if (contagem.novo) partes.push(`${contagem.novo} novo(s)`);
+    if (contagem.ambiguo) partes.push(`${contagem.ambiguo} ambíguo(s) — escolha a placa abaixo`);
+    if (contagem.ja_programado) partes.push(`${contagem.ja_programado} já na programação de hoje`);
+    resumo.textContent = partes.join(' · ');
+
+    lista.innerHTML = cargasPreviaItens.map((item, i) => {
+      const extra = item.situacao === 'ambiguo'
+        ? `<select class="cargas-previa-item__select" data-previa-ambiguo="${i}">
+             <option value="">Escolher placa...</option>
+             ${item.candidatos.map(c => `<option value="${escapeAttr(c.placa)}">${escapeAttr(cargasExibirPlaca(c.placa))}</option>`).join('')}
+           </select>`
+        : '';
+      return `<div class="cargas-previa-item">
+        <span class="cargas-previa-item__nome">${escapeAttr(item.nome)}</span>
+        <span class="cargas-previa-item__situacao">${CARGAS_PREVIA_SITUACAO_HTML[item.situacao]}${extra}</span>
+      </div>`;
+    }).join('');
+
+    lista.querySelectorAll('[data-previa-ambiguo]').forEach(select => {
+      select.addEventListener('change', () => {
+        if (!select.value) return;
+        const idx = Number(select.dataset.previaAmbiguo);
+        cargasPreviaItens[idx].placaResolvida = select.value;
+        cargasPreviaItens[idx].situacao = cargasStatusCarga.has(select.value) ? 'ja_programado' : 'cadastrado';
+        renderPreviaAdicionarMotoristasDia();
+      });
+    });
+
+    if (btnConfirmar) btnConfirmar.disabled = !cargasPreviaItens.length || cargasPreviaItens.some(i => i.situacao === 'ambiguo');
+  }
+
+  /** Grava de verdade (Firestore) o que a prévia classificou — só os itens 'cadastrado'/'novo'
+   * entram (item 16 do pedido dela: "já está na programação" nunca sobrescreve, "ambíguo" fica
+   * de fora até ela escolher a placa). Motorista 'novo' ganha cadastro (nome só, sem placa real
+   * — ver cargasGerarIdTemporario) + já entra na fila no mesmo status escolhido, igual todo
+   * mundo (mesma leva, não um passo a mais). */
+  async function confirmarAdicaoMotoristasDia() {
+    const statusPadrao = document.getElementById('adicionar-motoristas-dia-status').value;
+    const rotaPadrao = document.getElementById('adicionar-motoristas-dia-rota').value.trim();
+    const elegiveis = cargasPreviaItens.filter(i => i.situacao === 'cadastrado' || i.situacao === 'novo');
+    if (!elegiveis.length) throw new Error('Nenhum motorista elegível pra adicionar.');
+    await Promise.all(elegiveis.map(async item => {
+      if (item.situacao === 'novo') {
+        const idTemporario = cargasGerarIdTemporario();
+        await cargasDashFirebase.cadastrarMotorista({ nome: item.nome, placa: idTemporario, veiculo: '', transportadora: '', rodizio: '' });
+        await cargasDashFirebase.definirStatusCarga(idTemporario, statusPadrao, rotaPadrao, true, '');
+      } else {
+        if (statusPadrao === 'SEPARADO') cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(item.placaResolvida), Date.now());
+        const motorista = cargasMotoristas.get(item.placaResolvida);
+        const transportadora = motorista ? (motorista.transportadora || '') : '';
+        await cargasDashFirebase.definirStatusCarga(item.placaResolvida, statusPadrao, rotaPadrao, true, transportadora);
+      }
+    }));
+  }
+
+  function abrirModalAdicionarMotoristasDia(statusPreSelecionado) {
+    const modal = document.getElementById('modal-adicionar-motoristas-dia');
+    if (!modal) return;
+    document.getElementById('adicionar-motoristas-dia-texto').value = '';
+    document.getElementById('adicionar-motoristas-dia-status').value =
+      ['NAO_INICIADA', 'EM_SEPARACAO', 'SEPARADO'].includes(statusPreSelecionado) ? statusPreSelecionado : 'NAO_INICIADA';
+    document.getElementById('adicionar-motoristas-dia-rota').value = '';
+    document.getElementById('adicionar-motoristas-dia-previa').hidden = true;
+    document.getElementById('adicionar-motoristas-dia-erro').hidden = true;
+    cargasPreviaItens = [];
+    modal.hidden = false;
+    document.getElementById('adicionar-motoristas-dia-texto').focus();
+  }
+
+  function bindModalAdicionarMotoristasDia() {
+    const modal = document.getElementById('modal-adicionar-motoristas-dia');
+    const btnFechar = document.getElementById('btn-fechar-modal-adicionar-motoristas-dia');
+    const btnAnalisar = document.getElementById('btn-analisar-lista-motoristas');
+    const btnCancelar = document.getElementById('btn-cancelar-adicionar-motoristas-dia');
+    const btnConfirmar = document.getElementById('btn-confirmar-adicionar-motoristas-dia');
+    const erro = document.getElementById('adicionar-motoristas-dia-erro');
+    if (!modal || !btnAnalisar || !btnConfirmar) return;
+
+    const fechar = () => { modal.hidden = true; };
+    if (btnFechar) btnFechar.addEventListener('click', fechar);
+    if (btnCancelar) btnCancelar.addEventListener('click', fechar);
+    modal.addEventListener('click', (e) => { if (e.target === modal) fechar(); });
+
+    btnAnalisar.addEventListener('click', () => {
+      const texto = document.getElementById('adicionar-motoristas-dia-texto').value;
+      const { itens, duplicadosNaLista } = analisarListaColada(texto);
+      const previa = document.getElementById('adicionar-motoristas-dia-previa');
+      if (!itens.length) {
+        erro.textContent = 'Cole ao menos um nome antes de analisar.';
+        erro.hidden = false;
+        previa.hidden = true;
+        return;
+      }
+      erro.hidden = true;
+      cargasPreviaItens = itens;
+      previa.hidden = false;
+      renderPreviaAdicionarMotoristasDia();
+      if (duplicadosNaLista) Utils.showToast(`${duplicadosNaLista} nome(s) repetido(s) na lista foram ignorados.`, 'info', 3000);
+    });
+
+    btnConfirmar.addEventListener('click', async () => {
+      btnConfirmar.disabled = true;
+      try {
+        await confirmarAdicaoMotoristasDia();
+        Utils.showToast('Motoristas adicionados com sucesso.', 'success', 2500);
+        fechar();
+      } catch (err) {
+        erro.textContent = err.message || 'Falha ao adicionar motoristas.';
+        erro.hidden = false;
+        btnConfirmar.disabled = false;
+      }
+    });
+  }
+
+  function bindCargasFilaFiltros() {
+    const busca = document.getElementById('cargas-fila-busca');
+    const selectStatus = document.getElementById('cargas-fila-filtro-status');
+    const selectTransportadora = document.getElementById('cargas-fila-filtro-transportadora');
+    const selectRota = document.getElementById('cargas-fila-filtro-rota');
+    const btnAdicionar = document.getElementById('cargas-btn-adicionar-motoristas-dia');
+    if (busca) busca.addEventListener('input', Utils.debounce(() => { cargasFilaBusca = busca.value; renderControleCargasLista(); }, 250));
+    if (selectStatus) selectStatus.addEventListener('change', () => { cargasFilaFiltroStatus = selectStatus.value; renderControleCargasLista(); });
+    if (selectTransportadora) selectTransportadora.addEventListener('change', () => { cargasFilaFiltroTransportadora = selectTransportadora.value; renderControleCargasLista(); });
+    if (selectRota) selectRota.addEventListener('change', () => { cargasFilaFiltroRota = selectRota.value; renderControleCargasLista(); });
+    if (btnAdicionar) btnAdicionar.addEventListener('click', () => abrirModalAdicionarMotoristasDia(cargasFilaFiltroStatus));
+    bindCargasRotaAutocompleteGenerico('adicionar-motoristas-dia-rota', 'adicionar-motoristas-dia-sugestoes-rota');
+  }
+
+  const CARGAS_STATUS_FILA = ['NAO_INICIADA', 'EM_SEPARACAO', 'SEPARADO', 'CARREGADO'];
 
   function bindControleCargasCards() {
     document.querySelectorAll('#cargas-view [data-cargas-filtro]').forEach(card => {
       card.addEventListener('click', () => {
         const filtro = card.dataset.cargasFiltro;
-        cargasFiltroAtivo = cargasFiltroAtivo === filtro ? null : filtro;
+        // Os 4 cards de fila (2026-09-25) não trocam mais pra uma lista separada — "Motoristas do
+        // Dia" já mostra todos combinados por padrão; clicar num card só ajusta o filtro de
+        // Status da tabela unificada (mesmo efeito de escolher no <select>, ver
+        // renderControleCargasFilaDoDia). Clicar de novo no mesmo card volta pra "Todos os status".
+        if (CARGAS_STATUS_FILA.includes(filtro)) {
+          cargasFilaFiltroStatus = cargasFiltroAtivo === 'FILA' && cargasFilaFiltroStatus === filtro ? '' : filtro;
+          cargasFiltroAtivo = 'FILA';
+          const select = document.getElementById('cargas-fila-filtro-status');
+          if (select) select.value = cargasFilaFiltroStatus;
+        } else {
+          cargasFiltroAtivo = cargasFiltroAtivo === filtro ? 'FILA' : filtro;
+        }
         renderControleCargasLista();
       });
     });
@@ -7858,17 +8328,37 @@ const Dashboard = (() => {
       // "No Show" abre o modal de motivo em vez de gravar direto (ver abrirModalNoShowMotivo/
       // bindModalNoShowMotivo) — a gravação de verdade acontece só quando ela confirma lá.
       if (acao === 'no-show') { abrirModalNoShowMotivo(placa); return; }
+      // "Definir placa" (2026-09-25) — completa o cadastro de um motorista colado só com o nome
+      // (ID temporário SEMPLACA-*, ver cargasGerarIdTemporario/definirPlacaMotorista). Não é uma
+      // transição de status, por isso fica fora do bloco try genérico de status abaixo.
+      if (acao === 'definir-placa') {
+        const inputPlaca = wrap.querySelector(`[data-cargas-definir-placa-input="${CSS.escape(placa)}"]`);
+        const placaNova = inputPlaca ? inputPlaca.value.trim() : '';
+        if (!placaNova) { Utils.showToast('Informe a placa antes de confirmar.', 'error'); return; }
+        botao.disabled = true;
+        try {
+          await cargasDashFirebase.definirPlacaMotorista(placa, placaNova);
+          Utils.showToast('Placa definida com sucesso.', 'success', 2500);
+        } catch (err) {
+          Utils.showToast(err.message || 'Falha ao definir placa.', 'error');
+          botao.disabled = false;
+        }
+        return;
+      }
       botao.disabled = true;
       try {
-        // Rota é preenchida manualmente só na hora de Adicionar (ver bindControleCargasAutocomplete)
-        // -- aqui, ao só mover de status, mantém a rota que já estava salva nesse documento.
-        const rotaAtual = (cargasStatusCarga.get(placa) || {}).rota || '';
-        if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', rotaAtual);
+        // Rota/Transportadora são preenchidas manualmente só na hora de Adicionar (ver
+        // bindControleCargasAutocomplete/confirmarAdicaoMotoristasDia) -- aqui, ao só mover de
+        // status, mantém o que já estava salvo nesse documento.
+        const docAtual = cargasStatusCarga.get(placa) || {};
+        const rotaAtual = docAtual.rota || '';
+        const transportadoraAtual = docAtual.transportadora || '';
+        if (acao === 'iniciar') await cargasDashFirebase.definirStatusCarga(placa, 'EM_SEPARACAO', rotaAtual, true, transportadoraAtual);
         else if (acao === 'separar') {
           cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(placa), Date.now());
-          await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual);
+          await cargasDashFirebase.definirStatusCarga(placa, 'SEPARADO', rotaAtual, true, transportadoraAtual);
         }
-        else if (acao === 'carregar') await cargasDashFirebase.definirStatusCarga(placa, 'CARREGADO', rotaAtual);
+        else if (acao === 'carregar') await cargasDashFirebase.definirStatusCarga(placa, 'CARREGADO', rotaAtual, true, transportadoraAtual);
         else if (acao === 'retirar') await cargasDashFirebase.retirarStatusCarga(placa);
         else if (acao === 'ativar') await cargasDashFirebase.ativarStatusCarga(placa);
         else if (acao === 'encerrar-disponibilidade') await cargasDashFirebase.encerrarDisponibilidade(placa);
@@ -7879,7 +8369,8 @@ const Dashboard = (() => {
           const selectMover = wrap.querySelector(`[data-cargas-mover-select="${CSS.escape(placa)}"]`);
           const novoStatus = selectMover ? selectMover.value : 'NAO_INICIADA';
           if (novoStatus === 'SEPARADO') cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(placa), Date.now());
-          await cargasDashFirebase.moverDisponibilidadeParaSeparacao(placa, novoStatus, '');
+          const transportadoraCadastro = (cargasMotoristas.get(placa) || {}).transportadora || '';
+          await cargasDashFirebase.moverDisponibilidadeParaSeparacao(placa, novoStatus, '', transportadoraCadastro);
         }
       } catch (err) {
         Utils.showToast(err.message || 'Falha ao atualizar.', 'error');
@@ -7940,6 +8431,58 @@ const Dashboard = (() => {
         Utils.showToast('Rota salva.', 'success', 2000);
       } catch (err) {
         Utils.showToast('Falha ao salvar rota: ' + err.message, 'error');
+      }
+    });
+
+    // Transportadora editável (2026-09-25, "Motoristas do Dia") — mesmo padrão inline de sempre.
+    wrap.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('[data-cargas-transportadora-placa]');
+      if (!input) return;
+      const placa = input.dataset.cargasTransportadoraPlaca;
+      const novoValor = input.value.trim();
+      const atual = (cargasStatusCarga.get(placa) || {}).transportadora || '';
+      if (novoValor === atual) return;
+      try {
+        await cargasDashFirebase.atualizarTransportadoraStatusCarga(placa, novoValor);
+        Utils.showToast('Transportadora salva.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast('Falha ao salvar transportadora: ' + err.message, 'error');
+      }
+    });
+
+    // Observação editável (2026-09-25, "Motoristas do Dia") — mesmo padrão inline de sempre.
+    wrap.addEventListener('focusout', async (e) => {
+      const input = e.target.closest('[data-cargas-observacao-placa]');
+      if (!input) return;
+      const placa = input.dataset.cargasObservacaoPlaca;
+      const novoValor = input.value.trim();
+      const atual = (cargasStatusCarga.get(placa) || {}).observacao || '';
+      if (novoValor === atual) return;
+      try {
+        await cargasDashFirebase.atualizarObservacaoStatusCarga(placa, novoValor);
+        Utils.showToast('Observação salva.', 'success', 2000);
+      } catch (err) {
+        Utils.showToast('Falha ao salvar observação: ' + err.message, 'error');
+      }
+    });
+
+    // Troca rápida de status via <select> (2026-09-25, item 14 do pedido dela) — mesma transição
+    // de sempre (definirStatusCarga), preservando rota/transportadora já salvas. "No Show" não
+    // tem opção aqui de propósito (precisa do motivo, ver botão dedicado/abrirModalNoShowMotivo).
+    wrap.addEventListener('change', async (e) => {
+      const select = e.target.closest('[data-cargas-status-select]');
+      if (!select) return;
+      const placa = select.dataset.cargasStatusSelect;
+      const novoStatus = select.value;
+      const docAtual = cargasStatusCarga.get(placa) || {};
+      if (novoStatus === docAtual.status) return;
+      select.disabled = true;
+      try {
+        if (novoStatus === 'SEPARADO') cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(placa), Date.now());
+        await cargasDashFirebase.definirStatusCarga(placa, novoStatus, docAtual.rota || '', true, docAtual.transportadora || '');
+      } catch (err) {
+        Utils.showToast('Falha ao mudar status: ' + err.message, 'error');
+        select.disabled = false;
       }
     });
 
@@ -8021,7 +8564,10 @@ const Dashboard = (() => {
       btnAdicionar.disabled = true;
       try {
         if (status === 'SEPARADO') cargasSeparadoTocadoLocalmente.set(cargasNormalizarPlaca(cargasMotoristaSelecionadoParaAdicionar), Date.now());
-        await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status, rota);
+        // Transportadora vem automaticamente do cadastro (item 15 do pedido dela: "se o motorista
+        // já estiver cadastrado e possuir... transportadora, preencher automaticamente").
+        const transportadoraCadastro = (cargasMotoristas.get(cargasMotoristaSelecionadoParaAdicionar) || {}).transportadora || '';
+        await cargasDashFirebase.definirStatusCarga(cargasMotoristaSelecionadoParaAdicionar, status, rota, true, transportadoraCadastro);
         input.value = '';
         if (inputRota) inputRota.value = '';
         cargasMotoristaSelecionadoParaAdicionar = null;
@@ -8042,7 +8588,7 @@ const Dashboard = (() => {
     if (!modal || !btnAbrir) return;
 
     btnAbrir.addEventListener('click', () => {
-      ['cadastrar-motorista-nome', 'cadastrar-motorista-placa', 'cadastrar-motorista-veiculo'].forEach(id => { document.getElementById(id).value = ''; });
+      ['cadastrar-motorista-nome', 'cadastrar-motorista-placa', 'cadastrar-motorista-veiculo', 'cadastrar-motorista-transportadora'].forEach(id => { document.getElementById(id).value = ''; });
       document.getElementById('cadastrar-motorista-rodizio').value = '';
       erro.hidden = true;
       modal.hidden = false;
@@ -8055,6 +8601,7 @@ const Dashboard = (() => {
       const nome = document.getElementById('cadastrar-motorista-nome').value.trim();
       const placa = document.getElementById('cadastrar-motorista-placa').value.trim();
       const veiculo = document.getElementById('cadastrar-motorista-veiculo').value.trim();
+      const transportadora = document.getElementById('cadastrar-motorista-transportadora').value.trim();
       const rodizio = document.getElementById('cadastrar-motorista-rodizio').value;
       if (!nome || !placa) {
         erro.textContent = 'Nome e Placa são obrigatórios.';
@@ -8064,7 +8611,7 @@ const Dashboard = (() => {
       erro.hidden = true;
       btnSalvar.disabled = true;
       try {
-        const resultado = await cargasDashFirebase.cadastrarMotorista({ nome, placa, veiculo, rodizio });
+        const resultado = await cargasDashFirebase.cadastrarMotorista({ nome, placa, veiculo, transportadora, rodizio });
         Utils.showToast(resultado.criado ? 'Motorista cadastrado.' : 'Motorista atualizado.', 'success', 2500);
         modal.hidden = true;
       } catch (err) {
@@ -8320,6 +8867,8 @@ const Dashboard = (() => {
     bindCargasOndeEstaAutocomplete();
     bindModalCadastrarMotorista();
     bindModalNoShowMotivo();
+    bindModalAdicionarMotoristasDia();
+    bindCargasFilaFiltros();
     bindCargasNoShowPeriodo();
     bindControleCargasAviso();
     const btnSincronizar = document.getElementById('cargas-btn-sincronizar');
