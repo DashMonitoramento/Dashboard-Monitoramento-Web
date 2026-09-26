@@ -1484,6 +1484,8 @@ Segue anexo o relatório atualizado.</textarea>
           <div class="table-actions">
             <button id="cargas-btn-cadastrar" class="btn" hidden>+ Cadastrar motorista</button>
             <button id="cargas-btn-sincronizar" class="btn" hidden>🔄 Sincronizar planilha</button>
+            <button id="cargas-btn-historico" class="btn">📅 Histórico por data</button>
+            <button id="cargas-btn-encerrar-dia" class="btn btn--danger" hidden>Encerrar o dia</button>
           </div>
         </div>
         <p class="chart-card__hint" id="cargas-sincronizar-status" hidden></p>
@@ -1669,6 +1671,23 @@ Segue anexo o relatório atualizado.</textarea>
               <button type="button" id="btn-confirmar-adicionar-motoristas-dia" class="btn btn--primary">Adicionar todos</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ===================== MODAL: HISTÓRICO POR DATA (Controle de Cargas, 2026-09-25) =====================
+           Somente leitura — consulta um dia já encerrado (ver "Encerrar o dia"). -->
+      <div id="modal-cargas-historico" class="modal-overlay" hidden>
+        <div class="modal-card modal-card--grande">
+          <div class="modal-card__header">
+            <h2 class="modal-card__title">📅 Histórico por data</h2>
+            <button id="btn-fechar-modal-cargas-historico" class="icon-btn" aria-label="Fechar">✕</button>
+          </div>
+          <div class="field">
+            <label for="cargas-historico-data">Escolha a data</label>
+            <input type="date" id="cargas-historico-data">
+          </div>
+          <button type="button" id="btn-consultar-cargas-historico" class="btn btn--primary">Consultar</button>
+          <div id="cargas-historico-resultado" style="margin-top:14px;"></div>
         </div>
       </div>
 
@@ -2628,11 +2647,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260925f"></script>
+<script type="module" src="js/firebase-init.js?v=20260926a"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260925a"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260925f"></script>
+<script src="js/dashboard.js?v=20260926a"></script>
 <script src="js/script.js?v=20260924a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
