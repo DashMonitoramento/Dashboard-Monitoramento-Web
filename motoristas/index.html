@@ -82,6 +82,14 @@ h1,h2,h3,p{margin:0;}
 .aviso-card__texto{font-size:14.5px; color:var(--ink); line-height:1.5; white-space:pre-wrap;}
 .aviso-card__tempo{font-size:11.5px; color:var(--ink-soft);}
 
+.contador-card{
+  display:flex; flex-direction:column; gap:4px; text-align:center;
+  background:linear-gradient(135deg, rgba(255,122,26,.24), rgba(255,122,26,.06));
+  border:1px solid rgba(255,122,26,.5); border-radius:14px; padding:14px 16px; margin-bottom:18px;
+}
+.contador-card__titulo{font-size:13px; font-weight:800; color:var(--brand); letter-spacing:.02em;}
+.contador-card__texto{font-size:15px; color:var(--ink); line-height:1.5; font-weight:700;}
+
 .btn-cta{
   display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
   background:linear-gradient(135deg, var(--brand), var(--brand-dark)); color:#fff; border:none;
@@ -200,6 +208,11 @@ h1,h2,h3,p{margin:0;}
         <p>Painel do Motorista</p>
       </div>
     </header>
+
+    <div class="contador-card" id="contador-encontro">
+      <div class="contador-card__titulo">📅 1º Encontro com Agregados</div>
+      <div class="contador-card__texto" id="contador-encontro-texto">Calculando...</div>
+    </div>
 
     <div class="aviso-card" id="aviso-card" hidden>
       <div class="aviso-card__titulo" id="aviso-card-titulo"></div>
@@ -519,6 +532,28 @@ function iniciarApp() {
   // pra atualizar o relógio "Há X min" do card, mesmo ideia do formatarTempoDecorrido dos cards
   // de status acima; o card em si só some quando ela envia outro aviso ou remove.
   setInterval(renderAviso, 60000);
+
+  atualizarContadorEncontro();
+  setInterval(atualizarContadorEncontro, 1000);
+}
+
+const CONTADOR_ENCONTRO_DATA = new Date(2026, 9, 3, 0, 0, 0);
+
+function atualizarContadorEncontro() {
+  const texto = $('contador-encontro-texto');
+  if (!texto) return;
+  const diffMs = CONTADOR_ENCONTRO_DATA - new Date();
+  if (diffMs <= 0) {
+    texto.textContent = 'O 1º Encontro com Agregados da Da Terrinha Alimentos já começou!';
+    return;
+  }
+  const dias = Math.floor(diffMs / 86400000);
+  const horas = Math.floor((diffMs % 86400000) / 3600000);
+  const minutos = Math.floor((diffMs % 3600000) / 60000);
+  const rotuloDias = dias === 1 ? 'dia' : 'dias';
+  const hh = String(horas).padStart(2, '0');
+  const mm = String(minutos).padStart(2, '0');
+  texto.textContent = `Faltam ${dias} ${rotuloDias} e ${hh}:${mm} horas para o 1º Encontro com Agregados da Da Terrinha Alimentos`;
 }
 
 const AVISO_PRIORIDADE_TITULO = { info: '📘 Aviso', atencao: '⚠️ Atenção', urgente: '🚨 Urgente' };
