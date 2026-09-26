@@ -1728,6 +1728,10 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 }
 .cargas-noshow-ranking__celula-truncada { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .cargas-vazio { padding: 24px 12px; text-align: center; color: var(--text-secondary); font-size: 14px; }
+/* Botões de quantidade do ranking "Cargas por Motorista" (2026-09-26) — mesmos botões
+   .ocorrencias-periodo-btn de sempre, só num container próprio (flex-wrap, já que a quantidade
+   de botões varia conforme o período). */
+.cargas-ranking-filtro-qtd { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 
 /* Consultar motorista por nome ou placa (2026-09-25) — evolução do antigo "Onde está esse
    motorista?" (era só um autocomplete simples); agora tem botão Buscar + card de resultado
