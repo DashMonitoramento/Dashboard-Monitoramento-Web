@@ -193,6 +193,47 @@ h1,h2,h3,p{margin:0;}
 .badge-erro{color:var(--erro);}
 .badge-sucesso{color:var(--sucesso);}
 .badge-azul{color:var(--azul);}
+
+/* Consultar minha carga (2026-09-25) — substitui as 3 listas completas que existiam antes. */
+.consulta-card{
+  background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:18px;
+}
+.consulta-card__titulo{font-size:15px; font-weight:800; color:var(--ink);}
+.consulta-card__hint{font-size:12.5px; color:var(--ink-soft); margin:4px 0 12px;}
+.campo-consulta{
+  width:100%; padding:14px 16px; font-size:15px; font-weight:600; text-align:center;
+  background:var(--surface-soft); border:2px solid var(--line); border-radius:14px; color:var(--ink); margin-bottom:10px;
+}
+.campo-consulta::placeholder{color:var(--ink-faint); font-weight:400;}
+.campo-consulta:focus{outline:none; border-color:var(--brand);}
+
+.resultado-card{
+  margin-top:14px; padding:16px; border-radius:14px; border:1.5px solid var(--line); background:var(--surface-soft); text-align:center;
+}
+.resultado-card--sucesso{border-color:var(--sucesso); background:var(--sucesso-bg);}
+.resultado-card--erro{border-color:var(--erro); background:var(--erro-bg);}
+.resultado-card__titulo{font-size:16px; font-weight:800; color:var(--ink); margin-bottom:8px;}
+.resultado-card__texto{font-size:13.5px; color:var(--ink); margin-bottom:8px;}
+.resultado-card__badge{font-size:14px; font-weight:800; color:var(--sucesso); letter-spacing:.02em; margin-bottom:6px;}
+.resultado-card__opcao{
+  padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surface); margin-bottom:6px; cursor:pointer; font-size:13.5px;
+}
+
+.etapa-tracker{display:flex; align-items:flex-start; gap:0; margin:14px 0;}
+.etapa-passo{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; position:relative;}
+.etapa-passo:not(:last-child)::after{content:''; position:absolute; top:13px; left:50%; width:100%; height:2px; background:var(--line); z-index:0;}
+.etapa-passo__numero{
+  width:26px; height:26px; border-radius:50%; background:var(--surface-soft); border:2px solid var(--line);
+  color:var(--ink-soft); font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; position:relative; z-index:1;
+}
+.etapa-passo__label{font-size:10.5px; color:var(--ink-soft); max-width:80px; text-align:center;}
+.etapa-passo--atual .etapa-passo__label{color:var(--ink); font-weight:700;}
+.etapa-passo--erro .etapa-passo__numero{border-color:var(--erro); color:var(--erro);}
+.etapa-passo--alerta .etapa-passo__numero{border-color:var(--alerta); color:var(--alerta);}
+.etapa-passo--sucesso .etapa-passo__numero{border-color:var(--sucesso); color:var(--sucesso);}
+.etapa-passo--atual.etapa-passo--erro .etapa-passo__numero{background:var(--erro); color:#fff;}
+.etapa-passo--atual.etapa-passo--alerta .etapa-passo__numero{background:var(--alerta); color:#fff;}
+.etapa-passo--atual.etapa-passo--sucesso .etapa-passo__numero{background:var(--sucesso); color:#fff;}
 </style>
 </head>
 <body>
@@ -225,29 +266,19 @@ h1,h2,h3,p{margin:0;}
       <div class="aviso-card__tempo" id="aviso-card-tempo"></div>
     </div>
 
-    <button type="button" id="btn-avisar-disponibilidade" class="btn-cta">📢 Avisar Disponibilidade</button>
+    <!-- Consultar minha carga (2026-09-25) — substitui as 3 listas completas de antes (pedido
+         dela: "a lista completa de motoristas fique somente no painel interno"). Mesma ideia da
+         consulta do painel admin (Controle de Cargas), portada pra cá com os tokens de cor
+         PRÓPRIOS deste arquivo -- ver renderResultadoConsulta/buscarMotoristaPorTexto abaixo. -->
+    <div class="consulta-card">
+      <div class="consulta-card__titulo">🔍 Consultar minha carga</div>
+      <p class="consulta-card__hint">Digite seu nome ou a placa do veículo</p>
+      <input type="text" id="input-consulta-motorista" class="campo-consulta" placeholder="Nome ou placa...">
+      <button type="button" id="btn-consultar-motorista" class="btn-secundario">Consultar</button>
+      <div id="consulta-motorista-resultado"></div>
+    </div>
 
-    <details class="status-section">
-      <summary>🟢 Separado <span class="contagem" id="contagem-separado">0</span><span class="seta">▾</span></summary>
-      <div class="status-section__corpo">
-        <input type="text" class="busca-placa" id="busca-placa-separado" placeholder="Buscar por placa...">
-        <div id="lista-separado"><div class="vazio">Nenhum motorista aqui agora.</div></div>
-      </div>
-    </details>
-    <details class="status-section">
-      <summary>🟡 Separação Iniciada <span class="contagem" id="contagem-em-separacao">0</span><span class="seta">▾</span></summary>
-      <div class="status-section__corpo">
-        <input type="text" class="busca-placa" id="busca-placa-em-separacao" placeholder="Buscar por placa...">
-        <div id="lista-em-separacao"><div class="vazio">Nenhum motorista aqui agora.</div></div>
-      </div>
-    </details>
-    <details class="status-section">
-      <summary>🔴 Separação Não Iniciada <span class="contagem" id="contagem-nao-iniciada">0</span><span class="seta">▾</span></summary>
-      <div class="status-section__corpo">
-        <input type="text" class="busca-placa" id="busca-placa-nao-iniciada" placeholder="Buscar por placa...">
-        <div id="lista-nao-iniciada"><div class="vazio">Nenhum motorista aqui agora.</div></div>
-      </div>
-    </details>
+    <button type="button" id="btn-avisar-disponibilidade" class="btn-cta">📢 Avisar Disponibilidade</button>
   </div>
 
   <!-- ===================== TELA: INFORME SUA PLACA ===================== -->
@@ -435,93 +466,110 @@ function mostrarTela(nome) {
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 
-// Busca por placa dentro de cada menu (pedido da usuária, 2026-09-04) -- filtra só a LISTA
-// exibida; a contagem no cabeçalho do menu continua sendo o total real, sem o filtro, pra
-// não parecer que sumiu motorista só porque ela está no meio de uma busca.
-const filtroPlacaPorStatus = { SEPARADO: '', EM_SEPARACAO: '', NAO_INICIADA: '' };
+// Normalização de nome EXATA (2026-09-25, mesma ideia de cargasNormalizarNomeCompleto do painel
+// admin) — usada só pra "Consultar minha carga" decidir já-cadastrado/não-encontrado/ambíguo
+// (nome bate INTEIRO, não substring — diferente de qualquer busca por trecho).
+function normalizarNomeCompleto(nome) {
+  return String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
 
-function renderListaStatus(status, idLista, idContagem, idBusca) {
-  // `visivel !== false` (2026-09-17) -- motorista auto-adicionado em "Separação Não Iniciada"
-  // (ver autoPopularSeparacaoNaoIniciada, firebase-init.js do painel admin) só aparece aqui
-  // depois que alguém clicar "Ativar p/ Motorista" no painel; até lá some deste app, mesmo já
-  // tendo um doc em statusCarga.
-  const itens = Array.from(statusCarga.values())
-    .filter(s => s.status === status && s.visivel !== false)
-    .sort((a, b) => {
-      const da = timestampParaData(a.atualizadoEm), db_ = timestampParaData(b.atualizadoEm);
-      return (da ? da.getTime() : 0) - (db_ ? db_.getTime() : 0);
+const ETAPA_ORDEM = ['NAO_INICIADA', 'EM_SEPARACAO', 'SEPARADO'];
+const ETAPA_LABEL = { NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada', SEPARADO: 'Separado', CARREGADO: 'Carregado' };
+const ETAPA_CLASSE = { NAO_INICIADA: 'erro', EM_SEPARACAO: 'alerta', SEPARADO: 'sucesso' };
+const ETAPA_MENSAGEM = {
+  NAO_INICIADA: 'A separação da sua carga ainda não foi iniciada.',
+  EM_SEPARACAO: 'Sua carga está em separação.',
+  SEPARADO: 'Sua carga já está separada e aguardando carregamento.',
+  CARREGADO: 'Carregamento concluído.'
+};
+
+function montarTrackerEtapas(statusAtual) {
+  const rankAtual = statusAtual === 'CARREGADO' ? 3 : ETAPA_ORDEM.indexOf(statusAtual);
+  return `<div class="etapa-tracker">${ETAPA_ORDEM.map((st, i) => {
+    const classes = ['etapa-passo', `etapa-passo--${ETAPA_CLASSE[st]}`];
+    if (i <= rankAtual) classes.push('etapa-passo--atual');
+    return `<div class="${classes.join(' ')}"><span class="etapa-passo__numero">${i < rankAtual ? '✓' : i + 1}</span><span class="etapa-passo__label">${escapeHtml(ETAPA_LABEL[st])}</span></div>`;
+  }).join('')}</div>`;
+}
+
+/** Resolve nome OU placa contra o cadastro (mesma lógica de cargasBuscarMotoristaPorTexto do
+ * painel admin) — placa bate exato (chave única); nome precisa bater EXATO (não substring). */
+function buscarMotoristaPorTexto(textoBruto) {
+  const texto = String(textoBruto || '').trim();
+  if (!texto) return { tipo: 'vazio' };
+  const placaNormalizada = normalizarPlaca(texto);
+  if (placaNormalizada && motoristas.has(placaNormalizada)) return { tipo: 'unico', motorista: motoristas.get(placaNormalizada) };
+  const nomeNormalizado = normalizarNomeCompleto(texto);
+  const candidatos = Array.from(motoristas.values()).filter(m => normalizarNomeCompleto(m.nome) === nomeNormalizado);
+  if (candidatos.length === 1) return { tipo: 'unico', motorista: candidatos[0] };
+  if (candidatos.length > 1) return { tipo: 'ambiguo', candidatos };
+  return { tipo: 'nao_encontrado' };
+}
+
+function renderResultadoConsulta(resultado) {
+  const alvo = $('consulta-motorista-resultado');
+  if (!alvo) return;
+  if (!resultado || resultado.tipo === 'vazio') { alvo.innerHTML = ''; return; }
+
+  if (resultado.tipo === 'ambiguo') {
+    alvo.innerHTML = `<div class="resultado-card">
+      <div class="resultado-card__titulo">MAIS DE UM CADASTRO COM ESSE NOME</div>
+      <p class="resultado-card__texto">Digite também a placa do veículo pra identificar certo:</p>
+      ${resultado.candidatos.map(m => `<div class="resultado-card__opcao" data-consulta-placa="${escapeHtml(m.placa)}">${escapeHtml(m.nome)} — ${escapeHtml(m.placa)}</div>`).join('')}
+    </div>`;
+    alvo.querySelectorAll('[data-consulta-placa]').forEach(el => {
+      el.addEventListener('click', () => renderResultadoConsulta(buscarMotoristaPorTexto(el.dataset.consultaPlaca)));
     });
-  $(idContagem).textContent = itens.length;
-
-  const termo = normalizarPlaca(filtroPlacaPorStatus[status]);
-  const itensFiltrados = termo ? itens.filter(item => item.id.includes(termo)) : itens;
-  const pesoPadraoPorCarro = calcularPesoPadraoPorCarro();
-
-  const wrap = $(idLista);
-  if (!itens.length) {
-    wrap.innerHTML = '<div class="vazio">Nenhum motorista aqui agora.</div>';
-  } else if (!itensFiltrados.length) {
-    wrap.innerHTML = '<div class="vazio">Nenhuma placa encontrada com esse texto.</div>';
-  } else {
-    wrap.innerHTML = itensFiltrados.map(item => {
-      const m = motoristas.get(item.id);
-      const nome = m ? m.nome : item.id;
-      const { carro, peso: pesoProprio } = parseVeiculo(m && m.veiculo);
-      const peso = pesoProprio || (carro ? (pesoPadraoPorCarro.get(carro.toUpperCase()) || '') : '');
-      const rodizio = m ? m.rodizio : '';
-      const badgeRodizio = rodizioEhHoje(rodizio) ? '<span class="status-card__badge-rodizio-hoje">⚠️ RODÍZIO HOJE</span>' : '';
-      const rodizioTexto = rodizio
-        ? `<span class="status-card__rodizio-destaque">Rodízio: ${escapeHtml(rodizio)}</span>`
-        : 'Sem rodízio cadastrado';
-      const rotaTexto = item.rota ? ` · Rota: ${escapeHtml(item.rota)}` : '';
-      const tempo = formatarTempoDecorrido(timestampParaData(item.atualizadoEm));
-      // "Hora limite de carregamento" (2026-09-22, pedido da usuária): só aparece no card
-      // Separado, e só quando ela de fato preencheu um horário pra essa placa (evita "Hora
-      // limite: —" poluindo todo mundo que ainda não tem horário definido).
-      const horaLimiteTexto = (status === 'SEPARADO' && item.horaLimiteCarregamento)
-        ? `<div class="status-card__hora-limite">⏰ Hora limite pra carregar: <strong>${escapeHtml(item.horaLimiteCarregamento)}</strong></div>`
-        : '';
-      return `<div class="status-card">
-        <div class="status-card__info">
-          <div class="status-card__nome">${escapeHtml(nome)}${badgeRodizio}</div>
-          <div class="status-card__meta">Placa: ${escapeHtml(item.id)} · Carro: ${escapeHtml(carro || '—')} · Peso: ${escapeHtml(peso || '—')} · ${rodizioTexto}${rotaTexto}</div>
-          ${horaLimiteTexto}
-        </div>
-        <div class="status-card__tempo">${tempo}</div>
-      </div>`;
-    }).join('');
+    return;
   }
+  if (resultado.tipo === 'nao_encontrado') {
+    alvo.innerHTML = `<div class="resultado-card resultado-card--erro">
+      <div class="resultado-card__titulo">❌ VOCÊ NÃO TEM CARGA HOJE</div>
+      <p class="resultado-card__texto">Não encontramos cargas programadas pra você na data de hoje.</p>
+    </div>`;
+    return;
+  }
+
+  const m = resultado.motorista;
+  const status = statusCarga.get(m.placa);
+  if (!status || !ETAPA_LABEL[status.status]) {
+    alvo.innerHTML = `<div class="resultado-card resultado-card--erro">
+      <div class="resultado-card__titulo">Olá, ${escapeHtml(m.nome)}!</div>
+      <p class="resultado-card__texto">Não encontramos cargas programadas pra você na data de hoje.</p>
+    </div>`;
+    return;
+  }
+  alvo.innerHTML = `<div class="resultado-card resultado-card--sucesso">
+    <div class="resultado-card__titulo">Olá, ${escapeHtml(m.nome)}!</div>
+    <p class="resultado-card__texto">Placa: <strong>${escapeHtml(m.placa)}</strong></p>
+    <p class="resultado-card__badge">VOCÊ TEM CARGA HOJE</p>
+    ${montarTrackerEtapas(status.status)}
+    <p class="resultado-card__texto">${escapeHtml(ETAPA_MENSAGEM[status.status] || '')}</p>
+  </div>`;
 }
 
-function renderListas() {
-  renderListaStatus('SEPARADO', 'lista-separado', 'contagem-separado', 'busca-placa-separado');
-  renderListaStatus('EM_SEPARACAO', 'lista-em-separacao', 'contagem-em-separacao', 'busca-placa-em-separacao');
-  renderListaStatus('NAO_INICIADA', 'lista-nao-iniciada', 'contagem-nao-iniciada', 'busca-placa-nao-iniciada');
+function bindConsultaMotorista() {
+  const input = $('input-consulta-motorista');
+  const btn = $('btn-consultar-motorista');
+  if (!input || !btn) return;
+  btn.addEventListener('click', () => renderResultadoConsulta(buscarMotoristaPorTexto(input.value)));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') renderResultadoConsulta(buscarMotoristaPorTexto(input.value)); });
 }
-
-[['SEPARADO', 'busca-placa-separado'], ['EM_SEPARACAO', 'busca-placa-em-separacao'], ['NAO_INICIADA', 'busca-placa-nao-iniciada']]
-  .forEach(([status, idBusca]) => {
-    $(idBusca).addEventListener('input', (e) => {
-      filtroPlacaPorStatus[status] = e.target.value;
-      renderListas();
-    });
-    // Evita que clicar/digitar no campo de busca feche o <details> (o clique "borbulha" e o
-    // navegador entende como clique no <summary> se não for interrompido).
-    $(idBusca).addEventListener('click', (e) => e.stopPropagation());
-  });
+bindConsultaMotorista();
 
 function iniciarApp() {
   $('carregando').style.display = 'none';
   $('app').style.display = 'block';
 
+  // Os Maps continuam vivos via onSnapshot (2026-09-25: não renderizam mais lista nenhuma sozinhos
+  // — "a lista completa de motoristas fica só no painel interno" — só alimentam
+  // buscarMotoristaPorTexto/renderResultadoConsulta quando ela mesma consulta o próprio nome/placa).
   onSnapshot(collection(db, 'motoristas'), snap => {
     motoristas = new Map(snap.docs.filter(d => d.data().ativo !== false).map(d => [d.id, { id: d.id, ...d.data() }]));
-    renderListas();
   }, () => {});
 
   onSnapshot(collection(db, 'statusCarga'), snap => {
     statusCarga = new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
-    renderListas();
   }, () => {});
 
   onSnapshot(collection(db, 'disponibilidade'), snap => {
