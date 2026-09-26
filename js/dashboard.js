@@ -2717,6 +2717,15 @@ const Dashboard = (() => {
     setKPI('kpi-aguardando-count', aguardando.length, Utils.formatNumber);
     setKPI('kpi-em-transito-count', emTransito.length, Utils.formatNumber);
     setKPI('kpi-percentual', percentual, v => Utils.formatPercent(v, 1));
+    // "% do total" nos outros cards (2026-09-26, pedido da usuária: mesma ideia do "% Entregas"
+    // já existente) — cada card usa o MESMO número já mostrado nele (não o recorte de status
+    // bruto), sobre o mesmo `total` de "Total geral de notas" — muda sozinho junto com o
+    // período/filtros porque `records` já vem filtrado (mesmo `render()` de sempre).
+    setKPI('kpi-percentual-abertas-sem-agendamento', (abertasSemAgendamento.length / total) * 100, v => Utils.formatPercent(v, 1));
+    setKPI('kpi-percentual-abertas-agendamento', (abertasComAgendamento.length / total) * 100, v => Utils.formatPercent(v, 1));
+    setKPI('kpi-percentual-aguardando', (aguardando.length / total) * 100, v => Utils.formatPercent(v, 1));
+    setKPI('kpi-percentual-reentrega', (totalOcorrenciasReentrega / total) * 100, v => Utils.formatPercent(v, 1));
+    setKPI('kpi-percentual-devolucao', (devolucao.length / total) * 100, v => Utils.formatPercent(v, 1));
     setKPI('kpi-valor-entregues', Utils.sum(entregues, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-abertas', Utils.sum(abertasSemAgendamento, r => r.valorNF), Utils.formatCurrency);
     setKPI('kpi-valor-abertas-agendamento', Utils.sum(abertasComAgendamento, r => r.valorNF), Utils.formatCurrency);
