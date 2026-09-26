@@ -8087,12 +8087,26 @@ const Dashboard = (() => {
            <button class="btn" style="padding:4px 8px; font-size:11.5px;" data-cargas-acao="definir-placa" data-cargas-placa="${escapeAttr(m.placa)}">Definir placa</button>`
         : escapeAttr(m.placa);
 
+      // Ícones Editar/Excluir (2026-09-26, pedido da usuária) — os campos já são editáveis
+      // inline (sempre foram, ver *Html acima); o lápis só dá foco no campo Nome pra deixar mais
+      // óbvio onde clicar. Excluir é EXCLUSÃO SUAVE (ativo:false, mesmo critério já usado por
+      // "Sincronizar planilha" quando um motorista some da planilha — nunca apaga o doc de
+      // verdade, preserva qualquer statusCarga/disponibilidade/histórico que ainda referencie
+      // essa placa) — some da lista (o onSnapshot já filtra ativo!==false).
+      const acoesHtml = cargasPodeEditar
+        ? `<div class="cargas-item__acoes">
+             <button type="button" class="icon-btn-cell icon-btn-cell--editar" data-cargas-focar-nome="${escapeAttr(m.placa)}" title="Editar">✏️</button>
+             <button type="button" class="icon-btn-cell icon-btn-cell--excluir" data-cargas-acao="excluir-motorista" data-cargas-placa="${escapeAttr(m.placa)}" title="Excluir cadastro">🗑️</button>
+           </div>`
+        : '';
+
       return `
         <div class="cargas-item">
           <div class="cargas-item__info">
             <div class="cargas-item__nome">${nomeHtml}${badgeRodizio}</div>
             <div class="cargas-item__meta">Placa: ${placaHtml} · Carro: ${carroHtml} · Peso: ${pesoHtml} · Transportadora: ${transportadoraHtml} · Rodízio: ${rodizioHtml}</div>
           </div>
+          ${acoesHtml}
         </div>`;
     }).join('');
   }
@@ -8407,6 +8421,16 @@ const Dashboard = (() => {
   function bindControleCargasAcoes() {
     const wrap = document.getElementById('cargas-lista');
     if (!wrap) return;
+    // Ícone de lápis (2026-09-26) — só dá foco no campo Nome da linha (já editável de propósito,
+    // ver renderControleCargasListaCadastrados); não é um data-cargas-acao porque não grava nada.
+    wrap.addEventListener('click', (e) => {
+      const botaoFocar = e.target.closest('[data-cargas-focar-nome]');
+      if (!botaoFocar) return;
+      const placa = botaoFocar.dataset.cargasFocarNome;
+      const input = wrap.querySelector(`input[data-cargas-cadastro-campo="nome"][data-cargas-cadastro-placa="${CSS.escape(placa)}"]`);
+      if (input) { input.focus(); input.select(); }
+    });
+
     wrap.addEventListener('click', async (e) => {
       const botao = e.target.closest('[data-cargas-acao]');
       if (!botao) return;
@@ -8415,6 +8439,22 @@ const Dashboard = (() => {
       // "No Show" abre o modal de motivo em vez de gravar direto (ver abrirModalNoShowMotivo/
       // bindModalNoShowMotivo) — a gravação de verdade acontece só quando ela confirma lá.
       if (acao === 'no-show') { abrirModalNoShowMotivo(placa); return; }
+      // "Excluir cadastro" (2026-09-26, ícone de lixeira) — exclusão SUAVE (ativo:false, mesmo
+      // critério de "Sincronizar planilha"), nunca apaga o doc de verdade. Confirmação antes,
+      // já que a linha some da lista assim que confirmar.
+      if (acao === 'excluir-motorista') {
+        const motorista = cargasMotoristas.get(placa);
+        const nome = motorista ? motorista.nome : placa;
+        if (!confirm(`Excluir o cadastro de "${nome}"? Ele some da lista de Motoristas Cadastrados (histórico/fila já existentes não são apagados).`)) return;
+        botao.disabled = true;
+        try {
+          await cargasDashFirebase.desativarMotorista(placa);
+        } catch (err) {
+          Utils.showToast('Falha ao excluir: ' + err.message, 'error');
+          botao.disabled = false;
+        }
+        return;
+      }
       // "Definir placa" (2026-09-25) — completa o cadastro de um motorista colado só com o nome
       // (ID temporário SEMPLACA-*, ver cargasGerarIdTemporario/definirPlacaMotorista). Não é uma
       // transição de status, por isso fica fora do bloco try genérico de status abaixo.
@@ -8772,8 +8812,8 @@ const Dashboard = (() => {
       if (!resp.ok) throw new Error(`Não consegui buscar o arquivo (HTTP ${resp.status}).`);
       const texto = await resp.text();
       const linhas = texto.split(/\r?\n/).slice(1).filter(Boolean).map(linha => {
-        const [nome, rodizio, veiculo, placa] = linha.split(';');
-        return { nome, rodizio, veiculo, placa };
+        const [nome, rodizio, veiculo, placa, transportadora] = linha.split(';');
+        return { nome, rodizio, veiculo, placa, transportadora };
       });
       const resultado = await cargasDashFirebase.sincronizarMotoristas(linhas);
       statusEl.textContent = `Sincronizado: ${resultado.total} motorista(s) na planilha (${resultado.novos} novo(s), ${resultado.inativados} marcado(s) como inativo) — ${new Date().toLocaleTimeString('pt-BR')}.`;
