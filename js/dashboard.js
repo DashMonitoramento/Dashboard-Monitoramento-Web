@@ -6122,42 +6122,76 @@ const Dashboard = (() => {
     el.value = valorAtual;
   }
 
-  /** "% Frete sobre Valor das Notas" (2026-09-14, pedido da usuária) — a fonte "Indicador Frete
-   * Transportadora" (por CT-e) não tem Valor NF nem Peso (ver comentário em
+  /** Tabela de correspondência CT-e -> Bluesoft (2026-09-26) — pedido da usuária depois dela
+   * reportar que "1,3% é baixo demais, quando eu alimentava manualmente dava mais". Medido
+   * contra dado real: NENHUM dos 28 nomes de transportadora do CT-e batia com nenhum dos 143 da
+   * Base Bluesoft (mesma empresa, nomes diferentes — CT-e usa razão social completa, Bluesoft usa
+   * nome fantasia/apelido/motorista, às vezes truncado). Tentei 2 algoritmos de correspondência
+   * automática (token em comum, depois similaridade de bigrama) — os DOIS erraram bastante
+   * (nomes genéricos tipo "TRANSPORTES E LOGISTICA" davam falso-positivo entre empresas
+   * completamente diferentes, ex.: "TONI..."/"SANTA CRUZ..." casando errado com "AMARO...").
+   * Decisão: não confiar em heurística pra um número que vira decisão financeira — tabela abaixo
+   * é CONFIRMADA por ela, entrada por entrada, via pergunta. 2 transportadoras do CT-e (SANTA
+   * CRUZ, V L V DA SILVA) ficaram de fora de propósito — ela não soube apontar o nome
+   * correspondente na Bluesoft; melhor excluir dos 2 lados (numerador E denominador) do que
+   * arriscar um cruzamento errado. Chave normalizada via normalizeHeaderKey (mesma função já
+   * usada no resto deste arquivo pra comparar nome de transportadora). */
+  const TRANSPORTADORA_CTE_PARA_BLUESOFT = {
+    [normalizeHeaderKey('ANDERSON FERREIRA RIBEIRO TRANSPORTES')]: 'ANDERSON FERREIRA -  TRANSPORTES',
+    [normalizeHeaderKey('AVJS TRANSPORTES LTDA')]: 'AVJS TRANSPORTES',
+    [normalizeHeaderKey('CIA CARGAS TRASNPORTES E LOGISTICA  EIRELI')]: 'CIA CARGAS TRANSPORTES',
+    [normalizeHeaderKey('CRG TRANSPORTADORA LTDA')]: 'CRG TRANSPORTADORA',
+    [normalizeHeaderKey('DRT TRANSPORTE DE CARGA LTDA')]: 'DRT TRANSPORTE DE CARGA',
+    [normalizeHeaderKey('JCAP TRANSPORTES LTDA')]: 'JCAP SERVICOS LOGISTICO',
+    [normalizeHeaderKey('JG ALVES TRANSPORTES LTDA')]: 'JG ALVES TRANSPORTES',
+    [normalizeHeaderKey('JJF SUPPLY CHAIN LOGISTICA E TRANSPORTES')]: 'JJF SUPPLY',
+    [normalizeHeaderKey('LOGUBER GESTAO EM TRANSPORTES EIRELI')]: 'LOGUBER GESTAO EM TRANSPORTES',
+    [normalizeHeaderKey('LOTUS LOGISTICA EIRELI')]: 'LOTUS LOGISTICA',
+    [normalizeHeaderKey('MAJO - COTIA')]: 'MAJO  LOGISTICA E SERVICOS',
+    [normalizeHeaderKey('MVT CAMPINAS SOL. EM TRANSPORTES LTDA')]: 'MVT - OSASCO',
+    [normalizeHeaderKey('Manda La Transportes de Cargas LTDA')]: 'MANDALA TRANSPORTES DE CARGAS',
+    [normalizeHeaderKey('PRIMESERV LOGISTICA E SERVICOS LTDA')]: 'PRIMESERV LOGISTICA',
+    [normalizeHeaderKey('RORAIMA LOGISTICA EIRELI')]: 'RORAIMA LOGISTICA',
+    [normalizeHeaderKey('SJBICAS - EXPRESSO RODOMINAS LTDA')]: 'EXPRESSO RODOMINAS',
+    [normalizeHeaderKey('T.G LOGISTICA E TRANSPORTES')]: 'T.G. LOGISTICA',
+    [normalizeHeaderKey('TOBEMA TRANSPORTADORA LTDA')]: 'TOBEMA TRANSPORTADORA',
+    [normalizeHeaderKey('TONI TRANSPORTES E LOGISTICA LTDA')]: 'ANTONIO CARLOS DA SILVA',
+    [normalizeHeaderKey('TRANS GONCALVES TRANSPORTES LTDA')]: 'TRANS GONCALVES',
+    [normalizeHeaderKey('TRANSFORM EMPRESA DE TRANSPORTES LTDA')]: 'TRANSFORM EMPRES',
+    [normalizeHeaderKey('TRANSPORTADORA KARAVAGGIO LTDA')]: 'TRANSPORTADORA KARAVAGGIO',
+    [normalizeHeaderKey('TRANSPORTES SONDA LTDA')]: 'TRANSPORTES SOND',
+    [normalizeHeaderKey('TRYGG CARGO TRANSPORTE E LOGISTICA LTDA')]: 'TRYGG CARGO',
+    [normalizeHeaderKey('Trans CJ Transportes e Logistica Ltda')]: 'TRANS CJ TRANSPORTE',
+    [normalizeHeaderKey('VASLOG TRANSPORTES EIRELI')]: 'VASLOG TRANSPORTES'
+  };
+
+  /** "% Frete sobre Valor das Notas" (2026-09-14, revisado a fundo em 2026-09-26) — a fonte
+   * "Indicador Frete Transportadora" (por CT-e) não tem Valor NF nem Peso (ver comentário em
    * renderIndicadorFreteTransportadora), então esse valor não existe dentro da própria linha do
-   * CT-e. Testado contra os CSVs reais: o nome da Transportadora NÃO bate entre essa fonte e a
-   * Base Bluesoft (22 nomes no CT-e, 0 batem com os 159 da Bluesoft — Lincros usa razão social
-   * completa, Bluesoft às vezes usa nome de motorista) — cruzar por Transportadora está fora de
-   * cogitação sem uma tabela de correspondência manual, que ela optou por NÃO fazer agora
-   * (confirmado via pergunta). Cruza só por Estado Destino + Período, os 2 campos que batem bem
-   * entre as fontes.
+   * CT-e; precisa cruzar com a Base Bluesoft. Cruza por NOME DE TRANSPORTADORA (via
+   * TRANSPORTADORA_CTE_PARA_BLUESOFT acima) — não mais só por Estado Destino + Período: aquele
+   * critério antigo comparava POPULAÇÕES DIFERENTES (28 transportadoras auditadas por CT-e contra
+   * as 143 que aparecem na Base Bluesoft nesses mesmos estados/período, 0 em comum) — diluía o %
+   * artificialmente porque o denominador incluía nota de transportadora que nem tem CT-e nenhum
+   * auditado. `nomesBluesoftPermitidos`: quando informado, só entram notas cuja Transportadora
+   * (normalizada) está nesse conjunto — quem chama monta esse conjunto a partir de
+   * TRANSPORTADORA_CTE_PARA_BLUESOFT, restrito aos CT-es que realmente têm correspondência
+   * confirmada.
    * `ufs`: lista de UFs a somar na Base Bluesoft — quando ela filtra por 1 UF específica, é só
-   * essa; sem filtro de UF, usa o CONJUNTO de UFs que aparece nos CT-es já filtrados (não
-   * "todas as UFs do Brasil") pra não diluir a conta com estados que essas transportadoras nem
-   * atendem. Data usa `r.dataEntrega` (não `r.dataCriacao`) — mesma convenção de sempre nesse
-   * projeto pra "aconteceu neste dia" na Base Bluesoft (a NF é criada dias antes de rodar).
-   * `r.tipoTransporte === 'Transportadora'` é OUTRO filtro essencial, achado testando com dado
-   * real: sem ele, o percentual saía de ~0,5% (a Base Bluesoft inteira tem AGREGADO/PRÓPRIO
-   * RETIRA/EXPORTAÇÃO misturados, categorias que o relatório de Transportadora nem audita) —
-   * com o filtro, sobe pra ~0,9%, população bem mais parecida com a do CT-e (mesma categoria
-   * que dá nome ao próprio relatório e ao valor "TRANSPORTADORA" da coluna Categoria/Z).
-   *
-   * `r.transportadora` não pode ser "PRÓPRIO RETIRA" (2026-09-25, bug real reportado pela
-   * usuária: "0,8% é praticamente impossível"). Achado contra dado real: 17% do valor somado
-   * (R$40,6 milhões de R$238,8 milhões) vinha de notas com `Categoria=Transportadora` mas
-   * `Transportadora` literalmente "PRÓPRIO RETIRA" — contradição direta (categoria diz
-   * Transportadora, nome diz o oposto), não é uma nota de Transportadora de verdade pra comparar
-   * contra o CT-e. Decisão dela (2026-09-25): notas com `Transportadora` vazia/"Não informado"
-   * CONTINUAM entrando por enquanto (são 58% do total, R$138M — grande demais pra excluir sem
-   * antes investigar/corrigir a causa; ela vai apurar isso à parte). Validado contra dado real:
-   * excluindo só "Próprio Retira", 1,11% (sem excluir nada) vira 1,33%. */
-  function calcularValorNotasFreteTransportadora(ufs, dataInicio, dataFim, mes, ano) {
+   * essa; sem filtro de UF, usa o CONJUNTO de UFs que aparece nos CT-es COM correspondência.
+   * Data usa `r.dataEntrega` (não `r.dataCriacao`) — mesma convenção de sempre nesse projeto pra
+   * "aconteceu neste dia" na Base Bluesoft (a NF é criada dias antes de rodar).
+   * `r.tipoTransporte === 'Transportadora'` e excluir `r.transportadora === 'PRÓPRIO RETIRA'`
+   * continuam os mesmos filtros de sempre (ver histórico de bugs reais já corrigidos: 2026-08-26
+   * e 2026-09-25). */
+  function calcularValorNotasFreteTransportadora(ufs, dataInicio, dataFim, mes, ano, nomesBluesoftPermitidos) {
     if (!ufs || !ufs.length) return 0;
     const registros = DataStore.getRecords().filter(r => {
       if (!ufs.includes(r.uf)) return false;
       if (r.tipoTransporte !== 'Transportadora') return false;
       const nomeTransportadora = normalizeHeaderKey(r.transportadora || '');
       if (nomeTransportadora === 'proprio retira') return false;
+      if (nomesBluesoftPermitidos && !nomesBluesoftPermitidos.has(nomeTransportadora)) return false;
       const ref = r.dataEntrega;
       if (!ref) return false;
       if (dataInicio && ref < dataInicio) return false;
@@ -6227,37 +6261,41 @@ const Dashboard = (() => {
     const qtdDivergencia = cobradoMaiorItens.length + cobradoMenorItens.length;
     const pctDivergencia = qtdAuditados > 0 ? (qtdDivergencia / qtdAuditados) * 100 : 0;
 
-    // "% Frete sobre Valor das Notas" (2026-09-14) — cruzamento por Estado Destino + Período
-    // contra a Base Bluesoft, ver calcularValorNotasFreteTransportadora acima (por que não dá
-    // pra cruzar por Transportadora nesta fonte).
+    // "% Frete sobre Valor das Notas" (2026-09-14, revisado 2026-09-26) — cruza por NOME DE
+    // TRANSPORTADORA (TRANSPORTADORA_CTE_PARA_BLUESOFT, tabela confirmada por ela), não mais só
+    // por Estado Destino + Período — ver comentário completo em calcularValorNotasFreteTransportadora.
+    // Só entram no numerador os CT-es que TÊM correspondência confirmada (os 2 sem correspondência
+    // — ela não soube apontar o nome — ficam de fora dos dois lados da conta, não só de um).
+    const itensComCorrespondencia = itens.filter(i => TRANSPORTADORA_CTE_PARA_BLUESOFT[normalizeHeaderKey(i.transportadora)]);
+    const qtdCtesSemCorrespondencia = itens.length - itensComCorrespondencia.length;
+    const freteCalculadoComCorrespondencia = Utils.sum(itensComCorrespondencia, i => i.freteCalc);
+    const nomesBluesoftCorrespondentes = new Set(
+      itensComCorrespondencia.map(i => normalizeHeaderKey(TRANSPORTADORA_CTE_PARA_BLUESOFT[normalizeHeaderKey(i.transportadora)]))
+    );
+
     const ufsFiltroAtual = indicadorFreteTransportadoraUFSelecionada
       ? [indicadorFreteTransportadoraUFSelecionada]
-      : Array.from(new Set(itens.map(i => i.estadoDestino).filter(Boolean)));
-    // Bug real encontrado 2026-09-25 (ela reportou 0,8% "impossível de estar certo"): sem
-    // filtro de Período ativo, dataInicio/dataFim/mes/ano chegam todos nulos aqui, e
-    // calcularValorNotasFreteTransportadora somava a Base Bluesoft SEM limite de data nenhum
-    // (9 meses inteiros) — enquanto o numerador (freteCalculadoTotal) só cobre o que essa fonte
-    // de CT-es realmente tem (~5 meses, a fonte é mais nova). Denominador maior que o
-    // universo real do numerador achatava o % artificialmente (confirmado contra dado real:
-    // restringindo a mesma janela, 0,78% virava 1,11%). Fix: sem filtro de Período explícito,
-    // usa a janela real dos PRÓPRIOS itens em tela (dataEmissao mín/máx) como limite — nunca
-    // deixa o denominador sair do universo que o numerador é capaz de cobrir.
+      : Array.from(new Set(itensComCorrespondencia.map(i => i.estadoDestino).filter(Boolean)));
+    // Sem filtro de Período explícito, usa a janela real dos ITENS COM CORRESPONDÊNCIA (não de
+    // todos os itens em tela) como limite de data — mesmo raciocínio do fix de 2026-09-25 (nunca
+    // deixar o denominador sair do universo que o numerador é capaz de cobrir), só que agora o
+    // "universo do numerador" é o subconjunto correspondido, não os 2839 CT-es inteiros.
     let dataInicioNotas = dataInicio, dataFimNotas = dataFim;
-    if (!dataInicio && !dataFim && !mes && !ano && itens.length) {
-      const datasEmissao = itens.map(i => i.dataEmissao).filter(Boolean).map(d => d.getTime());
+    if (!dataInicio && !dataFim && !mes && !ano && itensComCorrespondencia.length) {
+      const datasEmissao = itensComCorrespondencia.map(i => i.dataEmissao).filter(Boolean).map(d => d.getTime());
       if (datasEmissao.length) {
         dataInicioNotas = new Date(Math.min(...datasEmissao));
         dataFimNotas = new Date(Math.max(...datasEmissao));
       }
     }
-    const valorNotasCorrespondente = calcularValorNotasFreteTransportadora(ufsFiltroAtual, dataInicioNotas, dataFimNotas, mes, ano);
-    const percentualFreteSobreNotas = valorNotasCorrespondente > 0 ? (freteCalculadoTotal / valorNotasCorrespondente) * 100 : null;
+    const valorNotasCorrespondente = calcularValorNotasFreteTransportadora(ufsFiltroAtual, dataInicioNotas, dataFimNotas, mes, ano, nomesBluesoftCorrespondentes);
+    const percentualFreteSobreNotas = valorNotasCorrespondente > 0 ? (freteCalculadoComCorrespondencia / valorNotasCorrespondente) * 100 : null;
 
     const setTexto = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
     setTexto('indicador-frete-transportadora-valor-notas', Utils.formatCurrency(valorNotasCorrespondente));
     setTexto('indicador-frete-transportadora-sub-valor-notas', valorNotasCorrespondente > 0
-      ? 'notas categoria Transportadora · mesmo Estado Destino/Período'
-      : 'sem notas da Base Bluesoft no Estado Destino/Período selecionado');
+      ? `notas das transportadoras com correspondência confirmada${qtdCtesSemCorrespondencia > 0 ? ` · ${Utils.formatNumber(qtdCtesSemCorrespondencia)} CT-e(s) sem correspondência não incluído(s)` : ''}`
+      : 'sem transportadora com correspondência confirmada no período selecionado');
     setTexto('indicador-frete-transportadora-total-ctes', Utils.formatNumber(itens.length));
     setTexto('indicador-frete-transportadora-total-calculado', Utils.formatCurrency(freteCalculadoTotal));
     setTexto('indicador-frete-transportadora-total-cobrado', Utils.formatCurrency(freteCobradoTotal));
@@ -6271,8 +6309,8 @@ const Dashboard = (() => {
     setTexto('indicador-frete-transportadora-sub-divergencia', qtdAuditados > 0 ? `${Utils.formatPercent(pctDivergencia)} dos auditados` : '—');
     setTexto('indicador-frete-transportadora-percentual-notas', percentualFreteSobreNotas === null ? '—' : Utils.formatPercent(percentualFreteSobreNotas));
     setTexto('indicador-frete-transportadora-sub-percentual-notas', valorNotasCorrespondente > 0
-      ? `sobre ${Utils.formatCurrency(valorNotasCorrespondente)} em notas categoria Transportadora · mesmo Estado Destino/Período`
-      : 'sem notas da Base Bluesoft no Estado Destino/Período selecionado');
+      ? `sobre ${Utils.formatCurrency(valorNotasCorrespondente)} em notas das transportadoras com correspondência confirmada`
+      : 'sem transportadora com correspondência confirmada no período selecionado');
 
     // Comparação "vs. período anterior" (Fase 5, 2026-09-10) — só quando algum filtro de Período
     // está de fato ativo, mesma decisão/motivo já documentado em DataStore.calcularPeriodoAnterior
@@ -6288,8 +6326,16 @@ const Dashboard = (() => {
     const itensAnteriorTransportadora = janelaAnteriorTransportadora
       ? obterItensFreteTransportadoraPorIntervalo(janelaAnteriorTransportadora.inicio, janelaAnteriorTransportadora.fim, transportadora)
       : [];
+    // Mesma restrição por correspondência confirmada (2026-09-26) aplicada ao período anterior —
+    // usa só as transportadoras que TIVERAM CT-e no período anterior (não necessariamente as
+    // mesmas do período atual), pra não diluir o comparativo do mesmo jeito que o cálculo atual.
+    const nomesBluesoftCorrespondentesAnterior = new Set(
+      itensAnteriorTransportadora
+        .filter(i => TRANSPORTADORA_CTE_PARA_BLUESOFT[normalizeHeaderKey(i.transportadora)])
+        .map(i => normalizeHeaderKey(TRANSPORTADORA_CTE_PARA_BLUESOFT[normalizeHeaderKey(i.transportadora)]))
+    );
     const valorNotasCorrespondenteAnterior = janelaAnteriorTransportadora
-      ? calcularValorNotasFreteTransportadora(ufsFiltroAtual, janelaAnteriorTransportadora.inicio, janelaAnteriorTransportadora.fim, null, null)
+      ? calcularValorNotasFreteTransportadora(ufsFiltroAtual, janelaAnteriorTransportadora.inicio, janelaAnteriorTransportadora.fim, null, null, nomesBluesoftCorrespondentesAnterior)
       : null;
     const auditadosAnteriorTransportadora = itensAnteriorTransportadora.filter(i => statusAuditoriaFreteTransportadora(i) !== 'aguardando');
     const temBaseAnteriorGeral = itensAnteriorTransportadora.length > 0;
