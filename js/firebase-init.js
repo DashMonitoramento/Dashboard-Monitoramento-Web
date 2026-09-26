@@ -584,6 +584,18 @@ function assinarStatusCarga(callback, aoFalhar) {
   );
 }
 
+/** "Cargas por Motorista" (2026-09-26) — statusCargaHistorico é gravado desde sempre a cada
+ * transição de status (definirStatusCarga/retirarStatusCarga/marcarNoShowStatusCarga/
+ * moverDisponibilidadeParaSeparacao), mas nunca tinha sido lido por ninguém. Leitura ÚNICA
+ * (getDocs, não onSnapshot — não faz sentido deixar mais um listener ao vivo ligado o tempo
+ * todo pra um card que só é aberto ocasionalmente), mais recentes primeiro, com limite (a
+ * coleção cresce a cada mudança de status, sem limite ela ficaria grande demais pra ler inteira
+ * de uma vez). */
+async function getStatusCargaHistoricoRecente(limiteDocs = 3000) {
+  const snap = await getDocs(query(collection(db, STATUS_CARGA_HISTORICO_COLECAO), orderBy('dataHora', 'desc'), limit(limiteDocs)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 /** Move um motorista (por placa) pra um dos status de separação — NAO_INICIADA/EM_SEPARACAO/
  * SEPARADO/CARREGADO (o último gravado automaticamente por verificarCarregamentoStatusCarga,
  * dashboard.js, quando a placa aparece "Em Trânsito" na Base Bluesoft no dia). Sobrescreve o doc
@@ -1097,7 +1109,7 @@ window.Firebase = {
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga, ativarStatusCarga, autoPopularSeparacaoNaoIniciada,
   atualizarHoraLimiteCarregamento,
   atualizarRotaStatusCarga, atualizarTransportadoraStatusCarga, atualizarObservacaoStatusCarga, definirPlacaMotorista,
-  assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
+  assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow, getStatusCargaHistoricoRecente,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote, moverDisponibilidadeParaSeparacao,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico,
   encerrarDiaControleCargas, getProgramacaoDiaria,
