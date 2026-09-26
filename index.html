@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260922a">
+<link rel="stylesheet" href="css/style.css?v=20260925f">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -159,6 +159,10 @@
     <div class="field">
       <label for="cadastrar-motorista-veiculo">Veículo</label>
       <input type="text" id="cadastrar-motorista-veiculo" placeholder="Ex: VUC - 2.7 TONS">
+    </div>
+    <div class="field">
+      <label for="cadastrar-motorista-transportadora">Transportadora</label>
+      <input type="text" id="cadastrar-motorista-transportadora" placeholder="Ex: Transportadora Beta (opcional)">
     </div>
     <div class="field">
       <label for="cadastrar-motorista-rodizio">Rodízio</label>
@@ -1484,13 +1488,23 @@ Segue anexo o relatório atualizado.</textarea>
         </div>
         <p class="chart-card__hint" id="cargas-sincronizar-status" hidden></p>
 
-        <!-- "Onde está esse motorista?" (2026-09-17, pedido da usuária) — busca rápida por nome
-             ou placa, mostra a etapa atual (ou "não está cadastrado") direto na sugestão, sem
-             precisar clicar em nada. Reaproveita .cargas-autocomplete/.cargas-sugestoes (mesmo
-             padrão de "Buscar motorista", mais abaixo) -- só exibe, nunca adiciona/edita nada. -->
-        <div class="cargas-autocomplete" style="margin-bottom:16px; max-width:420px;">
-          <input type="text" id="cargas-onde-esta-input" placeholder="🔍 Onde está esse motorista? Nome ou placa..." autocomplete="off">
-          <div id="cargas-onde-esta-sugestoes" class="cargas-sugestoes"></div>
+        <!-- Consultar motorista por nome ou placa (2026-09-25) — evolução do "Onde está esse
+             motorista?" (2026-09-17): mesma busca/autocomplete de antes (.cargas-autocomplete/
+             .cargas-sugestoes, cargasNormalizarTexto), agora com botão "Buscar" e um resultado
+             grande (card "Motorista localizado"/"Motorista não encontrado" + as 3 etapas da
+             separação em destaque) em vez de só a sugestão em texto. Ver renderConsultaMotorista
+             (dashboard.js). -->
+        <div class="cargas-consulta">
+          <h3 class="cargas-consulta__titulo">🔍 Consultar motorista por nome ou placa</h3>
+          <p class="cargas-consulta__hint">Digite o nome do motorista ou a placa do veículo para verificar se há carga programada para hoje.</p>
+          <div class="cargas-consulta__busca">
+            <div class="cargas-autocomplete">
+              <input type="text" id="cargas-onde-esta-input" placeholder="Nome do motorista ou placa..." autocomplete="off">
+              <div id="cargas-onde-esta-sugestoes" class="cargas-sugestoes"></div>
+            </div>
+            <button type="button" id="cargas-btn-consultar" class="btn btn--primary">Buscar</button>
+          </div>
+          <div id="cargas-consulta-resultado"></div>
         </div>
 
         <!-- Aviso aos motoristas (2026-09-13) — card enviado daqui aparece no topo do Painel do
@@ -1587,9 +1601,76 @@ Segue anexo o relatório atualizado.</textarea>
           <span id="cargas-noshow-periodo-contagem" class="ocorrencias-periodo-bar__contagem"></span>
         </div>
 
-        <h3 class="cargas-lista-titulo" id="cargas-lista-titulo">Selecione um card acima pra ver a lista</h3>
+        <h3 class="cargas-lista-titulo" id="cargas-lista-titulo">Motoristas do Dia</h3>
+
+        <!-- Barra de filtros da tabela unificada "Motoristas do Dia" (2026-09-25) — só aparece
+             pros 4 status de fila (NAO_INICIADA/EM_SEPARACAO/SEPARADO/CARREGADO); os cards
+             Disponível/No Show/Cadastrados continuam com a lista própria de cada um, sem essa
+             barra. Ver renderControleCargasLista/renderControleCargasFilaDoDia (dashboard.js). -->
+        <div class="table-card__header" id="cargas-fila-filtros" hidden>
+          <div class="table-search">
+            🔎 <input type="search" id="cargas-fila-busca" placeholder="Buscar motorista por nome ou placa...">
+          </div>
+          <label class="filtro-cabecalho">
+            <span class="filtro-cabecalho__label">Status</span>
+            <select id="cargas-fila-filtro-status">
+              <option value="">Todos os status</option>
+              <option value="NAO_INICIADA">Separação Não Iniciada</option>
+              <option value="EM_SEPARACAO">Separação Iniciada</option>
+              <option value="SEPARADO">Separado</option>
+              <option value="CARREGADO">Carregado</option>
+            </select>
+          </label>
+          <label class="filtro-cabecalho">
+            <span class="filtro-cabecalho__label">Transportadora</span>
+            <select id="cargas-fila-filtro-transportadora"><option value="">Todas as transportadoras</option></select>
+          </label>
+          <label class="filtro-cabecalho">
+            <span class="filtro-cabecalho__label">Rota</span>
+            <select id="cargas-fila-filtro-rota"><option value="">Todas as rotas</option></select>
+          </label>
+          <button type="button" id="cargas-btn-adicionar-motoristas-dia" class="btn btn--primary">+ Adicionar motoristas</button>
+        </div>
+
         <div id="cargas-lista"></div>
       </section>
+
+      <!-- ===================== MODAL: ADICIONAR MOTORISTAS DO DIA (colar lista, 2026-09-25) =====================
+           Pedido da usuária: "COPIAR UMA LISTA → COLAR → ADICIONAR TODOS", em vez de cadastrar um
+           motorista de cada vez. Mesmo padrão visual de #modal-cadastrar-motorista. -->
+      <div id="modal-adicionar-motoristas-dia" class="modal-overlay" hidden>
+        <div class="modal-card modal-card--grande">
+          <div class="modal-card__header">
+            <h2 class="modal-card__title">Adicionar motoristas do dia</h2>
+            <button id="btn-fechar-modal-adicionar-motoristas-dia" class="icon-btn" aria-label="Fechar">✕</button>
+          </div>
+          <p class="modal-card__hint">Cole abaixo uma lista de motoristas. Cada linha será considerada um motorista.</p>
+          <textarea id="adicionar-motoristas-dia-texto" rows="10" placeholder="MARCELO JESUS&#10;LUIZ CARLOS&#10;RUBNEI&#10;RAFAEL OLIVEIRA"></textarea>
+          <div class="field">
+            <label for="adicionar-motoristas-dia-status">Status da carga</label>
+            <select id="adicionar-motoristas-dia-status">
+              <option value="NAO_INICIADA">Separação Não Iniciada</option>
+              <option value="EM_SEPARACAO">Separação Iniciada</option>
+              <option value="SEPARADO">Separado</option>
+            </select>
+          </div>
+          <div class="cargas-autocomplete">
+            <input type="text" id="adicionar-motoristas-dia-rota" placeholder="Rota (opcional, aplicada a todos)" autocomplete="off">
+            <div id="adicionar-motoristas-dia-sugestoes-rota" class="cargas-sugestoes"></div>
+          </div>
+          <button type="button" id="btn-analisar-lista-motoristas" class="btn btn--primary">Analisar lista</button>
+
+          <div id="adicionar-motoristas-dia-previa" hidden>
+            <p class="modal-card__hint" id="adicionar-motoristas-dia-resumo"></p>
+            <div id="adicionar-motoristas-dia-previa-lista"></div>
+            <p class="login-error" id="adicionar-motoristas-dia-erro" role="alert" hidden></p>
+            <div class="modal-actions">
+              <button type="button" id="btn-cancelar-adicionar-motoristas-dia" class="btn btn--ghost">Cancelar</button>
+              <button type="button" id="btn-confirmar-adicionar-motoristas-dia" class="btn btn--primary">Adicionar todos</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- ===================== CONTROLE DE DESPESAS EXTRA (2026-09-08) =====================
            Reage aos MESMOS filtros globais da tela inicial (Período/Transportadora/etc — ver
@@ -2547,11 +2628,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260924a"></script>
+<script type="module" src="js/firebase-init.js?v=20260925f"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260925a"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260925e"></script>
+<script src="js/dashboard.js?v=20260925f"></script>
 <script src="js/script.js?v=20260924a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
