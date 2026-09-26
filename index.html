@@ -6,7 +6,7 @@
 <title>Dashboard de Entregas · Da Terrinha Alimentos</title>
 <meta name="description" content="Dashboard de indicadores de entregas — Da Terrinha Alimentos">
 <link rel="icon" href="assets/img/favicon-round.png">
-<link rel="stylesheet" href="css/style.css?v=20260926d">
+<link rel="stylesheet" href="css/style.css?v=20260926e">
 <!-- PWA: permite "Instalar app"/"Adicionar à tela inicial" no celular (pedido do usuário,
      2026-09-02) em vez de precisar entrar sempre pelo link do site. -->
 <link rel="manifest" href="manifest.json">
@@ -603,6 +603,7 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__label">Em aberto (sem agendamento)</span>
             <span class="kpi-card__value" id="kpi-abertas-count">0</span>
             <span class="kpi-card__subvalue" id="kpi-valor-abertas">R$ 0,00</span>
+            <span class="kpi-card__percent-badge" id="kpi-percentual-abertas-sem-agendamento" title="Percentual sobre o total de notas do período filtrado">0%</span>
           </div>
           <div class="kpi-card__extra" title="Dessas, já em trânsito e dentro do prazo do Lead Time">
             <span class="kpi-card__extra-label">🚚 Em Trânsito</span>
@@ -610,26 +611,45 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__extra-subvalue" id="kpi-valor-em-transito">R$ 0,00</span>
           </div>
         </article>
-        <article class="kpi-card kpi-card--danger kpi-card--clickable" data-detail="em-aberto-com-agendamento" title="Ver notas em aberto que exigem agendamento">
-          <span class="kpi-card__label">Em aberto (exige agendamento)</span>
-          <span class="kpi-card__value" id="kpi-abertas-agendamento-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-abertas-agendamento">R$ 0,00</span>
+        <article class="kpi-card kpi-card--danger kpi-card--clickable kpi-card--com-extra" data-detail="em-aberto-com-agendamento" title="Ver notas em aberto que exigem agendamento">
+          <div class="kpi-card__principal">
+            <span class="kpi-card__label">Em aberto (exige agendamento)</span>
+            <span class="kpi-card__value" id="kpi-abertas-agendamento-count">0</span>
+            <span class="kpi-card__subvalue" id="kpi-valor-abertas-agendamento">R$ 0,00</span>
+          </div>
+          <div class="kpi-card__extra" title="Percentual sobre o total de notas do período filtrado">
+            <span class="kpi-card__extra-label">% do total</span>
+            <span class="kpi-card__extra-value" id="kpi-percentual-abertas-agendamento">0%</span>
+          </div>
         </article>
-        <article class="kpi-card kpi-card--neutral kpi-card--clickable" data-detail="aguardando" title="Ver notas aguardando agendamento">
-          <span class="kpi-card__label">Aguardando agendamento</span>
-          <span class="kpi-card__value" id="kpi-aguardando-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-aguardando">R$ 0,00</span>
+        <article class="kpi-card kpi-card--neutral kpi-card--clickable kpi-card--com-extra" data-detail="aguardando" title="Ver notas aguardando agendamento">
+          <div class="kpi-card__principal">
+            <span class="kpi-card__label">Aguardando agendamento</span>
+            <span class="kpi-card__value" id="kpi-aguardando-count">0</span>
+            <span class="kpi-card__subvalue" id="kpi-valor-aguardando">R$ 0,00</span>
+          </div>
+          <div class="kpi-card__extra" title="Percentual sobre o total de notas do período filtrado">
+            <span class="kpi-card__extra-label">% do total</span>
+            <span class="kpi-card__extra-value" id="kpi-percentual-aguardando">0%</span>
+          </div>
         </article>
-        <article class="kpi-card kpi-card--secondary kpi-card--clickable" data-detail="reentrega" title="Ver notas em reentrega">
-          <span class="kpi-card__label">Reentrega</span>
-          <span class="kpi-card__value" id="kpi-reentrega-count">0</span>
-          <span class="kpi-card__subvalue" id="kpi-valor-reentrega">R$ 0,00</span>
+        <article class="kpi-card kpi-card--secondary kpi-card--clickable kpi-card--com-extra" data-detail="reentrega" title="Ver notas em reentrega">
+          <div class="kpi-card__principal">
+            <span class="kpi-card__label">Reentrega</span>
+            <span class="kpi-card__value" id="kpi-reentrega-count">0</span>
+            <span class="kpi-card__subvalue" id="kpi-valor-reentrega">R$ 0,00</span>
+          </div>
+          <div class="kpi-card__extra" title="Percentual sobre o total de notas do período filtrado">
+            <span class="kpi-card__extra-label">% do total</span>
+            <span class="kpi-card__extra-value" id="kpi-percentual-reentrega">0%</span>
+          </div>
         </article>
         <article class="kpi-card kpi-card--warning kpi-card--clickable kpi-card--com-extra" data-detail="devolucao" title="Ver notas em devolução">
           <div class="kpi-card__principal">
             <span class="kpi-card__label">Devolução</span>
             <span class="kpi-card__value" id="kpi-devolucao-count">0</span>
             <span class="kpi-card__subvalue" id="kpi-valor-devolucao">R$ 0,00</span>
+            <span class="kpi-card__percent-badge" id="kpi-percentual-devolucao" title="Percentual sobre o total de notas do período filtrado">0%</span>
           </div>
           <div class="kpi-card__extra kpi-card__extra--neutral" title="Notas canceladas">
             <span class="kpi-card__extra-label">Cancelado</span>
@@ -2681,7 +2701,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260925a"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260926e"></script>
+<script src="js/dashboard.js?v=20260926f"></script>
 <script src="js/script.js?v=20260926a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
