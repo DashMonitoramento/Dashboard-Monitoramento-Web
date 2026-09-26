@@ -496,6 +496,18 @@ async function cadastrarMotorista({ nome, placa, veiculo, transportadora, rodizi
   return { criado };
 }
 
+/** "Excluir cadastro" (2026-09-26, ícone de lixeira em Motoristas Cadastrados) — exclusão SUAVE,
+ * mesmo critério já usado por sincronizarMotoristas quando alguém some da planilha: marca
+ * `ativo:false` em vez de apagar o doc de verdade, preservando qualquer statusCarga/
+ * disponibilidade/histórico que ainda referencie essa placa. `assinarMotoristas` já filtra
+ * `ativo !== false`, então a linha some da lista sozinha assim que o Firestore confirmar. */
+async function desativarMotorista(placaBruta) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  const placa = normalizarPlaca(placaBruta);
+  await updateDoc(doc(db, MOTORISTAS_COLECAO, placa), { ativo: false, atualizadoEm: serverTimestamp() });
+}
+
 /** Tempo real do cadastro de motoristas — dispara com a lista inteira sempre que algo mudar
  * (sincronização da planilha, ou uma edição manual futura). */
 function assinarMotoristas(callback, aoFalhar) {
@@ -507,7 +519,8 @@ function assinarMotoristas(callback, aoFalhar) {
 }
 
 /** Sincroniza o cadastro central `motoristas` a partir das linhas já extraídas da planilha
- * (`{nome, rodizio, veiculo, placa}[]`, mesmo formato de sample-data-motoristas.csv). Nunca
+ * (`{nome, rodizio, veiculo, placa, transportadora}[]`, mesmo formato de
+ * sample-data-motoristas.csv — `transportadora` novo, 2026-09-26). Nunca
  * apaga um motorista que sumiu da planilha — marca `ativo:false` (pedido explícito da
  * usuária: "não apagar históricos antigos por causa da sincronização"), preservando o doc e
  * qualquer statusCarga/disponibilidade que ainda referencie essa placa. Quem já existia e
@@ -529,6 +542,7 @@ async function sincronizarMotoristas(linhas) {
         placa,
         nome: String(linha.nome).trim(),
         veiculo: String(linha.veiculo || '').trim(),
+        transportadora: String(linha.transportadora || '').trim(),
         rodizio: String(linha.rodizio || '').trim(),
         ativo: true,
         atualizadoEm: serverTimestamp()
@@ -1079,7 +1093,7 @@ window.Firebase = {
   getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
   definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
-  normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista,
+  normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista, desativarMotorista,
   assinarStatusCarga, definirStatusCarga, retirarStatusCarga, ativarStatusCarga, autoPopularSeparacaoNaoIniciada,
   atualizarHoraLimiteCarregamento,
   atualizarRotaStatusCarga, atualizarTransportadoraStatusCarga, atualizarObservacaoStatusCarga, definirPlacaMotorista,
