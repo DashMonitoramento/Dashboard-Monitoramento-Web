@@ -1570,6 +1570,23 @@ Segue anexo o relatório atualizado.</textarea>
             <span class="kpi-card__label">Motoristas Cadastrados</span>
             <span class="kpi-card__value" id="cargas-count-cadastrados">0</span>
           </article>
+          <!-- "Frota Cadastrada" (2026-09-26, pedido da usuária) — quantidade de veículos +
+               detalhe por Modelo de carro e por dia de Rodízio (agregado de cargasMotoristas,
+               sem coleção nova nenhuma). Ver renderControleCargasListaFrota (dashboard.js). -->
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="FROTA" style="--kpi-accent:#0891B2" title="Ver quantidade de carros por modelo e por dia de rodízio">
+            <span class="kpi-card__label">Frota Cadastrada</span>
+            <span class="kpi-card__value" id="cargas-count-frota">0</span>
+          </article>
+          <!-- "Cargas por Motorista" (2026-09-26, pedido da usuária) — ranking de quantas vezes
+               cada motorista chegou em CARREGADO num período, ordenado do que MENOS carregou pro
+               que MAIS carregou, pra ajudar a equilibrar quem está carregando pouco. Fonte:
+               statusCargaHistorico (já existia, gravado desde sempre, nunca tinha sido lido por
+               ninguém) — busca sob demanda (getDocs, não onSnapshot, pra não deixar mais um
+               listener ao vivo ligado o tempo todo). -->
+          <article class="kpi-card kpi-card--mini kpi-card--clickable" data-cargas-filtro="RANKING_CARGAS" style="--kpi-accent:#CA8A04" title="Ver quantas cargas cada motorista fez no período, do que carregou menos pro que carregou mais">
+            <span class="kpi-card__label">Cargas por Motorista</span>
+            <span class="kpi-card__value" id="cargas-count-ranking">—</span>
+          </article>
         </div>
 
         <div class="cargas-adicionar">
@@ -1601,6 +1618,19 @@ Segue anexo o relatório atualizado.</textarea>
             <button type="button" class="ocorrencias-periodo-btn" data-cargas-noshow-periodo="mes">Mês</button>
           </div>
           <span id="cargas-noshow-periodo-contagem" class="ocorrencias-periodo-bar__contagem"></span>
+        </div>
+
+        <!-- Barra de período do ranking "Cargas por Motorista" — mesmo padrão do No Show, só
+             padrão inicial "semana" em vez de "hoje" (decidido com ela via pergunta). -->
+        <div id="cargas-ranking-periodo-bar" class="ocorrencias-periodo-bar" hidden>
+          <span class="ocorrencias-periodo-bar__label">📦 Cargas por Motorista — Período:</span>
+          <div class="ocorrencias-periodo-bar__opcoes">
+            <button type="button" class="ocorrencias-periodo-btn" data-cargas-ranking-periodo="ontem">Ontem</button>
+            <button type="button" class="ocorrencias-periodo-btn" data-cargas-ranking-periodo="hoje">Hoje</button>
+            <button type="button" class="ocorrencias-periodo-btn ocorrencias-periodo-btn--ativo" data-cargas-ranking-periodo="semana">Semana</button>
+            <button type="button" class="ocorrencias-periodo-btn" data-cargas-ranking-periodo="mes">Mês</button>
+          </div>
+          <span id="cargas-ranking-periodo-contagem" class="ocorrencias-periodo-bar__contagem"></span>
         </div>
 
         <h3 class="cargas-lista-titulo" id="cargas-lista-titulo">Motoristas do Dia</h3>
@@ -2647,11 +2677,11 @@ Segue anexo o relatório atualizado.</textarea>
 <!-- ExcelJS: só pra gerar o .xlsx formatado do botão "Exportar CSV" (cabeçalho estilizado +
      coluna Status colorida) — sem chave, sem servidor, tudo no navegador. -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script type="module" src="js/firebase-init.js?v=20260926b"></script>
+<script type="module" src="js/firebase-init.js?v=20260926c"></script>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260925a"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260926c"></script>
+<script src="js/dashboard.js?v=20260926d"></script>
 <script src="js/script.js?v=20260924a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
