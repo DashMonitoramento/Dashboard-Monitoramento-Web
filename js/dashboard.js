@@ -8198,6 +8198,7 @@ const Dashboard = (() => {
   let cargasRankingCarregando = false;
   let cargasHistoricoTransicoes = [];
   let cargasRankingPeriodo = 'semana';
+  let cargasRankingFiltroQtd = null; // null = "Todos"; 0/1/2/... = só quem tem exatamente essa quantidade
 
   async function cargasCarregarHistoricoSeNecessario(wrap) {
     if (cargasRankingCarregado || cargasRankingCarregando) return;
@@ -8253,9 +8254,28 @@ const Dashboard = (() => {
       .map(([placa, qtd]) => ({ placa, qtd, nome: (cargasMotoristas.get(placa) || {}).nome || placa }))
       .sort((a, b) => a.qtd - b.qtd || a.nome.localeCompare(b.nome, 'pt-BR'));
 
+    // Botões "0 carga(s)", "1 carga"... (2026-09-26, pedido da usuária: "ficou muito bagunçado,
+    // tem um monte de motorista com 0 cargas e só um pouco com 1 — se tiver botões com a
+    // quantidade aí eu aperto e só aparece aqueles") — 1 botão por quantidade REALMENTE presente
+    // no período (não uma faixa fixa 0-N, que sobraria botão vazio) + "Todos" pra limpar o
+    // filtro. Mesmo clique-de-novo-desmarca de sempre (ver bindControleCargasAcoes).
+    const distintos = Array.from(new Set(lista.map(i => i.qtd))).sort((a, b) => a - b);
+    const barraQtdHtml = distintos.length > 1 ? `
+      <div class="cargas-ranking-filtro-qtd">
+        <button type="button" class="ocorrencias-periodo-btn${cargasRankingFiltroQtd === null ? ' ocorrencias-periodo-btn--ativo' : ''}" data-cargas-ranking-qtd-todos="1">Todos (${lista.length})</button>
+        ${distintos.map(qtd => {
+          const quantos = lista.filter(i => i.qtd === qtd).length;
+          const ativo = cargasRankingFiltroQtd === qtd;
+          return `<button type="button" class="ocorrencias-periodo-btn${ativo ? ' ocorrencias-periodo-btn--ativo' : ''}" data-cargas-ranking-qtd="${qtd}">${qtd} carga${qtd === 1 ? '' : 's'} (${quantos})</button>`;
+        }).join('')}
+      </div>` : '';
+
+    const listaFiltrada = cargasRankingFiltroQtd === null ? lista : lista.filter(i => i.qtd === cargasRankingFiltroQtd);
+
     wrap.innerHTML = `
+      ${barraQtdHtml}
       <div class="cargas-noshow-ranking">
-        ${lista.map(item => `
+        ${listaFiltrada.map(item => `
           <div class="cargas-noshow-ranking__item">
             <span>${escapeAttr(item.nome)}</span>
             <span class="cargas-noshow-ranking__valor">${Utils.formatNumber(item.qtd)} carga${item.qtd === 1 ? '' : 's'}</span>
@@ -8269,6 +8289,7 @@ const Dashboard = (() => {
     barra.querySelectorAll('[data-cargas-ranking-periodo]').forEach(botao => {
       botao.addEventListener('click', () => {
         cargasRankingPeriodo = botao.dataset.cargasRankingPeriodo;
+        cargasRankingFiltroQtd = null; // período mudou, as quantidades disponíveis mudam junto
         barra.querySelectorAll('[data-cargas-ranking-periodo]').forEach(b => b.classList.toggle('ocorrencias-periodo-btn--ativo', b === botao));
         renderControleCargasLista();
       });
@@ -8560,7 +8581,7 @@ const Dashboard = (() => {
           // Refaz a busca do histórico toda vez que ela ABRE o ranking de novo (não só na 1ª
           // vez) — reflete cargas que aconteceram desde a última vez que olhou, sem precisar de
           // um listener ao vivo ligado o tempo todo (ver cargasCarregarHistoricoSeNecessario).
-          if (filtro === 'RANKING_CARGAS' && abrindoAgora) cargasRankingCarregado = false;
+          if (filtro === 'RANKING_CARGAS' && abrindoAgora) { cargasRankingCarregado = false; cargasRankingFiltroQtd = null; }
         }
         renderControleCargasLista();
       });
@@ -8570,6 +8591,19 @@ const Dashboard = (() => {
   function bindControleCargasAcoes() {
     const wrap = document.getElementById('cargas-lista');
     if (!wrap) return;
+    // Botões de quantidade do ranking "Cargas por Motorista" (2026-09-26) — filtra a lista pra
+    // só mostrar quem tem EXATAMENTE aquela quantidade de cargas no período; clicar de novo no
+    // mesmo botão ou em "Todos" limpa o filtro.
+    wrap.addEventListener('click', (e) => {
+      const botaoTodos = e.target.closest('[data-cargas-ranking-qtd-todos]');
+      if (botaoTodos) { cargasRankingFiltroQtd = null; renderControleCargasLista(); return; }
+      const botaoQtd = e.target.closest('[data-cargas-ranking-qtd]');
+      if (!botaoQtd) return;
+      const qtd = Number(botaoQtd.dataset.cargasRankingQtd);
+      cargasRankingFiltroQtd = cargasRankingFiltroQtd === qtd ? null : qtd;
+      renderControleCargasLista();
+    });
+
     // Ícone de lápis (2026-09-26) — só dá foco no campo Nome da linha (já editável de propósito,
     // ver renderControleCargasListaCadastrados); não é um data-cargas-acao porque não grava nada.
     wrap.addEventListener('click', (e) => {
