@@ -116,6 +116,12 @@ function onAuthChange(callback) {
 async function garantirPerfilUsuario() {
   const usuario = auth.currentUser;
   if (!usuario) return;
+  // Nunca cria perfil pra sessão ANÔNIMA (2026-09-26) — é assim que o Painel do Motorista se
+  // autentica sozinho; sem essa guarda, uma sessão anônima que "vazasse" pra cá (mesma origem,
+  // ver comentário em script.js/Auth.onAuthChange) criaria um doc vazio em users/{uid} sem
+  // nome/e-mail nenhum. Segunda camada de defesa (a principal é não chamar isto pra anônimo,
+  // já corrigido em script.js) — barato o suficiente pra manter mesmo assim.
+  if (usuario.isAnonymous) return;
   try {
     const ref = doc(db, 'users', usuario.uid);
     const snap = await getDoc(ref);
@@ -365,6 +371,16 @@ async function getUsuarios() {
     });
   });
   return lista;
+}
+
+/** Exclui um usuário de `users/{uid}` (2026-09-26, botão "Excluir" em Gerenciar Usuários — pedido
+ * dela depois de achar vários docs vazios de sessões anônimas que vazaram do Painel do Motorista,
+ * ver comentário em script.js/Auth.onAuthChange). NUNCA apaga a conta de autenticação em si (não
+ * dá pra fazer isso do lado do cliente, só do Admin SDK) — só o perfil/permissões em Firestore.
+ * Regra do Firestore já permite (`allow ... delete: if ... token.email == super admin`), sem
+ * mudança nenhuma nela. */
+async function excluirUsuario(uid) {
+  await deleteDoc(doc(db, 'users', uid));
 }
 
 /** Habilita/desabilita a edição de agendamento de um usuário específico. */
@@ -1102,7 +1118,7 @@ window.Firebase = {
   getValoresDescargaAprovados, salvarValorDescargaAprovado, salvarAjudanteEntrega, salvarQtdAjudante, salvarNecessitaAjudante,
   getClientesNecessitamAjudante, salvarClienteNecessitaAjudante,
   getClientesObservacaoDescarga, salvarClienteObservacaoDescarga,
-  getUsuarios, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
+  getUsuarios, excluirUsuario, definirPermissaoEdicaoAgendamento, getMinhaPermissaoEdicaoAgendamento,
   definirPermissaoEdicaoManifesto, definirPermissaoEdicaoValorDescarga, getMinhaPermissaoEdicaoValorDescarga,
   definirPermissaoEdicaoCargas, definirPermissaoGerenciarDisponibilidade, getMinhasPermissoesCargas,
   normalizarPlaca, getMotoristas, assinarMotoristas, sincronizarMotoristas, cadastrarMotorista, desativarMotorista,
