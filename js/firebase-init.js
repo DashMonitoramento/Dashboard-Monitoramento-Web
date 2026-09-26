@@ -1005,6 +1005,39 @@ function assinarAvisoMotoristasHistorico(callback, aoFalhar) {
 }
 
 /* ============================================================
+ * HISTÓRICO POR DATA — "ENCERRAR O DIA" (2026-09-25, pedido da usuária)
+ * ------------------------------------------------------------
+ * Decidido com ela (item 19 do pedido original, via pergunta): fechamento MANUAL, não automático
+ * à meia-noite — ela clica "Encerrar o dia" quando quiser. 1 doc por dia (não subcoleção — lê o
+ * dia inteiro num getDoc só), id = "AAAA-MM-DD". Não apaga `motoristas` (cadastro) nem
+ * `disponibilidade` — só arquiva+limpa a fila de separação (`statusCarga`).
+ * ============================================================ */
+const PROGRAMACAO_DIARIA_COLECAO = 'programacaoDiaria';
+
+/** Arquiva a programação de hoje (itens já montados por quem chama, dashboard.js — mesmo padrão
+ * de autoPopularSeparacaoNaoIniciada/atualizarDisponibilidadesEmLote: quem já tem os dados em
+ * memória via onSnapshot monta o payload, aqui só grava) e limpa `statusCarga` das placas
+ * arquivadas, tudo no mesmo lote. */
+async function encerrarDiaControleCargas(data, itens) {
+  const usuario = auth.currentUser;
+  if (!usuario) throw new Error('Sem usuário logado — não é possível salvar.');
+  if (!itens.length) return;
+
+  const lote = writeBatch(db);
+  lote.set(doc(db, PROGRAMACAO_DIARIA_COLECAO, data), {
+    motoristas: itens, encerradoEm: serverTimestamp(), encerradoPorEmail: usuario.email
+  });
+  itens.forEach(item => lote.delete(doc(db, STATUS_CARGA_COLECAO, item.placa)));
+  await lote.commit();
+}
+
+/** Lê o snapshot de um dia já encerrado — devolve `null` se esse dia nunca foi encerrado. */
+async function getProgramacaoDiaria(data) {
+  const snap = await getDoc(doc(db, PROGRAMACAO_DIARIA_COLECAO, data));
+  return snap.exists() ? snap.data() : null;
+}
+
+/* ============================================================
  * OBSERVAÇÃO — AUDITORIA DE EMBARQUES (2026-09-24, pedido da usuária)
  * ------------------------------------------------------------
  * 1 doc por CHAVE REAL: número do embarque no Indicador de Frete (a maioria dos casos), ou
@@ -1053,6 +1086,7 @@ window.Firebase = {
   assinarStatusCargaNoShow, marcarNoShowStatusCarga, atualizarMotivoNoShow,
   assinarDisponibilidade, encerrarDisponibilidade, atualizarDisponibilidadesEmLote, moverDisponibilidadeParaSeparacao,
   assinarAvisoMotoristas, enviarAvisoMotoristas, removerAvisoMotoristas, assinarAvisoMotoristasHistorico,
+  encerrarDiaControleCargas, getProgramacaoDiaria,
   getObservacoesAuditoriaEmbarques, salvarObservacaoAuditoriaEmbarques
 };
 window.dispatchEvent(new Event('firebase-ready'));
