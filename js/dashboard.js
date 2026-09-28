@@ -756,6 +756,7 @@ const Dashboard = (() => {
     });
     $('filter-mes').addEventListener('change', (e) => DataStore.setFilters({ mes: e.target.value }));
     $('filter-ano').addEventListener('change', (e) => DataStore.setFilters({ ano: e.target.value }));
+    $('filter-campo-periodo').addEventListener('change', (e) => DataStore.setFilters({ campoPeriodo: e.target.value }));
 
     bindFilterCheckboxList('filter-status-list', 'situacaoFiltro');
     bindFilterCheckboxList('filter-agendamento-list', 'agendamento');
