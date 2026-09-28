@@ -671,6 +671,10 @@ const DataStore = (() => {
       dataFim: null,
       mes: '',       // '1'..'12'
       ano: '',       // 'YYYY'
+      // 'entrega' (padrão, comportamento de sempre) ou 'faturamento' (Data Faturamento Bluesoft
+      // — pedido da usuária, 2026-09-28, pra comparar direto com relatórios de BI dela que usam
+      // esse campo). Só afeta dataReferenciaPeriodo abaixo.
+      campoPeriodo: 'entrega',
       // Todos os filtros de múltipla escolha abaixo seguem o mesmo padrão: array de valores
       // marcados (vazio = todos, sem filtro) — mesma convenção do checkbox de Status.
       situacaoFiltro: [],
@@ -2359,6 +2363,13 @@ const DataStore = (() => {
    * causa, restando só 1 caso genuinamente diferente — NF 145017, situação nunca atualizada no
    * sistema de origem, já conhecido). */
   function dataReferenciaPeriodo(r) {
+    // Toggle "Basear período por" (pedido da usuária, 2026-09-28) — Data Faturamento Bluesoft
+    // direto, sem cadeia de reserva: nota sem esse campo preenchido simplesmente não tem
+    // referência nesse modo (mesma semântica de sempre pra `ref` nulo em getFilteredRecords/
+    // getAvailableYears — não é um caso novo). Só existe pra comparar com relatórios de BI dela
+    // que filtram por esse campo; o padrão ('entrega') continua com a lógica de sempre abaixo.
+    if (filters.campoPeriodo === 'faturamento') return r.dataFaturamentoBluesoft || null;
+
     const concluida = SITUACOES_FATURAMENTO_CONCLUIDO.includes(r.situacao);
     return concluida
       ? (r.dataFaturamento || r.dataUltimaTentativaBluesoft || r.dataEntrega || r.dataAgendamento || r.dataEmissao)
