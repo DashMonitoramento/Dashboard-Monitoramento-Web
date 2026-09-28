@@ -2068,34 +2068,47 @@ const DataStore = (() => {
 
   function getIndicadorFrete() { return indicadorFreteRecords.slice(); }
 
-  const AUDITORIA_EMBARQUES_TOLERANCIA_PESO = 0.05;
-  const AUDITORIA_EMBARQUES_TOLERANCIA_VALOR = 0.05;
-  // A tolerância de dias que existia aqui (pra cruzar contra `r.dataFaturamento`) foi removida
-  // em 2026-09-18 — a chave trocou pra Data de Coleta x Data Embarque, que bate exato (ver
-  // comentário de calcularAuditoriaEmbarques abaixo), tolerância de dias deixou de fazer sentido.
+  const AUDITORIA_EMBARQUES_JANELA_DIAS = 2;
+  const AUDITORIA_EMBARQUES_TOLERANCIA_PESO = 10; // kg — ver comentário 2026-09-28 abaixo.
 
   /** "Auditoria de Embarques" (2026-09-14) — verifica se toda viagem já COLETADA (Base
-   * Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", comparando Peso e
-   * Valor consolidados. Chave: placa normalizada + data, só a parte de data, sem hora.
+   * Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", comparando Peso
+   * consolidado. Chave: placa normalizada + data, só a parte de data, sem hora.
    *
-   * **Chave corrigida (2026-09-18, pedido explícito dela)**: o lado Bluesoft usa `r.dataEntrega`
-   * — que apesar do nome é a "Data de Coleta" (coluna H da aba "Base Bluesoft"; nome trocado
-   * entre reimportações, ver `Achar-ColunaPorCabecalho $sheet @('Data de Entrega', 'Data de
-   * Coleta')` no script de extração, e [[project_dashboard_january_gap]]) — contra `i.dataEmbarque`
-   * ("Data Embarque", coluna N da aba "Indicador de Frete"). Ela confirmou que essas duas datas
-   * SEMPRE batem exato pra um embarque real (validado com dado real: quando existe embarque
-   * verdadeiro pra uma coleta, a distância é 0 dias em ~83% dos casos e cai rapidamente pra
-   * poucos dias nos raros restantes — bem diferente da tentativa anterior, que cruzava contra
-   * `r.dataFaturamento`, um campo mais tardio e SEM relação direta de 1 dia com a Data Embarque,
-   * daí a necessidade da janela de tolerância de 3 dias + desempate por peso/valor que existia
-   * antes). Confirmado nos 2 casos reais da conversa: embarque 6135215 (Viagem 449622) e 6144288
-   * (Viagem 450726) — as duas batem em peso E valor EXATOS usando Data de Coleta = Data Embarque
-   * no mesmo dia, sem nenhuma tolerância.
+   * **Reescrita 2026-09-28 (pedido explícito dela, 2 problemas reportados juntos)**: o
+   * cruzamento EXATO por dia (chave corrigida em 2026-09-18, ver changelog abaixo) parecia certo
+   * nos 2 casos que ela validou na época, mas gerava um volume enorme de falso "Não criado" e
+   * "Incompleto" — medido direto nos dados reais de Setembro/2026 (categoria Agregado):
+   * - "Data de Entrega" da Base Bluesoft NÃO é o dia real da coleta/embarque — é mais próxima de
+   *   uma data prevista de entrega, que pode ficar 1-2 dias (às vezes mais) à frente do dia real
+   *   em que o caminhão foi carregado. Ela confirmou o mecanismo com um exemplo real (placa
+   *   HGG0J44): o motorista recarregou no MESMO dia (coleta real), mas a "Data de Entrega"
+   *   daquele lote saiu com a data do dia SEGUINTE. Isso é normal, não é erro de digitação.
+   * - Das notas concluídas (não "Em aberto") marcadas "Não criado" em Setembro, 91% tinham o
+   *   embarque real a exatamente 1 dia de distância — não ausente, só num dia vizinho.
+   * - Das marcadas "Incompleto", 77% tinham um embarque em dia vizinho (até 2 dias) cujo peso
+   *   batia muito melhor do que o embarque do dia exato usado na comparação antiga.
+   * - Ela também corrigiu 2 premissas do desenho anterior: (1) nota "Em aberto" (viagem ainda em
+   *   trânsito) TEM que ter embarque desde já — é o embarque que permite o motorista baixar as
+   *   entregas na rua — então não dá pra tratar "Em aberto" como "ainda não auditável", ela conta
+   *   como erro normal se não achar embarque; (2) "Incompleto" deve comparar QUANTIDADE de notas
+   *   dentro do embarque, não Peso E Valor batendo ao centavo — como a planilha "Indicador de
+   *   Frete" não tem coluna de quantidade de notas nem lista de NFs por embarque, ela pediu pra
+   *   usar a SOMA DE PESO como proxy (Valor passa a ser só informativo, não decide o status —
+   *   frete calculado pode variar por motivo legítimo sem significar nota faltando).
    *
-   * Cruzamento agora é EXATO (mesma chave placa+dia dos dois lados, sem janela de dias nem
-   * desempate por score) — mais simples E mais preciso pra este par de datas específico. A
-   * tentativa anterior (`r.dataFaturamento`, com fallback pra `r.dataFaturamentoBluesoft` e
-   * tolerância de 3 dias) fica só de referência histórica no changelog, não é mais usada aqui.
+   * **Cruzamento novo**: em vez de exigir o MESMO dia dos dois lados, testa uma janela de
+   * `AUDITORIA_EMBARQUES_JANELA_DIAS` (±2) dias ao redor da Data de Entrega da Bluesoft e fica
+   * com o dia cujo Peso consolidado do Indicador de Frete fica mais PRÓXIMO do Peso consolidado
+   * da Bluesoft — não o primeiro que achar, o que bate melhor. Confirmado nos dados reais: os
+   * casos que realmente correspondem ficam a menos de ~8kg de diferença (arredondamento), os que
+   * não correspondem pulam direto pra centenas/milhares de kg — não existe zona cinzenta no
+   * meio, por isso a tolerância de 10kg é segura (não mascara divergência real).
+   *
+   * **Changelog anterior (só histórico, não usado mais)**: até 2026-09-18 cruzava contra
+   * `r.dataFaturamento`/`r.dataFaturamentoBluesoft` com janela de 3 dias + desempate por
+   * peso/valor. De 2026-09-18 a 2026-09-28 virou EXATO (mesmo dia, sem janela nem tolerância) —
+   * ver git/histórico de conversa se precisar entender essa fase intermediária.
    *
    * Universo = todo grupo que existe do lado Bluesoft (viagens coletadas); um embarque sem
    * nenhuma NF correspondente fica de fora (a pergunta é "toda viagem já coletada tem embarque
@@ -2126,8 +2139,9 @@ const DataStore = (() => {
       gruposBluesoft.get(chave).registros.push(r);
     }
 
-    // Mesma chave placa+dia exato dos dois lados (ver comentário da função) — cruzamento direto
-    // por Map, sem busca por proximidade nem desempate.
+    // Indexado por placa+dia EXATO do lado do Indicador de Frete — a janela de tolerância (ver
+    // comentário da função) é aplicada na hora de CRUZAR, abaixo, testando várias chaves deste
+    // Map, não aqui na indexação.
     const indicadorPorChave = new Map(); // chave -> item[]
     for (const i of indicadorFreteRecords) {
       if (!i.placa || !i.dataEmbarque) continue;
@@ -2152,23 +2166,44 @@ const DataStore = (() => {
       }
       const viagens = Array.from(viagensMap.values());
 
-      const itensIndicador = indicadorPorChave.get(chave) || [];
+      // Testa a janela de ±N dias ao redor da Data de Entrega da Bluesoft e fica com o dia cujo
+      // Peso do Indicador de Frete fica mais PRÓXIMO do Peso da Bluesoft (não o primeiro achado)
+      // — ver comentário da função. delta=0 (mesmo dia) continua sendo testado normalmente, só
+      // deixou de ser o único candidato.
+      let itensIndicador = [];
+      let diferencaDias = null;
+      let melhorDiferencaAbs = null;
+      for (let delta = -AUDITORIA_EMBARQUES_JANELA_DIAS; delta <= AUDITORIA_EMBARQUES_JANELA_DIAS; delta++) {
+        const chaveTeste = `${g.placa}|${g.data.getTime() + delta * 86400000}`;
+        const itensTeste = indicadorPorChave.get(chaveTeste);
+        if (!itensTeste || !itensTeste.length) continue;
+        const pesoTeste = Utils.sum(itensTeste, i => i.peso);
+        const diffAbs = Math.abs(pesoBluesoft - pesoTeste);
+        if (melhorDiferencaAbs === null || diffAbs < melhorDiferencaAbs) {
+          melhorDiferencaAbs = diffAbs;
+          itensIndicador = itensTeste;
+          diferencaDias = delta;
+        }
+      }
+
       const existeEmbarque = itensIndicador.length > 0;
       const pesoEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.peso) : null;
       const valorEmbarque = existeEmbarque ? Utils.sum(itensIndicador, i => i.valorTotalNFs) : null;
       const diferencaPeso = existeEmbarque ? (pesoBluesoft - pesoEmbarque) : null;
+      // Valor consolidado continua calculado e exibido (contexto útil), mas NÃO decide mais o
+      // status (2026-09-28, pedido dela) — só o Peso, usado como proxy de "faltou nota".
       const diferencaValor = existeEmbarque ? (valorBluesoft - valorEmbarque) : null;
 
       let status;
       if (registrosInvalidos.length > 0) status = 'ERRO_DADOS';
       else if (!existeEmbarque) status = 'NAO_CRIADO';
-      else if (Math.abs(diferencaPeso) <= AUDITORIA_EMBARQUES_TOLERANCIA_PESO + 1e-9 &&
-               Math.abs(diferencaValor) <= AUDITORIA_EMBARQUES_TOLERANCIA_VALOR + 1e-9) status = 'CRIADO';
+      else if (Math.abs(diferencaPeso) <= AUDITORIA_EMBARQUES_TOLERANCIA_PESO + 1e-9) status = 'CRIADO';
       else status = 'INCOMPLETO';
 
       grupos.push({
         chave, placa: g.placa, placaOriginal: g.placaOriginal, data: g.data, status,
         pesoBluesoft, valorBluesoft, pesoEmbarque, valorEmbarque, diferencaPeso, diferencaValor,
+        diferencaDias,
         embarques: Utils.uniqueSorted(itensIndicador.map(i => i.embarque)),
         transportadoras: Utils.uniqueSorted(itensIndicador.map(i => i.transportadora)),
         identificadoresViagem: Utils.uniqueSorted(itensIndicador.map(i => i.identificadorViagem)),
