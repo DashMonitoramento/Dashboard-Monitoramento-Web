@@ -370,6 +370,18 @@ Segue anexo o relatório atualizado.</textarea>
               <select id="filter-ano"><option value="">Todos</option></select>
             </div>
           </div>
+          <!-- "Basear período por" (2026-09-28, pedido da usuária) — Data de Entrega é o padrão
+               de sempre (nada muda pra quem não mexer); Data de Faturamento (Bluesoft) existe pra
+               comparar direto com relatórios de BI dela que usam esse campo. Rótulo com "(Bluesoft)"
+               de propósito — já existe outro "Data de faturamento" (campo diferente) no seletor
+               do Lead Time de Pedidos e Entregas, não pode confundir os dois. -->
+          <div class="filter-field">
+            <label for="filter-campo-periodo">Basear período por</label>
+            <select id="filter-campo-periodo">
+              <option value="">Data de Entrega</option>
+              <option value="faturamento">Data de Faturamento (Bluesoft)</option>
+            </select>
+          </div>
         </details>
 
         <details class="sidebar-accordion">
@@ -2699,9 +2711,9 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script type="module" src="js/firebase-init.js?v=20260926d"></script>
 <script src="js/utils.js?v=20260901d"></script>
-<script src="js/data.js?v=20260925a"></script>
+<script src="js/data.js?v=20260928a"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260926g"></script>
+<script src="js/dashboard.js?v=20260928a"></script>
 <script src="js/script.js?v=20260926a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
