@@ -5114,12 +5114,14 @@ const Dashboard = (() => {
   function rowHtmlAuditoriaEmbarques(g) {
     const label = AUDITORIA_EMBARQUES_STATUS_LABEL[g.status];
     const classe = AUDITORIA_EMBARQUES_STATUS_CLASSE[g.status];
-    // Divergente = o GRUPO como um todo está fora da tolerância (g.diferencaPeso/Valor, já
-    // calculado sobre o consolidado) — não compara o peso/valor MOSTRADO nesta linha (que é só
-    // de 1 embarque) contra o Bluesoft consolidado, porque isso acusaria divergência em toda
-    // linha de um grupo com 2+ embarques mesmo quando a SOMA bate certinho.
-    const pesoDivergente = g.diferencaPeso != null && Math.abs(g.diferencaPeso) > 0.05;
-    const valorDivergente = g.diferencaValor != null && Math.abs(g.diferencaValor) > 0.05;
+    // Divergente = o GRUPO como um todo está fora da tolerância de Peso (g.diferencaPeso, já
+    // calculado sobre o consolidado) — não compara o peso MOSTRADO nesta linha (que é só de 1
+    // embarque) contra o Bluesoft consolidado, porque isso acusaria divergência em toda linha de
+    // um grupo com 2+ embarques mesmo quando a SOMA bate certinho. Tolerância (10kg) tem que
+    // ficar igual à de `AUDITORIA_EMBARQUES_TOLERANCIA_PESO` em js/data.js.
+    // Valor NÃO decide mais o status (2026-09-28, pedido dela — Peso é o proxy de "faltou nota",
+    // Valor fica só informativo), por isso não tem mais destaque de divergência aqui.
+    const pesoDivergente = g.diferencaPeso != null && Math.abs(g.diferencaPeso) > 10;
     const fmtPeso = v => v == null ? '—' : `${Utils.formatNumber(v, 3)} kg`;
     const fmtValor = v => v == null ? '—' : Utils.formatCurrency(v);
     const expandido = auditoriaEmbarquesExpandidos.has(g.linhaChave);
@@ -5136,7 +5138,7 @@ const Dashboard = (() => {
       <td class="text-right${pesoDivergente ? ' celula-divergente' : ''}">${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3)}</td>
       <td class="text-right">${fmtValor(g.valorBluesoft)}</td>
       <td class="text-right">${fmtValor(g.valorEmbarqueLinha)}</td>
-      <td class="text-right${valorDivergente ? ' celula-divergente' : ''}">${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</td>
+      <td class="text-right">${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</td>
       <td class="text-right">${g.qtdViagensLinha == null ? '—' : Utils.formatNumber(g.qtdViagensLinha)}</td>
       <td class="text-right">${Utils.formatNumber(g.qtdNfs)}</td>
       <td><input type="text" class="observacao-descarga-inline" data-auditoria-embarques-observacao-chave="${escapeAttr(g.observacaoChave)}" value="${escapeAttr(g.observacaoAuditoriaEmbarques)}" placeholder="Observação"></td>
@@ -5160,7 +5162,7 @@ const Dashboard = (() => {
         <div class="auditoria-embarques-detalhe">
           <div class="auditoria-embarques-detalhe__bloco">
             <h4>Auditoria do embarque</h4>
-            <p>Placa: <strong>${escapeAttr(g.placaOriginal)}</strong> · Data de coleta: <strong>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</strong></p>
+            <p>Placa: <strong>${escapeAttr(g.placaOriginal)}</strong> · Data de coleta (Bluesoft): <strong>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</strong>${g.diferencaDias ? ` · Embarque encontrado em: <strong>${escapeAttr(new Date(g.data.getTime() + g.diferencaDias * 86400000).toLocaleDateString('pt-BR'))}</strong> (${g.diferencaDias > 0 ? `${g.diferencaDias} dia(s) depois` : `${Math.abs(g.diferencaDias)} dia(s) antes`})` : ''}</p>
             <p>Viagens: ${g.qtdViagensLinha == null ? '—' : g.qtdViagensLinha} · NFs: ${g.qtdNfs}${g.transportadoras.length ? ` · Transportador(es) no embarque: ${escapeAttr(g.transportadoras.join(', '))}` : ''}${g.identificadorViagemLinha ? ` · Identificador de viagem: ${escapeAttr(g.identificadorViagemLinha)}` : ''}</p>
           </div>
           <div class="auditoria-embarques-detalhe__grid">
@@ -5178,8 +5180,8 @@ const Dashboard = (() => {
             <div>
               <h4>Resultado</h4>
               <p>Status: <strong><span class="badge-status ${classe}">${label}</span></strong></p>
-              <p>Diferença de peso: <strong>${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3) + ' kg'}</strong></p>
-              <p>Diferença de valor: <strong>${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</strong></p>
+              <p>Diferença de peso (decide o status): <strong>${g.diferencaPeso == null ? '—' : Utils.formatNumber(g.diferencaPeso, 3) + ' kg'}</strong></p>
+              <p>Diferença de valor (informativo): <strong>${g.diferencaValor == null ? '—' : Utils.formatCurrency(g.diferencaValor)}</strong></p>
             </div>
           </div>
           <h4>Notas fiscais por viagem</h4>
