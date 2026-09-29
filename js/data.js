@@ -2391,18 +2391,20 @@ const DataStore = (() => {
       const estadoDestinoHeader = headerIndex['estado destino'];
       const freteCalcHeader = headerIndex['frete calculado'];
       const valorRealizadoHeader = headerIndex['valor realizado'];
-      const difFreteHeader = headerIndex['diferenca frete'];
-      // "Diferença de frete" é calculada pela PRÓPRIA USUÁRIA na planilha (confirmado por ela,
-      // 2026-09-10, ainda vale nesta fonte nova): quando a cobrança da transportadora ainda não
-      // chegou, ela deixa essa célula EM BRANCO (não um número negativo cheio). parseMoney('')
-      // devolveria 0 -- sem este tratamento à parte, uma linha "aguardando cobrança" virava
-      // indistinguível de uma diferença real igual a zero (exatamente o risco que ela avisou: não
-      // assumir que célula vazia = cobrou R$0). null = aguardando; qualquer outro valor (inclusive
-      // 0 de verdade, célula preenchida com "0") passa por parseMoney normalmente.
-      const difFreteRaw = difFreteHeader !== undefined ? row[difFreteHeader] : undefined;
-      const difFrete = (difFreteRaw === undefined || difFreteRaw === null || String(difFreteRaw).trim() === '')
-        ? null
-        : parseMoney(difFreteRaw);
+      // "Diferença de frete" (2026-09-29, revisado a pedido dela): DEIXOU de vir da planilha —
+      // agora é sempre CALCULADA aqui (Valor Realizado - Frete Calculado), nunca lida de uma
+      // célula que ela preenchia manualmente. Motivo: a coluna manual "Diferença de Frete" da
+      // planilha ficava em branco em quase toda linha nova (ela não estava mais preenchendo essa
+      // conta à mão), fazendo o site mostrar "Aguardando cobrança" mesmo quando "Valor Realizado"
+      // já tinha chegado e batia exato com o Frete Calculado.
+      // "Aguardando cobrança" continua existindo, só que agora é decidido pela ausência do
+      // PRÓPRIO "Valor Realizado" (célula em branco = cobrança ainda não chegou) — mesmo cuidado
+      // de antes (nunca tratar célula vazia como "cobrou R$0"), só que aplicado no campo certo.
+      const valorRealizadoRaw = valorRealizadoHeader !== undefined ? row[valorRealizadoHeader] : undefined;
+      const valorRealizadoVazio = valorRealizadoRaw === undefined || valorRealizadoRaw === null || String(valorRealizadoRaw).trim() === '';
+      const freteCalc = freteCalcHeader !== undefined ? parseMoney(row[freteCalcHeader]) : 0;
+      const valorRealizado = valorRealizadoVazio ? null : parseMoney(valorRealizadoRaw);
+      const difFrete = valorRealizado === null ? null : (valorRealizado - freteCalc);
       const serie = serieHeader !== undefined ? String(row[serieHeader] || '').trim() : '';
       lista.push({
         numeroCte,
@@ -2414,8 +2416,8 @@ const DataStore = (() => {
         estadoOrigem: estadoOrigemHeader !== undefined ? String(row[estadoOrigemHeader] || '').trim() : '',
         destino: destinoHeader !== undefined ? String(row[destinoHeader] || '').trim() : '',
         estadoDestino: estadoDestinoHeader !== undefined ? String(row[estadoDestinoHeader] || '').trim() : '',
-        freteCalc: freteCalcHeader !== undefined ? parseMoney(row[freteCalcHeader]) : 0,
-        valorRealizado: valorRealizadoHeader !== undefined ? parseMoney(row[valorRealizadoHeader]) : 0,
+        freteCalc,
+        valorRealizado,
         difFrete,
         chave: `${numeroCte}-${serie}-${indice}`
       });
