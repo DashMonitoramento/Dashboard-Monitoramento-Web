@@ -25,6 +25,9 @@ const DEFAULT_PEDIDO_X_NOTA_URL = 'assets/data/sample-data-pedido-x-nota.csv';
 const DEFAULT_HISTORICO_AGENDAMENTO_PEDIDOS_URL = 'assets/data/sample-data-pedidos-agendamento-historico.csv';
 const DEFAULT_INDICADOR_FRETE_URL = 'assets/data/sample-data-indicador-frete.csv';
 const DEFAULT_INDICADOR_FRETE_TRANSPORTADORA_URL = 'assets/data/sample-data-indicador-frete-transportadora.csv';
+// Fonte separada (2026-09-29) só pra Auditoria de Embarques — ver comentário de
+// parseIndicadorFreteRow (js/data.js) sobre por que não é mais o mesmo arquivo do indicador acima.
+const DEFAULT_EMBARQUES_AUDITORIA_URL = 'assets/data/sample-data-embarques-auditoria.csv';
 
 /* ============================================================
  * AUTENTICAÇÃO — Firebase Authentication (e-mail/senha)
@@ -373,6 +376,18 @@ async function loadIndicadorFreteTransportadoraDataSilently(cacheBust) {
   }
 }
 
+/** "Embarques Auditoria" (2026-09-29) — fonte Lincros separada, só pra Auditoria de Embarques
+ * (ver DEFAULT_EMBARQUES_AUDITORIA_URL acima). Opcional igual às outras duas: sem ela, a
+ * Auditoria de Embarques só fica vazia, não afeta mais nada do dashboard. */
+async function loadEmbarquesAuditoriaDataSilently(cacheBust) {
+  try {
+    const url = cacheBust ? `${DEFAULT_EMBARQUES_AUDITORIA_URL}?t=${Date.now()}` : DEFAULT_EMBARQUES_AUDITORIA_URL;
+    await DataStore.loadEmbarquesAuditoriaFromUrl(url, 'csv');
+  } catch (err) {
+    console.warn('Embarques Auditoria não carregado automaticamente:', err.message);
+  }
+}
+
 /** Índice de canhotos (gerado localmente por scripts/gerar-indice-canhotos.ps1) — opcional,
  * sem ele o clique na NF só mostra "Sem Canhoto" pra tudo. */
 async function loadCanhotosIndexSilently(cacheBust) {
@@ -525,6 +540,7 @@ async function loadInitialData() {
     await loadHistoricoAgendamentoPedidosDataSilently(false);
     await loadIndicadorFreteDataSilently(false);
     await loadIndicadorFreteTransportadoraDataSilently(false);
+    await loadEmbarquesAuditoriaDataSilently(false);
     // Índice de canhotos (~20MB) NÃO entra no await — não alimenta nenhum registro/gráfico/KPI,
     // só o Map usado quando ela clica numa NF pra abrir o comprovante (ver Dashboard.loadCanhotosIndex/
     // canhotosIndex). Bloquear o carregamento inteiro por causa dele só atrasava a tela aparecer
