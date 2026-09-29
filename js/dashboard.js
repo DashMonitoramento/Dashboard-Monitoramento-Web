@@ -5883,10 +5883,12 @@ const Dashboard = (() => {
   // pequena dele), 0,5% do calculado no meio.
   const TOLERANCIA_AUDITORIA_FRETE_TRANSPORTADORA = { minimo: 1, maximo: 50, percentual: 0.005 };
 
-  /** 3 estados pedidos pela usuária (2026-09-10): AGUARDANDO COBRANÇA (ainda não dá pra auditar
-   * — célula "Diferença de frete" veio em branco na planilha, ver comentário em data.js sobre
-   * NUNCA tratar isso como cobrou R$0), AUDITADO OK (cobrança recebida, dentro da tolerância) e
-   * DIVERGÊNCIA — cobrado_maior (positivo) ou cobrado_menor (negativo), fora da tolerância. */
+  /** 3 estados pedidos pela usuária (2026-09-10, revisado 2026-09-29): AGUARDANDO COBRANÇA
+   * (ainda não dá pra auditar — célula "Valor Realizado" veio em branco na planilha, ver
+   * comentário em data.js sobre NUNCA tratar isso como cobrou R$0), COBRANÇA CORRETA (chave
+   * "auditado_ok" — cobrança recebida, dentro da tolerância) e DIVERGÊNCIA — cobrado_maior
+   * (positivo) ou cobrado_menor (negativo), fora da tolerância. `item.difFrete` agora é sempre
+   * CALCULADO (Valor Realizado - Frete Calculado), nunca lido de uma célula manual. */
   function statusAuditoriaFreteTransportadora(item) {
     if (item.difFrete === null) return 'aguardando';
     const { minimo, maximo, percentual } = TOLERANCIA_AUDITORIA_FRETE_TRANSPORTADORA;
@@ -5897,7 +5899,7 @@ const Dashboard = (() => {
 
   const INDICADOR_FRETE_TRANSPORTADORA_STATUS_BADGE = {
     aguardando: { classe: 'badge--warning', texto: '🟡 Aguardando cobrança' },
-    auditado_ok: { classe: 'badge--info', texto: '🔵 Auditado OK' },
+    auditado_ok: { classe: 'badge--info', texto: '🔵 Cobrança Correta' },
     cobrado_maior: { classe: 'badge--danger', texto: '🔴 Cobrado a maior' },
     cobrado_menor: { classe: 'badge--success', texto: '🟢 Cobrado a menor' }
   };
@@ -5908,7 +5910,7 @@ const Dashboard = (() => {
     aguardando: 'Aguardando cobrança',
     cobrado_maior: 'Cobrado a maior',
     cobrado_menor: 'Cobrado a menor',
-    auditado_ok: 'Auditado OK'
+    auditado_ok: 'Cobrança Correta'
   };
   // Filtro por clique na rosca de Status (2026-09-10, Fase 2) — LOCAL, só afeta a TABELA de
   // detalhamento (mesmo espírito de indicadorFreteRegiaoSelecionada no relatório irmão): os
