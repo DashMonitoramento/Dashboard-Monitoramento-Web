@@ -194,8 +194,35 @@ const FIELD_ALIASES = {
   // e applyBluesoftEnrichment/applyRetornoEnrichment).
   categoriaTransporte: ['categoria', 'categoria transporte'],
   cnpj: ['cnpj'],
-  motivo: ['motivo']
+  motivo: ['motivo'],
+  // Número real da Viagem/Roteiro (2026-09-29, pedido da usuária — Auditoria de Embarques) —
+  // DIFERENTE de "viagem" acima, que é o STATUS da viagem ("Finalizado"/"Em trânsito"). Vem da
+  // Lincros (dados_roteiro.json, campo roteiro_entrega[viagem]) via atualizar-bluesoft-lincros.js.
+  numeroViagem: ['numero viagem']
 };
+
+/** Extrai o(s) número(s) real(is) de Viagem do texto cru da coluna "Identificador" do
+ * Indicador de Frete (2026-09-29) — formato inconsistente na fonte (Lincros), confirmado com
+ * amostra real: "VIAGEM 430518", "VIAGEM - 452459", "453447" (número puro), "437.210" (ponto
+ * como separador de milhar, não decimal), "SERGIO ALEXANDRE SILVA 447468" (nome + número). Um
+ * Embarque pode consolidar mais de uma Viagem (reentrega que não junta com as entregas novas,
+ * confirmado pela usuária) — nesse caso o texto vem com "/" entre os números (ex.:
+ * "452459/452457"): cada pedaço separado por "/" é tratado como uma Viagem própria. Pega só o
+ * ÚLTIMO grupo de dígitos de cada pedaço (o texto/nome sempre vem ANTES do número, nunca depois,
+ * confirmado na amostra), removendo pontos internos antes de devolver. Devolve lista vazia se o
+ * texto for vazio ou não tiver nenhum dígito. */
+function parseIdentificadorViagem(textoCru) {
+  const texto = String(textoCru || '').trim();
+  if (!texto) return [];
+  const numeros = [];
+  for (const pedaco of texto.split('/')) {
+    const grupos = pedaco.match(/\d[\d.]*\d|\d/g);
+    if (!grupos || !grupos.length) continue;
+    const numero = grupos[grupos.length - 1].replace(/\./g, '');
+    if (numero) numeros.push(numero);
+  }
+  return Array.from(new Set(numeros));
+}
 
 function normalizeHeaderKey(header) {
   return String(header)
@@ -433,6 +460,9 @@ function normalizeRecord(rawRow) {
     // Status de Viagem ("Finalizado"/"Em trânsito"/etc.) — só existe pra registros vindos da
     // Base Bluesoft (ver applyBluesoftEnrichment/removerNotasComViagemFinalizadaMasEmAberto).
     viagem: '',
+    // Número real da Viagem/Roteiro na Lincros (2026-09-29) — idem, só Base Bluesoft. Usado
+    // pra cruzar com precisão contra o Indicador de Frete (ver calcularAuditoriaEmbarques).
+    numeroViagem: '',
     // "Peso Bruto" (2026-09-08) — idem, só existe pra registros vindos da Base Bluesoft. null =
     // sem dado (CSV antigo sem essa coluna, ou linha sem peso na planilha), não 0.
     peso: null,
@@ -806,6 +836,8 @@ const DataStore = (() => {
       // removerNotasComViagemFinalizadaMasEmAberto, mais abaixo.
       const viagemHeader = headerIndex['viagem'];
       const viagemRaw = viagemHeader !== undefined ? String(row[viagemHeader] || '').trim() : '';
+      // "Numero Viagem" (2026-09-29) — coluna opcional nova, mesmo padrão das outras acima.
+      const numeroViagemRaw = pickField(row, headerIndex, 'numeroViagem') || '';
       // "Peso Bruto" (2026-09-08, pedido da usuária pra "Controle de Despesas Extra") — mesmo
       // padrão de coluna opcional de Viagem acima; CSVs antigos sem essa coluna ficam com ''.
       const pesoBrutoHeader = headerIndex['peso bruto'];
@@ -838,6 +870,7 @@ const DataStore = (() => {
         cnpj: pickField(row, headerIndex, 'cnpj'),
         necessitaAgendamento: parseObrigaAgendamentoBluesoft(agendadoRaw),
         viagem: viagemRaw,
+        numeroViagem: numeroViagemRaw,
         dataCriacao: dataCriacaoRaw,
         dataEntregaNF: dataEntregaNFRaw,
         dataFaturamentoBluesoft: dataFaturamentoBluesoftRaw,
@@ -970,6 +1003,7 @@ const DataStore = (() => {
       // e no card "Total geral de notas", que continuam por critério antigo de propósito).
       r.dataUltimaTentativaBluesoft = bluesoftDataColetaMaisRecentePorBaseNF.get(r.nf.split('-')[0]) || null;
       r.viagem = info.viagem || '';
+      r.numeroViagem = info.numeroViagem || '';
       if (info.pesoBruto) r.peso = parseMoney(info.pesoBruto);
       if (info.dataCriacao) r.dataCriacao = Utils.parseDate(info.dataCriacao);
       if (info.dataEntregaNF) r.dataEntregaNF = Utils.parseDate(info.dataEntregaNF);
@@ -1027,6 +1061,7 @@ const DataStore = (() => {
         dataInicioViagem: Utils.parseDate(info.dataEntrega),
         dataUltimaTentativaBluesoft: bluesoftDataColetaMaisRecentePorBaseNF.get(baseNf) || null,
         viagem: info.viagem || '',
+        numeroViagem: info.numeroViagem || '',
         peso: info.pesoBruto ? parseMoney(info.pesoBruto) : null,
         dataCriacao: Utils.parseDate(info.dataCriacao),
         dataEntregaNF: Utils.parseDate(info.dataEntregaNF),
@@ -2033,8 +2068,12 @@ const DataStore = (() => {
       const capacidadeMaxKgHeader = headerIndex['capacidade maxima kg'];
       const capacidadeVolumesHeader = headerIndex['capacidade volumes'];
       // 3 colunas novas (2026-09-14, "Auditoria de Embarques") — já existiam na planilha, só
-      // nunca tinham sido extraídas. `identificadorViagem` vem vazio na maioria das linhas
-      // (confirmado por print real dela) — nunca usar como chave única de cruzamento.
+      // nunca tinham sido extraídas. `identificadorViagem` vinha vazio na maioria das linhas
+      // na fonte antiga (aba manual) — na fonte atual ("Embarques Lincros.xlsx", 2026-09-29)
+      // vem preenchido em ~97% das linhas e virou a CHAVE PRIMÁRIA de cruzamento da Auditoria
+      // de Embarques (ver `numerosViagem`/parseIdentificadorViagem abaixo e
+      // calcularAuditoriaEmbarques) — Peso+Data (±2 dias) continua só como fallback pras
+      // linhas sem Identificador.
       const transportadoraHeader = headerIndex['transportador'];
       const dataCriacaoHeader = headerIndex['data criacao'];
       const identificadorViagemHeader = headerIndex['identificador viagem'];
@@ -2060,7 +2099,8 @@ const DataStore = (() => {
         capacidadeVolumes: capacidadeVolumesHeader !== undefined && row[capacidadeVolumesHeader] !== '' ? parseMoney(row[capacidadeVolumesHeader]) : null,
         transportadora: transportadoraHeader !== undefined ? (String(row[transportadoraHeader] || '').trim() || null) : null,
         dataCriacao: dataCriacaoHeader !== undefined && row[dataCriacaoHeader] !== '' ? Utils.parseDate(row[dataCriacaoHeader]) : null,
-        identificadorViagem: identificadorViagemHeader !== undefined ? (String(row[identificadorViagemHeader] || '').trim() || null) : null
+        identificadorViagem: identificadorViagemHeader !== undefined ? (String(row[identificadorViagemHeader] || '').trim() || null) : null,
+        numerosViagem: identificadorViagemHeader !== undefined ? parseIdentificadorViagem(row[identificadorViagemHeader]) : []
       });
     }
     indicadorFreteRecords = lista;
@@ -2073,9 +2113,29 @@ const DataStore = (() => {
 
   /** "Auditoria de Embarques" (2026-09-14) — verifica se toda viagem já COLETADA (Base
    * Bluesoft) teve o embarque correspondente criado no "Indicador de Frete", comparando Peso
-   * consolidado. Chave: placa normalizada + data, só a parte de data, sem hora.
+   * consolidado. Grupo Bluesoft: placa normalizada + data (só a parte de data, sem hora).
    *
-   * **Reescrita 2026-09-28 (pedido explícito dela, 2 problemas reportados juntos)**: o
+   * **Cruzamento por número de Viagem (2026-09-29, pedido explícito dela)**: virou a chave
+   * PRIMÁRIA — ela reportou um caso real (placa FDZ6C96) onde o heurístico de Peso+Data (ver
+   * changelog 2026-09-28 abaixo) cruzou um grupo Bluesoft com o Embarque de uma viagem
+   * DIFERENTE, só porque as duas aconteceram com a mesma placa em dias próximos e pesos
+   * parecidos — sem visão do número da nota/viagem, o heurístico não tinha como saber que
+   * estava roubando o embarque errado. Agora: `r.numeroViagem` (Base Bluesoft, extraído de
+   * `dados_roteiro.json`/`roteiro_entrega[viagem]` em atualizar-bluesoft-lincros.js) é cruzado
+   * contra `i.numerosViagem` (Indicador de Frete, coluna "Identificador" do relatório manual
+   * "Embarques Lincros.xlsx" — ver Extrair-IndicadorFrete/Ler-IdentificadorPorEmbarque em
+   * atualizar-dados-dashboard.ps1 e parseIdentificadorViagem acima). Validado com os 2 números
+   * reais da conversa: NFs 199138-141 → viagem 453653 → Embarque 6179938 (peso bate EXATO,
+   * 2.458,205kg os dois lados); NFs 199470-473 → viagem 452459 → Embarque 6185005 (peso bate
+   * EXATO, 2.107,569kg) — o MESMO Embarque que o heurístico de Peso+Data tinha atribuído
+   * errado ao primeiro grupo. Só cai pro heurístico de Peso+Data quando não há número de
+   * Viagem de nenhum dos 2 lados pra esse grupo (ela ainda não colou "Embarques Lincros.xlsx"
+   * hoje — atualiza manualmente, pelo menos 2x/dia — ou a Base Bluesoft não tem
+   * `roteiro_entrega[viagem]` pra essa NF) — nesse caso o resultado é o mesmo de antes, só
+   * menos preciso. `grupo.matchViaViagem` (true/false) fica exposto pra dashboard.js mostrar
+   * qual dos dois cruzamentos foi usado.
+   *
+   * **Changelog 2026-09-28 (heurístico de Peso+Data, ainda em uso como reserva)**: o
    * cruzamento EXATO por dia (chave corrigida em 2026-09-18, ver changelog abaixo) parecia certo
    * nos 2 casos que ela validou na época, mas gerava um volume enorme de falso "Não criado" e
    * "Incompleto" — medido direto nos dados reais de Setembro/2026 (categoria Agregado):
@@ -2139,15 +2199,27 @@ const DataStore = (() => {
       gruposBluesoft.get(chave).registros.push(r);
     }
 
-    // Indexado por placa+dia EXATO do lado do Indicador de Frete — a janela de tolerância (ver
-    // comentário da função) é aplicada na hora de CRUZAR, abaixo, testando várias chaves deste
-    // Map, não aqui na indexação.
+    // Indexado por placa+dia EXATO do lado do Indicador de Frete — usado só como RESERVA (ver
+    // comentário da função) quando o cruzamento primário por número de Viagem, abaixo, não
+    // encontra nada; a janela de tolerância é aplicada na hora de CRUZAR, testando várias
+    // chaves deste Map, não aqui na indexação.
     const indicadorPorChave = new Map(); // chave -> item[]
     for (const i of indicadorFreteRecords) {
       if (!i.placa || !i.dataEmbarque) continue;
       const chave = `${i.placa}|${Utils.startOfDay(i.dataEmbarque).getTime()}`;
       if (!indicadorPorChave.has(chave)) indicadorPorChave.set(chave, []);
       indicadorPorChave.get(chave).push(i);
+    }
+
+    // Índice por NÚMERO DE VIAGEM (2026-09-29) — chave PRIMÁRIA de cruzamento, ver comentário
+    // da função. Lista (não item único) porque, em teoria, o mesmo número pode aparecer em mais
+    // de 1 linha do Indicador de Frete (erro de digitação/duplicidade na fonte).
+    const indicadorPorViagemNumero = new Map(); // numero (string) -> item[]
+    for (const i of indicadorFreteRecords) {
+      for (const numero of i.numerosViagem) {
+        if (!indicadorPorViagemNumero.has(numero)) indicadorPorViagemNumero.set(numero, []);
+        indicadorPorViagemNumero.get(numero).push(i);
+      }
     }
 
     const grupos = [];
@@ -2166,23 +2238,53 @@ const DataStore = (() => {
       }
       const viagens = Array.from(viagensMap.values());
 
-      // Testa a janela de ±N dias ao redor da Data de Entrega da Bluesoft e fica com o dia cujo
-      // Peso do Indicador de Frete fica mais PRÓXIMO do Peso da Bluesoft (não o primeiro achado)
-      // — ver comentário da função. delta=0 (mesmo dia) continua sendo testado normalmente, só
-      // deixou de ser o único candidato.
+      // Cruzamento PRIMÁRIO: por número de Viagem (exato — ver comentário da função). Só cai
+      // pro heurístico de Peso+Data (abaixo) quando a Bluesoft não tem número de viagem pra
+      // nenhuma nota do grupo, ou quando nenhum Embarque do Indicador de Frete reconhece esse
+      // número ainda (ela ainda não colou "Embarques Lincros.xlsx" hoje, ou a viagem não tem
+      // embarque de verdade).
       let itensIndicador = [];
       let diferencaDias = null;
-      let melhorDiferencaAbs = null;
-      for (let delta = -AUDITORIA_EMBARQUES_JANELA_DIAS; delta <= AUDITORIA_EMBARQUES_JANELA_DIAS; delta++) {
-        const chaveTeste = `${g.placa}|${g.data.getTime() + delta * 86400000}`;
-        const itensTeste = indicadorPorChave.get(chaveTeste);
-        if (!itensTeste || !itensTeste.length) continue;
-        const pesoTeste = Utils.sum(itensTeste, i => i.peso);
-        const diffAbs = Math.abs(pesoBluesoft - pesoTeste);
-        if (melhorDiferencaAbs === null || diffAbs < melhorDiferencaAbs) {
-          melhorDiferencaAbs = diffAbs;
-          itensIndicador = itensTeste;
-          diferencaDias = delta;
+      let matchViaViagem = false;
+      const numerosViagemGrupo = Utils.uniqueSorted(g.registros.map(r => String(r.numeroViagem || '').trim()).filter(Boolean));
+      if (numerosViagemGrupo.length) {
+        const embarquesEncontrados = new Set();
+        const itensEncontrados = [];
+        for (const numero of numerosViagemGrupo) {
+          const itens = indicadorPorViagemNumero.get(numero);
+          if (!itens) continue;
+          for (const item of itens) {
+            if (embarquesEncontrados.has(item.embarque)) continue;
+            embarquesEncontrados.add(item.embarque);
+            itensEncontrados.push(item);
+          }
+        }
+        // Só confia no cruzamento por Viagem quando aponta pra UM embarque só — se os números de
+        // viagem deste grupo apontam pra Embarques DIFERENTES (dado ambíguo/duplicado na fonte),
+        // não arrisca escolher: cai pro heurístico de Peso+Data abaixo, igual quando não achou nada.
+        if (embarquesEncontrados.size === 1) {
+          itensIndicador = itensEncontrados;
+          matchViaViagem = true;
+          diferencaDias = Math.round((Utils.startOfDay(itensIndicador[0].dataEmbarque).getTime() - g.data.getTime()) / 86400000);
+        }
+      }
+
+      // Cruzamento de RESERVA: testa a janela de ±N dias ao redor da Data de Entrega da
+      // Bluesoft e fica com o dia cujo Peso do Indicador de Frete fica mais PRÓXIMO do Peso da
+      // Bluesoft (não o primeiro achado) — ver comentário da função (fase 2026-09-28).
+      if (!matchViaViagem) {
+        let melhorDiferencaAbs = null;
+        for (let delta = -AUDITORIA_EMBARQUES_JANELA_DIAS; delta <= AUDITORIA_EMBARQUES_JANELA_DIAS; delta++) {
+          const chaveTeste = `${g.placa}|${g.data.getTime() + delta * 86400000}`;
+          const itensTeste = indicadorPorChave.get(chaveTeste);
+          if (!itensTeste || !itensTeste.length) continue;
+          const pesoTeste = Utils.sum(itensTeste, i => i.peso);
+          const diffAbs = Math.abs(pesoBluesoft - pesoTeste);
+          if (melhorDiferencaAbs === null || diffAbs < melhorDiferencaAbs) {
+            melhorDiferencaAbs = diffAbs;
+            itensIndicador = itensTeste;
+            diferencaDias = delta;
+          }
         }
       }
 
@@ -2203,7 +2305,7 @@ const DataStore = (() => {
       grupos.push({
         chave, placa: g.placa, placaOriginal: g.placaOriginal, data: g.data, status,
         pesoBluesoft, valorBluesoft, pesoEmbarque, valorEmbarque, diferencaPeso, diferencaValor,
-        diferencaDias,
+        diferencaDias, matchViaViagem,
         embarques: Utils.uniqueSorted(itensIndicador.map(i => i.embarque)),
         transportadoras: Utils.uniqueSorted(itensIndicador.map(i => i.transportadora)),
         identificadoresViagem: Utils.uniqueSorted(itensIndicador.map(i => i.identificadorViagem)),
