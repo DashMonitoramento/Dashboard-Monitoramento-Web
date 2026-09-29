@@ -2029,84 +2029,105 @@ const DataStore = (() => {
     notify();
   }
 
-  /** Ver comentário de `indicadorFreteRecords` acima. Placa normalizada (maiúscula, só letras/
-   * números) igual ao resto do dashboard, pra casar de forma confiável com r.placa na hora de
-   * cruzar. Linha sem Placa ou sem Data Embarque é ignorada (não dá pra cruzar sem os dois). */
+  /** Parser compartilhado por `indexIndicadorFreteRows` (aba manual "Indicador de Frete", volta
+   * 2026-09-29 — telas de KPI "Indicador de Frete") e `indexEmbarquesAuditoriaRows` (fonte
+   * Lincros, agregados_lincros.xlsx + "Embarques Lincros.xlsx" — só a Auditoria de Embarques,
+   * ver comentário de calcularAuditoriaEmbarques) — MESMO layout de coluna nos dois CSVs de
+   * saída (Extrair-IndicadorFrete/Extrair-EmbarquesAuditoria em atualizar-dados-dashboard.ps1),
+   * só a origem/atualização de cada um é diferente, por pedido explícito dela (2026-09-29): os
+   * números da Lincros não bateram com os relatórios dela em "Indicador de Frete" (Total Valor
+   * Frete/Peso etc.), então essa tela voltou a ler da planilha manual — só a Auditoria de
+   * Embarques (que valida existência/peso de embarque, não soma pra KPI de custo) continua na
+   * Lincros, que ela validou como correta pra esse uso específico.
+   * Placa normalizada (maiúscula, só letras/números) igual ao resto do dashboard, pra casar de
+   * forma confiável com r.placa na hora de cruzar. Linha sem Placa ou sem Data Embarque é
+   * ignorada (`null`, filtrado pelos callers) — não dá pra cruzar sem os dois. */
+  function parseIndicadorFreteRow(row) {
+    const headerIndex = buildHeaderIndex(row);
+    const placaHeader = headerIndex['placa'];
+    const placaRaw = placaHeader !== undefined ? String(row[placaHeader] || '').trim() : '';
+    const placa = placaRaw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!placa) return null;
+    const dataEmbarqueHeader = headerIndex['data embarque'];
+    const dataEmbarque = dataEmbarqueHeader !== undefined ? Utils.parseDate(row[dataEmbarqueHeader]) : null;
+    if (!dataEmbarque) return null;
+    const embarqueHeader = headerIndex['embarque'];
+    const cidadeDestinoHeader = headerIndex['cidade destino'];
+    const valorFreteHeader = headerIndex['valor frete calculado'];
+    const pesoHeader = headerIndex['peso'];
+    const volumesHeader = headerIndex['volumes'];
+    // Nome do cabeçalho no CSV é "Valor Total NFs" (sem "das") — ver comentário em
+    // Extrair-IndicadorFrete (atualizar-dados-dashboard.ps1) sobre o descompasso que já
+    // zerou essa coluna uma vez (2026-09-09): o texto aqui tem que bater com o CABEÇALHO DO
+    // CSV, não com o nome da coluna na planilha original dela.
+    const valorNFsHeader = headerIndex['valor total nfs'];
+    // Campos opcionais (2026-09-10) — AINDA NÃO existem na aba/CSV hoje ("vou implementar no
+    // futuro", ela mesma disse). `null` quando a coluna não existe (nem na planilha, nem por
+    // tabela ainda ter sido regerada com o CSV novo) — diferente de 0, que seria "existe e é
+    // zero". Nenhuma tela usa esses campos ainda; é só scaffolding pra quando ela adicionar as
+    // colunas "Pedágio"/"Descarga"/"Diária"/"Tipo de Veículo"/"Capacidade Máxima Kg"/
+    // "Capacidade Volumes" na planilha (ver Extrair-IndicadorFrete em
+    // atualizar-dados-dashboard.ps1) — nesse momento: custoTotalViagem = valorFrete +
+    // (pedagio||0) + (descarga||0) + (diaria||0); ocupacaoVeiculo = peso/capacidadeMaxKg*100.
+    const pedagioHeader = headerIndex['pedagio'];
+    const descargaHeader = headerIndex['descarga'];
+    const diariaHeader = headerIndex['diaria'];
+    const tipoVeiculoHeader = headerIndex['tipo de veiculo'];
+    const capacidadeMaxKgHeader = headerIndex['capacidade maxima kg'];
+    const capacidadeVolumesHeader = headerIndex['capacidade volumes'];
+    // "identificadorViagem" (2026-09-14, "Auditoria de Embarques") — vazio quase sempre na aba
+    // manual (Indicador de Frete); preenchido em ~97% das linhas na fonte Lincros (Embarques
+    // Auditoria) — só ESSA é usada como chave de cruzamento (ver numerosViagem/
+    // parseIdentificadorViagem e calcularAuditoriaEmbarques).
+    const transportadoraHeader = headerIndex['transportador'];
+    const dataCriacaoHeader = headerIndex['data criacao'];
+    const identificadorViagemHeader = headerIndex['identificador viagem'];
+    return {
+      placa,
+      dataEmbarque,
+      embarque: embarqueHeader !== undefined ? String(row[embarqueHeader] || '').trim() : '',
+      cidadeDestino: cidadeDestinoHeader !== undefined ? String(row[cidadeDestinoHeader] || '').trim() : '',
+      valorFrete: valorFreteHeader !== undefined ? parseMoney(row[valorFreteHeader]) : 0,
+      peso: pesoHeader !== undefined ? parseMoney(row[pesoHeader]) : 0,
+      volumes: volumesHeader !== undefined ? parseMoney(row[volumesHeader]) : 0,
+      valorTotalNFs: valorNFsHeader !== undefined ? parseMoney(row[valorNFsHeader]) : 0,
+      // Célula presente mas vazia (coluna já existe no CSV, mas ela ainda não preencheu essa
+      // viagem) também vira null, não 0 — 0 significaria "existe e é zero", que é diferente de
+      // "ainda sem dado". Sem esse cuidado, o CSV novo (cabeçalho já com as 6 colunas, valores
+      // em branco) faria parseMoney('') virar 0 pra TODA viagem assim que ela rodasse o script
+      // de novo, e a futura tela acharia (errado) que já existe dado de Pedágio pra somar.
+      pedagio: pedagioHeader !== undefined && row[pedagioHeader] !== '' ? parseMoney(row[pedagioHeader]) : null,
+      descarga: descargaHeader !== undefined && row[descargaHeader] !== '' ? parseMoney(row[descargaHeader]) : null,
+      diaria: diariaHeader !== undefined && row[diariaHeader] !== '' ? parseMoney(row[diariaHeader]) : null,
+      tipoVeiculo: tipoVeiculoHeader !== undefined ? (String(row[tipoVeiculoHeader] || '').trim() || null) : null,
+      capacidadeMaxKg: capacidadeMaxKgHeader !== undefined && row[capacidadeMaxKgHeader] !== '' ? parseMoney(row[capacidadeMaxKgHeader]) : null,
+      capacidadeVolumes: capacidadeVolumesHeader !== undefined && row[capacidadeVolumesHeader] !== '' ? parseMoney(row[capacidadeVolumesHeader]) : null,
+      transportadora: transportadoraHeader !== undefined ? (String(row[transportadoraHeader] || '').trim() || null) : null,
+      dataCriacao: dataCriacaoHeader !== undefined && row[dataCriacaoHeader] !== '' ? Utils.parseDate(row[dataCriacaoHeader]) : null,
+      identificadorViagem: identificadorViagemHeader !== undefined ? (String(row[identificadorViagemHeader] || '').trim() || null) : null,
+      numerosViagem: identificadorViagemHeader !== undefined ? parseIdentificadorViagem(row[identificadorViagemHeader]) : []
+    };
+  }
+
   function indexIndicadorFreteRows(rawRows) {
-    const lista = [];
-    for (const row of rawRows) {
-      const headerIndex = buildHeaderIndex(row);
-      const placaHeader = headerIndex['placa'];
-      const placaRaw = placaHeader !== undefined ? String(row[placaHeader] || '').trim() : '';
-      const placa = placaRaw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (!placa) continue;
-      const dataEmbarqueHeader = headerIndex['data embarque'];
-      const dataEmbarque = dataEmbarqueHeader !== undefined ? Utils.parseDate(row[dataEmbarqueHeader]) : null;
-      if (!dataEmbarque) continue;
-      const embarqueHeader = headerIndex['embarque'];
-      const cidadeDestinoHeader = headerIndex['cidade destino'];
-      const valorFreteHeader = headerIndex['valor frete calculado'];
-      const pesoHeader = headerIndex['peso'];
-      const volumesHeader = headerIndex['volumes'];
-      // Nome do cabeçalho no CSV é "Valor Total NFs" (sem "das") — ver comentário em
-      // Extrair-IndicadorFrete (atualizar-dados-dashboard.ps1) sobre o descompasso que já
-      // zerou essa coluna uma vez (2026-09-09): o texto aqui tem que bater com o CABEÇALHO DO
-      // CSV, não com o nome da coluna na planilha original dela.
-      const valorNFsHeader = headerIndex['valor total nfs'];
-      // Campos opcionais (2026-09-10) — AINDA NÃO existem na aba/CSV hoje ("vou implementar no
-      // futuro", ela mesma disse). `null` quando a coluna não existe (nem na planilha, nem por
-      // tabela ainda ter sido regerada com o CSV novo) — diferente de 0, que seria "existe e é
-      // zero". Nenhuma tela usa esses campos ainda; é só scaffolding pra quando ela adicionar as
-      // colunas "Pedágio"/"Descarga"/"Diária"/"Tipo de Veículo"/"Capacidade Máxima Kg"/
-      // "Capacidade Volumes" na planilha (ver Extrair-IndicadorFrete em
-      // atualizar-dados-dashboard.ps1) — nesse momento: custoTotalViagem = valorFrete +
-      // (pedagio||0) + (descarga||0) + (diaria||0); ocupacaoVeiculo = peso/capacidadeMaxKg*100.
-      const pedagioHeader = headerIndex['pedagio'];
-      const descargaHeader = headerIndex['descarga'];
-      const diariaHeader = headerIndex['diaria'];
-      const tipoVeiculoHeader = headerIndex['tipo de veiculo'];
-      const capacidadeMaxKgHeader = headerIndex['capacidade maxima kg'];
-      const capacidadeVolumesHeader = headerIndex['capacidade volumes'];
-      // 3 colunas novas (2026-09-14, "Auditoria de Embarques") — já existiam na planilha, só
-      // nunca tinham sido extraídas. `identificadorViagem` vinha vazio na maioria das linhas
-      // na fonte antiga (aba manual) — na fonte atual ("Embarques Lincros.xlsx", 2026-09-29)
-      // vem preenchido em ~97% das linhas e virou a CHAVE PRIMÁRIA de cruzamento da Auditoria
-      // de Embarques (ver `numerosViagem`/parseIdentificadorViagem abaixo e
-      // calcularAuditoriaEmbarques) — Peso+Data (±2 dias) continua só como fallback pras
-      // linhas sem Identificador.
-      const transportadoraHeader = headerIndex['transportador'];
-      const dataCriacaoHeader = headerIndex['data criacao'];
-      const identificadorViagemHeader = headerIndex['identificador viagem'];
-      lista.push({
-        placa,
-        dataEmbarque,
-        embarque: embarqueHeader !== undefined ? String(row[embarqueHeader] || '').trim() : '',
-        cidadeDestino: cidadeDestinoHeader !== undefined ? String(row[cidadeDestinoHeader] || '').trim() : '',
-        valorFrete: valorFreteHeader !== undefined ? parseMoney(row[valorFreteHeader]) : 0,
-        peso: pesoHeader !== undefined ? parseMoney(row[pesoHeader]) : 0,
-        volumes: volumesHeader !== undefined ? parseMoney(row[volumesHeader]) : 0,
-        valorTotalNFs: valorNFsHeader !== undefined ? parseMoney(row[valorNFsHeader]) : 0,
-        // Célula presente mas vazia (coluna já existe no CSV, mas ela ainda não preencheu essa
-        // viagem) também vira null, não 0 — 0 significaria "existe e é zero", que é diferente de
-        // "ainda sem dado". Sem esse cuidado, o CSV novo (cabeçalho já com as 6 colunas, valores
-        // em branco) faria parseMoney('') virar 0 pra TODA viagem assim que ela rodasse o script
-        // de novo, e a futura tela acharia (errado) que já existe dado de Pedágio pra somar.
-        pedagio: pedagioHeader !== undefined && row[pedagioHeader] !== '' ? parseMoney(row[pedagioHeader]) : null,
-        descarga: descargaHeader !== undefined && row[descargaHeader] !== '' ? parseMoney(row[descargaHeader]) : null,
-        diaria: diariaHeader !== undefined && row[diariaHeader] !== '' ? parseMoney(row[diariaHeader]) : null,
-        tipoVeiculo: tipoVeiculoHeader !== undefined ? (String(row[tipoVeiculoHeader] || '').trim() || null) : null,
-        capacidadeMaxKg: capacidadeMaxKgHeader !== undefined && row[capacidadeMaxKgHeader] !== '' ? parseMoney(row[capacidadeMaxKgHeader]) : null,
-        capacidadeVolumes: capacidadeVolumesHeader !== undefined && row[capacidadeVolumesHeader] !== '' ? parseMoney(row[capacidadeVolumesHeader]) : null,
-        transportadora: transportadoraHeader !== undefined ? (String(row[transportadoraHeader] || '').trim() || null) : null,
-        dataCriacao: dataCriacaoHeader !== undefined && row[dataCriacaoHeader] !== '' ? Utils.parseDate(row[dataCriacaoHeader]) : null,
-        identificadorViagem: identificadorViagemHeader !== undefined ? (String(row[identificadorViagemHeader] || '').trim() || null) : null,
-        numerosViagem: identificadorViagemHeader !== undefined ? parseIdentificadorViagem(row[identificadorViagemHeader]) : []
-      });
-    }
-    indicadorFreteRecords = lista;
+    indicadorFreteRecords = rawRows.map(parseIndicadorFreteRow).filter(Boolean);
   }
 
   function getIndicadorFrete() { return indicadorFreteRecords.slice(); }
+
+  /** Fonte separada (2026-09-29) só pra Auditoria de Embarques — ver comentário de
+   * parseIndicadorFreteRow/calcularAuditoriaEmbarques sobre por que não é mais a mesma fonte
+   * de `indicadorFreteRecords` (tela "Indicador de Frete"). */
+  let embarquesAuditoriaRecords = [];
+  async function loadEmbarquesAuditoriaFromUrl(url, format = 'csv') {
+    const adapter = DataAdapters[format];
+    const rawRows = await adapter.loadFromUrl(url);
+    indexEmbarquesAuditoriaRows(rawRows);
+    notify();
+  }
+  function indexEmbarquesAuditoriaRows(rawRows) {
+    embarquesAuditoriaRecords = rawRows.map(parseIndicadorFreteRow).filter(Boolean);
+  }
 
   const AUDITORIA_EMBARQUES_JANELA_DIAS = 2;
   const AUDITORIA_EMBARQUES_TOLERANCIA_PESO = 10; // kg — ver comentário 2026-09-28 abaixo.
@@ -2204,7 +2225,7 @@ const DataStore = (() => {
     // encontra nada; a janela de tolerância é aplicada na hora de CRUZAR, testando várias
     // chaves deste Map, não aqui na indexação.
     const indicadorPorChave = new Map(); // chave -> item[]
-    for (const i of indicadorFreteRecords) {
+    for (const i of embarquesAuditoriaRecords) {
       if (!i.placa || !i.dataEmbarque) continue;
       const chave = `${i.placa}|${Utils.startOfDay(i.dataEmbarque).getTime()}`;
       if (!indicadorPorChave.has(chave)) indicadorPorChave.set(chave, []);
@@ -2215,7 +2236,7 @@ const DataStore = (() => {
     // da função. Lista (não item único) porque, em teoria, o mesmo número pode aparecer em mais
     // de 1 linha do Indicador de Frete (erro de digitação/duplicidade na fonte).
     const indicadorPorViagemNumero = new Map(); // numero (string) -> item[]
-    for (const i of indicadorFreteRecords) {
+    for (const i of embarquesAuditoriaRecords) {
       for (const numero of i.numerosViagem) {
         if (!indicadorPorViagemNumero.has(numero)) indicadorPorViagemNumero.set(numero, []);
         indicadorPorViagemNumero.get(numero).push(i);
@@ -2927,6 +2948,7 @@ const DataStore = (() => {
     loadHistoricoAgendamentoPedidosFromUrl, loadHistoricoAgendamentoPedidosFromFile,
     applyClienteObservacaoDescarga, normalizeClienteKey,
     loadIndicadorFreteFromUrl, loadIndicadorFreteFromFile, getIndicadorFrete, calcularPeriodoAnterior,
+    loadEmbarquesAuditoriaFromUrl,
     calcularAuditoriaEmbarques,
     loadIndicadorFreteTransportadoraFromUrl, loadIndicadorFreteTransportadoraFromFile, getIndicadorFreteTransportadora,
     getDistinctValuesIndicadorFreteTransportadora,
