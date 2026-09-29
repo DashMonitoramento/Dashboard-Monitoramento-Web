@@ -5163,6 +5163,7 @@ const Dashboard = (() => {
           <div class="auditoria-embarques-detalhe__bloco">
             <h4>Auditoria do embarque</h4>
             <p>Placa: <strong>${escapeAttr(g.placaOriginal)}</strong> · Data de coleta (Bluesoft): <strong>${escapeAttr(g.data.toLocaleDateString('pt-BR'))}</strong>${g.diferencaDias ? ` · Embarque encontrado em: <strong>${escapeAttr(new Date(g.data.getTime() + g.diferencaDias * 86400000).toLocaleDateString('pt-BR'))}</strong> (${g.diferencaDias > 0 ? `${g.diferencaDias} dia(s) depois` : `${Math.abs(g.diferencaDias)} dia(s) antes`})` : ''}</p>
+            <p>Cruzamento: <strong>${g.matchViaViagem ? 'por número de Viagem (exato)' : 'por Peso mais próximo dentro de ±2 dias (aproximado)'}</strong></p>
             <p>Viagens: ${g.qtdViagensLinha == null ? '—' : g.qtdViagensLinha} · NFs: ${g.qtdNfs}${g.transportadoras.length ? ` · Transportador(es) no embarque: ${escapeAttr(g.transportadoras.join(', '))}` : ''}${g.identificadorViagemLinha ? ` · Identificador de viagem: ${escapeAttr(g.identificadorViagemLinha)}` : ''}</p>
           </div>
           <div class="auditoria-embarques-detalhe__grid">
