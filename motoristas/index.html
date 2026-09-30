@@ -542,6 +542,7 @@ function renderResultadoConsulta(resultado) {
   alvo.innerHTML = `<div class="resultado-card resultado-card--sucesso">
     <div class="resultado-card__titulo">Olá, ${escapeHtml(m.nome)}!</div>
     <p class="resultado-card__texto">Placa: <strong>${escapeHtml(m.placa)}</strong></p>
+    <p class="resultado-card__texto">Rota: <strong>${escapeHtml(status.rota || 'Não definida')}</strong></p>
     <p class="resultado-card__badge">VOCÊ TEM CARGA HOJE</p>
     ${montarTrackerEtapas(status.status)}
     <p class="resultado-card__texto">${escapeHtml(ETAPA_MENSAGEM[status.status] || '')}</p>
