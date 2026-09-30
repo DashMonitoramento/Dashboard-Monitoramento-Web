@@ -8557,17 +8557,26 @@ const Dashboard = (() => {
   }
 
   /** "Encerrar o dia" (2026-09-25, item 19 do pedido dela — decidido via pergunta: fechamento
-   * MANUAL, não automático à meia-noite) — arquiva a programação de hoje (os 4 status de fila
-   * juntos, mesmo critério de CARGAS_STATUS_FILA) num snapshot só em `programacaoDiaria/{data}`
+   * MANUAL, não automático à meia-noite) — arquiva num snapshot só em `programacaoDiaria/{data}`
    * e limpa `statusCarga` (retiraStatusCarga em lote) pra começar amanhã do zero. Não mexe em
-   * `motoristas` (cadastro) nem `disponibilidade` — só a fila de separação. */
+   * `motoristas` (cadastro) nem `disponibilidade` — só a fila de separação.
+   *
+   * 2026-09-30: restrito a status CARREGADO (era os 4 de CARGAS_STATUS_FILA juntos) — bug real
+   * reportado por ela: motorista carrega 2x no mesmo dia (duplicidade normal, ver `duplicado` em
+   * definirStatusCarga) e a 2ª carga fica em Não Iniciada/Em Separação/Separado ENQUANTO ela
+   * clica Encerrar o dia pra fechar os outros motoristas que já terminaram — como só existe 1 doc
+   * por placa, isso apagava a 2ª carga em andamento junto, sem distinção. Carregado é o único
+   * status que nunca representa trabalho ainda ativo, então é seguro arquivar+limpar sem
+   * perguntar nada a mais; quem está nos 3 status "em andamento" nunca é tocado por este botão —
+   * continua na lista ao vivo pro dia seguinte até ela decidir (mover pra Carregado, Retirar, ou
+   * deixar como está). Decidido via AskUserQuestion (opção recomendada, sem checklist manual). */
   function bindCargasEncerrarDia() {
     const btn = document.getElementById('cargas-btn-encerrar-dia');
     if (!btn) return;
     btn.addEventListener('click', async () => {
-      const itens = Array.from(cargasStatusCarga.values()).filter(s => CARGAS_STATUS_FILA.includes(s.status));
-      if (!itens.length) { Utils.showToast('Não há motoristas na programação de hoje pra encerrar.', 'info', 3000); return; }
-      const confirmado = confirm(`Isso vai arquivar ${itens.length} motorista(s) no histórico de hoje e limpar a fila ao vivo. Confirma?`);
+      const itens = Array.from(cargasStatusCarga.values()).filter(s => s.status === 'CARREGADO');
+      if (!itens.length) { Utils.showToast('Não há motoristas Carregados pra encerrar (quem ainda está em Não Iniciada/Em Separação/Separado não é afetado).', 'info', 4000); return; }
+      const confirmado = confirm(`Isso vai arquivar ${itens.length} motorista(s) Carregado(s) no histórico de hoje e limpar só eles da fila ao vivo — quem ainda está em Não Iniciada/Em Separação/Separado (ex.: uma 2ª carga em andamento) não é afetado. Confirma?`);
       if (!confirmado) return;
       btn.disabled = true;
       try {
