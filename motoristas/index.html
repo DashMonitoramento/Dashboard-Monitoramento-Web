@@ -473,6 +473,18 @@ function normalizarNomeCompleto(nome) {
   return String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+// (2026-10-01) mesmo fix do painel admin (js/dashboard.js, cargasStatusEhDeHoje) — statusCarga
+// não tinha campo de data até agora, então um doc de dias atrás ficava indistinguível de um de
+// hoje aqui também, mostrando "Você tem carga hoje" com informação velha pro motorista. Docs sem
+// `data` (gravados antes deste fix) contam como NÃO-hoje de propósito.
+function hojeAAAAMMDD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function statusEhDeHoje(status) {
+  return !!status && status.data === hojeAAAAMMDD();
+}
+
 const ETAPA_ORDEM = ['NAO_INICIADA', 'EM_SEPARACAO', 'SEPARADO'];
 const ETAPA_LABEL = { NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada', SEPARADO: 'Separado', CARREGADO: 'Carregado' };
 const ETAPA_CLASSE = { NAO_INICIADA: 'erro', EM_SEPARACAO: 'alerta', SEPARADO: 'sucesso' };
@@ -531,7 +543,8 @@ function renderResultadoConsulta(resultado) {
   }
 
   const m = resultado.motorista;
-  const status = statusCarga.get(m.placa);
+  const statusBruto = statusCarga.get(m.placa);
+  const status = statusBruto && statusEhDeHoje(statusBruto) ? statusBruto : null;
   if (!status || !ETAPA_LABEL[status.status]) {
     alvo.innerHTML = `<div class="resultado-card resultado-card--erro">
       <div class="resultado-card__titulo">Olá, ${escapeHtml(m.nome)}!</div>
@@ -703,7 +716,8 @@ $('btn-continuar-placa').addEventListener('click', () => {
   const ETAPAS_SEPARACAO_BLOQUEIAM = {
     NAO_INICIADA: 'Separação Não Iniciada', EM_SEPARACAO: 'Separação Iniciada', SEPARADO: 'Separado'
   };
-  const statusAtual = statusCarga.get(placa);
+  const statusBrutoAtual = statusCarga.get(placa);
+  const statusAtual = statusBrutoAtual && statusEhDeHoje(statusBrutoAtual) ? statusBrutoAtual : null;
   if (statusAtual && ETAPAS_SEPARACAO_BLOQUEIAM[statusAtual.status]) {
     $('ja-em-separacao-etapa').textContent = ETAPAS_SEPARACAO_BLOQUEIAM[statusAtual.status];
     mostrarTela('ja-em-separacao');
