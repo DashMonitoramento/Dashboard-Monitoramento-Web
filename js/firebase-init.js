@@ -649,7 +649,7 @@ async function definirStatusCarga(placaBruta, novoStatus, rota, visivel = true, 
   // observação já escrita sem querer.
   lote.set(refAtual, {
     placa, status: novoStatus, rota: rota || '', transportadora: transportadora || '', observacao: dadosAntigos.observacao || '',
-    visivel, duplicado, atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    visivel, duplicado, data: cargasHojeAAAAMMDD(), atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistorico = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistorico, {
@@ -921,7 +921,7 @@ async function moverDisponibilidadeParaSeparacao(placaBruta, novoStatus, rota, t
   const lote = writeBatch(db);
   lote.set(refStatus, {
     placa, status: novoStatus, rota: rota || '', transportadora: transportadora || '', visivel: true, duplicado,
-    atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
+    data: cargasHojeAAAAMMDD(), atualizadoEm: serverTimestamp(), alteradoPorEmail: usuario.email
   });
   const refHistoricoStatus = doc(collection(db, STATUS_CARGA_HISTORICO_COLECAO));
   lote.set(refHistoricoStatus, {
