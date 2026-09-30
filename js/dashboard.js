@@ -7731,7 +7731,11 @@ const Dashboard = (() => {
     }
 
     const m = resultado.motorista;
-    const status = cargasStatusCarga.get(m.placa);
+    const statusBruto = cargasStatusCarga.get(m.placa);
+    // (2026-10-01, bug real reportado por motoristas: carga de um dia anterior nunca limpa —
+    // ver cargasStatusEhDeHoje) aparecia "Você tem carga hoje" com status de dias atrás porque
+    // nada aqui nunca checava a DATA do doc, só se ele existia.
+    const status = statusBruto && cargasStatusEhDeHoje(statusBruto) ? statusBruto : null;
     if (!status || !CARGAS_LABEL_FILTRO[status.status]) {
       alvo.innerHTML = `
         <div class="cargas-resultado-card">
@@ -8541,6 +8545,15 @@ const Dashboard = (() => {
   function cargasHojeAAAAMMDD() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  /** (2026-10-01) `statusCarga/{placa}` nunca teve campo de data até agora — "Encerrar o dia" é
+   * a ÚNICA limpeza que existe (manual, ver bindCargasEncerrarDia), e sem ela um doc de dias
+   * atrás fica valendo pra sempre, indistinguível de um de hoje, tanto aqui quanto no Painel do
+   * Motorista. Docs gravados ANTES deste fix não têm `data` nenhuma — tratados como NÃO-hoje de
+   * propósito (mais seguro presumir desatualizado do que presumir válido). */
+  function cargasStatusEhDeHoje(status) {
+    return !!status && status.data === cargasHojeAAAAMMDD();
   }
 
   /** "Encerrar o dia" (2026-09-25, item 19 do pedido dela — decidido via pergunta: fechamento
