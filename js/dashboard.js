@@ -16,8 +16,13 @@ const Dashboard = (() => {
   }
   let table = createTableState();
   // NFs marcadas na tabela "Registros detalhados" (2026-08-30, "Enviar Ocorrência") — só nessa
-  // tabela, não nas telas de detalhe/drill-down. Chave = r.nf (único por linha). Podado sempre
-  // que os filtros mudam (ver renderTable) pra nunca ficar com uma NF que saiu do recorte atual.
+  // tabela, não nas telas de detalhe/drill-down. Chave = r.nf (único por linha).
+  // **Revisado 2026-10-02 (pedido explícito dela)**: ANTES era podado sempre que os filtros
+  // mudavam (pra nunca ficar com uma NF fora do recorte atual) — ela pediu o oposto: selecionar
+  // uma NF, pesquisar por outra (escondendo a 1ª da tabela), e a 1ª continuar marcada. Agora só
+  // sai da seleção quando ela remove manualmente (checkbox, chip de NF no modal) ou quando um
+  // bloco é efetivamente enviado (copiar/WhatsApp/e-mail) — ver finalizarBlocoOcorrenciaAposEnvio/
+  // finalizarBlocoDevolucaoAposEnvio. renderTable NÃO poda mais nada contra o recorte filtrado.
   let notasSelecionadas = new Set();
   // Bloco(s) da ocorrência aberta no momento — 1 bloco por combinação Cliente+Motorista distinta
   // entre as NFs selecionadas (normalmente só 1). Ver abrirModalOcorrencia/renderBlocosOcorrencia.
@@ -26,6 +31,14 @@ const Dashboard = (() => {
   // Guarda os registros selecionados quando há Cliente/Motorista misto, entre mostrar o aviso
   // e o clique em "Criar ocorrências separadas automaticamente" (ver abrirModalOcorrencia).
   let ocorrenciaRegistrosPendentes = [];
+  // "Enviar Devolução Reentrega/Recusa" (2026-10-02) — mesmo mecanismo de blocos/modal de
+  // Ocorrência acima, reaproveitado pros 2 botões novos: 1 modal só, `devolucaoTipo` ('REENTREGA'
+  // | 'RECUSA') decide o título e a palavra final em negrito da mensagem (ver
+  // gerarMensagemDevolucao). Ver abrirModalDevolucao/renderBlocosDevolucao/bindDevolucao.
+  let devolucaoTipo = null;
+  let devolucaoBlocos = [];
+  let proximoIdBlocoDevolucao = 0;
+  let devolucaoRegistrosPendentes = [];
   let relatorioCanalSelecionado = 'whatsapp';
   // NF (base, sem sufixo) cuja observação está sendo editada na tabela "Registros detalhados"
   // (2026-08-30) — mesmo padrão de painel único usado em "Registro Dinâmico"
@@ -3764,13 +3777,9 @@ const Dashboard = (() => {
     // quando o modo não está ativo) — ANTES de podar a seleção, pra "selecionar todas"/seleção
     // continuarem batendo com o que está realmente visível nessa tela.
     const registrosExibidos = aplicarFiltroOcorrenciasDoDia(records);
-    // Poda a seleção ANTES de desenhar — se um filtro/busca mudou e alguma NF marcada não bate
-    // mais com o recorte atual, ela sai da seleção (pedido do usuário, 2026-08-30: "validar quais
-    // registros continuam selecionados pra evitar enviar uma NF incorreta"). Precisa ser sempre
-    // contra o conjunto FILTRADO completo (não só a página atual), já que "selecionar todas"
-    // também opera sobre o filtrado completo, não só as 25 linhas visíveis.
-    const nfsValidos = new Set(registrosExibidos.map(r => r.nf));
-    notasSelecionadas.forEach(nf => { if (!nfsValidos.has(nf)) notasSelecionadas.delete(nf); });
+    // NÃO poda mais a seleção contra o recorte filtrado atual (revertido 2026-10-02, pedido
+    // explícito dela — ver comentário de notasSelecionadas no topo do arquivo): uma NF marcada
+    // continua marcada mesmo que um filtro/busca novo a esconda da tabela.
     renderTableGeneric(registrosExibidos, table, MAIN_TABLE_IDS, rowHtmlComSelecao);
     atualizarBotoesScrollTabela();
     atualizarSelecaoUI();
@@ -6951,6 +6960,19 @@ const Dashboard = (() => {
     `).join('');
   }
 
+  /** Remove um bloco inteiro da seleção depois de efetivamente enviado (2026-10-02, pedido
+   * explícito dela: "apagar somente quando eu clicar no botão para enviar") — tira só as NFs
+   * DESSE bloco de notasSelecionadas (não mexe em outros blocos pendentes, quando há
+   * Cliente/Motorista misto), remove o bloco do modal e atualiza a tabela. Se era o último
+   * bloco, fecha o modal sozinho. */
+  function finalizarBlocoOcorrenciaAposEnvio(bloco) {
+    bloco.nfs.forEach(nf => notasSelecionadas.delete(nf));
+    ocorrenciaBlocos = ocorrenciaBlocos.filter(b => b.id !== bloco.id);
+    if (ocorrenciaBlocos.length === 0) fecharModalOcorrencia();
+    else renderBlocosOcorrencia();
+    renderTable(DataStore.getFilteredRecords());
+  }
+
   function bindOcorrencia() {
     document.getElementById('btn-enviar-ocorrencia').addEventListener('click', abrirModalOcorrencia);
     document.getElementById('btn-selecao-enviar-ocorrencia').addEventListener('click', abrirModalOcorrencia);
@@ -7004,7 +7026,7 @@ const Dashboard = (() => {
         const bloco = ocorrenciaBlocos.find(b => b.id === Number(copiarBtn.dataset.copiarBloco));
         if (bloco) {
           navigator.clipboard.writeText(gerarMensagemOcorrencia(bloco))
-            .then(() => Utils.showToast('Mensagem copiada.', 'success', 2500))
+            .then(() => { Utils.showToast('Mensagem copiada.', 'success', 2500); finalizarBlocoOcorrenciaAposEnvio(bloco); })
             .catch(() => Utils.showToast('Não foi possível copiar a mensagem.', 'error', 4000));
         }
         return;
@@ -7015,6 +7037,7 @@ const Dashboard = (() => {
         if (bloco) {
           window.open(`https://wa.me/?text=${encodeURIComponent(gerarMensagemOcorrencia(bloco))}`, '_blank', 'noopener');
           Utils.showToast('Abrindo WhatsApp com a mensagem pronta.', 'success', 2500);
+          finalizarBlocoOcorrenciaAposEnvio(bloco);
         }
         return;
       }
@@ -7024,6 +7047,211 @@ const Dashboard = (() => {
         if (bloco) {
           window.open(`mailto:?subject=${encodeURIComponent('Ocorrência de entrega')}&body=${encodeURIComponent(gerarMensagemOcorrencia(bloco))}`, '_blank');
           Utils.showToast('Abrindo e-mail com a mensagem pronta.', 'success', 2500);
+          finalizarBlocoOcorrenciaAposEnvio(bloco);
+        }
+      }
+    });
+  }
+
+  /* ============================================================
+   * ENVIAR DEVOLUÇÃO REENTREGA/RECUSA (2026-10-02)
+   * Mesmo mecanismo de blocos/modal de "Enviar Ocorrência" acima, reaproveitado pros 2 botões
+   * novos — 1 modal só (#modal-devolucao), `devolucaoTipo` decide o título e a palavra final em
+   * negrito da mensagem. Diferença chave: "Ocorrência" vem PRÉ-PREENCHIDA da própria coluna
+   * Observação da tabela (r.observacaoAgendamento), não começa vazia feito a de Ocorrência.
+   * ============================================================ */
+
+  /** "24/09" (dia/mês, sem ano) — formato pedido pela usuária pro campo "DATA" da mensagem. */
+  function formatarDataCurta(data) {
+    if (!data) return '—';
+    return `${String(data.getDate()).padStart(2, '0')}/${String(data.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  /** Mesmo agrupamento de montarBlocosOcorrencia (Cliente+Motorista) — "ocorrencia" usa a 1ª
+   * Observação (r.observacaoAgendamento) não vazia do grupo, já que NFs do mesmo Cliente+
+   * Motorista normalmente compartilham a mesma observação lançada na tabela; ela ainda pode
+   * editar no modal antes de enviar. "dataColeta" (r.dataEntrega) vem da 1ª NF do grupo. */
+  function montarBlocosDevolucao(registros) {
+    const grupos = new Map();
+    registros.forEach(r => {
+      const chave = chaveClienteMotorista(r);
+      if (!grupos.has(chave)) grupos.set(chave, { cliente: r.cliente, motorista: r.motorista, dataColeta: r.dataEntrega, observacao: '', nfs: [] });
+      const grupo = grupos.get(chave);
+      grupo.nfs.push(r.nf);
+      if (!grupo.observacao && (r.observacaoAgendamento || '').trim()) grupo.observacao = r.observacaoAgendamento.trim();
+    });
+    return Array.from(grupos.values()).map(g => ({
+      id: proximoIdBlocoDevolucao++, cliente: g.cliente, motorista: g.motorista, dataColeta: g.dataColeta, nfs: g.nfs, ocorrencia: g.observacao
+    }));
+  }
+
+  /** Formato definido pela usuária (2026-10-02): rótulos em negrito (sintaxe WhatsApp), "NFs"
+   * (plural, diferente do "NF" singular de gerarMensagemOcorrencia), sem Transportadora, e
+   * termina com *REENTREGA* ou *RECUSA* em negrito conforme `devolucaoTipo`. Exemplo dela:
+   * "*Motorista:* GILENO SIMÃO   *DATA:* 24/09\n*NFs:* 197969-1 / 197970-1\n*Cliente:* ...\n
+   * *Ocorrência:* ...\n\n*REENTREGA*". */
+  function gerarMensagemDevolucao(bloco) {
+    return `*Motorista:* ${bloco.motorista}   *DATA:* ${formatarDataCurta(bloco.dataColeta)}\n*NFs:* ${bloco.nfs.join(' / ')}\n*Cliente:* ${bloco.cliente}\n*Ocorrência:* ${bloco.ocorrencia || '(preencher ocorrência)'}\n\n*${devolucaoTipo}*`;
+  }
+
+  function abrirModalDevolucao(tipo) {
+    if (notasSelecionadas.size === 0) {
+      Utils.showToast('Selecione pelo menos uma NF para gerar a devolução.', 'warning');
+      return;
+    }
+    devolucaoTipo = tipo;
+    document.getElementById('modal-devolucao-titulo').textContent = tipo === 'REENTREGA' ? 'Nova Devolução — Reentrega' : 'Nova Devolução — Recusa';
+    const registros = DataStore.getFilteredRecords().filter(r => notasSelecionadas.has(r.nf));
+    const combinacoes = new Set(registros.map(chaveClienteMotorista));
+    const avisoMisto = document.getElementById('devolucao-aviso-misto');
+    const blocosContainer = document.getElementById('devolucao-blocos');
+    if (combinacoes.size > 1) {
+      devolucaoRegistrosPendentes = registros;
+      devolucaoBlocos = [];
+      avisoMisto.hidden = false;
+      blocosContainer.hidden = true;
+      blocosContainer.innerHTML = '';
+    } else {
+      avisoMisto.hidden = true;
+      blocosContainer.hidden = false;
+      devolucaoBlocos = montarBlocosDevolucao(registros);
+      renderBlocosDevolucao();
+    }
+    document.getElementById('modal-devolucao').hidden = false;
+  }
+
+  function fecharModalDevolucao() {
+    document.getElementById('modal-devolucao').hidden = true;
+  }
+
+  function renderBlocosDevolucao() {
+    const container = document.getElementById('devolucao-blocos');
+    container.innerHTML = devolucaoBlocos.map(bloco => `
+      <div class="ocorrencia-bloco" data-bloco-id="${bloco.id}">
+        <div class="ocorrencia-bloco__chips">
+          ${bloco.nfs.map(nf => `<span class="nf-chip">NF ${escapeAttr(nf)}<button type="button" class="nf-chip__remover" data-remover-nf-devolucao="${escapeAttr(nf)}" data-bloco-id="${bloco.id}" aria-label="Remover NF ${escapeAttr(nf)} desta devolução">×</button></span>`).join('')}
+        </div>
+        <div class="modal-field">
+          <label>NFs selecionadas</label>
+          <input type="text" value="${escapeAttr(bloco.nfs.join(' / '))}" readonly>
+        </div>
+        <div class="modal-field">
+          <label>Cliente</label>
+          <input type="text" value="${escapeAttr(bloco.cliente)}" readonly>
+        </div>
+        <div class="modal-field">
+          <label>Motorista</label>
+          <input type="text" value="${escapeAttr(bloco.motorista)}" readonly>
+        </div>
+        <div class="modal-field">
+          <label>Data de Coleta</label>
+          <input type="text" value="${escapeAttr(formatarDataCurta(bloco.dataColeta))}" readonly>
+        </div>
+        <div class="modal-field">
+          <label>Ocorrência</label>
+          <textarea rows="3" data-ocorrencia-bloco-devolucao="${bloco.id}" placeholder="Descreva a ocorrência...">${escapeAttr(bloco.ocorrencia)}</textarea>
+        </div>
+        <div class="modal-field">
+          <label>Pré-visualização</label>
+          <div class="ocorrencia-preview" data-preview-bloco-devolucao="${bloco.id}">${escapeAttr(gerarMensagemDevolucao(bloco))}</div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-copiar-bloco-devolucao="${bloco.id}">📋 Copiar mensagem</button>
+          <button type="button" class="btn" data-whatsapp-bloco-devolucao="${bloco.id}">WhatsApp</button>
+          <button type="button" class="btn" data-email-bloco-devolucao="${bloco.id}">E-mail</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  /** Mesma ideia de finalizarBlocoOcorrenciaAposEnvio — só tira as NFs DESSE bloco da seleção
+   * depois de efetivamente enviado, não mexe em outros blocos pendentes. */
+  function finalizarBlocoDevolucaoAposEnvio(bloco) {
+    bloco.nfs.forEach(nf => notasSelecionadas.delete(nf));
+    devolucaoBlocos = devolucaoBlocos.filter(b => b.id !== bloco.id);
+    if (devolucaoBlocos.length === 0) fecharModalDevolucao();
+    else renderBlocosDevolucao();
+    renderTable(DataStore.getFilteredRecords());
+  }
+
+  function bindDevolucao() {
+    document.getElementById('btn-enviar-devolucao-reentrega').addEventListener('click', () => abrirModalDevolucao('REENTREGA'));
+    document.getElementById('btn-selecao-enviar-devolucao-reentrega').addEventListener('click', () => abrirModalDevolucao('REENTREGA'));
+    document.getElementById('btn-enviar-devolucao-recusa').addEventListener('click', () => abrirModalDevolucao('RECUSA'));
+    document.getElementById('btn-selecao-enviar-devolucao-recusa').addEventListener('click', () => abrirModalDevolucao('RECUSA'));
+
+    const modal = document.getElementById('modal-devolucao');
+    document.getElementById('btn-fechar-modal-devolucao').addEventListener('click', fecharModalDevolucao);
+    document.getElementById('btn-devolucao-fechar-rodape').addEventListener('click', fecharModalDevolucao);
+    document.getElementById('btn-devolucao-voltar').addEventListener('click', fecharModalDevolucao);
+    modal.addEventListener('click', (e) => { if (e.target === modal) fecharModalDevolucao(); });
+
+    document.getElementById('btn-devolucao-separar').addEventListener('click', () => {
+      document.getElementById('devolucao-aviso-misto').hidden = true;
+      document.getElementById('devolucao-blocos').hidden = false;
+      devolucaoBlocos = montarBlocosDevolucao(devolucaoRegistrosPendentes);
+      renderBlocosDevolucao();
+    });
+
+    const container = document.getElementById('devolucao-blocos');
+
+    container.addEventListener('input', (e) => {
+      const textarea = e.target.closest('[data-ocorrencia-bloco-devolucao]');
+      if (!textarea) return;
+      const bloco = devolucaoBlocos.find(b => b.id === Number(textarea.dataset.ocorrenciaBlocoDevolucao));
+      if (!bloco) return;
+      bloco.ocorrencia = textarea.value;
+      const preview = container.querySelector(`[data-preview-bloco-devolucao="${bloco.id}"]`);
+      if (preview) preview.textContent = gerarMensagemDevolucao(bloco);
+    });
+
+    container.addEventListener('click', (e) => {
+      const removerBtn = e.target.closest('[data-remover-nf-devolucao]');
+      if (removerBtn) {
+        const bloco = devolucaoBlocos.find(b => b.id === Number(removerBtn.dataset.blocoId));
+        if (bloco) {
+          const nf = removerBtn.dataset.removerNfDevolucao;
+          bloco.nfs = bloco.nfs.filter(n => n !== nf);
+          notasSelecionadas.delete(nf);
+          if (bloco.nfs.length === 0) devolucaoBlocos = devolucaoBlocos.filter(b => b.id !== bloco.id);
+          if (devolucaoBlocos.length === 0) {
+            fecharModalDevolucao();
+            Utils.showToast('Todas as NFs foram removidas da devolução.', 'info', 3000);
+          } else {
+            renderBlocosDevolucao();
+          }
+          renderTable(DataStore.getFilteredRecords());
+        }
+        return;
+      }
+      const copiarBtn = e.target.closest('[data-copiar-bloco-devolucao]');
+      if (copiarBtn) {
+        const bloco = devolucaoBlocos.find(b => b.id === Number(copiarBtn.dataset.copiarBlocoDevolucao));
+        if (bloco) {
+          navigator.clipboard.writeText(gerarMensagemDevolucao(bloco))
+            .then(() => { Utils.showToast('Mensagem copiada.', 'success', 2500); finalizarBlocoDevolucaoAposEnvio(bloco); })
+            .catch(() => Utils.showToast('Não foi possível copiar a mensagem.', 'error', 4000));
+        }
+        return;
+      }
+      const whatsappBtn = e.target.closest('[data-whatsapp-bloco-devolucao]');
+      if (whatsappBtn) {
+        const bloco = devolucaoBlocos.find(b => b.id === Number(whatsappBtn.dataset.whatsappBlocoDevolucao));
+        if (bloco) {
+          window.open(`https://wa.me/?text=${encodeURIComponent(gerarMensagemDevolucao(bloco))}`, '_blank', 'noopener');
+          Utils.showToast('Abrindo WhatsApp com a mensagem pronta.', 'success', 2500);
+          finalizarBlocoDevolucaoAposEnvio(bloco);
+        }
+        return;
+      }
+      const emailBtn = e.target.closest('[data-email-bloco-devolucao]');
+      if (emailBtn) {
+        const bloco = devolucaoBlocos.find(b => b.id === Number(emailBtn.dataset.emailBlocoDevolucao));
+        if (bloco) {
+          const assunto = devolucaoTipo === 'REENTREGA' ? 'Devolução - Reentrega' : 'Devolução - Recusa';
+          window.open(`mailto:?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(gerarMensagemDevolucao(bloco))}`, '_blank');
+          Utils.showToast('Abrindo e-mail com a mensagem pronta.', 'success', 2500);
+          finalizarBlocoDevolucaoAposEnvio(bloco);
         }
       }
     });
@@ -7083,6 +7311,7 @@ const Dashboard = (() => {
   function bindSelecaoEOcorrencia() {
     bindSelecaoTabela();
     bindOcorrencia();
+    bindDevolucao();
     bindEnviarRelatorio();
   }
 
