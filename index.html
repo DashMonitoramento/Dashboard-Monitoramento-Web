@@ -221,6 +221,8 @@
   <span id="selecao-flutuante-texto">0 notas selecionadas</span>
   <div class="selecao-flutuante__acoes">
     <button type="button" id="btn-selecao-enviar-ocorrencia" class="btn btn--pill-orange">⚠️ Enviar Ocorrência</button>
+    <button type="button" id="btn-selecao-enviar-devolucao-reentrega" class="btn btn--pill-orange">🔁 Devolução Reentrega</button>
+    <button type="button" id="btn-selecao-enviar-devolucao-recusa" class="btn btn--pill-orange">🚫 Devolução Recusa</button>
     <button type="button" id="btn-selecao-limpar" class="btn btn--ghost">Limpar seleção</button>
   </div>
 </div>
@@ -283,6 +285,30 @@ Segue anexo o relatório atualizado.</textarea>
     <div id="ocorrencia-blocos"></div>
     <div class="modal-actions modal-actions--rodape">
       <button type="button" id="btn-ocorrencia-fechar-rodape" class="btn">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: ENVIAR DEVOLUÇÃO REENTREGA/RECUSA (2026-10-02) =====================
+     Mesmo padrão de #modal-ocorrencia acima, reaproveitado pros 2 botões novos (Reentrega/Recusa) —
+     1 modal só, o título e a palavra final em negrito da mensagem mudam conforme `devolucaoTipo`
+     (ver abrirModalDevolucao em dashboard.js). Conteúdo de #devolucao-blocos é 100% gerado via JS. ============ -->
+<div id="modal-devolucao" class="modal-overlay" hidden>
+  <div class="modal-card modal-card--grande">
+    <div class="modal-card__header">
+      <h2 class="modal-card__title" id="modal-devolucao-titulo">Nova Devolução</h2>
+      <button type="button" id="btn-fechar-modal-devolucao" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <div id="devolucao-aviso-misto" class="ocorrencia-aviso" hidden>
+      <p>⚠️ As notas selecionadas possuem clientes ou motoristas diferentes.</p>
+      <div class="ocorrencia-aviso__acoes">
+        <button type="button" id="btn-devolucao-separar" class="btn btn--pill-orange">Criar devoluções separadas automaticamente</button>
+        <button type="button" id="btn-devolucao-voltar" class="btn">Voltar para seleção</button>
+      </div>
+    </div>
+    <div id="devolucao-blocos"></div>
+    <div class="modal-actions modal-actions--rodape">
+      <button type="button" id="btn-devolucao-fechar-rodape" class="btn">Fechar</button>
     </div>
   </div>
 </div>
@@ -860,6 +886,8 @@ Segue anexo o relatório atualizado.</textarea>
             <button id="btn-export-csv" class="btn">⬇️ Exportar Excel</button>
             <button id="btn-enviar-relatorio" class="btn">📤 Enviar Relatório</button>
             <button id="btn-enviar-ocorrencia" class="btn btn--ocorrencia">⚠️ Enviar Ocorrência</button>
+            <button id="btn-enviar-devolucao-reentrega" class="btn btn--ocorrencia">🔁 Enviar Devolução Reentrega</button>
+            <button id="btn-enviar-devolucao-recusa" class="btn btn--ocorrencia">🚫 Enviar Devolução Recusa</button>
           </div>
           <div class="table-search">
             🔎 <input type="search" id="table-search" placeholder="Pesquisar na tabela...">
@@ -2713,7 +2741,7 @@ Segue anexo o relatório atualizado.</textarea>
 <script src="js/utils.js?v=20260901d"></script>
 <script src="js/data.js?v=20260929c"></script>
 <script src="js/charts.js?v=20260916b"></script>
-<script src="js/dashboard.js?v=20260930b"></script>
+<script src="js/dashboard.js?v=20261002a"></script>
 <script src="js/script.js?v=20260929a"></script>
 <script>
   // Registra o service worker só pra habilitar "Instalar app" no Android/Chrome -- ele não
